@@ -37,6 +37,17 @@ function Resolve-DotnetExe {
         # Return the expected-but-missing path so the error message is useful.
         return (Join-Path $binConfig "<TFM>\$ExeName")
     }
+    # Walk the bin\<Config> tree to find the most-recently-written copy of
+    # the exe. This handles both the flat layout (Win2D: bin\Release\<TFM>\app.exe)
+    # and the RID-nested layout used when RuntimeIdentifier is set (WinUI3:
+    # bin\Release\<TFM>\<RID>\app.exe). Recursion at depth 2 is bounded and
+    # cheap.
+    $found = Get-ChildItem -LiteralPath $binConfig -Filter $ExeName -File -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($null -ne $found) { return $found.FullName }
+
+    # Nothing matched yet (e.g. project not built). Fall back to a sensible
+    # path for the diagnostic message.
     $tfmDir = Get-ChildItem -LiteralPath $binConfig -Directory -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($null -eq $tfmDir) {
@@ -55,8 +66,12 @@ $Targets = [ordered]@{
         WindowClass = 'DesktopGrass.Win2D.Window'
     }
     'WinUI3' = @{
-        ExePath     = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WinUI3') -ExeName 'DesktopGrass.WinUI3.exe' -Configuration $Configuration
-        WindowClass = 'DesktopGrass.WinUI3.Window'
+        # WinUI 3 owns the Win32 window class name
+        # ('WinUIDesktopWin32WindowClass') and we can't rename it, so the
+        # smoke harness has to match by AppWindow.Title instead. MainWindow.xaml.cs
+        # sets the title to exactly "DesktopGrass.WinUI3.Window" at construction.
+        ExePath    = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WinUI3') -ExeName 'DesktopGrass.WinUI3.exe' -Configuration $Configuration
+        TitleMatch = '^DesktopGrass\.WinUI3\.Window$'
     }
 }
 
@@ -73,9 +88,15 @@ foreach ($name in $selected) {
     $spec = $Targets[$name]
     Write-Host "==> smoke: $name" -ForegroundColor Cyan
     Write-Host "    exe:   $($spec.ExePath)"
-    Write-Host "    class: $($spec.WindowClass)"
+    if ($spec.Contains('WindowClass')) { Write-Host "    class: $($spec.WindowClass)" }
+    if ($spec.Contains('TitleMatch'))  { Write-Host "    title: $($spec.TitleMatch)" }
 
-    $r = Invoke-AppSmoke -ExePath $spec.ExePath -WindowClass $spec.WindowClass
+    $invokeArgs = @{ ExePath = $spec.ExePath }
+    if ($spec.Contains('WindowClass'))  { $invokeArgs.WindowClass  = $spec.WindowClass }
+    if ($spec.Contains('TitleMatch'))   { $invokeArgs.TitleMatch   = $spec.TitleMatch }
+    if ($spec.Contains('BeforeLaunch')) { $invokeArgs.BeforeLaunch = $spec.BeforeLaunch }
+
+    $r = Invoke-AppSmoke @invokeArgs
 
     $results.Add([pscustomobject]@{
         Target       = $name

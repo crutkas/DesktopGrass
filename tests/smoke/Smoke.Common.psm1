@@ -51,6 +51,15 @@ namespace DesktopGrass.Smoke
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern int GetClassNameW(IntPtr hwnd, StringBuilder lpClassName, int nMaxCount);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern int GetWindowTextW(IntPtr hwnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern int GetWindowTextLengthW(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool IsWindowVisible(IntPtr hwnd);
+
         // 64-bit safe variant; on 32-bit hosts CLR will marshal to GetWindowLongW.
         [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
         public static extern IntPtr GetWindowLongPtrW(IntPtr hwnd, int nIndex);
@@ -76,6 +85,35 @@ namespace DesktopGrass.Smoke
                 return true;
             }, IntPtr.Zero);
             return matches;
+        }
+
+        // Enumerates every top-level window owned by the given pid, regardless
+        // of class. The TitleMatch path uses this to do a regex test against
+        // each title in PowerShell.
+        public static List<IntPtr> EnumerateAllWindowsForProcess(uint processId)
+        {
+            var matches = new List<IntPtr>();
+            EnumWindows((hwnd, lParam) =>
+            {
+                uint pid;
+                GetWindowThreadProcessId(hwnd, out pid);
+                if (pid == processId)
+                {
+                    matches.Add(hwnd);
+                }
+                return true;
+            }, IntPtr.Zero);
+            return matches;
+        }
+
+        public static string GetWindowTitle(IntPtr hwnd)
+        {
+            int len = GetWindowTextLengthW(hwnd);
+            if (len <= 0) return string.Empty;
+            var sb = new StringBuilder(len + 1);
+            int read = GetWindowTextW(hwnd, sb, sb.Capacity);
+            if (read <= 0) return string.Empty;
+            return sb.ToString();
         }
     }
 }
@@ -114,47 +152,102 @@ function Start-AppForSmoke {
 }
 
 function Wait-ForWindow {
-    [CmdletBinding()]
+    <#
+    .SYNOPSIS
+        Waits for a top-level window owned by the given process to appear,
+        matching either by Win32 class name (exact) or window title (regex).
+
+    .DESCRIPTION
+        At least one of -ClassName / -TitleMatch must be supplied. If both are
+        provided, the window must satisfy BOTH (class equality AND title regex).
+
+        TitleMatch is the canonical path for WinUI 3 targets: the WinUI 3
+        framework owns the window class name ('WinUIDesktopWin32WindowClass')
+        and re-uses it for any Microsoft.UI.Xaml.Window, so matching by class
+        cannot disambiguate our window from anything else WinUI hosts in the
+        same process. Each target sets AppWindow.Title to a known string
+        instead and the harness regex-matches it.
+    #>
+    [CmdletBinding(DefaultParameterSetName='ByClass')]
     param(
         [Parameter(Mandatory)] [System.Diagnostics.Process] $Process,
-        [Parameter(Mandatory)] [string] $ClassName,
-        [Parameter(Mandatory)] [int]    $TimeoutSeconds
+
+        [Parameter(ParameterSetName='ByClass',     Mandatory)]
+        [Parameter(ParameterSetName='ClassAndTitle', Mandatory)]
+        [string] $ClassName,
+
+        [Parameter(ParameterSetName='ByTitle',     Mandatory)]
+        [Parameter(ParameterSetName='ClassAndTitle', Mandatory)]
+        [string] $TitleMatch,
+
+        [Parameter(Mandatory)] [int] $TimeoutSeconds
     )
+
+    if (-not $PSBoundParameters.ContainsKey('ClassName') -and -not $PSBoundParameters.ContainsKey('TitleMatch')) {
+        throw "Wait-ForWindow requires at least one of -ClassName / -TitleMatch."
+    }
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $pid = [uint32]$Process.Id
 
+    $titleRegex = $null
+    if ($PSBoundParameters.ContainsKey('TitleMatch')) {
+        $titleRegex = [System.Text.RegularExpressions.Regex]::new(
+            $TitleMatch,
+            [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    }
+
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($Process.HasExited) {
-            throw "process exited (code=$($Process.ExitCode)) before window class '$ClassName' appeared"
+            $what = if ($titleRegex) { "title /${TitleMatch}/" } else { "class '$ClassName'" }
+            throw "process exited (code=$($Process.ExitCode)) before window $what appeared"
         }
 
-        # Fast path: global FindWindowExW against the class atom string.
-        $hwnd = [DesktopGrass.Smoke.Win32]::FindWindowExW(
-            [IntPtr]::Zero, [IntPtr]::Zero, $ClassName, $null)
+        # Class-only fast path keeps the original FindWindowExW behaviour.
+        if ($PSCmdlet.ParameterSetName -eq 'ByClass') {
+            $hwnd = [DesktopGrass.Smoke.Win32]::FindWindowExW(
+                [IntPtr]::Zero, [IntPtr]::Zero, $ClassName, $null)
 
-        if ($hwnd -ne [IntPtr]::Zero) {
-            # Confirm ownership: don't accept a same-class window from another
-            # process (paranoid, but cheap).
-            $owningPid = [uint32]0
-            [void][DesktopGrass.Smoke.Win32]::GetWindowThreadProcessId($hwnd, [ref]$owningPid)
-            if ($owningPid -eq $pid) {
-                return $hwnd
+            if ($hwnd -ne [IntPtr]::Zero) {
+                $owningPid = [uint32]0
+                [void][DesktopGrass.Smoke.Win32]::GetWindowThreadProcessId($hwnd, [ref]$owningPid)
+                if ($owningPid -eq $pid) {
+                    return $hwnd
+                }
+            }
+
+            $owned = [DesktopGrass.Smoke.Win32]::EnumerateWindowsForProcess($pid, $ClassName)
+            if ($owned.Count -gt 0) {
+                return [IntPtr]$owned[0]
             }
         }
-
-        # Fallback / cross-check: enumerate all top-level windows owned by the
-        # process and look for the class. Catches multi-monitor cases where the
-        # first window FindWindowExW returns isn't ours.
-        $owned = [DesktopGrass.Smoke.Win32]::EnumerateWindowsForProcess($pid, $ClassName)
-        if ($owned.Count -gt 0) {
-            return [IntPtr]$owned[0]
+        else {
+            # ByTitle / ClassAndTitle: walk every top-level window owned by
+            # the process and test the (optional) class + title regex.
+            $all = [DesktopGrass.Smoke.Win32]::EnumerateAllWindowsForProcess($pid)
+            foreach ($candidate in $all) {
+                $hwnd = [IntPtr]$candidate
+                if (-not [DesktopGrass.Smoke.Win32]::IsWindowVisible($hwnd)) {
+                    continue
+                }
+                if ($PSCmdlet.ParameterSetName -eq 'ClassAndTitle') {
+                    $sb = [System.Text.StringBuilder]::new(256)
+                    [void][DesktopGrass.Smoke.Win32]::GetClassNameW($hwnd, $sb, $sb.Capacity)
+                    if ($sb.ToString() -ne $ClassName) { continue }
+                }
+                $title = [DesktopGrass.Smoke.Win32]::GetWindowTitle($hwnd)
+                if ([string]::IsNullOrEmpty($title)) { continue }
+                if ($titleRegex.IsMatch($title)) {
+                    return $hwnd
+                }
+            }
         }
 
         Start-Sleep -Milliseconds 100
     }
 
-    throw "timed out after ${TimeoutSeconds}s waiting for window class '$ClassName' from pid $pid"
+    $what = if ($titleRegex) { "title /${TitleMatch}/" } else { "class '$ClassName'" }
+    throw "timed out after ${TimeoutSeconds}s waiting for window $what from pid $pid"
 }
 
 function Assert-ClickThroughExStyles {
@@ -274,14 +367,33 @@ function Stop-AppGracefully {
 }
 
 function Invoke-AppSmoke {
+    <#
+    .SYNOPSIS
+        Launches the target app and runs the click-through + grass-rendered
+        assertions, returning a result hashtable.
+
+    .PARAMETER WindowClass
+        Win32 class name to match (exact). Mutually exclusive with TitleMatch
+        unless both are supplied (in which case the window must satisfy both).
+
+    .PARAMETER TitleMatch
+        Regex matched against each window's title via GetWindowTextW. Use this
+        for the WinUI 3 target whose class name is owned by the framework.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $ExePath,
-        [Parameter(Mandatory)] [string] $WindowClass,
+        [string] $WindowClass,
+        [string] $TitleMatch,
         [int] $StripHeight    = 80,
         [int] $MinUniqueColors = 50,
-        [int] $TimeoutSeconds  = 5
+        [int] $TimeoutSeconds  = 5,
+        [scriptblock] $BeforeLaunch
     )
+
+    if (-not $WindowClass -and -not $TitleMatch) {
+        throw "Invoke-AppSmoke requires at least one of -WindowClass / -TitleMatch."
+    }
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $result = [ordered]@{
@@ -295,11 +407,28 @@ function Invoke-AppSmoke {
     $hwnd = [IntPtr]::Zero
 
     try {
+        # BeforeLaunch lets a target prepare for the smoke run (e.g. emit a
+        # warm-up trace, register a per-target dependency, write a marker
+        # file). It runs synchronously before Start-AppForSmoke. Exceptions
+        # propagate and abort the smoke for this target.
+        if ($null -ne $BeforeLaunch) {
+            & $BeforeLaunch | Out-Null
+        }
+
         $proc = Start-AppForSmoke -ExePath $ExePath
-        $hwnd = Wait-ForWindow -Process $proc -ClassName $WindowClass -TimeoutSeconds $TimeoutSeconds
+
+        $waitArgs = @{
+            Process        = $proc
+            TimeoutSeconds = $TimeoutSeconds
+        }
+        if ($WindowClass) { $waitArgs.ClassName  = $WindowClass }
+        if ($TitleMatch)  { $waitArgs.TitleMatch = $TitleMatch }
+
+        $hwnd = Wait-ForWindow @waitArgs
         [void](Assert-ClickThroughExStyles -Hwnd $hwnd)
 
-        # Give Direct2D / Composition a beat to produce its first real frame.
+        # Give the renderer (Direct2D / Composition / XAML composition) a
+        # beat to produce its first real frame.
         Start-Sleep -Milliseconds 1500
 
         $result.UniqueColors = Assert-GrassRendered -StripHeight $StripHeight -MinUniqueColors $MinUniqueColors
@@ -311,7 +440,6 @@ function Invoke-AppSmoke {
             try {
                 Stop-AppGracefully -Process $proc -Hwnd $hwnd -TimeoutSeconds 2
             } catch {
-                # cleanup failure shouldn't override the original fail reason
                 if ($null -eq $result.FailReason) {
                     $result.FailReason = "cleanup failed: $($_.Exception.Message)"
                 }
