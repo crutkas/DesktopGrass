@@ -83,6 +83,7 @@ namespace DesktopGrass.Smoke
 }
 
 Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue | Out-Null
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue | Out-Null
 
 # ---------------------------------------------------------------------------
 # Public helpers

@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/DesktopGrass.Native/DesktopGrass.Native.vcxproj" />
     <Project Path="src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj" />
     <Project Path="tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj" />
   </Folder>
 </Solution>
