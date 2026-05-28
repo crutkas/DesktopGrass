@@ -1,0 +1,60 @@
+# Build outputs
+bin/
+obj/
+out/
+build/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM/
+ARM64/
+AppPackages/
+BundleArtifacts/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+*.swp
+*.pdb
+*.cache
+*.ilk
+*.lib
+*.exp
+*.idb
+*.dll
+*.exe
+!docs/**/*.png
+
+# Rider / VS Code
+.idea/
+.vscode/
+*.code-workspace
+
+# .NET / NuGet
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+artifacts/
+packages/
+*.nupkg
+
+# Native / vcpkg
+vcpkg_installed/
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+compile_commands.json
+
+# OS
+Thumbs.db
+ehthumbs.db
+.DS_Store
+
+# Local config
+*.local.props
+*.local.json
