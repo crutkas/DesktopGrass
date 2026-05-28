@@ -1,0 +1,65 @@
+<Project>
+
+  <!-- Explicit SDK imports so we can add our task-stubs Import AFTER the
+       WindowsAppSDK targets file (which registers UsingTask declarations
+       for tasks that don't ship in the .NET SDK). The implicit
+       `<Project Sdk="Microsoft.NET.Sdk">` syntax imports Sdk.targets at
+       end-of-evaluation, which would run too late for our override. -->
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>DesktopGrass.WinUI3</RootNamespace>
+    <AssemblyName>DesktopGrass.WinUI3</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!--
+      Build as an unpackaged self-contained WinUI 3 app. See the friction
+      note in the summary: the canonical packaged path
+      (Package.appxmanifest + MSIX + Add-AppxPackage) needs Visual Studio's
+      MSBuild task assemblies (Microsoft.Build.AppxPackage.dll +
+      Microsoft.Build.Packaging.Pri.Tasks.dll). Those don't ship in the
+      .NET 10 SDK alone — they're a VS install thing. On a VS-less box the
+      unpackaged self-contained path is the realistic option, and the
+      Sim/render/hook code is identical to what packaged would use.
+    -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
+    <EnableDefaultWindowsAppSdkPRIResourceItems>false</EnableDefaultWindowsAppSdkPRIResourceItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.756" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.0" />
+    <PackageReference Include="H.NotifyIcon.WinUI" Version="2.0.17" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- Override the VS-path-hardcoded UsingTasks with no-op inline
+       implementations. This MUST come after Sdk.targets so the WinAppSDK
+       targets file has already been imported. -->
+  <Import Project="WinAppSdkTaskStubs.targets" />
+
+</Project>
