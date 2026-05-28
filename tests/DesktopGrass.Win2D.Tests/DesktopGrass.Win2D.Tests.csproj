@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DesktopGrass.Win2D.Tests</RootNamespace>
+    <AssemblyName>DesktopGrass.Win2D.Tests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!--
+    File-link the pure-logic source files from the app project instead of a
+    ProjectReference. The app project targets net8.0-windows and depends on
+    WinRT projections; we want tests to be plain net8.0 so they run on any
+    CI build agent.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\DesktopGrass.Win2D\Constants.cs" Link="Shared\Constants.cs" />
+    <Compile Include="..\..\src\DesktopGrass.Win2D\Sim.cs" Link="Shared\Sim.cs" />
+
+    <Compile Include="SimTests\PrngTests.cs" />
+    <Compile Include="SimTests\BladeGenTests.cs" />
+    <Compile Include="SimTests\SwayTests.cs" />
+    <Compile Include="SimTests\GustTests.cs" />
+    <Compile Include="SimTests\CutTests.cs" />
+    <Compile Include="InternalsVisible.cs" />
+  </ItemGroup>
+
+</Project>
