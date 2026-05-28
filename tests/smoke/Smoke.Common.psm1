@@ -288,16 +288,18 @@ function Get-GrassStripPixelVariance {
         [Parameter(Mandatory)] [int] $StripHeight
     )
 
-    # Primary monitor bounds.
+    # Primary monitor's *work area* (excludes the taskbar). The grass renders
+    # on top of the taskbar (at the bottom of the work area), so we sample the
+    # strip ending at WorkingArea.Bottom rather than Bounds.Bottom.
     $primary = [System.Windows.Forms.Screen]::PrimaryScreen
     if ($null -eq $primary) {
         Add-Type -AssemblyName System.Windows.Forms | Out-Null
         $primary = [System.Windows.Forms.Screen]::PrimaryScreen
     }
-    $bounds = $primary.Bounds
-    $width  = [int]$bounds.Width
-    $top    = [int]($bounds.Y + $bounds.Height - $StripHeight)
-    $left   = [int]$bounds.X
+    $workArea = $primary.WorkingArea
+    $width  = [int]$workArea.Width
+    $top    = [int]($workArea.Y + $workArea.Height - $StripHeight)
+    $left   = [int]$workArea.X
 
     $bmp = [System.Drawing.Bitmap]::new($width, $StripHeight, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $unique = [System.Collections.Generic.HashSet[int]]::new()

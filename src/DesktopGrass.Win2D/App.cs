@@ -93,7 +93,9 @@ internal sealed class App : IDisposable
             // Get monitor info for accurate DPI handling.
             var mi = new Win32.MONITORINFO { cbSize = (uint)Marshal.SizeOf<Win32.MONITORINFO>() };
             Win32.GetMonitorInfoW(hMonitor, ref mi);
-            monitors.Add((hMonitor, mi.rcMonitor, 96));
+            // Use the work area, not the full monitor rect, so the grass sits
+            // on top of the taskbar instead of being drawn behind it.
+            monitors.Add((hMonitor, mi.rcWork, 96));
             return true;
         };
         Win32.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, cb, IntPtr.Zero);

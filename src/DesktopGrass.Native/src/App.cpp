@@ -36,7 +36,10 @@ BOOL CALLBACK MonitorEnumProc(HMONITOR hMon, HDC, LPRECT, LPARAM lParam) {
     MONITORINFO mi{};
     mi.cbSize = sizeof(mi);
     if (GetMonitorInfoW(hMon, &mi)) {
-        ctx->bounds.push_back(mi.rcMonitor);
+        // Use the work area, not the full monitor rect, so the grass sits on
+        // top of the taskbar instead of being drawn behind it. On monitors with
+        // no taskbar (typical secondary displays), rcWork == rcMonitor.
+        ctx->bounds.push_back(mi.rcWork);
         UINT xDpi = 96, yDpi = 96;
         if (FAILED(GetDpiForMonitor(hMon, MDT_EFFECTIVE_DPI, &xDpi, &yDpi))) {
             xDpi = 96;

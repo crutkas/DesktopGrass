@@ -19,11 +19,24 @@ internal static class MonitorEnumerator
 {
     public static IReadOnlyList<MonitorBounds> EnumerateForV1()
     {
-        // Primary monitor in physical pixels. WinUI 3's AppWindow uses
-        // physical pixels for Move/Resize too, so no DIP scaling needed
-        // at this layer.
-        int w = User32.GetSystemMetrics(User32.SM_CXSCREEN);
-        int h = User32.GetSystemMetrics(User32.SM_CYSCREEN);
-        return new[] { new MonitorBounds(0, 0, w, h) };
+        // Primary monitor's *work area* in physical pixels. Using the work
+        // area (instead of the full monitor) keeps the grass strip on top of
+        // the taskbar instead of being drawn behind it.
+        //
+        // WinUI 3's AppWindow uses physical pixels for Move/Resize too, so no
+        // DIP scaling is needed at this layer.
+        var rc = default(User32.RECT);
+        if (!User32.SystemParametersInfoW(User32.SPI_GETWORKAREA, 0, ref rc, 0))
+        {
+            // Fall back to the full primary monitor if the call somehow fails.
+            int w = User32.GetSystemMetrics(User32.SM_CXSCREEN);
+            int h = User32.GetSystemMetrics(User32.SM_CYSCREEN);
+            return new[] { new MonitorBounds(0, 0, w, h) };
+        }
+
+        return new[]
+        {
+            new MonitorBounds(rc.Left, rc.Top, rc.Right - rc.Left, rc.Bottom - rc.Top),
+        };
     }
 }

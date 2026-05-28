@@ -69,4 +69,20 @@ internal static class User32
 
     public const int SM_CXSCREEN = 0;
     public const int SM_CYSCREEN = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SystemParametersInfoW(
+        uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
+
+    public const uint SPI_GETWORKAREA = 0x0030;
 }
