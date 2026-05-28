@@ -1,2 +1,8 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj" />
+  </Folder>
 </Solution>
