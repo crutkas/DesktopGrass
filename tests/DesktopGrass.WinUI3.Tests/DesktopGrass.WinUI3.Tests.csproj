@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DesktopGrass.WinUI3.Tests</RootNamespace>
+    <AssemblyName>DesktopGrass.WinUI3.Tests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!--
+    File-link the pure-logic source files from the app project instead of
+    a ProjectReference. The app project targets net8.0-windows10.x and
+    depends on the entire WinAppSDK + Win2D NuGet payload; tests want to
+    stay plain net8.0 so they run on any CI build agent (including Linux,
+    if anyone ever cross-compiles the spec snapshot from elsewhere).
+
+    The linked files MUST be self-contained — they may reference only
+    System.* and types from the same DesktopGrass.WinUI3 namespace. Both
+    Sim.cs and Constants.cs honour that contract.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\DesktopGrass.WinUI3\Constants.cs" Link="Shared\Constants.cs" />
+    <Compile Include="..\..\src\DesktopGrass.WinUI3\Sim.cs" Link="Shared\Sim.cs" />
+
+    <Compile Include="SimTests\PrngTests.cs" />
+    <Compile Include="SimTests\BladeGenTests.cs" />
+    <Compile Include="SimTests\SwayTests.cs" />
+    <Compile Include="SimTests\GustTests.cs" />
+    <Compile Include="SimTests\CutTests.cs" />
+    <Compile Include="SimTests\StrokeTests.cs" />
+  </ItemGroup>
+
+</Project>
