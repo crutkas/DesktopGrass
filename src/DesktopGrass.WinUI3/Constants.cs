@@ -21,8 +21,8 @@ internal static class Constants
     // §5 — generation.
     public const double BladeSpacingMin   = 4.0;
     public const double BladeSpacingMax   = 8.0;
-    public const double BladeHeightMin    = 8.0;
-    public const double BladeHeightMax    = 40.0;
+    public const double BladeHeightMin    = 6.0;  // DIP — minimum blade height
+    public const double BladeHeightMax    = 30.0; // DIP — maximum blade height
     public const double BladeThicknessMin = 1.0;
     public const double BladeThicknessMax = 2.5;
     public const double StiffnessMin      = 0.6;
@@ -32,7 +32,7 @@ internal static class Constants
 
     // §6 — sway physics.
     public static readonly double BaseSwaySpeed = Math.PI / 3.0; // rad/sec, 6s period
-    public const double BaseAmplitude       = 6.0;   // DIP
+    public const double BaseAmplitude       = 3.0;   // DIP — base sway amplitude
     public const double DecayRate           = 2.5;   // /sec
     public const double GustToLeanFactor    = 1.5;   // DIP·sec/rad
 
@@ -77,6 +77,6 @@ internal static class Constants
 
     // Default density used by the runtime renderer. The spec says
     // "~400 blades per 1920 DIP" is met by density ≈ 1.25; WinUI 3 uses
-    // 1.5 for a fuller default while snapshot tests pass 1.0 explicitly.
-    public const double DefaultDensity = 1.5;
+    // 2.25 for a denser default while snapshot tests pass 1.0 explicitly.
+    public const double DefaultDensity = 2.25; // density multiplier
 }

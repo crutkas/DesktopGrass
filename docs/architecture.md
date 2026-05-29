@@ -103,7 +103,7 @@ Each blade is a plain-old-data struct. Field order is not load-bearing across im
 | Field | Type | Range | Lifetime | Description |
 | --- | --- | --- | --- | --- |
 | `baseX` | double (DIP) | `[0, monitorWidth)` | static | Anchor point on the ground line. |
-| `height` | double (DIP) | `[8, 40]` | static | Blade length from ground to tip when fully uncut. |
+| `height` | double (DIP) | `[6, 30]` | static | Blade length from ground to tip when fully uncut. |
 | `thickness` | double (DIP) | `[1.0, 2.5]` | static | Stroke width for the Bezier. |
 | `hue` | uint8 | `[0, 5]` | static | Index into `PALETTE` (see below). |
 | `swayPhaseOffset` | double (rad) | `[0, 2π)` | static | Per-blade phase offset for sway. |
@@ -159,7 +159,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
         Blade b;
         b.baseX            = x;
-        b.height           = prng_uniform(&p, 8.0, 40.0);
+        b.height           = prng_uniform(&p, 6.0, 30.0);
         b.thickness        = prng_uniform(&p, 1.0, 2.5);
         b.hue              = (uint8_t)prng_index(&p, 6);
         b.swayPhaseOffset  = prng_uniform(&p, 0.0, 2.0 * M_PI);
@@ -184,7 +184,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
 **Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. Reordering or interleaving the two streams changes the per-blade values for a given seed and breaks the snapshot tests. The two streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth is enabled.
 
-At a 1920-DIP-wide monitor with `density = 1.5`, the expected blade count is approximately `2 * 1920 * 1.5 / (4 + 8) ≈ 480`; this is the current app default tuning for a denser field.
+At a 1920-DIP-wide monitor with `density = 2.25`, the expected blade count is approximately `2 * 1920 * 2.25 / (4 + 8) ≈ 720`; this is the current app default tuning for a denser field.
 
 ---
 
@@ -211,7 +211,7 @@ void update_blade_dynamics(Blade* b, double globalTime, double dt) {
 
 Constants (see also §11):
 - `BASE_SWAY_SPEED = π / 3 ≈ 1.0471975511965976` rad/sec → 6-second sway period.
-- `BASE_AMPLITUDE = 6.0` DIP → peak horizontal tip displacement under sway alone (before stiffness).
+- `BASE_AMPLITUDE = 3.0` DIP → peak horizontal tip displacement under sway alone (before stiffness).
 - `DECAY_RATE = 2.5` /sec → gust velocity half-life ≈ 0.277 sec.
 - `GUST_TO_LEAN_FACTOR = 1.5` DIP·sec/rad → converts the (informal) angular gust velocity into a DIP offset.
 
@@ -493,16 +493,16 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `HEADROOM` | 30 | DIP | §2, §8 |
 | `BLADE_SPACING_MIN` | 4.0 | DIP | §5 |
 | `BLADE_SPACING_MAX` | 8.0 | DIP | §5 |
-| `DEFAULT_DENSITY` | 1.5 | (unitless) | §5 |
-| `BLADE_HEIGHT_MIN` | 8.0 | DIP | §4, §5 |
-| `BLADE_HEIGHT_MAX` | 40.0 | DIP | §4, §5 |
+| `DEFAULT_DENSITY` | 2.25 | (unitless) | §5 |
+| `BLADE_HEIGHT_MIN` | 6.0 | DIP | §4, §5 |
+| `BLADE_HEIGHT_MAX` | 30.0 | DIP | §4, §5 |
 | `BLADE_THICKNESS_MIN` | 1.0 | DIP | §4, §5 |
 | `BLADE_THICKNESS_MAX` | 2.5 | DIP | §4, §5 |
 | `STIFFNESS_MIN` | 0.6 | (unitless) | §4, §5 |
 | `STIFFNESS_MAX` | 1.0 | (unitless) | §4, §5 |
 | `PALETTE_SIZE` | 6 | colors | §4 |
 | `BASE_SWAY_SPEED` | π / 3 ≈ 1.0471975511965976 | rad/sec | §6 |
-| `BASE_AMPLITUDE` | 6.0 | DIP | §6 |
+| `BASE_AMPLITUDE` | 3.0 | DIP | §6 |
 | `DECAY_RATE` | 2.5 | /sec | §6 |
 | `GUST_TO_LEAN_FACTOR` | 1.5 | DIP·sec/rad | §6, §8 |
 | `MAX_CURSOR_SPEED` | 4000.0 | DIP/sec | §8 |
@@ -543,7 +543,7 @@ Tests at minimum SHOULD assert:
    - The blade count matches across impls.
    - For the first 10 and last 10 blades, every static field (`baseX`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`) matches to within `1e-12` (double precision round-trip; should be exact).
    - `baseX` is strictly increasing.
-   - All `height ∈ [8, 40]`, `thickness ∈ [1.0, 2.5]`, `hue ∈ [0, 5]`, `swayPhaseOffset ∈ [0, 2π)`, `stiffness ∈ [0.6, 1.0]`.
+   - All `height ∈ [6, 30]`, `thickness ∈ [1.0, 2.5]`, `hue ∈ [0, 5]`, `swayPhaseOffset ∈ [0, 2π)`, `stiffness ∈ [0.6, 1.0]`.
 
 3. **Sway determinism.** Given a fixed blade and `globalTime`, `effectiveLean` (with `gustVelocity = 0`) matches across impls to within `1e-9`. The bound is loose because `sin` may differ in last-bit precision between CRTs.
 

@@ -15,8 +15,8 @@ internal static class Constants
     // Blade generation (§4, §5)
     public const double BLADE_SPACING_MIN = 4.0;
     public const double BLADE_SPACING_MAX = 8.0;
-    public const double BLADE_HEIGHT_MIN = 8.0;
-    public const double BLADE_HEIGHT_MAX = 40.0;
+    public const double BLADE_HEIGHT_MIN = 6.0;    // DIP - minimum blade height
+    public const double BLADE_HEIGHT_MAX = 30.0;   // DIP - maximum blade height
     public const double BLADE_THICKNESS_MIN = 1.0;
     public const double BLADE_THICKNESS_MAX = 2.5;
     public const double STIFFNESS_MIN = 0.6;
@@ -25,7 +25,7 @@ internal static class Constants
 
     // Sway physics (§6)
     public static readonly double BASE_SWAY_SPEED = Math.PI / 3.0; // rad/sec → 6-sec period
-    public const double BASE_AMPLITUDE = 6.0;          // DIP peak sway lean
+    public const double BASE_AMPLITUDE = 3.0;          // DIP peak sway lean
     public const double DECAY_RATE = 2.5;              // /sec gust decay
     public const double GUST_TO_LEAN_FACTOR = 1.5;     // DIP*sec/rad
 
@@ -57,8 +57,8 @@ internal static class Constants
     // Canonical seed for snapshot tests (§12)
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;
 
-    // Density override the plan calls for ~400 blades / 1920 px monitor.
-    public const double DEFAULT_DENSITY = 1.5;
+    // Density override the plan calls for ~600 blades / 1920 px monitor.
+    public const double DEFAULT_DENSITY = 2.25;
 
     // Palette (§4) - exactly 6 ARGB colors, alpha always 0xFF.
     public static readonly uint[] PALETTE =

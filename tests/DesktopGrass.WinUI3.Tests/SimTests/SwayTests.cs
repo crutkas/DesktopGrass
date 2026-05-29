@@ -87,7 +87,7 @@ public class SwayTests
             maxAbs = Math.Max(maxAbs, Math.Abs(b.EffectiveLean));
             t += dt;
         }
-        Assert.InRange(maxAbs, 5.99, Constants.BaseAmplitude + 1e-9);
+        Assert.InRange(maxAbs, Constants.BaseAmplitude * 0.999, Constants.BaseAmplitude + 1e-9);
     }
 
     [Fact]
