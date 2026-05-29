@@ -68,7 +68,8 @@ public class SwayTests
         var b = MakeBlade();
         b.GustVelocity = 4.0;
         Sim.UpdateBladeDynamics(ref b, 0.0, dt: 0.0);
-        Assert.Equal(6.0, b.EffectiveLean, 9);
+        // sin(0)*amplitude*stiffness = 0; pure gust = gustVelocity * GUST_TO_LEAN_FACTOR
+        Assert.Equal(4.0 * Constants.GUST_TO_LEAN_FACTOR, b.EffectiveLean, 9);
     }
 
     [Fact]

@@ -34,7 +34,7 @@ internal static class Constants
     public static readonly double BaseSwaySpeed = Math.PI / 3.0; // rad/sec, 6s period
     public const double BaseAmplitude       = 3.0;   // DIP — base sway amplitude
     public const double DecayRate           = 2.5;   // /sec
-    public const double GustToLeanFactor    = 1.5;   // DIP·sec/rad
+    public const double GustToLeanFactor    = 0.75;  // DIP·sec/rad
 
     // §8 — gust impulse.
     public const double MaxCursorSpeed      = 4000.0; // DIP/sec

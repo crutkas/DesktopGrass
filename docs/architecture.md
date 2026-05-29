@@ -213,7 +213,7 @@ Constants (see also §11):
 - `BASE_SWAY_SPEED = π / 3 ≈ 1.0471975511965976` rad/sec → 6-second sway period.
 - `BASE_AMPLITUDE = 3.0` DIP → peak horizontal tip displacement under sway alone (before stiffness).
 - `DECAY_RATE = 2.5` /sec → gust velocity half-life ≈ 0.277 sec.
-- `GUST_TO_LEAN_FACTOR = 1.5` DIP·sec/rad → converts the (informal) angular gust velocity into a DIP offset.
+- `GUST_TO_LEAN_FACTOR = 0.75` DIP·sec/rad → converts the (informal) angular gust velocity into a DIP offset.
 
 Sway is **stateless w.r.t. dt** — it is a pure function of `globalTime` and the static fields. Only `gustVelocity` and the cut state accumulate.
 
@@ -328,7 +328,7 @@ for (Blade* b in blades) {
 }
 ```
 
-`IMPULSE_SCALE = 0.003` rad/DIP (so the unit of `capped` cancels against this and `impulseMagnitude` comes out in rad/sec). At the speed cap of 4000 DIP/sec this yields a peak `delta ≈ 12` rad/sec at the cursor, which through `GUST_TO_LEAN_FACTOR = 1.5` corresponds to ≈ 18 DIP of additional lean — a visible but not slapstick gust.
+`IMPULSE_SCALE = 0.003` rad/DIP (so the unit of `capped` cancels against this and `impulseMagnitude` comes out in rad/sec). At the speed cap of 4000 DIP/sec this yields a peak `delta ≈ 12` rad/sec at the cursor, which through `GUST_TO_LEAN_FACTOR = 0.75` corresponds to ≈ 9 DIP of additional lean — a visible nudge that only saturates the chord-preservation clamp on the shortest blades right at the cursor.
 
 `GUST_RADIUS = 150` DIP.
 
@@ -508,7 +508,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `BASE_SWAY_SPEED` | π / 3 ≈ 1.0471975511965976 | rad/sec | §6 |
 | `BASE_AMPLITUDE` | 3.0 | DIP | §6 |
 | `DECAY_RATE` | 2.5 | /sec | §6 |
-| `GUST_TO_LEAN_FACTOR` | 1.5 | DIP·sec/rad | §6, §8 |
+| `GUST_TO_LEAN_FACTOR` | 0.75 | DIP·sec/rad | §6, §8 |
 | `MAX_CURSOR_SPEED` | 4000.0 | DIP/sec | §8 |
 | `IMPULSE_SCALE` | 0.003 | rad/DIP | §8 |
 | `GUST_RADIUS` | 150.0 | DIP | §8 |
