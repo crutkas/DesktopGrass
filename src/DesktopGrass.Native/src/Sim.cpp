@@ -79,6 +79,12 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
     Prng pFlower;
     prng_init(pFlower, seed ^ FLOWER_PRNG_SALT);
 
+    // Mushroom stream (PROTOTYPE — Native-only). Fourth independent stream
+    // salted with MUSHROOM_PRNG_SALT so adding mushrooms does NOT perturb
+    // the existing flower / regrowth / main sequences.
+    Prng pMushroom;
+    prng_init(pMushroom, seed ^ MUSHROOM_PRNG_SALT);
+
     double x = 0.0;
     while (true) {
         double step = prng_uniform(p, BLADE_SPACING_MIN, BLADE_SPACING_MAX) / density;
@@ -117,6 +123,25 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
             b.flowerHeadColorIdx = 0;
             b.flowerHeadRadius   = 0.0;
             b.heightBonus        = 1.0;
+        }
+
+        // Mushroom stream (PROTOTYPE). One unconditional draw (probability
+        // check), then 5 more conditional draws for cap color, cap width,
+        // cap height, stem height, stem thickness.
+        const bool isMushroom = prng_uniform(pMushroom, 0.0, 1.0) < MUSHROOM_PROBABILITY;
+        b.isMushroom = isMushroom;
+        if (isMushroom) {
+            b.mushroomCapColorIdx     = static_cast<uint8_t>(prng_index(pMushroom, MUSHROOM_PALETTE_SIZE));
+            b.mushroomCapWidth        = prng_uniform(pMushroom, MUSHROOM_CAP_WIDTH_MIN,      MUSHROOM_CAP_WIDTH_MAX);
+            b.mushroomCapHeight       = prng_uniform(pMushroom, MUSHROOM_CAP_HEIGHT_MIN,     MUSHROOM_CAP_HEIGHT_MAX);
+            b.mushroomStemHeight      = prng_uniform(pMushroom, MUSHROOM_STEM_HEIGHT_MIN,    MUSHROOM_STEM_HEIGHT_MAX);
+            b.mushroomStemThickness   = prng_uniform(pMushroom, MUSHROOM_STEM_THICKNESS_MIN, MUSHROOM_STEM_THICKNESS_MAX);
+        } else {
+            b.mushroomCapColorIdx     = 0;
+            b.mushroomCapWidth        = 0.0;
+            b.mushroomCapHeight       = 0.0;
+            b.mushroomStemHeight      = 0.0;
+            b.mushroomStemThickness   = 0.0;
         }
 
         out.push_back(b);

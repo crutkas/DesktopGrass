@@ -73,6 +73,18 @@ struct Blade {
     double  flowerHeadRadius    = 0.0;
     double  heightBonus         = 1.0;
 
+    // Mushroom (PROTOTYPE — Native-only). Static, set once at generation from
+    // a fourth independent PRNG stream. When isMushroom=true the renderer
+    // draws a filled-ellipse cap on a short stem at this slot and skips the
+    // grass blade + flower head. cutHeight still drives cut/regrow animation
+    // for mushrooms (cap+stem shrink/grow linearly with it).
+    bool    isMushroom              = false;
+    uint8_t mushroomCapColorIdx     = 0;
+    double  mushroomCapWidth        = 0.0;   // radius X (DIP)
+    double  mushroomCapHeight       = 0.0;   // radius Y (DIP)
+    double  mushroomStemHeight      = 0.0;   // DIP
+    double  mushroomStemThickness   = 0.0;   // DIP
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;

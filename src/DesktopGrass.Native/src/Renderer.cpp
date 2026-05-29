@@ -129,6 +129,18 @@ bool Renderer::CreateDeviceResources() {
         if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
     }
 
+    for (int i = 0; i < MUSHROOM_PALETTE_SIZE; ++i) {
+        mushroomCapBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(MUSHROOM_PALETTE[i]),
+                                                mushroomCapBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+
+    mushroomStemBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(MUSHROOM_STEM_COLOR),
+                                            mushroomStemBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -183,6 +195,8 @@ bool Renderer::CreateSwapChainResources(int widthPx, int heightPx) {
 void Renderer::DiscardDeviceResources() {
     for (auto& b : brushes_) b.Reset();
     for (auto& b : flowerHeadBrushes_) b.Reset();
+    for (auto& b : mushroomCapBrushes_) b.Reset();
+    mushroomStemBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -313,6 +327,50 @@ void Renderer::DrawGrass() {
     d2dFactory_.As(&factoryGeneric);
 
     for (const Blade& b : sim_.blades) {
+        // Mushroom slots preempt grass + flower rendering at this position.
+        // Cap + stem scale linearly with cutHeight so the cut animation
+        // visibly shrinks them; below CUT_STUMP_THRESHOLD the mushroom is
+        // invisible (matches the grass-stump short-circuit in spirit).
+        if (b.isMushroom) {
+            const float baseX  = static_cast<float>(b.baseX);
+            const float gy     = static_cast<float>(groundY);
+            const float stemT  = static_cast<float>(b.mushroomStemThickness);
+
+            // Stump-stub short-circuit: when a mushroom is cut below the
+            // CUT_STUMP_THRESHOLD, draw a short ivory stem stub the same
+            // way grass blades drop to a STUMP_HEIGHT line. The cap is
+            // gone — you cut it off — so we only paint the stub stem.
+            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+                d2dContext_->DrawLine(
+                    D2D1::Point2F(baseX, gy),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    mushroomStemBrush_.Get(),
+                    stemT);
+                continue;
+            }
+
+            const float scale  = static_cast<float>(b.cutHeight);
+            const float stemH  = static_cast<float>(b.mushroomStemHeight) * scale;
+            const float capRX  = static_cast<float>(b.mushroomCapWidth)  * scale;
+            const float capRY  = static_cast<float>(b.mushroomCapHeight) * scale;
+            const float capCY  = gy - stemH;
+
+            // Stem: short vertical line, ivory.
+            d2dContext_->DrawLine(
+                D2D1::Point2F(baseX, gy),
+                D2D1::Point2F(baseX, capCY),
+                mushroomStemBrush_.Get(),
+                stemT);
+
+            // Cap: filled ellipse sitting on top of the stem.
+            uint8_t cIdx = b.mushroomCapColorIdx;
+            if (cIdx >= MUSHROOM_PALETTE_SIZE) cIdx = 0;
+            const D2D1_ELLIPSE cap = D2D1::Ellipse(
+                D2D1::Point2F(baseX, capCY), capRX, capRY);
+            d2dContext_->FillEllipse(cap, mushroomCapBrushes_[cIdx].Get());
+            continue;
+        }
+
         const Stroke s = compute_blade_stroke(b, groundY);
 
         // Path: line from base, quadratic Bezier to tip via control.

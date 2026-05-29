@@ -81,6 +81,34 @@ constexpr uint32_t FLOWER_PALETTE[FLOWER_PALETTE_SIZE] = {
     0xFFEF5350u, // 5 red (poppy)
 };
 
+// Mushrooms (PROTOTYPE — Native-only for now). 2.5% of blade slots become
+// mushrooms (filled-ellipse cap on a short stem). Sampled from a fourth
+// independent PRNG stream so adding mushrooms does NOT perturb the existing
+// flower / regrowth / main streams. Mushrooms preempt grass rendering at a
+// slot: the renderer draws the mushroom geometry and skips the grass blade
+// + flower head for that slot.
+constexpr double   MUSHROOM_PROBABILITY        = 0.025;
+constexpr double   MUSHROOM_CAP_WIDTH_MIN      = 4.0;   // DIP, radius X
+constexpr double   MUSHROOM_CAP_WIDTH_MAX      = 8.0;
+constexpr double   MUSHROOM_CAP_HEIGHT_MIN     = 2.5;   // DIP, radius Y (flatter than width)
+constexpr double   MUSHROOM_CAP_HEIGHT_MAX     = 5.0;
+constexpr double   MUSHROOM_STEM_HEIGHT_MIN    = 4.0;   // DIP
+constexpr double   MUSHROOM_STEM_HEIGHT_MAX    = 10.0;
+constexpr double   MUSHROOM_STEM_THICKNESS_MIN = 2.0;   // DIP
+constexpr double   MUSHROOM_STEM_THICKNESS_MAX = 4.0;
+constexpr int      MUSHROOM_PALETTE_SIZE       = 6;
+constexpr uint64_t MUSHROOM_PRNG_SALT          = 0xBADC0FFEE0FACE21ull;
+constexpr uint32_t MUSHROOM_STEM_COLOR         = 0xFFF5F5DCu; // beige/ivory
+
+constexpr uint32_t MUSHROOM_PALETTE[MUSHROOM_PALETTE_SIZE] = {
+    0xFFD32F2Fu, // 0 red (amanita)
+    0xFF8D6E63u, // 1 brown
+    0xFFC9A66Bu, // 2 tan
+    0xFFFFF8E1u, // 3 ivory
+    0xFFE57373u, // 4 dusty pink
+    0xFF6D4C41u, // 5 dark brown
+};
+
 // Tests -----------------------------------------------------------------------
 constexpr uint64_t CANONICAL_TEST_SEED = 0x6B6173746Full;
 
