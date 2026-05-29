@@ -1,6 +1,6 @@
 # DesktopGrass implementation comparison
 
-This is a side-by-side comparison of the three v1 DesktopGrass implementations on `main`.
+This is a side-by-side comparison of the four v1 DesktopGrass implementations on `main`.
 
 ## TL;DR
 
@@ -24,11 +24,11 @@ Measured/inspected:
 
 Not formally measured in v1:
 
-- Runtime CPU, GPU, memory, startup time, and long-run stability. The runtime notes below are smoke-run impressions only: the apps target 60 fps, run roughly 400 blades on a 1920 px monitor, and all three passed the screenshot pixel-variance gate within about two seconds of launch. Formal CPU/GPU profiling is a v2 follow-up.
+- Runtime CPU, GPU, memory, startup time, and long-run stability. The runtime notes below are smoke-run impressions only: the apps target 60 fps, run roughly 600 blades on a 1920 px monitor (after the `DEFAULT_DENSITY=2.25` density bump), and all four pass the screenshot pixel-variance gate within about three seconds of launch. Formal CPU/GPU profiling is a v2 follow-up.
 
 Conformance signal:
 
-- The smoke runs reported the same `11,642 unique colors` for all three implementations. That is not a full pixel-perfect proof, but it is the v1 conformance signal: all three ports use the same xorshift64 PRNG, the same canonical seed (`0x6B6173746F`), and the same blade/sway/gust/cut math from `docs\architecture.md`, yielding a near-identical bottom-strip pixel distribution.
+- The original v1 smoke runs reported the same `11,642 unique colors` for all three implementations on `main` at the time. That is not a full pixel-perfect proof, but it is the v1 conformance signal: all four ports now use the same xorshift64 PRNG, the same canonical seed (`0x6B6173746F`), and the same blade/sway/gust/cut/regrowth math from `docs\architecture.md`, yielding a near-identical bottom-strip pixel distribution. Subsequent tunings (chord-preserving bend, softer gust, larger amplitude, higher density) have shifted the absolute count downward but the four impls remain within ~25% of each other per run.
 
 Counting note:
 
@@ -145,7 +145,7 @@ The WinUI 3 renderer is the clearest "WinUI 3 alone is not enough" data point: e
 
 ## Mouse hook
 
-All three implementations use the same observe-only pattern:
+All four implementations use the same observe-only pattern:
 
 - Install `SetWindowsHookExW(WH_MOUSE_LL, ...)`.
 - Handle `WM_MOUSEMOVE` and `WM_LBUTTONDOWN`.
@@ -166,7 +166,7 @@ The C# variants both keep the hook delegate in a field so the GC cannot collect 
 
 Native uses Catch2; both managed implementations use xUnit. That distinction did not matter much because the shared spec made the pure simulation tests straightforward: same canonical seed, same PRNG sequence, same blade vector, same sway/gust/cut behavior.
 
-The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The measured v1 result was much stronger than the minimum gate: all three produced `11,642` unique colors.
+The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The original v1 measurement was `11,642` for all three impls; the current four-impl baseline after later visual tuning sits roughly in the 1,600–3,500 range per impl (still well above the 50-color minimum gate).
 
 ## Where each stack genuinely shines
 
@@ -182,7 +182,7 @@ The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts 
 - Standardize the LoC counting scope before quoting headline numbers: app only, app+tests, interop included/excluded, vendored code excluded.
 - Make the smoke harness a small `WinAppRuntime`-aware launcher that understands class-name matching, title-regex matching, `BeforeLaunch`, packaged app activation, and RID-specific .NET output paths.
 - Add a click-through probe window under the grass instead of only asserting ExStyle bits.
-- Add multi-monitor smoke and DPI-change smoke; all three codebases already have monitor-aware architecture, but v1 only gates primary-monitor rendering.
+- Add multi-monitor smoke and DPI-change smoke; all four codebases already have monitor-aware architecture, but v1 only gates primary-monitor rendering.
 - Standardize on Vortice for managed low-level render comparisons; it provided the most direct mapping to the native Direct2D/DComp model.
 - If WinUI remains in the comparison, decide whether the target is packaged/framework-dependent or unpackaged self-contained, then measure that deployment shape explicitly.
 - Consider adding Avalonia or Uno as a cross-stack comparison only if the goal is UI-framework ergonomics; for raw overlays, they should be compared against the same HWND/DComp requirements.
