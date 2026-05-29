@@ -268,6 +268,8 @@ void generate_pines_for_winter(Sim& sim) noexcept {
 
     for (Blade& b : sim.blades) {
         restore_original_variants(b);
+        // Winter biome suppresses mushrooms — they don't fit a snowy, cold scene.
+        b.isMushroom = false;
 
         const double r = prng_uniform(pinePrng, 0.0, 1.0);
         if (r >= PINE_PROBABILITY) continue;
@@ -572,9 +574,9 @@ Stroke compute_blade_stroke(const Blade& b, double groundY, Scene scene) noexcep
     }
 
     const double heightScale =
-        (scene == Scene::Desert && !b.isCactus && !b.isMushroom)
-            ? DESERT_GRASS_HEIGHT_SCALE
-            : 1.0;
+        (scene == Scene::Desert && !b.isCactus && !b.isMushroom) ? DESERT_GRASS_HEIGHT_SCALE :
+        (scene == Scene::Winter && !b.isPine && !b.isMushroom)   ? WINTER_GRASS_HEIGHT_SCALE :
+        1.0;
     const double L = b.height * b.heightBonus * b.cutHeight * heightScale;
 
     // Chord preservation: blades have a fixed length L. As effectiveLean

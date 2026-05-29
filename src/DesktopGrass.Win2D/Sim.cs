@@ -248,6 +248,8 @@ internal sealed class Sim
         {
             ref Blade b = ref sim.Blades[i];
             RestoreOriginalVariants(ref b);
+            // Winter biome suppresses mushrooms — they don't fit a snowy, cold scene.
+            b.IsMushroom = false;
 
             double r = pinePrng.Uniform(0.0, 1.0);
             if (r >= Constants.PINE_PROBABILITY) continue;
@@ -757,6 +759,10 @@ internal sealed class Sim
         if (scene == Scene.Desert && !b.IsCactus && !b.IsMushroom)
         {
             L *= Constants.DESERT_GRASS_HEIGHT_SCALE;
+        }
+        else if (scene == Scene.Winter && !b.IsPine && !b.IsMushroom)
+        {
+            L *= Constants.WINTER_GRASS_HEIGHT_SCALE;
         }
 
         // Chord preservation: blades have a fixed length L. As EffectiveLean

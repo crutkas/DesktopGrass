@@ -62,8 +62,8 @@ public class PineTests
     public void PineConstantsArePinned()
     {
         Assert.Equal(0.006, Constants.PINE_PROBABILITY);
-        Assert.Equal(36.0, Constants.PINE_HEIGHT_MIN);
-        Assert.Equal(72.0, Constants.PINE_HEIGHT_MAX);
+        Assert.Equal(45.0, Constants.PINE_HEIGHT_MIN);
+        Assert.Equal(90.0, Constants.PINE_HEIGHT_MAX);
         Assert.Equal(16.0, Constants.PINE_WIDTH_MIN);
         Assert.Equal(28.0, Constants.PINE_WIDTH_MAX);
         Assert.Equal(2, Constants.PINE_TIER_COUNT_MIN);
@@ -132,6 +132,30 @@ public class PineTests
         Assert.False(sim.Blades[expected.SlotIndex].IsPine);
         Assert.True(sim.Blades[expected.SlotIndex].IsFlower);
         Assert.True(sim.Blades[expected.SlotIndex].IsMushroom);
+    }
+
+    [Fact]
+    public void WinterSceneSuppressesMushroomsOnEverySlot()
+    {
+        var sim = BuildSim();
+        for (int i = 0; i < sim.Blades.Length; i += 17)
+        {
+            sim.Blades[i].IsMushroom = true;
+            sim.Blades[i].OriginalIsMushroom = true;
+        }
+
+        sim.SetScene(Scene.Winter);
+
+        foreach (var b in sim.Blades) Assert.False(b.IsMushroom);
+
+        sim.SetScene(Scene.Grass);
+        Assert.Equal(sim.Blades[0].OriginalIsMushroom, sim.Blades[0].IsMushroom);
+    }
+
+    [Fact]
+    public void WinterGrassHeightScaleIsPinned()
+    {
+        Assert.Equal(0.5, Constants.WINTER_GRASS_HEIGHT_SCALE);
     }
 
     [Fact]

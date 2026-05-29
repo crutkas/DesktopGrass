@@ -120,6 +120,10 @@ constexpr double   AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless, fraction o
 // time so cacti read as the dominant biome feature.
 constexpr double   DESERT_GRASS_HEIGHT_SCALE     = 0.5;
 
+// Winter scene shrinks ordinary blade heights so pines and snow caps
+// read as the dominant features; mushrooms are also suppressed below.
+constexpr double   WINTER_GRASS_HEIGHT_SCALE     = 0.5;
+
 // Cacti (§14). Slot-bound Desert blade variants generated from an independent
 // PRNG stream so the §12 static blade snapshot remains unchanged.
 constexpr double   CACTUS_PROBABILITY            = 0.005;
@@ -238,8 +242,8 @@ constexpr uint32_t SNOW_TIP_COLOR                  = 0xFFFFFFFFu;
 
 // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
 constexpr double   PINE_PROBABILITY                = 0.006;
-constexpr double   PINE_HEIGHT_MIN                 = 36.0;
-constexpr double   PINE_HEIGHT_MAX                 = 72.0;
+constexpr double   PINE_HEIGHT_MIN                 = 45.0;
+constexpr double   PINE_HEIGHT_MAX                 = 90.0;
 constexpr double   PINE_WIDTH_MIN                  = 16.0;
 constexpr double   PINE_WIDTH_MAX                  = 28.0;
 constexpr int      PINE_TIER_COUNT_MIN             = 2;

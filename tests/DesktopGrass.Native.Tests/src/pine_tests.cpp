@@ -50,8 +50,8 @@ ExpectedPine first_expected_pine(std::size_t bladeCount) {
 
 TEST_CASE("Pine constants are pinned", "[pine][constants]") {
     REQUIRE(PINE_PROBABILITY == Approx(0.006));
-    REQUIRE(PINE_HEIGHT_MIN == Approx(36.0));
-    REQUIRE(PINE_HEIGHT_MAX == Approx(72.0));
+    REQUIRE(PINE_HEIGHT_MIN == Approx(45.0));
+    REQUIRE(PINE_HEIGHT_MAX == Approx(90.0));
     REQUIRE(PINE_WIDTH_MIN  == Approx(16.0));
     REQUIRE(PINE_WIDTH_MAX  == Approx(28.0));
     REQUIRE(PINE_TIER_COUNT_MIN == 2);
@@ -118,6 +118,27 @@ TEST_CASE("Grass scene restores pine slots to vanilla variants", "[pine][restore
     REQUIRE_FALSE(sim.blades[expected.slotIndex].isPine);
     REQUIRE(sim.blades[expected.slotIndex].isFlower);
     REQUIRE(sim.blades[expected.slotIndex].isMushroom);
+}
+
+TEST_CASE("Winter scene suppresses mushrooms on every slot", "[pine][winter][mushroom]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    // Pre-mark a handful of slots as mushrooms; Winter must clear them all.
+    for (std::size_t i = 0; i < sim.blades.size(); i += 17) {
+        sim.blades[i].isMushroom = true;
+        sim.blades[i].originalIsMushroom = true;
+    }
+
+    sim_set_scene(sim, Scene::Winter);
+
+    for (const Blade& b : sim.blades) REQUIRE_FALSE(b.isMushroom);
+
+    // Switching back to Grass must restore the original mushroom flags.
+    sim_set_scene(sim, Scene::Grass);
+    REQUIRE(sim.blades[0].isMushroom == sim.blades[0].originalIsMushroom);
+}
+
+TEST_CASE("Winter grass height scale is pinned", "[pine][winter][scale]") {
+    REQUIRE(WINTER_GRASS_HEIGHT_SCALE == Approx(0.5));
 }
 
 TEST_CASE("Winter scene leaves the canonical first blade geometry bit-identical", "[pine][snapshot]") {

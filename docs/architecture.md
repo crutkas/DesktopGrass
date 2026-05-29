@@ -828,9 +828,11 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `SNOWFLAKE_PRNG_SALT` | `0xC0FFEE1CECAFEBAB` | uint64 | §15 |
 | `SNOW_TIP_RADIUS_FACTOR` | 1.25 | × `blade.thickness` | §15 |
 | `SNOW_TIP_COLOR` | `0xFFFFFFFF` | uint32 ARGB | §15 |
+| `DESERT_GRASS_HEIGHT_SCALE` | 0.5 | (unitless) | §14 |
+| `WINTER_GRASS_HEIGHT_SCALE` | 0.5 | (unitless) | §15 |
 | `PINE_PROBABILITY` | 0.006 | (unitless) | §15.1 |
-| `PINE_HEIGHT_MIN` | 36.0 | DIP | §15.1 |
-| `PINE_HEIGHT_MAX` | 72.0 | DIP | §15.1 |
+| `PINE_HEIGHT_MIN` | 45.0 | DIP | §15.1 |
+| `PINE_HEIGHT_MAX` | 90.0 | DIP | §15.1 |
 | `PINE_WIDTH_MIN` | 16.0 | DIP | §15.1 |
 | `PINE_WIDTH_MAX` | 28.0 | DIP | §15.1 |
 | `PINE_TIER_COUNT_MIN` | 2 | (count) | §15.1 |
@@ -1118,7 +1120,15 @@ The "Scene ▸ Desert" tray item already exists (§13). Selecting Desert calls `
 
 ## 15. Winter scene
 
-The Winter scene swaps to the frosty palette (§13), emits **snowflakes** continuously as drifting roaming entities, and adds **snow-tipped blade caps** as a pure render-time effect over the existing blade vector.
+The Winter scene swaps to the frosty palette (§13), emits **snowflakes** continuously as drifting roaming entities, and adds **snow-tipped blade caps** as a pure render-time effect over the existing blade vector. The biome also shrinks ordinary blade height and suppresses mushrooms so the snow caps + pines (§15.1) read as the dominant features.
+
+### Biome-shaped blade rendering
+
+While `sim.currentScene == Winter`, `compute_blade_stroke` multiplies the per-blade effective length `L` by `WINTER_GRASS_HEIGHT_SCALE` (0.5) for every blade that is **not** a pine and **not** a mushroom. This mirrors the Desert convention (`DESERT_GRASS_HEIGHT_SCALE`, applied to non-cactus non-mushroom blades) so cacti / pines read as the dominant biome feature. Cut state, sway, and snapshot reproducibility are unaffected — only the rendered geometry is shorter.
+
+### Mushroom suppression
+
+Mushrooms do not fit a snowy, cold biome. As part of the pine generation pass invoked from `set_scene(Winter)`, every blade has `isMushroom` forced to `false` (regardless of its `originalIsMushroom`). Switching back to `Grass` restores the original mushroom flags through the universal `restore_original_variants` path.
 
 ### Snowflakes (continuous emission)
 

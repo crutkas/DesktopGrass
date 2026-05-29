@@ -112,6 +112,7 @@ internal static class Constants
     // Desert scene shrinks non-cactus, non-mushroom blade heights at render
     // time so cacti read as the dominant biome feature.
     public const double DESERT_GRASS_HEIGHT_SCALE    = 0.5;
+    public const double WINTER_GRASS_HEIGHT_SCALE    = 0.5;
 
     // Cacti (§14). Slot-bound Desert blade variants generated from an
     // independent stream so the static §12 blade snapshot is untouched.
@@ -217,8 +218,8 @@ internal static class Constants
 
     // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
     public const double PINE_PROBABILITY        = 0.006;
-    public const double PINE_HEIGHT_MIN         = 36.0;
-    public const double PINE_HEIGHT_MAX         = 72.0;
+    public const double PINE_HEIGHT_MIN         = 45.0;
+    public const double PINE_HEIGHT_MAX         = 90.0;
     public const double PINE_WIDTH_MIN          = 16.0;
     public const double PINE_WIDTH_MAX          = 28.0;
     public const int    PINE_TIER_COUNT_MIN     = 2;
