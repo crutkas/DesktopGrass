@@ -115,6 +115,10 @@ Each blade is a plain-old-data struct. Field order is not load-bearing across im
 | `regrowDelay` | double (sec) | `[30, 90]` | static | Per-blade wait after being cut before regrowth begins. |
 | `regrowDuration` | double (sec) | `[2, 4]` | static | Per-blade time to grow back from stump to full height. |
 | `regrowStart` | double (sec) | `-1` or `≥ 0` | runtime | `globalTime` at which regrowth begins (set when cut anim completes); `-1` = idle. Initial: -1. |
+| `isFlower` | bool | `{false, true}` | static | If true, this blade is rendered as a flower (taller stem + colored head at the tip). See §5 "Flower stream" and §7 "Flower head". |
+| `flowerHeadColorIdx` | uint8 | `[0, 5]` | static | Index into `FLOWER_PALETTE`. Unused when `isFlower == false`. |
+| `flowerHeadRadius` | double (DIP) | `[1.8, 3.0]` | static | Radius of the filled circle drawn at the tip. Unused when `isFlower == false`. |
+| `heightBonus` | double | `[1.0, 1.5]` | static | Multiplier on `height` for stem length. `1.0` for non-flowers; `[1.2, 1.5]` for flowers — flowers stand visibly taller than the surrounding grass. |
 
 ### Color palette
 
@@ -130,6 +134,21 @@ Exactly 6 ARGB colors, indexed by `hue`. Implementations may store these as thei
 | 5 | `0xFF8FD96A` | light green |
 
 Alpha is always `0xFF`; window-level transparency is handled by the compositor.
+
+### Flower palette
+
+Flowers use a separate 6-color palette so their heads contrast with the grass behind them.
+
+| Index | ARGB (hex) | Approx swatch |
+| --- | --- | --- |
+| 0 | `0xFFFFEB3B` | yellow (dandelion) |
+| 1 | `0xFFFFA726` | orange (marigold) |
+| 2 | `0xFFFF80AB` | pink (cosmos) |
+| 3 | `0xFFE1BEE7` | lavender |
+| 4 | `0xFFFFFFFF` | white (daisy) |
+| 5 | `0xFFEF5350` | red (poppy) |
+
+Alpha is always `0xFF` here too.
 
 ---
 
@@ -148,6 +167,9 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
     Prng pr;       // regrowth stream — drives regrowDelay / regrowDuration
     prng_init(&pr, seed ^ REGROW_PRNG_SALT);
+
+    Prng pf;       // flower stream — decides flower-or-not + flower props
+    prng_init(&pf, seed ^ FLOWER_PRNG_SALT);
 
     double x = 0.0;
     while (x < monitorWidth) {
@@ -171,6 +193,29 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.regrowDelay      = prng_uniform(&pr, REGROW_DELAY_MIN,    REGROW_DELAY_MAX);
         b.regrowDuration   = prng_uniform(&pr, REGROW_DURATION_MIN, REGROW_DURATION_MAX);
 
+        // Flower stream. Every blade consumes EXACTLY ONE unconditional
+        // draw from this stream (the probability check). Flower blades
+        // additionally consume three more draws for head color / radius
+        // / height bonus. Non-flower blades stop after the first draw.
+        // This ordering is required for the flower stream to produce an
+        // identical (isFlower, headColor, headRadius, heightBonus)
+        // sequence across all four implementations for a given seed.
+        bool isFlower = prng_uniform(&pf, 0.0, 1.0) < FLOWER_PROBABILITY;
+        b.isFlower            = isFlower;
+        if (isFlower) {
+            b.flowerHeadColorIdx = (uint8_t)prng_index(&pf, FLOWER_PALETTE_SIZE);
+            b.flowerHeadRadius   = prng_uniform(&pf,
+                                                FLOWER_HEAD_RADIUS_MIN,
+                                                FLOWER_HEAD_RADIUS_MAX);
+            b.heightBonus        = prng_uniform(&pf,
+                                                FLOWER_HEIGHT_BONUS_MIN,
+                                                FLOWER_HEIGHT_BONUS_MAX);
+        } else {
+            b.flowerHeadColorIdx = 0;
+            b.flowerHeadRadius   = 0.0;
+            b.heightBonus        = 1.0;
+        }
+
         b.cutHeight        = 1.0;
         b.gustVelocity     = 0.0;
         b.cutAnimStart     = -1.0;
@@ -182,7 +227,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 }
 ```
 
-**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. Reordering or interleaving the two streams changes the per-blade values for a given seed and breaks the snapshot tests. The two streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth is enabled.
+**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. Reordering or interleaving the three streams changes the per-blade values for a given seed and breaks the snapshot tests. The three streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth or flowers are enabled.
 
 At a 1920-DIP-wide monitor with `density = 2.25`, the expected blade count is approximately `2 * 1920 * 2.25 / (4 + 8) ≈ 720`; this is the current app default tuning for a denser field.
 
@@ -241,7 +286,7 @@ Stroke compute_blade_stroke(const Blade* b, double groundY) {
         return s;
     }
 
-    double L = b->height * b->cutHeight;
+    double L = b->height * b->heightBonus * b->cutHeight;
 
     // Chord preservation: blades have a fixed length L. As effectiveLean
     // grows, the tip arcs OVER (Y drops) so the blade's chord stays equal
@@ -268,6 +313,20 @@ Stroke compute_blade_stroke(const Blade* b, double groundY) {
 ```
 
 The renderer draws each `Stroke` as a quadratic Bezier with rounded line caps. Anti-aliasing is enabled. Implementations MAY batch strokes by color for GPU efficiency; ordering within a batch doesn't affect correctness (blades don't overlap meaningfully at typical density).
+
+`heightBonus` defaults to `1.0` for ordinary blades, so the formula `L = height * heightBonus * cutHeight` is a no-op for them and chord preservation works exactly as before. Flowers carry `heightBonus` in `[1.2, 1.5]`, so the stem stands proportionally taller while keeping the same chord-preserving bend.
+
+### Flower head
+
+After drawing the stem, if `blade.isFlower == true`, the renderer additionally draws a filled circle at the **tip** of the stroke (`s.tip`):
+
+```c
+if (b->isFlower && b->cutHeight >= CUT_STUMP_THRESHOLD) {
+    fill_circle(s.tip, b->flowerHeadRadius, FLOWER_PALETTE[b->flowerHeadColorIdx]);
+}
+```
+
+The head is suppressed once the stem has been cut down past `CUT_STUMP_THRESHOLD` (the same threshold that switches the stem itself to the stump short-circuit). This keeps a cut flower from leaving a colored dot floating just above the ground. No outline / no anti-aliasing toggle is required — implementations may use whatever filled-ellipse primitive their renderer provides (`FillEllipse` on D2D, `FillCircle` on Win2D canvas, `DrawingContext.DrawEllipse` with `pen = null` on WPF). All four implementations MUST place the head **at the same tip point** the chord-preserving stroke math computed.
 
 Chord preservation matters because `effectiveLean` is the horizontal tip displacement: if the tip kept the fixed vertical position `groundY - L` while moving sideways, the painted base-to-tip chord would become longer than the blade and read visually as stretching. Instead, the tip moves on a circle of radius `L` around the base, so `lean / L = sin(θ)` and `dropFactor = sqrt(1 - (lean / L)^2) = cos(θ)`, where `θ` is the bend angle from vertical. At zero lean, `dropFactor` is `1`; at the maximum lean of `0.95 * L`, it is approximately `0.312`.
 
@@ -519,6 +578,13 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `REGROW_DURATION_MIN` | 2.0 | sec | §4, §5, §9 |
 | `REGROW_DURATION_MAX` | 4.0 | sec | §4, §5, §9 |
 | `REGROW_PRNG_SALT` | `0xDEADBEEFCAFEBABE` | uint64 | §5 |
+| `FLOWER_PROBABILITY` | 0.04 | (unitless) | §5 |
+| `FLOWER_HEIGHT_BONUS_MIN` | 1.2 | (unitless) | §4, §5 |
+| `FLOWER_HEIGHT_BONUS_MAX` | 1.5 | (unitless) | §4, §5 |
+| `FLOWER_HEAD_RADIUS_MIN` | 1.8 | DIP | §4, §5, §7 |
+| `FLOWER_HEAD_RADIUS_MAX` | 3.0 | DIP | §4, §5, §7 |
+| `FLOWER_PALETTE_SIZE` | 6 | colors | §4, §5 |
+| `FLOWER_PRNG_SALT` | `0xC0FFEEFACE0FFE5` | uint64 | §5 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `CTRL_OFFSET_FACTOR` | 0.6 | (unitless) | §7 |
@@ -526,7 +592,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |
 | `CANONICAL_TEST_SEED` | `0x6B6173746F` | uint64 | §12 |
 
-The palette table from §4 (six ARGB values) is also part of this constants set.
+The palette table from §4 (six ARGB values for grass blades) and the Flower palette (six ARGB values for flower heads) are also part of this constants set.
 
 ---
 
