@@ -226,12 +226,13 @@ internal sealed class GrassWindow : IDisposable
             float stemT = (float)b.MushroomStemThickness;
 
             // Stump stub: when cut below the threshold, draw a short
-            // ivory stem with no cap — same footprint as a cut blade.
+            // ivory stem with no cap. MUSHROOM_STUMP_HEIGHT is a touch
+            // taller than STUMP_HEIGHT so the nub reads as distinct.
             if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
             {
                 _dc!.DrawLine(
                     new Vector2(baseX, gy),
-                    new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                    new Vector2(baseX, gy - (float)Constants.MUSHROOM_STUMP_HEIGHT),
                     _mushroomStemBrush!, stemT, _strokeStyle);
                 return;
             }

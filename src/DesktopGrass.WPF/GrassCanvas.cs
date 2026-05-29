@@ -86,7 +86,8 @@ internal sealed class GrassCanvas : FrameworkElement
 
                 if (blade.CutHeight < Constants.CUT_STUMP_THRESHOLD)
                 {
-                    // Stump stub.
+                    // Stump stub — MUSHROOM_STUMP_HEIGHT is 2px taller than
+                    // the grass STUMP_HEIGHT so the nub reads as distinct.
                     var stubPen = new MediaPen(_mushroomStemBrush, stemT)
                     {
                         StartLineCap = PenLineCap.Round,
@@ -95,7 +96,7 @@ internal sealed class GrassCanvas : FrameworkElement
                     stubPen.Freeze();
                     dc.DrawLine(stubPen,
                         new WpfPoint(baseX, gy),
-                        new WpfPoint(baseX, gy - Constants.STUMP_HEIGHT));
+                        new WpfPoint(baseX, gy - Constants.MUSHROOM_STUMP_HEIGHT));
                     continue;
                 }
 

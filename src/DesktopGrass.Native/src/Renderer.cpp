@@ -337,13 +337,13 @@ void Renderer::DrawGrass() {
             const float stemT  = static_cast<float>(b.mushroomStemThickness);
 
             // Stump-stub short-circuit: when a mushroom is cut below the
-            // CUT_STUMP_THRESHOLD, draw a short ivory stem stub the same
-            // way grass blades drop to a STUMP_HEIGHT line. The cap is
-            // gone — you cut it off — so we only paint the stub stem.
+            // CUT_STUMP_THRESHOLD, draw a short ivory stem stub. We use
+            // MUSHROOM_STUMP_HEIGHT (slightly taller than STUMP_HEIGHT)
+            // so the mushroom nub reads as distinct from cut grass.
             if (b.cutHeight < CUT_STUMP_THRESHOLD) {
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
-                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(MUSHROOM_STUMP_HEIGHT)),
                     mushroomStemBrush_.Get(),
                     stemT);
                 continue;

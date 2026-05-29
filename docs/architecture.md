@@ -385,13 +385,12 @@ if (b->isMushroom) {
     double gy    = groundY;
 
     if (b->cutHeight < CUT_STUMP_THRESHOLD) {
-        // Stump stub: short ivory stem of STUMP_HEIGHT, no cap.
-        // Matches the grass-blade stump short-circuit so a freshly-cut
-        // mushroom leaves the same visual footprint as a freshly-cut
-        // blade.
+        // Stump stub: short ivory stem of MUSHROOM_STUMP_HEIGHT, no cap.
+        // Slightly taller than the grass STUMP_HEIGHT so that a cut
+        // mushroom nub reads as visually distinct from a cut blade.
         draw_line(
             { baseX, gy },
-            { baseX, gy - STUMP_HEIGHT },
+            { baseX, gy - MUSHROOM_STUMP_HEIGHT },
             b->mushroomStemThickness,
             MUSHROOM_STEM_COLOR);
         return;
@@ -692,6 +691,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `MUSHROOM_STEM_COLOR` | `0xFFF5F5DC` | uint32 ARGB | §4, §7 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
+| `MUSHROOM_STUMP_HEIGHT` | 4.0 | DIP | §7 |
 | `CTRL_OFFSET_FACTOR` | 0.6 | (unitless) | §7 |
 | `MAX_LEAN_FRACTION` | 0.95 | (unitless) | §7 |
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |

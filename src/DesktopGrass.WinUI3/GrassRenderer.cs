@@ -199,7 +199,7 @@ internal sealed class GrassRenderer
                 if (b.CutHeight < Constants.CutStumpThreshold)
                 {
                     stemGeom.Start = new Vector2(baseX, gy);
-                    stemGeom.End   = new Vector2(baseX, gy - (float)Constants.StumpHeight);
+                    stemGeom.End   = new Vector2(baseX, gy - (float)Constants.MushroomStumpHeight);
                     capGeom.Radius = Vector2.Zero;
                 }
                 else

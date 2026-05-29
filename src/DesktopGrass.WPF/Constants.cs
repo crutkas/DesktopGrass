@@ -100,6 +100,7 @@ internal static class Constants
     // Bezier rendering (§7)
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP
+    public const double MUSHROOM_STUMP_HEIGHT = 4.0;   // DIP — slightly taller than the grass stub
     public const double CTRL_OFFSET_FACTOR = 0.6;
     public const double MAX_LEAN_FRACTION = 0.95;      // fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
 

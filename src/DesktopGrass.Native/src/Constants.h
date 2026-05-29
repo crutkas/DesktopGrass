@@ -42,6 +42,7 @@ constexpr double CUT_RADIUS            = 30.0;
 constexpr double CUT_DURATION_SEC      = 0.2;
 constexpr double CUT_STUMP_THRESHOLD   = 0.05;
 constexpr double STUMP_HEIGHT          = 2.0;
+constexpr double MUSHROOM_STUMP_HEIGHT = 4.0;  // §7 — sits a touch above the grass stub line
 constexpr double CTRL_OFFSET_FACTOR    = 0.6;
 // fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
 constexpr double MAX_LEAN_FRACTION     = 0.95;
