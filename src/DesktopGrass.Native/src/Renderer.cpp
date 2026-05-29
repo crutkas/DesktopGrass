@@ -145,6 +145,26 @@ bool Renderer::CreateDeviceResources() {
                                             mushroomStemBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    cactusBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CACTUS_COLOR),
+                                            cactusBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    tumbleweedBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(TUMBLEWEED_COLOR),
+                                            tumbleweedBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    snowflakeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOWFLAKE_COLOR),
+                                            snowflakeBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    snowTipBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_TIP_COLOR),
+                                            snowTipBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -201,6 +221,10 @@ void Renderer::DiscardDeviceResources() {
     for (auto& b : flowerHeadBrushes_) b.Reset();
     for (auto& b : mushroomCapBrushes_) b.Reset();
     mushroomStemBrush_.Reset();
+    cactusBrush_.Reset();
+    tumbleweedBrush_.Reset();
+    snowflakeBrush_.Reset();
+    snowTipBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -331,7 +355,63 @@ void Renderer::DrawGrass() {
     ComPtr<ID2D1Factory> factoryGeneric;
     d2dFactory_.As(&factoryGeneric);
 
+    auto drawCactusArm = [&](float baseX, float gy, float h, float width, int side) {
+        const float sx = baseX;
+        const float sy = gy - h * 0.4f;
+        const float ex = baseX + static_cast<float>(side) * width * 1.5f;
+        const float ey = gy - h * 0.7f;
+        const float cx = ex;
+        const float cy = sy;
+        const float armWidth = width * 0.7f;
+
+        constexpr int N = 4;
+        float prevX = sx;
+        float prevY = sy;
+        for (int i = 1; i <= N; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(N);
+            const float u = 1.0f - t;
+            const float px = u * u * sx + 2.0f * u * t * cx + t * t * ex;
+            const float py = u * u * sy + 2.0f * u * t * cy + t * t * ey;
+            d2dContext_->DrawLine(D2D1::Point2F(prevX, prevY), D2D1::Point2F(px, py),
+                                  cactusBrush_.Get(), armWidth);
+            prevX = px;
+            prevY = py;
+        }
+        d2dContext_->DrawLine(D2D1::Point2F(ex, ey), D2D1::Point2F(ex, ey - h * 0.15f),
+                              cactusBrush_.Get(), armWidth);
+    };
+
     for (const Blade& b : sim_.blades) {
+        if (b.isCactus) {
+            const float baseX = static_cast<float>(b.baseX);
+            const float gy = static_cast<float>(groundY);
+            const float width = static_cast<float>(b.cactusWidth);
+
+            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+                d2dContext_->DrawLine(
+                    D2D1::Point2F(baseX, gy),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    cactusBrush_.Get(), width);
+                continue;
+            }
+
+            const float h = static_cast<float>(b.cactusHeight * b.cutHeight);
+            const float topY = gy - h;
+            d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, topY),
+                                  cactusBrush_.Get(), width);
+            d2dContext_->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(baseX, topY), width * 0.5f, width * 0.5f),
+                cactusBrush_.Get());
+
+            if (b.cactusType == 1) {
+                drawCactusArm(baseX, gy, h, width, b.cactusArmSide < 0 ? -1 : 1);
+            } else if (b.cactusType == 2) {
+                drawCactusArm(baseX, gy, h, width, -1);
+                drawCactusArm(baseX, gy, h, width, +1);
+            }
+            continue;
+        }
+
         // Mushroom slots preempt grass + flower rendering at this position.
         // Cap + stem scale linearly with cutHeight so the cut animation
         // visibly shrinks them; below CUT_STUMP_THRESHOLD the mushroom is
@@ -414,15 +494,54 @@ void Renderer::DrawGrass() {
             if (idx >= FLOWER_PALETTE_SIZE) idx = 0;
             d2dContext_->FillEllipse(ellipse, flowerHeadBrushes_[idx].Get());
         }
+
+        if (sim_.currentScene == Scene::Winter && !b.isCactus && b.cutHeight >= CUT_STUMP_THRESHOLD) {
+            const float r = static_cast<float>(b.thickness * SNOW_TIP_RADIUS_FACTOR);
+            const D2D1_ELLIPSE cap = D2D1::Ellipse(
+                D2D1::Point2F(static_cast<float>(s.tip.x), static_cast<float>(s.tip.y)),
+                r,
+                r);
+            d2dContext_->FillEllipse(cap, snowTipBrush_.Get());
+        }
     }
 }
 
-// Render roaming entities (§13.2). Skeleton: no-op when sim.entities is
-// empty, which is always until §14/§15 generators run. The Desert and
-// Winter content agents add per-kind render branches here.
 void Renderer::DrawEntities() {
     if (sim_.entities.empty()) return;
-    // Per-kind rendering (tumbleweeds, snowflakes) lands in §14 / §15.
+
+    constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
+
+    for (const Entity& e : sim_.entities) {
+        if (e.kind == EntityKind::Tumbleweed) {
+            const float cx = static_cast<float>(e.x);
+            const float cy = static_cast<float>(e.y);
+            const float size = static_cast<float>(e.size);
+            for (int k = 0; k < 5; ++k) {
+                const double angle = e.rotation + static_cast<double>(k) * (TWO_PI_LOCAL / 5.0);
+                const float dx = static_cast<float>(std::cos(angle));
+                const float dy = static_cast<float>(std::sin(angle));
+                const float px = -dy;
+                const float py = dx;
+                const D2D1_POINT_2F p0 = D2D1::Point2F(cx - dx * size * 0.95f + px * size * 0.18f,
+                                                       cy - dy * size * 0.95f + py * size * 0.18f);
+                const D2D1_POINT_2F p1 = D2D1::Point2F(cx - dx * size * 0.20f - px * size * 0.14f,
+                                                       cy - dy * size * 0.20f - py * size * 0.14f);
+                const D2D1_POINT_2F p2 = D2D1::Point2F(cx + dx * size * 0.95f + px * size * 0.18f,
+                                                       cy + dy * size * 0.95f + py * size * 0.18f);
+                d2dContext_->DrawLine(p0, p1, tumbleweedBrush_.Get(), 1.0f);
+                d2dContext_->DrawLine(p1, p2, tumbleweedBrush_.Get(), 1.0f);
+            }
+            continue;
+        }
+
+        if (e.kind != EntityKind::Snowflake) continue;
+        const float r = static_cast<float>(e.size);
+        const D2D1_ELLIPSE flake = D2D1::Ellipse(
+            D2D1::Point2F(static_cast<float>(e.x), static_cast<float>(e.y)),
+            r,
+            r);
+        d2dContext_->FillEllipse(flake, snowflakeBrush_.Get());
+    }
 }
 
 } // namespace desktopgrass

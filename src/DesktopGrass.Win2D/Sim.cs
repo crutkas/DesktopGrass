@@ -47,10 +47,14 @@ internal struct Prng
         }
     }
 
+    public uint NextU32() => (uint)(NextU64() >> 32);
+
     // Uniform double in [0,1) using top 53 bits, per §3.
     public double NextUnit() => (NextU64() >> 11) * (1.0 / 9007199254740992.0);
 
     public double Uniform(double lo, double hi) => lo + NextUnit() * (hi - lo);
+
+    public double Exponential(double lambda) => -Math.Log(1.0 - Uniform(0.0, 1.0)) / lambda;
 
     public uint Index(uint n) => (uint)(NextUnit() * n);
 }
@@ -94,6 +98,17 @@ internal struct Blade
     public double MushroomCapHeight;       // DIP, radius Y (cap is wider than tall)
     public double MushroomStemHeight;      // DIP
     public double MushroomStemThickness;   // DIP
+
+    // Original Grass-scene slot variants restored after leaving Desert.
+    public bool   OriginalIsFlower;
+    public bool   OriginalIsMushroom;
+
+    // Cactus (§14). Desert-only slot-bound blade variant.
+    public bool   IsCactus;
+    public byte   CactusType;      // 0 = column, 1 = single-arm, 2 = saguaro
+    public double CactusHeight;    // DIP
+    public double CactusWidth;     // DIP
+    public sbyte  CactusArmSide;   // -1 or +1 for type 1
 
     public double EffectiveLean;
 }
@@ -161,13 +176,36 @@ internal sealed class Sim
     // Per-scene entity-stream seed. Initially zero; set by ResetEntities().
     public ulong EntitySeed;
 
+    // Persistent tumbleweed stream (§14), consumed by off-edge respawns.
+    public Prng TumbleweedPrng;
+
+    // §15 snowflake emitter (Winter scene only).
+    public Prng SnowflakePrng;
+    public double NextSnowflakeSpawnTime;
+
     public void SetScene(Scene s)
     {
         CurrentScene = s;
-        // §13.1 amendment: clear roaming entities and (in §14/§15) dispatch
-        // to per-scene generators. The skeleton has no generators yet — the
-        // Desert and Winter content agents add their hooks here.
         Entities.Clear();
+
+        switch (s)
+        {
+            case Scene.Grass:
+                for (int i = 0; i < Blades.Length; i++)
+                {
+                    RestoreOriginalVariants(ref Blades[i]);
+                }
+                break;
+            case Scene.Desert:
+                GenerateCactiForDesert(this);
+                GenerateTumbleweeds(this);
+                break;
+            case Scene.Winter:
+                SnowflakePrng = Prng.Init(EntitySeed ^ Constants.SNOWFLAKE_PRNG_SALT);
+                double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
+                NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
+                break;
+        }
     }
 
     public void ResetEntities(ulong seed)
@@ -176,12 +214,115 @@ internal sealed class Sim
         Entities.Clear();
     }
 
+    private static void RestoreOriginalVariants(ref Blade b)
+    {
+        b.IsCactus = false;
+        b.CactusType = 0;
+        b.CactusHeight = 0.0;
+        b.CactusWidth = 0.0;
+        b.CactusArmSide = +1;
+        b.IsFlower = b.OriginalIsFlower;
+        b.IsMushroom = b.OriginalIsMushroom;
+    }
+
+    public static void GenerateCactiForDesert(Sim sim)
+    {
+        var cactusPrng = Prng.Init(sim.EntitySeed ^ Constants.CACTUS_PRNG_SALT);
+
+        for (int i = 0; i < sim.Blades.Length; i++)
+        {
+            ref Blade b = ref sim.Blades[i];
+            RestoreOriginalVariants(ref b);
+
+            double r = cactusPrng.Uniform(0.0, 1.0);
+            if (r >= Constants.CACTUS_PROBABILITY) continue;
+
+            b.IsCactus = true;
+            b.IsFlower = false;
+            b.IsMushroom = false;
+            b.CactusHeight = cactusPrng.Uniform(Constants.CACTUS_HEIGHT_MIN, Constants.CACTUS_HEIGHT_MAX);
+            b.CactusWidth = cactusPrng.Uniform(Constants.CACTUS_WIDTH_MIN, Constants.CACTUS_WIDTH_MAX);
+
+            double armDraw = cactusPrng.Uniform(0.0, 1.0);
+            double noArmThreshold = 1.0 - Constants.CACTUS_ARM_PROBABILITY;
+            double twoArmThreshold = noArmThreshold + Constants.CACTUS_TWO_ARM_PROBABILITY * Constants.CACTUS_ARM_PROBABILITY;
+            if (armDraw < noArmThreshold)
+            {
+                b.CactusType = 0;
+                b.CactusArmSide = +1;
+            }
+            else if (armDraw < twoArmThreshold)
+            {
+                b.CactusType = 2;
+                b.CactusArmSide = +1;
+            }
+            else
+            {
+                b.CactusType = 1;
+                b.CactusArmSide = cactusPrng.Uniform(0.0, 1.0) < 0.5 ? (sbyte)-1 : (sbyte)+1;
+            }
+        }
+    }
+
+    public static void GenerateTumbleweeds(Sim sim)
+    {
+        sim.TumbleweedPrng = Prng.Init(sim.EntitySeed ^ Constants.TUMBLEWEED_PRNG_SALT);
+        int count = TumbleweedCountForWidth(sim.MonitorWidth);
+        for (int i = 0; i < count; i++)
+        {
+            sim.Entities.Add(MakeTumbleweed(ref sim.TumbleweedPrng, sim.MonitorWidth, sim.GroundY));
+        }
+    }
+
+    private static int TumbleweedCountForWidth(double monitorWidth)
+    {
+        if (monitorWidth < 480.0) return 0;
+        int count = (int)Math.Floor(monitorWidth / 1920.0 * Constants.TUMBLEWEED_COUNT_PER_1920DIP);
+        if (count < 1) count = 1;
+        return Math.Min(count, Constants.MAX_ENTITIES_PER_MONITOR);
+    }
+
+    private static Entity MakeTumbleweed(ref Prng prng, double monitorWidth, double groundY)
+    {
+        Entity e = default;
+        e.Kind = EntityKind.Tumbleweed;
+        e.Size = prng.Uniform(Constants.TUMBLEWEED_SIZE_MIN, Constants.TUMBLEWEED_SIZE_MAX);
+        e.X = prng.Uniform(0.0, monitorWidth);
+        e.Y = groundY - prng.Uniform(Constants.TUMBLEWEED_Y_OFFSET_MIN, Constants.TUMBLEWEED_Y_OFFSET_MAX);
+        double speed = prng.Uniform(Constants.TUMBLEWEED_SPEED_MIN, Constants.TUMBLEWEED_SPEED_MAX);
+        double direction = prng.Uniform(0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+        e.Vx = direction * speed;
+        e.Vy = 0.0;
+        e.Rotation = prng.Uniform(0.0, 2.0 * Math.PI);
+        e.RotationSpeed = e.Vx / e.Size;
+        e.Age = 0.0;
+        e.Lifetime = -1.0;
+        e.Seed = prng.NextU32();
+        return e;
+    }
+
+    private static void RespawnTumbleweed(ref Entity e, ref Prng prng, double monitorWidth,
+                                          double groundY, bool fromLeft)
+    {
+        e.Size = prng.Uniform(Constants.TUMBLEWEED_SIZE_MIN, Constants.TUMBLEWEED_SIZE_MAX);
+        e.Y = groundY - prng.Uniform(Constants.TUMBLEWEED_Y_OFFSET_MIN, Constants.TUMBLEWEED_Y_OFFSET_MAX);
+        double speed = prng.Uniform(Constants.TUMBLEWEED_SPEED_MIN, Constants.TUMBLEWEED_SPEED_MAX);
+        e.X = fromLeft ? -e.Size : monitorWidth + e.Size;
+        e.Vx = fromLeft ? speed : -speed;
+        e.Vy = 0.0;
+        e.RotationSpeed = e.Vx / e.Size;
+        e.Age = 0.0;
+        e.Lifetime = -1.0;
+    }
+
     // §13.2 — generic roaming-entity tick. Integrates position + rotation,
     // ages each entity. Per-kind logic (tumbleweed respawn, snowflake sway
     // and culling) is added by the §14 / §15 content agents.
     public void TickEntities(double dt)
     {
-        if (Entities.Count == 0) return;
+        double groundY = WindowHeight;
+        double twoPi = 2.0 * Math.PI;
+
         for (int i = 0; i < Entities.Count; i++)
         {
             Entity e = Entities[i];
@@ -189,7 +330,57 @@ internal sealed class Sim
             e.Y        += e.Vy * dt;
             e.Rotation += e.RotationSpeed * dt;
             e.Age      += dt;
+
+            if (e.Kind == EntityKind.Tumbleweed)
+            {
+                if (e.X < -e.Size - 10.0)
+                {
+                    RespawnTumbleweed(ref e, ref TumbleweedPrng, MonitorWidth, GroundY, fromLeft: false);
+                }
+                else if (e.X > MonitorWidth + e.Size + 10.0)
+                {
+                    RespawnTumbleweed(ref e, ref TumbleweedPrng, MonitorWidth, GroundY, fromLeft: true);
+                }
+            }
+
             Entities[i] = e;
+        }
+
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Snowflake) continue;
+            double phase = e.Seed / 4294967295.0 * twoPi;
+            e.Vx = Constants.SNOWFLAKE_SWAY_AMPLITUDE * Constants.SNOWFLAKE_SWAY_FREQUENCY * twoPi
+                 * Math.Cos(e.Age * twoPi * Constants.SNOWFLAKE_SWAY_FREQUENCY + phase);
+            Entities[i] = e;
+        }
+
+        Entities.RemoveAll(e => e.Kind == EntityKind.Snowflake
+                             && (e.Age >= e.Lifetime || e.Y > groundY));
+
+        if (CurrentScene == Scene.Winter)
+        {
+            double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
+            while (GlobalTime >= NextSnowflakeSpawnTime && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+            {
+                Entity e = default;
+                e.Kind = EntityKind.Snowflake;
+                e.Size = SnowflakePrng.Uniform(Constants.SNOWFLAKE_SIZE_MIN, Constants.SNOWFLAKE_SIZE_MAX);
+                e.X = SnowflakePrng.Uniform(-20.0, MonitorWidth + 20.0);
+                double fallSpeed = SnowflakePrng.Uniform(Constants.SNOWFLAKE_FALL_SPEED_MIN,
+                                                         Constants.SNOWFLAKE_FALL_SPEED_MAX);
+                e.Y = -e.Size - 4.0;
+                e.Vx = 0.0;
+                e.Vy = fallSpeed;
+                e.Rotation = SnowflakePrng.Uniform(0.0, twoPi);
+                e.RotationSpeed = SnowflakePrng.Uniform(-1.5, 1.5);
+                e.Age = 0.0;
+                e.Lifetime = (groundY + e.Size) / fallSpeed + Constants.SNOWFLAKE_LIFETIME_PADDING_SEC;
+                e.Seed = SnowflakePrng.NextU32();
+                Entities.Add(e);
+                NextSnowflakeSpawnTime += SnowflakePrng.Exponential(lambda);
+            }
         }
     }
 
@@ -328,6 +519,9 @@ internal sealed class Sim
                 b.MushroomStemHeight      = 0.0;
                 b.MushroomStemThickness   = 0.0;
             }
+
+            b.OriginalIsFlower = b.IsFlower;
+            b.OriginalIsMushroom = b.IsMushroom;
 
             list.Add(b);
         }

@@ -45,6 +45,10 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush[]? _flowerHeadBrushes;
     private ID2D1SolidColorBrush[]? _mushroomCapBrushes;
     private ID2D1SolidColorBrush? _mushroomStemBrush;
+    private ID2D1SolidColorBrush? _cactusBrush;
+    private ID2D1SolidColorBrush? _tumbleweedBrush;
+    private ID2D1SolidColorBrush? _snowflakeBrush;
+    private ID2D1SolidColorBrush? _snowTipBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -72,6 +76,7 @@ internal sealed class GrassWindow : IDisposable
             WindowHeight = _heightPx / _dpiScale,
         };
         Sim.ResetAmbientGusts(seed, monitorWidthDip);
+        Sim.ResetEntities(seed);
 
         CreateGraphics();
     }
@@ -157,6 +162,10 @@ internal sealed class GrassWindow : IDisposable
             _mushroomCapBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MUSHROOM_PALETTE[i]));
         }
         _mushroomStemBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MUSHROOM_STEM_COLOR));
+        _cactusBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CACTUS_COLOR));
+        _tumbleweedBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.TUMBLEWEED_COLOR));
+        _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
+        _snowTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_TIP_COLOR));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -225,17 +234,104 @@ internal sealed class GrassWindow : IDisposable
         _dcompDevice?.Commit();
     }
 
-    // §13.2 — render roaming entities. Skeleton: no-op when Sim.Entities is
-    // empty (always until §14/§15 generators run). Per-kind branches added
-    // by Desert / Winter content agents.
     private void DrawEntities(float groundY)
     {
         if (Sim.Entities.Count == 0) return;
-        // Per-kind rendering lands in §14 / §15.
+
+        foreach (Entity e in Sim.Entities)
+        {
+            if (e.Kind == EntityKind.Tumbleweed)
+            {
+                float cx = (float)e.X;
+                float cy = (float)e.Y;
+                float size = (float)e.Size;
+                const double twoPi = Math.PI * 2.0;
+                for (int k = 0; k < 5; k++)
+                {
+                    double angle = e.Rotation + k * (twoPi / 5.0);
+                    float dx = (float)Math.Cos(angle);
+                    float dy = (float)Math.Sin(angle);
+                    float px = -dy;
+                    float py = dx;
+                    var p0 = new Vector2(cx - dx * size * 0.95f + px * size * 0.18f,
+                                         cy - dy * size * 0.95f + py * size * 0.18f);
+                    var p1 = new Vector2(cx - dx * size * 0.20f - px * size * 0.14f,
+                                         cy - dy * size * 0.20f - py * size * 0.14f);
+                    var p2 = new Vector2(cx + dx * size * 0.95f + px * size * 0.18f,
+                                         cy + dy * size * 0.95f + py * size * 0.18f);
+                    _dc!.DrawLine(p0, p1, _tumbleweedBrush!, 1.0f, _strokeStyle);
+                    _dc!.DrawLine(p1, p2, _tumbleweedBrush!, 1.0f, _strokeStyle);
+                }
+                continue;
+            }
+
+            if (e.Kind != EntityKind.Snowflake) continue;
+            float r = (float)e.Size;
+            var flake = new Ellipse(new Vector2((float)e.X, (float)e.Y), r, r);
+            _dc!.FillEllipse(flake, _snowflakeBrush!);
+        }
+    }
+
+    private void DrawCactusArm(float baseX, float gy, float h, float width, int side)
+    {
+        float sx = baseX;
+        float sy = gy - h * 0.4f;
+        float ex = baseX + side * width * 1.5f;
+        float ey = gy - h * 0.7f;
+        float cx = ex;
+        float cy = sy;
+        float armWidth = width * 0.7f;
+
+        const int N = 4;
+        float prevX = sx;
+        float prevY = sy;
+        for (int i = 1; i <= N; i++)
+        {
+            float t = i / (float)N;
+            float u = 1.0f - t;
+            float px = u * u * sx + 2.0f * u * t * cx + t * t * ex;
+            float py = u * u * sy + 2.0f * u * t * cy + t * t * ey;
+            _dc!.DrawLine(new Vector2(prevX, prevY), new Vector2(px, py), _cactusBrush!, armWidth, _strokeStyle);
+            prevX = px;
+            prevY = py;
+        }
+
+        _dc!.DrawLine(new Vector2(ex, ey), new Vector2(ex, ey - h * 0.15f), _cactusBrush!, armWidth, _strokeStyle);
     }
 
     private void DrawBlade(in Blade b, float groundY)
     {
+        if (b.IsCactus)
+        {
+            float baseX = (float)b.BaseX;
+            float gy = groundY;
+            float width = (float)b.CactusWidth;
+
+            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            {
+                _dc!.DrawLine(new Vector2(baseX, gy),
+                              new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                              _cactusBrush!, width, _strokeStyle);
+                return;
+            }
+
+            float h = (float)(b.CactusHeight * b.CutHeight);
+            float topY = gy - h;
+            _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY), _cactusBrush!, width, _strokeStyle);
+            _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), width * 0.5f, width * 0.5f), _cactusBrush!);
+
+            if (b.CactusType == 1)
+            {
+                DrawCactusArm(baseX, gy, h, width, b.CactusArmSide < 0 ? -1 : 1);
+            }
+            else if (b.CactusType == 2)
+            {
+                DrawCactusArm(baseX, gy, h, width, -1);
+                DrawCactusArm(baseX, gy, h, width, +1);
+            }
+            return;
+        }
+
         if (b.IsMushroom)
         {
             float baseX = (float)b.BaseX;
@@ -313,6 +409,13 @@ internal sealed class GrassWindow : IDisposable
             var ellipse = new Ellipse(new Vector2(tx, ty), r, r);
             _dc!.FillEllipse(ellipse, _flowerHeadBrushes[hi]);
         }
+
+        if (Sim.CurrentScene == Scene.Winter && !b.IsCactus && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
+        {
+            float r = (float)(b.Thickness * Constants.SNOW_TIP_RADIUS_FACTOR);
+            var cap = new Ellipse(new Vector2(tx, ty), r, r);
+            _dc!.FillEllipse(cap, _snowTipBrush!);
+        }
     }
 
     private static Color4 ArgbToColor4(uint argb)
@@ -353,6 +456,10 @@ internal sealed class GrassWindow : IDisposable
             }
         }
         try { _mushroomStemBrush?.Dispose(); } catch { }
+        try { _cactusBrush?.Dispose(); } catch { }
+        try { _tumbleweedBrush?.Dispose(); } catch { }
+        try { _snowflakeBrush?.Dispose(); } catch { }
+        try { _snowTipBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

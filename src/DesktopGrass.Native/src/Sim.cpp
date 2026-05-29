@@ -9,6 +9,10 @@
 
 namespace desktopgrass {
 
+namespace {
+constexpr double TWO_PI = 6.28318530717958647692;
+}
+
 // ---------------------------------------------------------------------------
 // PRNG
 // ---------------------------------------------------------------------------
@@ -38,6 +42,10 @@ uint64_t prng_next_u64(Prng& p) noexcept {
     return x;
 }
 
+uint32_t prng_next_u32(Prng& p) noexcept {
+    return static_cast<uint32_t>(prng_next_u64(p) >> 32);
+}
+
 double prng_next_unit(Prng& p) noexcept {
     // Top 53 bits → IEEE-754 mantissa precision.
     return static_cast<double>(prng_next_u64(p) >> 11) * (1.0 / 9007199254740992.0);
@@ -45,6 +53,10 @@ double prng_next_unit(Prng& p) noexcept {
 
 double prng_uniform(Prng& p, double lo, double hi) noexcept {
     return lo + prng_next_unit(p) * (hi - lo);
+}
+
+double prng_exponential(Prng& p, double lambda) noexcept {
+    return -std::log(1.0 - prng_uniform(p, 0.0, 1.0)) / lambda;
 }
 
 uint32_t prng_index(Prng& p, uint32_t n) noexcept {
@@ -144,7 +156,105 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
             b.mushroomStemThickness   = 0.0;
         }
 
+        b.originalIsFlower   = b.isFlower;
+        b.originalIsMushroom = b.isMushroom;
+
         out.push_back(b);
+    }
+}
+
+namespace {
+
+void restore_original_variants(Blade& b) noexcept {
+    b.isCactus       = false;
+    b.cactusType     = 0;
+    b.cactusHeight   = 0.0;
+    b.cactusWidth    = 0.0;
+    b.cactusArmSide  = +1;
+    b.isFlower       = b.originalIsFlower;
+    b.isMushroom     = b.originalIsMushroom;
+}
+
+int tumbleweed_count_for_width(double monitorWidth) noexcept {
+    if (monitorWidth < 480.0) return 0;
+    const double scaled = std::floor(monitorWidth / 1920.0 * static_cast<double>(TUMBLEWEED_COUNT_PER_1920DIP));
+    int count = static_cast<int>(scaled);
+    if (count < 1) count = 1;
+    return std::min(count, MAX_ENTITIES_PER_MONITOR);
+}
+
+Entity make_tumbleweed(Prng& prng, double monitorWidth, double groundY) noexcept {
+    Entity e{};
+    e.kind = EntityKind::Tumbleweed;
+    e.size = prng_uniform(prng, TUMBLEWEED_SIZE_MIN, TUMBLEWEED_SIZE_MAX);
+    e.x    = prng_uniform(prng, 0.0, monitorWidth);
+    e.y    = groundY - prng_uniform(prng, TUMBLEWEED_Y_OFFSET_MIN, TUMBLEWEED_Y_OFFSET_MAX);
+    const double speed = prng_uniform(prng, TUMBLEWEED_SPEED_MIN, TUMBLEWEED_SPEED_MAX);
+    const double direction = prng_uniform(prng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+    e.vx = direction * speed;
+    e.vy = 0.0;
+    e.rotation      = prng_uniform(prng, 0.0, TWO_PI);
+    e.rotationSpeed = e.vx / e.size;
+    e.age           = 0.0;
+    e.lifetime      = -1.0;
+    e.seed          = prng_next_u32(prng);
+    return e;
+}
+
+void respawn_tumbleweed(Entity& e, Prng& prng, double monitorWidth,
+                        double groundY, bool fromLeft) noexcept {
+    e.size = prng_uniform(prng, TUMBLEWEED_SIZE_MIN, TUMBLEWEED_SIZE_MAX);
+    e.y    = groundY - prng_uniform(prng, TUMBLEWEED_Y_OFFSET_MIN, TUMBLEWEED_Y_OFFSET_MAX);
+    const double speed = prng_uniform(prng, TUMBLEWEED_SPEED_MIN, TUMBLEWEED_SPEED_MAX);
+    e.x  = fromLeft ? -e.size : monitorWidth + e.size;
+    e.vx = fromLeft ? speed : -speed;
+    e.vy = 0.0;
+    e.rotationSpeed = e.vx / e.size;
+    e.age = 0.0;
+    e.lifetime = -1.0;
+}
+
+} // anonymous
+
+void generate_cacti_for_desert(Sim& sim) noexcept {
+    Prng cactusPrng;
+    prng_init(cactusPrng, sim.entitySeed ^ CACTUS_PRNG_SALT);
+
+    for (Blade& b : sim.blades) {
+        restore_original_variants(b);
+
+        const double r = prng_uniform(cactusPrng, 0.0, 1.0);
+        if (r >= CACTUS_PROBABILITY) continue;
+
+        b.isCactus      = true;
+        b.isFlower      = false;
+        b.isMushroom    = false;
+        b.cactusHeight  = prng_uniform(cactusPrng, CACTUS_HEIGHT_MIN, CACTUS_HEIGHT_MAX);
+        b.cactusWidth   = prng_uniform(cactusPrng, CACTUS_WIDTH_MIN, CACTUS_WIDTH_MAX);
+
+        const double armDraw = prng_uniform(cactusPrng, 0.0, 1.0);
+        const double noArmThreshold = 1.0 - CACTUS_ARM_PROBABILITY;
+        const double twoArmThreshold = noArmThreshold + CACTUS_TWO_ARM_PROBABILITY * CACTUS_ARM_PROBABILITY;
+        if (armDraw < noArmThreshold) {
+            b.cactusType = 0;
+            b.cactusArmSide = +1;
+        } else if (armDraw < twoArmThreshold) {
+            b.cactusType = 2;
+            b.cactusArmSide = +1;
+        } else {
+            b.cactusType = 1;
+            b.cactusArmSide = prng_uniform(cactusPrng, 0.0, 1.0) < 0.5
+                ? static_cast<int8_t>(-1)
+                : static_cast<int8_t>(+1);
+        }
+    }
+}
+
+void generate_tumbleweeds(Sim& sim) noexcept {
+    prng_init(sim.tumbleweedPrng, sim.entitySeed ^ TUMBLEWEED_PRNG_SALT);
+    const int count = tumbleweed_count_for_width(sim.monitorWidth);
+    for (int i = 0; i < count; ++i) {
+        sim.entities.push_back(make_tumbleweed(sim.tumbleweedPrng, sim.monitorWidth, sim.windowHeight));
     }
 }
 
@@ -322,15 +432,25 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 
 void sim_set_scene(Sim& sim, Scene s) noexcept {
     sim.currentScene = s;
-    // §13.1 amendment: clear roaming entities and (in §14/§15) dispatch
-    // to per-scene generators. The skeleton has no generators yet — the
-    // Desert and Winter content agents add their hooks here.
     sim.entities.clear();
-    // switch (s) {
-    //   case Scene::Desert: generate_cacti_for_desert(sim); generate_tumbleweeds(sim); break;
-    //   case Scene::Winter: reset_snowflake_emitter(sim); break;
-    //   default: /* Grass has no roamers */ break;
-    // }
+
+    switch (s) {
+    case Scene::Grass:
+        for (Blade& b : sim.blades) {
+            restore_original_variants(b);
+        }
+        break;
+    case Scene::Desert:
+        generate_cacti_for_desert(sim);
+        generate_tumbleweeds(sim);
+        break;
+    case Scene::Winter: {
+        prng_init(sim.snowflakePrng, sim.entitySeed ^ SNOWFLAKE_PRNG_SALT);
+        const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
+        sim.nextSnowflakeSpawnTime = sim.globalTime + prng_exponential(sim.snowflakePrng, lambda);
+        break;
+    }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -343,23 +463,60 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
 // ---------------------------------------------------------------------------
 
 void sim_tick_entities(Sim& sim, double dt) noexcept {
-    if (sim.entities.empty()) return;
-
     const double groundY = sim.windowHeight;
 
-    // Forward pass: update positions / rotations / per-kind dynamics.
+    // Forward pass: update positions / rotations / generic age.
     for (Entity& e : sim.entities) {
         e.x        += e.vx * dt;
         e.y        += e.vy * dt;
         e.rotation += e.rotationSpeed * dt;
         e.age      += dt;
-        // Per-kind logic (tumbleweed respawn, snowflake sway) is added
-        // by the §14 / §15 content agents.
-        (void)groundY;
+
+        if (e.kind == EntityKind::Tumbleweed) {
+            if (e.x < -e.size - 10.0) {
+                respawn_tumbleweed(e, sim.tumbleweedPrng, sim.monitorWidth, groundY, false);
+            } else if (e.x > sim.monitorWidth + e.size + 10.0) {
+                respawn_tumbleweed(e, sim.tumbleweedPrng, sim.monitorWidth, groundY, true);
+            }
+        }
     }
 
-    // Backward pass: cull dead snowflakes / off-screen ephemerals.
-    // The §15 agent fills this in.
+    for (Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Snowflake) continue;
+        const double phase = static_cast<double>(e.seed) / 4294967295.0 * TWO_PI;
+        e.vx = SNOWFLAKE_SWAY_AMPLITUDE * SNOWFLAKE_SWAY_FREQUENCY * TWO_PI
+             * std::cos(e.age * TWO_PI * SNOWFLAKE_SWAY_FREQUENCY + phase);
+    }
+
+    sim.entities.erase(
+        std::remove_if(sim.entities.begin(), sim.entities.end(),
+            [groundY](const Entity& e) {
+                return e.kind == EntityKind::Snowflake
+                    && (e.age >= e.lifetime || e.y > groundY);
+            }),
+        sim.entities.end());
+
+    if (sim.currentScene == Scene::Winter) {
+        const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
+        while (sim.globalTime >= sim.nextSnowflakeSpawnTime
+               && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
+            Entity e{};
+            e.kind          = EntityKind::Snowflake;
+            e.size          = prng_uniform(sim.snowflakePrng, SNOWFLAKE_SIZE_MIN, SNOWFLAKE_SIZE_MAX);
+            e.x             = prng_uniform(sim.snowflakePrng, -20.0, sim.monitorWidth + 20.0);
+            const double fallSpeed = prng_uniform(sim.snowflakePrng, SNOWFLAKE_FALL_SPEED_MIN, SNOWFLAKE_FALL_SPEED_MAX);
+            e.y             = -e.size - 4.0;
+            e.vx            = 0.0;
+            e.vy            = fallSpeed;
+            e.rotation      = prng_uniform(sim.snowflakePrng, 0.0, TWO_PI);
+            e.rotationSpeed = prng_uniform(sim.snowflakePrng, -1.5, 1.5);
+            e.age           = 0.0;
+            e.lifetime      = (groundY + e.size) / fallSpeed + SNOWFLAKE_LIFETIME_PADDING_SEC;
+            e.seed          = prng_next_u32(sim.snowflakePrng);
+            sim.entities.push_back(e);
+            sim.nextSnowflakeSpawnTime += prng_exponential(sim.snowflakePrng, lambda);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

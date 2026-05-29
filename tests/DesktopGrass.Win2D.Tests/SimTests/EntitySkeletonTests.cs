@@ -53,7 +53,7 @@ public class EntitySkeletonTests
         });
         Assert.Single(sim.Entities);
 
-        sim.SetScene(Scene.Desert);
+        sim.SetScene(Scene.Grass);
         Assert.Empty(sim.Entities);
     }
 

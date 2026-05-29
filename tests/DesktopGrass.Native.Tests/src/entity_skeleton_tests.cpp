@@ -41,7 +41,7 @@ TEST_CASE("sim_set_scene clears entities", "[entities][scene]") {
     sim.entities.push_back(fake);
     REQUIRE(sim.entities.size() == 1);
 
-    sim_set_scene(sim, Scene::Desert);
+    sim_set_scene(sim, Scene::Grass);
     REQUIRE(sim.entities.empty());
     REQUIRE(sim.entities.capacity() >= static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR));
 }

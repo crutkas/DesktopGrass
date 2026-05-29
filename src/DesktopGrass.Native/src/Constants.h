@@ -116,6 +116,30 @@ constexpr double   AMBIENT_GUST_MAG_FACTOR_MIN  = 0.3;   // unitless, fraction o
 constexpr double   AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
 constexpr double   AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless, fraction of GUST_RADIUS
 
+// Cacti (§14). Slot-bound Desert blade variants generated from an independent
+// PRNG stream so the §12 static blade snapshot remains unchanged.
+constexpr double   CACTUS_PROBABILITY            = 0.005;
+constexpr double   CACTUS_HEIGHT_MIN             = 30.0;
+constexpr double   CACTUS_HEIGHT_MAX             = 70.0;
+constexpr double   CACTUS_WIDTH_MIN              = 8.0;
+constexpr double   CACTUS_WIDTH_MAX              = 14.0;
+constexpr double   CACTUS_ARM_PROBABILITY        = 0.55;
+constexpr double   CACTUS_TWO_ARM_PROBABILITY    = 0.35;
+constexpr uint32_t CACTUS_COLOR                  = 0xFF2D7A2Du;
+constexpr uint64_t CACTUS_PRNG_SALT              = 0xCAC75CAC75CAC75Cull;
+
+// Tumbleweeds (§14). Desert roaming entities generated and respawned from a
+// persistent stream seeded with seed XOR TUMBLEWEED_PRNG_SALT.
+constexpr int      TUMBLEWEED_COUNT_PER_1920DIP  = 4;
+constexpr double   TUMBLEWEED_SIZE_MIN           = 8.0;
+constexpr double   TUMBLEWEED_SIZE_MAX           = 18.0;
+constexpr double   TUMBLEWEED_SPEED_MIN          = 40.0;
+constexpr double   TUMBLEWEED_SPEED_MAX          = 120.0;
+constexpr double   TUMBLEWEED_Y_OFFSET_MIN       = 8.0;
+constexpr double   TUMBLEWEED_Y_OFFSET_MAX       = 20.0;
+constexpr uint32_t TUMBLEWEED_COLOR              = 0xFF8A6A3Du;
+constexpr uint64_t TUMBLEWEED_PRNG_SALT          = 0x7B0117CA7B0117CAull;
+
 // Scenes (architecture.md §13). Render-time presentation modes that share
 // generation, sway, gust, cut, and ambient-gust logic. The infrastructure
 // pass swaps only the blade palette; per-scene entity content (cacti,
@@ -191,5 +215,21 @@ enum class EntityKind : uint8_t {
     Snowflake  = 2,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
+
+// Snowflakes (§15)
+constexpr double   SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;    // flakes/sec
+constexpr double   SNOWFLAKE_FALL_SPEED_MIN        = 20.0;   // DIP/sec
+constexpr double   SNOWFLAKE_FALL_SPEED_MAX        = 40.0;
+constexpr double   SNOWFLAKE_SIZE_MIN              = 1.5;    // DIP
+constexpr double   SNOWFLAKE_SIZE_MAX              = 3.0;
+constexpr double   SNOWFLAKE_SWAY_AMPLITUDE        = 10.0;   // DIP
+constexpr double   SNOWFLAKE_SWAY_FREQUENCY        = 0.6;    // Hz
+constexpr double   SNOWFLAKE_LIFETIME_PADDING_SEC  = 2.0;
+constexpr uint32_t SNOWFLAKE_COLOR                 = 0xFFFFFFFFu;
+constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
+
+// Snow-tipped blade caps (§15)
+constexpr double   SNOW_TIP_RADIUS_FACTOR          = 1.25;
+constexpr uint32_t SNOW_TIP_COLOR                  = 0xFFFFFFFFu;
 
 } // namespace desktopgrass

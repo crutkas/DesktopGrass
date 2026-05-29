@@ -109,6 +109,30 @@ internal static class Constants
     public const double AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
     public const double AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless
 
+    // Cacti (§14). Slot-bound Desert blade variants generated from an
+    // independent stream so the static §12 blade snapshot is untouched.
+    public const double CACTUS_PROBABILITY         = 0.005;
+    public const double CACTUS_HEIGHT_MIN          = 30.0;
+    public const double CACTUS_HEIGHT_MAX          = 70.0;
+    public const double CACTUS_WIDTH_MIN           = 8.0;
+    public const double CACTUS_WIDTH_MAX           = 14.0;
+    public const double CACTUS_ARM_PROBABILITY     = 0.55;
+    public const double CACTUS_TWO_ARM_PROBABILITY = 0.35;
+    public const uint   CACTUS_COLOR               = 0xFF2D7A2D;
+    public const ulong  CACTUS_PRNG_SALT           = 0xCAC75CAC75CAC75CUL;
+
+    // Tumbleweeds (§14). Desert roaming entities generated and respawned from
+    // a persistent stream seeded with seed XOR TUMBLEWEED_PRNG_SALT.
+    public const int    TUMBLEWEED_COUNT_PER_1920DIP = 4;
+    public const double TUMBLEWEED_SIZE_MIN          = 8.0;
+    public const double TUMBLEWEED_SIZE_MAX          = 18.0;
+    public const double TUMBLEWEED_SPEED_MIN         = 40.0;
+    public const double TUMBLEWEED_SPEED_MAX         = 120.0;
+    public const double TUMBLEWEED_Y_OFFSET_MIN      = 8.0;
+    public const double TUMBLEWEED_Y_OFFSET_MAX      = 20.0;
+    public const uint   TUMBLEWEED_COLOR             = 0xFF8A6A3D;
+    public const ulong  TUMBLEWEED_PRNG_SALT         = 0x7B0117CA7B0117CAUL;
+
     // Bezier rendering (§7)
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP
@@ -170,4 +194,20 @@ internal static class Constants
     // Roaming-entity subsystem (§13.2). Caps Sim.Entities so the snowflake
     // emitter can't grow without bound; matches Native MAX_ENTITIES_PER_MONITOR.
     public const int MAX_ENTITIES_PER_MONITOR = 64;
+
+    // Snowflakes (§15)
+    public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;
+    public const double SNOWFLAKE_FALL_SPEED_MIN = 20.0;
+    public const double SNOWFLAKE_FALL_SPEED_MAX = 40.0;
+    public const double SNOWFLAKE_SIZE_MIN = 1.5;
+    public const double SNOWFLAKE_SIZE_MAX = 3.0;
+    public const double SNOWFLAKE_SWAY_AMPLITUDE = 10.0;
+    public const double SNOWFLAKE_SWAY_FREQUENCY = 0.6;
+    public const double SNOWFLAKE_LIFETIME_PADDING_SEC = 2.0;
+    public const uint SNOWFLAKE_COLOR = 0xFFFFFFFFu;
+    public const ulong SNOWFLAKE_PRNG_SALT = 0xC0FFEE1CECAFEBABul;
+
+    // Snow-tipped blade caps (§15)
+    public const double SNOW_TIP_RADIUS_FACTOR = 1.25;
+    public const uint SNOW_TIP_COLOR = 0xFFFFFFFFu;
 }

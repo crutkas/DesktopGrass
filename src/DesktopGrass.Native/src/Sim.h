@@ -27,8 +27,10 @@ struct Prng {
 uint64_t splitmix64(uint64_t z) noexcept;
 void     prng_init(Prng& p, uint64_t seed) noexcept;
 uint64_t prng_next_u64(Prng& p) noexcept;
+uint32_t prng_next_u32(Prng& p) noexcept;
 double   prng_next_unit(Prng& p) noexcept;
 double   prng_uniform(Prng& p, double lo, double hi) noexcept;
+double   prng_exponential(Prng& p, double lambda) noexcept;
 uint32_t prng_index(Prng& p, uint32_t n) noexcept;
 
 // ---------------------------------------------------------------------------
@@ -84,6 +86,18 @@ struct Blade {
     double  mushroomCapHeight       = 0.0;   // radius Y (DIP)
     double  mushroomStemHeight      = 0.0;   // DIP
     double  mushroomStemThickness   = 0.0;   // DIP
+
+    // Original Grass-scene slot variants. Desert cacti temporarily replace
+    // flower/mushroom tags; switching back to Grass restores these snapshots.
+    bool    originalIsFlower        = false;
+    bool    originalIsMushroom      = false;
+
+    // Cactus (§14). Desert-only slot-bound blade variant.
+    bool    isCactus                = false;
+    uint8_t cactusType              = 0;     // 0 = column, 1 = single-arm, 2 = saguaro
+    double  cactusHeight            = 0.0;   // DIP
+    double  cactusWidth             = 0.0;   // DIP
+    int8_t  cactusArmSide           = +1;    // -1 or +1 for type 1
 
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
@@ -171,6 +185,14 @@ struct Sim {
     // Per-scene entity-stream seed. Set at sim_init; used by sim_set_scene
     // to construct the per-kind generator PRNGs.
     uint64_t           entitySeed          = 0;
+
+    // Persistent tumbleweed stream (§14). Initialized when entering Desert and
+    // consumed by off-edge respawns so replay stays deterministic.
+    Prng               tumbleweedPrng      = { 0 };
+
+    // §15 snowflake emitter (Winter scene only)
+    Prng               snowflakePrng       = { 0 };
+    double             nextSnowflakeSpawnTime = 0.0;
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -224,6 +246,10 @@ void sim_tick(Sim& sim, double dt,
 // Generator used by sim_init / sim_regenerate. Exposed for unit tests.
 void generate_blades(uint64_t seed, double monitorWidth, double density,
                      std::vector<Blade>& out);
+
+// Desert generators (§14). Exposed for unit tests.
+void generate_cacti_for_desert(Sim& sim) noexcept;
+void generate_tumbleweeds(Sim& sim) noexcept;
 
 // Per-blade dynamics helper (visible for tests).
 void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept;

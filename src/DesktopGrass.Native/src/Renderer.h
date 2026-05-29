@@ -86,6 +86,10 @@ private:
     ComPtr<ID2D1SolidColorBrush>           flowerHeadBrushes_[FLOWER_PALETTE_SIZE];
     ComPtr<ID2D1SolidColorBrush>           mushroomCapBrushes_[MUSHROOM_PALETTE_SIZE];
     ComPtr<ID2D1SolidColorBrush>           mushroomStemBrush_;
+    ComPtr<ID2D1SolidColorBrush>           cactusBrush_;
+    ComPtr<ID2D1SolidColorBrush>           tumbleweedBrush_;
+    ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
+    ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;

@@ -38,6 +38,8 @@
     <Compile Include="SimTests\AmbientGustTests.cs" />
     <Compile Include="SimTests\SceneTests.cs" />
     <Compile Include="SimTests\EntitySkeletonTests.cs" />
+    <Compile Include="SimTests\DesertTests.cs" />
+    <Compile Include="SimTests\WinterTests.cs" />
     <Compile Include="InternalsVisible.cs" />
   </ItemGroup>
 

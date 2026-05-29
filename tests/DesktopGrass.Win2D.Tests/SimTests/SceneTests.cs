@@ -20,6 +20,7 @@ public class SceneTests
             GroundY = Constants.STRIP_HEIGHT + Constants.HEADROOM,
         };
         sim.ResetAmbientGusts(seed, monitorWidth);
+        sim.ResetEntities(seed);
         return sim;
     }
 
@@ -41,7 +42,7 @@ public class SceneTests
     }
 
     [Fact]
-    public void SetSceneIsStateOnlyAndDoesNotPerturbBlades()
+    public void SetSceneDoesNotPerturbBladeGeometryOrHues()
     {
         var a = BuildSim();
         var b = BuildSim();
@@ -58,8 +59,6 @@ public class SceneTests
             Assert.Equal(a.Blades[i].Height, b.Blades[i].Height);
             Assert.Equal(a.Blades[i].Thickness, b.Blades[i].Thickness);
             Assert.Equal(a.Blades[i].Hue, b.Blades[i].Hue);
-            Assert.Equal(a.Blades[i].IsFlower, b.Blades[i].IsFlower);
-            Assert.Equal(a.Blades[i].IsMushroom, b.Blades[i].IsMushroom);
         }
         Assert.Equal(a.AmbientPrng.State, b.AmbientPrng.State);
         Assert.Equal(a.NextAmbientGustTime, b.NextAmbientGustTime);

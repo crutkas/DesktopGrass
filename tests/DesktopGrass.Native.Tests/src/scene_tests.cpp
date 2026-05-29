@@ -5,8 +5,8 @@
 // Coverage:
 //   * Scene enum discriminants match the spec ({Grass=0, Desert=1, Winter=2}).
 //   * sim_init defaults currentScene to SCENE_DEFAULT (= Grass).
-//   * sim_set_scene is a pure state update; it does not perturb blades or
-//     any PRNG stream.
+//   * sim_set_scene does not perturb blade positions/dimensions/hues or
+//     any non-scene PRNG stream.
 //   * Per-scene palette tables are 6 entries each with full-alpha ARGB.
 //   * SCENE_PALETTES[Grass] is bit-identical to the original §4 PALETTE.
 
@@ -31,7 +31,7 @@ TEST_CASE("sim_init defaults currentScene to Grass", "[scene][init]") {
     REQUIRE(sim.currentScene == Scene::Grass);
 }
 
-TEST_CASE("sim_set_scene is state-only and does not perturb blades", "[scene][independence]") {
+TEST_CASE("sim_set_scene does not perturb blade geometry or hues", "[scene][independence]") {
     Sim a = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
     Sim b = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
 
@@ -49,10 +49,8 @@ TEST_CASE("sim_set_scene is state-only and does not perturb blades", "[scene][in
         REQUIRE(a.blades[i].height    == Approx(b.blades[i].height));
         REQUIRE(a.blades[i].thickness == Approx(b.blades[i].thickness));
         REQUIRE(a.blades[i].hue       == b.blades[i].hue);
-        REQUIRE(a.blades[i].isFlower  == b.blades[i].isFlower);
-        REQUIRE(a.blades[i].isMushroom == b.blades[i].isMushroom);
     }
-    // Ambient PRNG also untouched.
+    // Desert cacti may mutate variant tags, but geometry and ambient PRNG stay untouched.
     REQUIRE(a.ambientPrng.state == b.ambientPrng.state);
     REQUIRE(a.nextAmbientGustTime == Approx(b.nextAmbientGustTime));
 }
