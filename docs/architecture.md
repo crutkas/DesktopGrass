@@ -794,6 +794,9 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `AMBIENT_GUST_MAG_FACTOR_MIN` | 0.3 | (unitless) | §8.1 |
 | `AMBIENT_GUST_MAG_FACTOR_MAX` | 0.6 | (unitless) | §8.1 |
 | `AMBIENT_GUST_RADIUS_FACTOR` | 0.5 | (unitless) | §8.1 |
+| `SCENE_DEFAULT` | `Grass` (= 0) | enum | §13 |
+| `DESERT_PALETTE` | 6 ARGB; see below | uint32[] | §13 |
+| `WINTER_PALETTE` | 6 ARGB; see below | uint32[] | §13 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `MUSHROOM_STUMP_HEIGHT` | 4.0 | DIP | §7 |
@@ -802,7 +805,98 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |
 | `CANONICAL_TEST_SEED` | `0x6B6173746F` | uint64 | §12 |
 
-The palette table from §4 (six ARGB values for grass blades), the Flower palette (six ARGB values for flower heads), and the Mushroom palette (six ARGB values for caps + one `MUSHROOM_STEM_COLOR` for stems) are also part of this constants set.
+The palette table from §4 (six ARGB values for grass blades), the Flower palette (six ARGB values for flower heads), and the Mushroom palette (six ARGB values for caps + one `MUSHROOM_STEM_COLOR` for stems) are also part of this constants set. §13 adds two further palette tables (Desert blade palette + Winter blade palette) of six ARGB values each.
+
+### Scene blade palettes (§13)
+
+```
+DESERT_PALETTE[6] = {
+    0xFFC9A26B,   // 0 dried-grass tan
+    0xFFB48A56,   // 1 warm sand
+    0xFFD9B57A,   // 2 light dune
+    0xFF8F6E3F,   // 3 dust brown
+    0xFFE6C896,   // 4 pale beige
+    0xFFA67843,   // 5 burnt sienna
+};
+
+WINTER_PALETTE[6] = {
+    0xFFE8EEF5,   // 0 frost white
+    0xFFB7C4D2,   // 1 cool silver
+    0xFFCBD8E5,   // 2 pale ice
+    0xFFD7E2EE,   // 3 light snow
+    0xFFA8B7C6,   // 4 winter slate
+    0xFFEEF3F8,   // 5 hoarfrost
+};
+```
+
+Grass blades render at the same `blade.hue` indices in every scene; only the palette table changes.
+
+---
+
+## 13. Scenes (infrastructure)
+
+The simulation supports a small fixed set of visual "scenes" that share the same blade generation, sway physics, gust/cut model, and ambient-gust scheduler from §§4–10 + §8.1, but differ in render-time presentation. The infrastructure pass only swaps the blade palette per scene; subsequent scene-specific sections (§14 Desert, §15 Winter) add entities and props on top.
+
+### Scene enum
+
+```
+enum Scene : uint8_t {
+    Grass  = 0,   // default; the original green field from §§4–10
+    Desert = 1,   // dried-grass / sand palette; cacti & tumbleweeds in §14
+    Winter = 2,   // frosted / snowy palette; snowflakes in §15
+};
+```
+
+Both impls MUST use these exact discriminant values so the cross-impl conformance tests in §12 can compare an integer scene id.
+
+### Per-scene blade palette
+
+Each scene defines a 6-color ARGB palette indexed by `blade.hue`. The `hue` index is still drawn from the main PRNG stream as per §5 — generation is scene-independent — but the renderer selects which palette table to look up based on `sim.currentScene`:
+
+```c
+uint32_t argb = SCENE_PALETTE[sim->currentScene][blade.hue];
+```
+
+The Grass palette is the original §4 palette (unchanged). Desert and Winter palettes are listed in §11.
+
+### Sim state
+
+The `Sim` carries one new field:
+
+```
+Scene currentScene = Grass;     // default at sim_init
+```
+
+`set_scene(Sim*, Scene)` is a pure state update: assign the field and return. In the infrastructure pass it has no other side effect — the renderer reads `currentScene` at draw time. Later scene sections may use this hook to (re-)generate scene-specific entities.
+
+`sim_init` initialises `currentScene = Grass` regardless of seed.
+
+### Tray menu
+
+Both impls expose scene selection via the system tray icon. The menu structure:
+
+```
+DesktopGrass tray
+├── Scene  ▸
+│           ●  Grass
+│           ○  Desert
+│           ○  Winter
+└── Quit
+```
+
+The active scene shows a radio-style mark (`MFS_CHECKED` / `MF_BYCOMMAND` in Win32; `Checked = true` in WinForms `ToolStripMenuItem`). Clicking another scene item is an atomic broadcast to every monitor window: `set_scene(sim, newScene)` runs on each `Sim` before the next frame.
+
+### Cross-impl conformance
+
+- The `Scene` enum values are exactly `{ Grass = 0, Desert = 1, Winter = 2 }` in both impls.
+- The Desert and Winter blade palette tables in §11 are bit-identical between impls.
+- `sim_init` sets `currentScene = Grass`.
+- `set_scene` updates the field and is a no-op on the §5 generation streams: the §12 first-blade snapshot stays unchanged regardless of scene.
+- Scene state is **not** persisted across launches in v1; every cold start begins on `Grass`.
+
+### Defaults
+
+Constants and palette tables land in §11 under "Scenes".
 
 ---
 
