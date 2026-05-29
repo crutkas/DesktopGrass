@@ -149,7 +149,7 @@ TEST_CASE("compute_blade_stroke degenerates to a stump under threshold", "[cut][
     b.cutInitialHeight = 1.0;
     b.cutAnimStart     = 0.0;
 
-    Stroke s = compute_blade_stroke(b, 110.0);
+    Stroke s = compute_blade_stroke(b, 110.0, Scene::Grass);
     REQUIRE(s.tip.x == Approx(100.0));
     REQUIRE(s.tip.y == Approx(110.0 - STUMP_HEIGHT));
     REQUIRE(s.argb  == PALETTE[2]);
@@ -164,7 +164,7 @@ TEST_CASE("compute_blade_stroke produces vertical line when lean is zero", "[cut
     b.cutHeight     = 1.0;
     b.effectiveLean = 0.0;
 
-    Stroke s = compute_blade_stroke(b, 110.0);
+    Stroke s = compute_blade_stroke(b, 110.0, Scene::Grass);
     REQUIRE(s.base.x    == Approx(100.0));
     REQUIRE(s.base.y    == Approx(110.0));
     REQUIRE(s.tip.x     == Approx(100.0));

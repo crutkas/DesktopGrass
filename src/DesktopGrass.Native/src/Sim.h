@@ -118,7 +118,7 @@ struct Stroke {
     uint32_t argb;
 };
 
-Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept;
+Stroke compute_blade_stroke(const Blade& b, double groundY, Scene scene) noexcept;
 
 // ---------------------------------------------------------------------------
 // Input event queue. The renderer drains the OS hook into this struct each

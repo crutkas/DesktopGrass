@@ -116,6 +116,10 @@ constexpr double   AMBIENT_GUST_MAG_FACTOR_MIN  = 0.3;   // unitless, fraction o
 constexpr double   AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
 constexpr double   AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless, fraction of GUST_RADIUS
 
+// Desert scene shrinks non-cactus, non-mushroom blade heights at render
+// time so cacti read as the dominant biome feature.
+constexpr double   DESERT_GRASS_HEIGHT_SCALE     = 0.5;
+
 // Cacti (§14). Slot-bound Desert blade variants generated from an independent
 // PRNG stream so the §12 static blade snapshot remains unchanged.
 constexpr double   CACTUS_PROBABILITY            = 0.005;

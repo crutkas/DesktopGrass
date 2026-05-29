@@ -716,6 +716,10 @@ internal sealed class Sim
         }
 
         double L = b.Height * b.HeightBonus * b.CutHeight;
+        if (scene == Scene.Desert && !b.IsCactus && !b.IsMushroom)
+        {
+            L *= Constants.DESERT_GRASS_HEIGHT_SCALE;
+        }
 
         // Chord preservation: blades have a fixed length L. As EffectiveLean
         // grows, the tip arcs over (Y drops) rather than the blade stretching

@@ -527,7 +527,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 // Stroke geometry. architecture.md §7.
 // ---------------------------------------------------------------------------
 
-Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
+Stroke compute_blade_stroke(const Blade& b, double groundY, Scene scene) noexcept {
     Stroke s{};
     s.argb      = PALETTE[b.hue];
     s.thickness = b.thickness;
@@ -539,7 +539,11 @@ Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
         return s;
     }
 
-    const double L = b.height * b.heightBonus * b.cutHeight;
+    const double heightScale =
+        (scene == Scene::Desert && !b.isCactus && !b.isMushroom)
+            ? DESERT_GRASS_HEIGHT_SCALE
+            : 1.0;
+    const double L = b.height * b.heightBonus * b.cutHeight * heightScale;
 
     // Chord preservation: blades have a fixed length L. As effectiveLean
     // grows, the tip arcs over (Y drops) rather than the blade stretching

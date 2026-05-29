@@ -456,7 +456,7 @@ void Renderer::DrawGrass() {
             continue;
         }
 
-        const Stroke s = compute_blade_stroke(b, groundY);
+        const Stroke s = compute_blade_stroke(b, groundY, sim_.currentScene);
 
         // Path: line from base, quadratic Bezier to tip via control.
         ComPtr<ID2D1PathGeometry> path;

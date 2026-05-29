@@ -109,6 +109,10 @@ internal static class Constants
     public const double AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
     public const double AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless
 
+    // Desert scene shrinks non-cactus, non-mushroom blade heights at render
+    // time so cacti read as the dominant biome feature.
+    public const double DESERT_GRASS_HEIGHT_SCALE    = 0.5;
+
     // Cacti (§14). Slot-bound Desert blade variants generated from an
     // independent stream so the static §12 blade snapshot is untouched.
     public const double CACTUS_PROBABILITY         = 0.005;
