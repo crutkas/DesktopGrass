@@ -39,6 +39,16 @@ internal static class Constants
     public const double CUT_RADIUS = 30.0;             // DIP
     public const double CUT_DURATION_SEC = 0.2;        // sec
 
+    // Regrowth (§9 "Regrowth"). Per-blade jitter values sampled at generation
+    // from a separate xorshift64 stream seeded with `seed XOR REGROW_PRNG_SALT`
+    // — this keeps the main PRNG stream unchanged so blade positions/heights
+    // are bit-identical to the pre-regrowth implementation.
+    public const double REGROW_DELAY_MIN     = 30.0;   // sec
+    public const double REGROW_DELAY_MAX     = 90.0;   // sec
+    public const double REGROW_DURATION_MIN  = 2.0;    // sec
+    public const double REGROW_DURATION_MAX  = 4.0;    // sec
+    public const ulong  REGROW_PRNG_SALT     = 0xDEADBEEFCAFEBABEUL;
+
     // Bezier rendering (§7)
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP

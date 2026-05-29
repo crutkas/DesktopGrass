@@ -84,6 +84,7 @@
     <ClCompile Include="src\sway_tests.cpp" />
     <ClCompile Include="src\gust_tests.cpp" />
     <ClCompile Include="src\cut_tests.cpp" />
+    <ClCompile Include="src\regrowth_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 

@@ -74,6 +74,16 @@ internal struct Blade
     public double CutAnimStart;
     public double CutInitialHeight;
 
+    // Regrowth (§9 "Regrowth"). RegrowDelay / RegrowDuration are assigned
+    // once at generation from an independent PRNG stream. RegrowStart is the
+    // absolute GlobalTime at which the regrow animation begins; -1 = not
+    // scheduled. AdvanceCut only schedules regrowth when both fields are
+    // positive so default-constructed Blade instances (used by tests) stay
+    // dormant.
+    public double RegrowDelay;
+    public double RegrowDuration;
+    public double RegrowStart;
+
     // Derived per frame by update_blade_dynamics (§6).
     public double EffectiveLean;
 }
@@ -133,6 +143,8 @@ internal sealed class Sim
     public void Generate(ulong seed, double monitorWidth, double density)
     {
         var p = new Prng(seed);
+        // Independent stream for regrowth jitter — see Constants.RegrowPrngSalt.
+        var pRegrow = new Prng(seed ^ Constants.RegrowPrngSalt);
         var list = new List<Blade>(capacity: (int)(monitorWidth / 6.0));
 
         double x = 0.0;
@@ -157,6 +169,12 @@ internal sealed class Sim
                 CutAnimStart     = -1.0,
                 CutInitialHeight = 1.0,
                 EffectiveLean    = 0.0,
+
+                // Regrowth jitter — independent stream. Draw delay first, then
+                // duration (order MUST match across impls).
+                RegrowDelay      = pRegrow.Uniform(Constants.RegrowDelayMin, Constants.RegrowDelayMax),
+                RegrowDuration   = pRegrow.Uniform(Constants.RegrowDurationMin, Constants.RegrowDurationMax),
+                RegrowStart      = -1.0,
             };
             list.Add(b);
         }
@@ -201,6 +219,7 @@ internal sealed class Sim
     internal double TestPrevCursorX => _prevCursorX;
     internal double TestPrevCursorTime => _prevCursorTime;
     internal void TestSetGlobalTime(double t) => GlobalTime = t;
+    internal void TestSetBlades(Blade[] blades) => Blades = blades;
 
     // Test-only convenience: static blade generation, mirroring the API
     // used by the Native and Win2D test projects so the snapshot fixtures
@@ -321,24 +340,59 @@ internal sealed class Sim
 
             b.CutAnimStart = globalTime;
             b.CutInitialHeight = b.CutHeight;
+            // Cancel any pending/in-progress regrowth: we're going back down.
+            b.RegrowStart = -1.0;
         }
     }
 
-    // §9 — advance the in-flight cut animation.
+    // §9 — advance the in-flight cut animation OR the regrowth animation.
     internal static void AdvanceCut(ref Blade b, double globalTime)
     {
-        if (b.CutAnimStart < 0.0) return;
-
-        double elapsed = globalTime - b.CutAnimStart;
-        double t = elapsed / Constants.CutDurationSec;
-        if (t >= 1.0)
+        // Phase 1: cut animation is running.
+        if (b.CutAnimStart >= 0.0)
         {
-            b.CutHeight = 0.0;
-            b.CutAnimStart = -1.0;
+            double elapsed = globalTime - b.CutAnimStart;
+            double t = elapsed / Constants.CutDurationSec;
+            if (t >= 1.0)
+            {
+                b.CutHeight = 0.0;
+                b.CutAnimStart = -1.0;
+                // Schedule regrowth only if jitter values are well-defined.
+                // Production blades from Generate() always satisfy this; test
+                // fixtures with default-constructed Blade stay cut (matches
+                // the pre-regrowth contract).
+                if (b.RegrowDelay > 0.0 && b.RegrowDuration > 0.0)
+                {
+                    b.RegrowStart = globalTime + b.RegrowDelay;
+                }
+            }
+            else
+            {
+                b.CutHeight = b.CutInitialHeight * (1.0 - t);
+            }
+            return;
+        }
+
+        // Phase 2: regrowth scheduled / running.
+        if (b.RegrowStart < 0.0 || globalTime < b.RegrowStart) return;
+        if (b.RegrowDuration <= 0.0)
+        {
+            b.CutHeight   = 1.0;
+            b.RegrowStart = -1.0;
+            return;
+        }
+
+        double regrowElapsed = globalTime - b.RegrowStart;
+        double regrowT       = regrowElapsed / b.RegrowDuration;
+        if (regrowT >= 1.0)
+        {
+            b.CutHeight   = 1.0;
+            b.RegrowStart = -1.0;
         }
         else
         {
-            b.CutHeight = b.CutInitialHeight * (1.0 - t);
+            // Linear regrowth 0 -> 1.
+            b.CutHeight = regrowT;
         }
     }
 

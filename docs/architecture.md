@@ -33,7 +33,7 @@ tipY = groundY - height * cutHeight
 
 That is, a tall uncut blade has a smaller `tipY` (higher on screen) than a short or cut blade.
 
-A monitor's "work area" is **not** used; the grass anchors to the screen bottom regardless of taskbar position, so each implementation should query the monitor's full bounds and place the window accordingly.
+The grass anchors to the bottom of the monitor's **work area** (`MONITORINFO.rcWork.bottom`), so it sits directly on top of the taskbar rather than being clipped behind it. Each implementation queries `GetMonitorInfo` per monitor and uses `rcWork` for the window position. (Side- or top-docked taskbars work the same way: the work area excludes whatever side the taskbar is on, and the grass strip lands on the bottom edge of what remains.)
 
 ---
 
@@ -112,6 +112,9 @@ Each blade is a plain-old-data struct. Field order is not load-bearing across im
 | `gustVelocity` | double (rad/sec) | unbounded | runtime | Wind impulse, decays exponentially. Initial: 0.0. |
 | `cutAnimStart` | double (sec) | `-1` or `≥ 0` | runtime | `globalTime` when the current cut animation began; `-1` = idle. Initial: -1. |
 | `cutInitialHeight` | double | `[0.0, 1.0]` | runtime | `cutHeight` at the moment the current cut animation began. Initial: 1.0. |
+| `regrowDelay` | double (sec) | `[30, 90]` | static | Per-blade wait after being cut before regrowth begins. |
+| `regrowDuration` | double (sec) | `[2, 4]` | static | Per-blade time to grow back from stump to full height. |
+| `regrowStart` | double (sec) | `-1` or `≥ 0` | runtime | `globalTime` at which regrowth begins (set when cut anim completes); `-1` = idle. Initial: -1. |
 
 ### Color palette
 
@@ -140,8 +143,11 @@ Output: an ordered list of `Blade` records, x positions strictly increasing.
 void generate_blades(uint64_t seed, double monitorWidth, double density,
                      BladeList* out)
 {
-    Prng p;
+    Prng p;        // main stream — drives geometry, palette, sway
     prng_init(&p, seed);
+
+    Prng pr;       // regrowth stream — drives regrowDelay / regrowDuration
+    prng_init(&pr, seed ^ REGROW_PRNG_SALT);
 
     double x = 0.0;
     while (x < monitorWidth) {
@@ -159,17 +165,24 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.swayPhaseOffset  = prng_uniform(&p, 0.0, 2.0 * M_PI);
         b.stiffness        = prng_uniform(&p, 0.6, 1.0);
 
+        // Regrowth jitter is drawn from a SEPARATE stream so the main
+        // sequence (and thus geometry / sway / palette) is bit-identical
+        // whether regrowth is enabled or not.
+        b.regrowDelay      = prng_uniform(&pr, REGROW_DELAY_MIN,    REGROW_DELAY_MAX);
+        b.regrowDuration   = prng_uniform(&pr, REGROW_DURATION_MIN, REGROW_DURATION_MAX);
+
         b.cutHeight        = 1.0;
         b.gustVelocity     = 0.0;
         b.cutAnimStart     = -1.0;
         b.cutInitialHeight = 1.0;
+        b.regrowStart      = -1.0;
 
         bladelist_push(out, b);
     }
 }
 ```
 
-**Field-draw order is fixed.** Implementations MUST draw the six static fields in this exact order (`height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`) from the PRNG. Reordering changes the blade list for the same seed and breaks the snapshot tests.
+**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. Reordering or interleaving the two streams changes the per-blade values for a given seed and breaks the snapshot tests. The two streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth is enabled.
 
 At a 1920-DIP-wide monitor with `density = 1.0`, the expected blade count is approximately `2 * 1920 / (4 + 8) ≈ 320`. The plan's "~400 blades per 1920 px" target is met by `density ≈ 1.25` (a tunable for v1).
 
@@ -323,7 +336,7 @@ for (Blade* b in blades) {
 
 ---
 
-## 9. Cut state animation
+## 9. Cut and regrowth state animation
 
 The mouse hook also delivers `WM_LBUTTONDOWN` events as `(clickX, clickY, eventTime)`.
 
@@ -344,39 +357,75 @@ Reject the click if `clickY < cutBandTop` or `clickY > cutBandBottom`.
 void apply_click(BladeList* blades, double clickX, double globalTime) {
     for (Blade* b in blades) {
         if (fabs(b->baseX - clickX) >= CUT_RADIUS) continue;
-        if (b->cutHeight <= 0.0) continue;                   // already fully cut
-        if (b->cutAnimStart >= 0.0) continue;                // already animating
+        if (b->cutHeight <= 0.0) continue;                   // stump, waiting to regrow
+        if (b->cutAnimStart >= 0.0) continue;                // already animating a cut
 
         b->cutAnimStart     = globalTime;
         b->cutInitialHeight = b->cutHeight;
+        b->regrowStart      = -1.0;   // cancel any pending regrowth — phase 1
+                                      // will reschedule a fresh delay on completion.
     }
 }
 ```
 
-`CUT_RADIUS = 30` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion.
+`CUT_RADIUS = 30` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion. The `cutHeight <= 0` check makes clicks on a stump (cut, in delay) a no-op; clicks on a mid-regrowing blade (`cutHeight ∈ (0,1)`) do re-cut, and the cancellation of `regrowStart` keeps phase 2 from firing on top of phase 1.
 
 ### Advance animation (per frame)
 
-Called from `tick()` (see §10) after `globalTime` is updated:
+Called from `tick()` (see §10) after `globalTime` is updated. Each blade is either idle, in phase 1 (cut animation), in the regrowth delay (idle with `regrowStart > globalTime`), or in phase 2 (regrowth animation):
 
 ```c
 void advance_cut(Blade* b, double globalTime) {
-    if (b->cutAnimStart < 0.0) return;
+    // Phase 1: cut animation.
+    if (b->cutAnimStart >= 0.0) {
+        double elapsed = globalTime - b->cutAnimStart;
+        double t = elapsed / CUT_DURATION_SEC;       // 0..1 across 200 ms
+        if (t >= 1.0) {
+            b->cutHeight    = 0.0;
+            b->cutAnimStart = -1.0;
+            // Schedule regrowth — but only if this blade has valid jitter values.
+            // (A zero-initialized Blade with regrowDelay == regrowDuration == 0
+            // stays a permanent stump; this is the v1 test-fixture path.)
+            if (b->regrowDelay > 0.0 && b->regrowDuration > 0.0) {
+                b->regrowStart = globalTime + b->regrowDelay;
+            }
+        } else {
+            b->cutHeight = b->cutInitialHeight * (1.0 - t);  // linear to 0
+        }
+        return;
+    }
 
-    double elapsed = globalTime - b->cutAnimStart;
-    double t = elapsed / CUT_DURATION_SEC;       // 0..1 across 200 ms
-    if (t >= 1.0) {
-        b->cutHeight    = 0.0;
-        b->cutAnimStart = -1.0;
-    } else {
-        b->cutHeight = b->cutInitialHeight * (1.0 - t);  // linear to 0
+    // Phase 2: regrowth animation, after the delay has elapsed.
+    if (b->regrowStart >= 0.0 && globalTime >= b->regrowStart
+        && b->regrowDuration > 0.0)
+    {
+        double elapsed = globalTime - b->regrowStart;
+        double t = elapsed / b->regrowDuration;      // 0..1 across regrowDuration
+        if (t >= 1.0) {
+            b->cutHeight   = 1.0;
+            b->regrowStart = -1.0;
+        } else {
+            b->cutHeight = t;                        // linear 0 → 1
+        }
     }
 }
 ```
 
-`CUT_DURATION_SEC = 0.2` sec. Easing is linear by spec; visually it's brief enough that polynomial easing doesn't pay for itself.
+`CUT_DURATION_SEC = 0.2` sec. `REGROW_DELAY_*` and `REGROW_DURATION_*` (see §11) bracket per-blade jitter sampled in §5. Both animations use linear easing — the cut is brief enough that polynomial easing doesn't pay for itself, and the regrowth is slow enough that the eye doesn't read a curve.
 
-Cut state is **per-session only**. There is no persistence in v1, and re-generating the blade list (DPI change, display hot-plug) resets all `cutHeight` to 1.0.
+### Lifecycle
+
+For a single click on an uncut blade:
+1. `apply_click` sets `cutAnimStart = globalTime`, leaves `regrowStart = -1`.
+2. Over `CUT_DURATION_SEC` (200 ms), phase 1 drives `cutHeight` from its current value to 0.
+3. On phase 1 completion, `cutHeight = 0`, `cutAnimStart = -1`, and `regrowStart = globalTime + regrowDelay`.
+4. For `regrowDelay` seconds (30–90 s, per-blade), the blade is a stump.
+5. Once `globalTime >= regrowStart`, phase 2 drives `cutHeight` from 0 to 1 over `regrowDuration` seconds (2–4 s, per-blade).
+6. On phase 2 completion, `cutHeight = 1`, `regrowStart = -1`. The blade is uncut and clickable again.
+
+For a click during phase 2 (re-cut a mid-regrowing blade): `apply_click` records the current `cutHeight` as `cutInitialHeight`, sets `cutAnimStart = globalTime`, and clears `regrowStart`. Phase 1 runs back to 0 from wherever the blade was, and a new regrowth cycle is scheduled on completion.
+
+Cut state is **per-session only**. There is no persistence in v1, and re-generating the blade list (DPI change, display hot-plug) resets all `cutHeight` to 1.0 and `regrowStart` to -1.
 
 ---
 
@@ -460,6 +509,11 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `GUST_RADIUS` | 150.0 | DIP | §8 |
 | `CUT_RADIUS` | 30.0 | DIP | §9 |
 | `CUT_DURATION_SEC` | 0.2 | sec | §9 |
+| `REGROW_DELAY_MIN` | 30.0 | sec | §4, §5, §9 |
+| `REGROW_DELAY_MAX` | 90.0 | sec | §4, §5, §9 |
+| `REGROW_DURATION_MIN` | 2.0 | sec | §4, §5, §9 |
+| `REGROW_DURATION_MAX` | 4.0 | sec | §4, §5, §9 |
+| `REGROW_PRNG_SALT` | `0xDEADBEEFCAFEBABE` | uint64 | §5 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `CTRL_OFFSET_FACTOR` | 0.6 | (unitless) | §7 |

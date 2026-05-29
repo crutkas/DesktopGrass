@@ -39,6 +39,7 @@
     <Compile Include="SimTests\GustTests.cs" />
     <Compile Include="SimTests\CutTests.cs" />
     <Compile Include="SimTests\StrokeTests.cs" />
+    <Compile Include="SimTests\RegrowthTests.cs" />
   </ItemGroup>
 
 </Project>

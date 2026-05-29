@@ -33,6 +33,7 @@
     <Compile Include="SimTests\SwayTests.cs" />
     <Compile Include="SimTests\GustTests.cs" />
     <Compile Include="SimTests\CutTests.cs" />
+    <Compile Include="SimTests\RegrowthTests.cs" />
     <Compile Include="InternalsVisible.cs" />
   </ItemGroup>
 

@@ -43,6 +43,19 @@ constexpr double CUT_STUMP_THRESHOLD   = 0.05;
 constexpr double STUMP_HEIGHT          = 2.0;
 constexpr double CTRL_OFFSET_FACTOR    = 0.6;
 
+// Regrowth -------------------------------------------------------------------
+// After a blade's cut animation finishes, it waits `regrowDelay` seconds (a
+// per-blade jittered value in [MIN, MAX]) and then grows back from cutHeight=0
+// to cutHeight=1 linearly over `regrowDuration` seconds (also per-blade
+// jittered). The jitter is sampled from a second xorshift64 stream seeded with
+// `seed XOR REGROW_PRNG_SALT` so it does NOT perturb blade positions/heights
+// drawn from the main stream — conformance with seed 0x6B6173746F is preserved.
+constexpr double REGROW_DELAY_MIN      = 30.0;
+constexpr double REGROW_DELAY_MAX      = 90.0;
+constexpr double REGROW_DURATION_MIN   = 2.0;
+constexpr double REGROW_DURATION_MAX   = 4.0;
+constexpr uint64_t REGROW_PRNG_SALT    = 0xDEADBEEFCAFEBABEull;
+
 // Tests -----------------------------------------------------------------------
 constexpr uint64_t CANONICAL_TEST_SEED = 0x6B6173746Full;
 

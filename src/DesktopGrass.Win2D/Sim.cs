@@ -71,6 +71,16 @@ internal struct Blade
     public double CutAnimStart;
     public double CutInitialHeight;
 
+    // Regrowth (§9 "Regrowth"). RegrowDelay / RegrowDuration are assigned
+    // once at generation from an independent PRNG stream. RegrowStart is the
+    // absolute GlobalTime at which the regrow animation begins; -1 = not
+    // scheduled. AdvanceCut only schedules regrowth when both fields are
+    // positive, so default-constructed Blade instances (used by tests) stay
+    // dormant.
+    public double RegrowDelay;
+    public double RegrowDuration;
+    public double RegrowStart;
+
     public double EffectiveLean;
 }
 
@@ -103,6 +113,10 @@ internal sealed class Sim
     public static Blade[] GenerateBlades(ulong seed, double monitorWidth, double density)
     {
         var rng = Prng.Init(seed);
+        // Independent PRNG stream for regrowth jitter — seeded with seed XOR
+        // salt so the main stream stays bit-identical to the pre-regrowth
+        // implementation (preserves the 10,787 cross-impl conformance).
+        var rngRegrow = Prng.Init(seed ^ Constants.REGROW_PRNG_SALT);
         var list = new List<Blade>(capacity: (int)(monitorWidth / 4.0));
         double x = 0.0;
 
@@ -124,6 +138,12 @@ internal sealed class Sim
             b.GustVelocity = 0.0;
             b.CutAnimStart = -1.0;
             b.CutInitialHeight = 1.0;
+
+            // Regrowth jitter — independent stream, draw delay then duration
+            // (order MUST match across impls).
+            b.RegrowDelay    = rngRegrow.Uniform(Constants.REGROW_DELAY_MIN, Constants.REGROW_DELAY_MAX);
+            b.RegrowDuration = rngRegrow.Uniform(Constants.REGROW_DURATION_MIN, Constants.REGROW_DURATION_MAX);
+            b.RegrowStart    = -1.0;
 
             list.Add(b);
         }
@@ -199,22 +219,58 @@ internal sealed class Sim
 
             b.CutAnimStart = GlobalTime;
             b.CutInitialHeight = b.CutHeight;
+            // Cancel any pending or in-progress regrowth: we're going back down.
+            b.RegrowStart = -1.0;
         }
     }
 
     public static void AdvanceCut(ref Blade b, double globalTime)
     {
-        if (b.CutAnimStart < 0.0) return;
-        double elapsed = globalTime - b.CutAnimStart;
-        double t = elapsed / Constants.CUT_DURATION_SEC;
-        if (t >= 1.0)
+        // Phase 1: cut animation is running.
+        if (b.CutAnimStart >= 0.0)
         {
-            b.CutHeight = 0.0;
-            b.CutAnimStart = -1.0;
+            double elapsed = globalTime - b.CutAnimStart;
+            double t = elapsed / Constants.CUT_DURATION_SEC;
+            if (t >= 1.0)
+            {
+                b.CutHeight = 0.0;
+                b.CutAnimStart = -1.0;
+                // Schedule regrowth only if the per-blade jitter is
+                // well-defined. Production blades from GenerateBlades always
+                // satisfy this; test fixtures with default-constructed Blade
+                // stay cut (matches the pre-regrowth contract).
+                if (b.RegrowDelay > 0.0 && b.RegrowDuration > 0.0)
+                {
+                    b.RegrowStart = globalTime + b.RegrowDelay;
+                }
+            }
+            else
+            {
+                b.CutHeight = b.CutInitialHeight * (1.0 - t);
+            }
+            return;
+        }
+
+        // Phase 2: regrowth scheduled / running.
+        if (b.RegrowStart < 0.0 || globalTime < b.RegrowStart) return;
+        if (b.RegrowDuration <= 0.0)
+        {
+            b.CutHeight = 1.0;
+            b.RegrowStart = -1.0;
+            return;
+        }
+
+        double regrowElapsed = globalTime - b.RegrowStart;
+        double regrowT = regrowElapsed / b.RegrowDuration;
+        if (regrowT >= 1.0)
+        {
+            b.CutHeight = 1.0;
+            b.RegrowStart = -1.0;
         }
         else
         {
-            b.CutHeight = b.CutInitialHeight * (1.0 - t);
+            // Linear 0 -> 1, same easing as the cut animation in reverse.
+            b.CutHeight = regrowT;
         }
     }
 

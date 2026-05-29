@@ -65,6 +65,13 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
     Prng p;
     prng_init(p, seed);
 
+    // Independent stream for regrowth jitter. Seeding it from `seed XOR salt`
+    // makes the jitter deterministic for a given seed *without* advancing the
+    // main PRNG state — existing snapshot tests / cross-impl conformance
+    // (10,787 unique colors for the canonical seed) stay bit-identical.
+    Prng pRegrow;
+    prng_init(pRegrow, seed ^ REGROW_PRNG_SALT);
+
     double x = 0.0;
     while (true) {
         double step = prng_uniform(p, BLADE_SPACING_MIN, BLADE_SPACING_MAX) / density;
@@ -84,6 +91,12 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.cutAnimStart     = -1.0;
         b.cutInitialHeight = 1.0;
         b.effectiveLean    = 0.0;
+
+        // Regrowth jitter — independent stream. Draw delay first, then duration
+        // (field-draw order MUST match across all three impls).
+        b.regrowDelay      = prng_uniform(pRegrow, REGROW_DELAY_MIN,    REGROW_DELAY_MAX);
+        b.regrowDuration   = prng_uniform(pRegrow, REGROW_DURATION_MIN, REGROW_DURATION_MAX);
+        b.regrowStart      = -1.0;
 
         out.push_back(b);
     }
@@ -110,15 +123,44 @@ void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept {
 // ---------------------------------------------------------------------------
 
 void advance_cut(Blade& b, double globalTime) noexcept {
-    if (b.cutAnimStart < 0.0) return;
+    // Phase 1: cut animation is running.
+    if (b.cutAnimStart >= 0.0) {
+        const double elapsed = globalTime - b.cutAnimStart;
+        const double t       = elapsed / CUT_DURATION_SEC;
+        if (t >= 1.0) {
+            b.cutHeight    = 0.0;
+            b.cutAnimStart = -1.0;
+            // Schedule regrowth only if the per-blade jitter is well-defined.
+            // Production blades from generate_blades always satisfy this;
+            // test fixtures that zero-init Blade end up with delay=0 and
+            // therefore stay cut, which matches their pre-regrowth contract.
+            if (b.regrowDelay > 0.0 && b.regrowDuration > 0.0) {
+                b.regrowStart = globalTime + b.regrowDelay;
+            }
+        } else {
+            b.cutHeight = b.cutInitialHeight * (1.0 - t);
+        }
+        return;
+    }
 
-    const double elapsed = globalTime - b.cutAnimStart;
-    const double t       = elapsed / CUT_DURATION_SEC;
+    // Phase 2: regrowth scheduled / running. Idle if regrowStart < 0, the
+    // scheduled time hasn't arrived yet, or duration is non-positive.
+    if (b.regrowStart < 0.0 || globalTime < b.regrowStart) return;
+    if (b.regrowDuration <= 0.0) {
+        b.cutHeight   = 1.0;
+        b.regrowStart = -1.0;
+        return;
+    }
+
+    const double elapsed = globalTime - b.regrowStart;
+    const double t       = elapsed / b.regrowDuration;
     if (t >= 1.0) {
-        b.cutHeight    = 0.0;
-        b.cutAnimStart = -1.0;
+        b.cutHeight   = 1.0;
+        b.regrowStart = -1.0;
     } else {
-        b.cutHeight = b.cutInitialHeight * (1.0 - t);
+        // Linear regrowth 0 -> 1. Same easing curve as the cut animation,
+        // just in reverse and over a longer span.
+        b.cutHeight = t;
     }
 }
 
@@ -186,6 +228,8 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
 
         b.cutAnimStart     = sim.globalTime;
         b.cutInitialHeight = b.cutHeight;
+        // Cancel any pending or in-progress regrowth: we're going back down.
+        b.regrowStart      = -1.0;
     }
 }
 

@@ -46,6 +46,15 @@ internal static class Constants
     public const double CutRadius           = 30.0;   // DIP
     public const double CutDurationSec      = 0.2;    // sec
 
+    // §9 "Regrowth" — per-blade jitter is sampled at generation from a
+    // SECOND xorshift64 stream seeded `seed XOR RegrowPrngSalt`, so the main
+    // stream remains bit-identical and the 10,787 conformance gate holds.
+    public const double RegrowDelayMin     = 30.0;   // sec
+    public const double RegrowDelayMax     = 90.0;   // sec
+    public const double RegrowDurationMin  = 2.0;    // sec
+    public const double RegrowDurationMax  = 4.0;    // sec
+    public const ulong  RegrowPrngSalt     = 0xDEADBEEFCAFEBABEUL;
+
     // §7 — rendering geometry.
     public const double CutStumpThreshold   = 0.05;
     public const double StumpHeight         = 2.0;    // DIP

@@ -51,6 +51,19 @@ struct Blade {
     double  cutAnimStart;
     double  cutInitialHeight;
 
+    // Regrowth (Constants.h §"Regrowth"). regrowDelay / regrowDuration are
+    // assigned once at generation from an independent PRNG stream (so they do
+    // not perturb the static fields' draws). regrowStart is the absolute
+    // globalTime at which the regrow animation begins; -1 means "not
+    // scheduled". When cutAnimStart finishes, advance_cut sets
+    // regrowStart = globalTime + regrowDelay. A click on a regrowing blade
+    // cancels regrowth (clears regrowStart) and restarts the cut from current
+    // cutHeight. In-class initializers keep `Blade b{};` (used by tests &
+    // helpers) in the correct "no regrowth scheduled" state.
+    double  regrowDelay    = 0.0;
+    double  regrowDuration = 0.0;
+    double  regrowStart    = -1.0;
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;
