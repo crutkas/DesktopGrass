@@ -6,7 +6,7 @@
 // source of truth for the WinUI 3 port.
 //
 // PURE: no UI / Windows / WinUI dependencies. Linked as source into
-// DesktopGrass.WinUI3.Tests so unit tests can run on plain net8.0.
+// DesktopGrass.WinUI3.Tests so unit tests can run on plain net10.0.
 
 using System;
 

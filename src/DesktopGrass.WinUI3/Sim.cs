@@ -10,7 +10,7 @@
 //   * Sim                 — owns the blade list + globalTime + cursor history (§10)
 //
 // PURE: no UI / Windows / WinUI dependencies. The test project links this
-// file directly so unit tests can run on plain net8.0 without WinAppSDK.
+// file directly so unit tests can run on plain net10.0 without WinAppSDK.
 
 using System;
 using System.Collections.Generic;
@@ -456,9 +456,9 @@ internal sealed class Sim
         };
     }
 
-    // .NET <8 polyfill — Math.Clamp works fine on net8.0 but keeping a local
-    // shim makes the snapshot of this file portable into a pinned net6.0
-    // build without surprise behaviour changes.
+    // .NET <8 polyfill — Math.Clamp works fine on net10.0 but keeping a local
+    // shim makes the snapshot of this file portable into a pinned older
+    // runtime without surprise behaviour changes.
     private static double Clamp(double v, double lo, double hi) =>
         v < lo ? lo : (v > hi ? hi : v);
 }

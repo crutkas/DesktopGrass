@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>12</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -20,8 +20,8 @@
 
   <!--
     File-link the pure-logic source files from the app project instead of a
-    ProjectReference. The app project targets net8.0-windows and depends on
-    WinRT projections; we want tests to be plain net8.0 so they run on any
+    ProjectReference. The app project targets net10.0-windows and depends on
+    WinRT projections; we want tests to be plain net10.0 so they run on any
     CI build agent.
   -->
   <ItemGroup>

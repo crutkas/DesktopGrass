@@ -19,13 +19,13 @@ Run commands from the repository root, `C:\Users\crutkas\source\DesktopGrass`.
     ```powershell
     dotnet build src\DesktopGrass.Win2D -c Release
     ```
-  - Release binary: `src\DesktopGrass.Win2D\bin\Release\net8.0-windows10.0.19041.0\DesktopGrass.Win2D.exe`
+  - Release binary: `src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe`
 - **WinUI 3 — C# + Windows App SDK**
   - Build from scratch:
     ```powershell
     dotnet build src\DesktopGrass.WinUI3 -c Release
     ```
-  - Release binary: `src\DesktopGrass.WinUI3\bin\Release\net8.0-windows10.0.19041.0\win-x64\DesktopGrass.WinUI3.exe`
+  - Release binary: `src\DesktopGrass.WinUI3\bin\Release\net10.0-windows10.0.19041.0\win-x64\DesktopGrass.WinUI3.exe`
   - The project is configured as an unpackaged self-contained WinUI 3 app. If Windows reports a missing Windows App SDK runtime for a local/package variant, install the matching runtime before smoke.
 
 The expected output paths above match the project files and the current smoke harness resolution rules; WinUI 3 is RID-nested because it declares `RuntimeIdentifier=win-x64`.
