@@ -29,7 +29,7 @@ constexpr int    PALETTE_SIZE          = 6;
 // Sway / gust physics ---------------------------------------------------------
 // π / 3 → 6-second sway period.
 constexpr double BASE_SWAY_SPEED       = 1.0471975511965976;
-constexpr double BASE_AMPLITUDE        = 3.0;
+constexpr double BASE_AMPLITUDE        = 3.3;
 constexpr double DECAY_RATE            = 2.5;
 constexpr double GUST_TO_LEAN_FACTOR   = 0.75;
 constexpr double MAX_CURSOR_SPEED      = 4000.0;

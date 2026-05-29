@@ -211,7 +211,7 @@ void update_blade_dynamics(Blade* b, double globalTime, double dt) {
 
 Constants (see also §11):
 - `BASE_SWAY_SPEED = π / 3 ≈ 1.0471975511965976` rad/sec → 6-second sway period.
-- `BASE_AMPLITUDE = 3.0` DIP → peak horizontal tip displacement under sway alone (before stiffness).
+- `BASE_AMPLITUDE = 3.3` DIP → peak horizontal tip displacement under sway alone (before stiffness).
 - `DECAY_RATE = 2.5` /sec → gust velocity half-life ≈ 0.277 sec.
 - `GUST_TO_LEAN_FACTOR = 0.75` DIP·sec/rad → converts the (informal) angular gust velocity into a DIP offset.
 
@@ -506,7 +506,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `STIFFNESS_MAX` | 1.0 | (unitless) | §4, §5 |
 | `PALETTE_SIZE` | 6 | colors | §4 |
 | `BASE_SWAY_SPEED` | π / 3 ≈ 1.0471975511965976 | rad/sec | §6 |
-| `BASE_AMPLITUDE` | 3.0 | DIP | §6 |
+| `BASE_AMPLITUDE` | 3.3 | DIP | §6 |
 | `DECAY_RATE` | 2.5 | /sec | §6 |
 | `GUST_TO_LEAN_FACTOR` | 0.75 | DIP·sec/rad | §6, §8 |
 | `MAX_CURSOR_SPEED` | 4000.0 | DIP/sec | §8 |

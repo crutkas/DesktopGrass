@@ -32,7 +32,7 @@ internal static class Constants
 
     // §6 — sway physics.
     public static readonly double BaseSwaySpeed = Math.PI / 3.0; // rad/sec, 6s period
-    public const double BaseAmplitude       = 3.0;   // DIP — base sway amplitude
+    public const double BaseAmplitude       = 3.3;   // DIP — base sway amplitude
     public const double DecayRate           = 2.5;   // /sec
     public const double GustToLeanFactor    = 0.75;  // DIP·sec/rad
 

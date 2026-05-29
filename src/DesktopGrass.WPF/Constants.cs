@@ -27,7 +27,7 @@ internal static class Constants
 
     // Sway physics (§6)
     public static readonly double BASE_SWAY_SPEED = Math.PI / 3.0; // rad/sec → 6-sec period
-    public const double BASE_AMPLITUDE = 3.0;          // DIP peak sway lean
+    public const double BASE_AMPLITUDE = 3.3;          // DIP peak sway lean
     public const double DECAY_RATE = 2.5;              // /sec gust decay
     public const double GUST_TO_LEAN_FACTOR = 0.75;    // DIP*sec/rad
 
