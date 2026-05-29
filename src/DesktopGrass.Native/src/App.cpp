@@ -3,6 +3,7 @@
 #include "App.h"
 
 #include "Constants.h"
+#include "Sim.h"
 #include "../resource.h"
 
 #include <shellscalingapi.h>
@@ -107,9 +108,21 @@ void App::DestroyMessageWindow() {
 }
 
 bool App::CreateTrayIcon() {
+    // Build the menu: Scene ▸ (radio: Grass / Desert / Winter) | Quit.
+    // The Scene submenu is a child popup of trayMenu_; DestroyMenu is
+    // recursive so destroying trayMenu_ cleans up the submenu too.
     trayMenu_ = CreatePopupMenu();
     if (!trayMenu_) return false;
+    sceneSubmenu_ = CreatePopupMenu();
+    if (!sceneSubmenu_) return false;
+    AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneGrass,  L"Grass");
+    AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneDesert, L"Desert");
+    AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneWinter, L"Winter");
+    AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
+                reinterpret_cast<UINT_PTR>(sceneSubmenu_), L"Scene");
+    AppendMenuW(trayMenu_, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(trayMenu_, MF_STRING, kMenuQuit, L"Quit DesktopGrass");
+    UpdateSceneMenuCheck();
 
     nid_ = {};
     nid_.cbSize           = sizeof(nid_);
@@ -129,6 +142,27 @@ bool App::CreateTrayIcon() {
         OutputDebugStringA("[DesktopGrass] Shell_NotifyIcon(NIM_ADD) failed\n");
     }
     return true; // non-fatal
+}
+
+void App::UpdateSceneMenuCheck() {
+    if (!sceneSubmenu_) return;
+    // Radio-style check: kMenuSceneGrass + Scene enum index.
+    const int activeId = kMenuSceneGrass + static_cast<int>(currentScene_);
+    CheckMenuRadioItem(sceneSubmenu_,
+                       kMenuSceneGrass, kMenuSceneWinter,
+                       activeId, MF_BYCOMMAND);
+}
+
+void App::SetScene(Scene s) {
+    if (s == currentScene_) {
+        UpdateSceneMenuCheck();
+        return;
+    }
+    currentScene_ = s;
+    for (auto& w : windows_) {
+        sim_set_scene(w->GetRenderer().GetSim(), s);
+    }
+    UpdateSceneMenuCheck();
 }
 
 void App::RemoveTrayIcon() {
@@ -300,8 +334,11 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_COMMAND:
-            if (LOWORD(wp) == kMenuQuit) {
-                RequestQuit();
+            switch (LOWORD(wp)) {
+                case kMenuQuit:        RequestQuit();                break;
+                case kMenuSceneGrass:  SetScene(Scene::Grass);       break;
+                case kMenuSceneDesert: SetScene(Scene::Desert);      break;
+                case kMenuSceneWinter: SetScene(Scene::Winter);      break;
             }
             return 0;
 

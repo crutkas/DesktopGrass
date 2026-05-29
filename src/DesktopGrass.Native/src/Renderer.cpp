@@ -114,12 +114,16 @@ bool Renderer::CreateDeviceResources() {
     hr = dcompDevice_->CreateVisual(dcompVisual_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateVisual", hr); return false; }
 
-    // Pre-create palette brushes.
-    for (int i = 0; i < PALETTE_SIZE; ++i) {
-        brushes_[i].Reset();
-        hr = d2dContext_->CreateSolidColorBrush(FromArgb(PALETTE[i]),
-                                                brushes_[i].ReleaseAndGetAddressOf());
-        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    // Pre-create palette brushes for every scene (§13). Brushes are tiny
+    // (a few floats each) and only ever read at draw time, so we cache
+    // SCENE_COUNT × PALETTE_SIZE instead of recreating on scene change.
+    for (int s = 0; s < SCENE_COUNT; ++s) {
+        for (int i = 0; i < PALETTE_SIZE; ++i) {
+            brushes_[s][i].Reset();
+            hr = d2dContext_->CreateSolidColorBrush(FromArgb(SCENE_PALETTES[s][i]),
+                                                    brushes_[s][i].ReleaseAndGetAddressOf());
+            if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        }
     }
 
     for (int i = 0; i < FLOWER_PALETTE_SIZE; ++i) {
@@ -193,7 +197,7 @@ bool Renderer::CreateSwapChainResources(int widthPx, int heightPx) {
 }
 
 void Renderer::DiscardDeviceResources() {
-    for (auto& b : brushes_) b.Reset();
+    for (auto& row : brushes_) for (auto& b : row) b.Reset();
     for (auto& b : flowerHeadBrushes_) b.Reset();
     for (auto& b : mushroomCapBrushes_) b.Reset();
     mushroomStemBrush_.Reset();
@@ -322,6 +326,7 @@ void Renderer::RenderFrame(double dt,
 
 void Renderer::DrawGrass() {
     const double groundY = sim_.windowHeight;
+    const int sceneIdx = static_cast<int>(sim_.currentScene);
 
     ComPtr<ID2D1Factory> factoryGeneric;
     d2dFactory_.As(&factoryGeneric);
@@ -395,7 +400,7 @@ void Renderer::DrawGrass() {
         sink->EndFigure(D2D1_FIGURE_END_OPEN);
         if (FAILED(sink->Close())) continue;
 
-        ID2D1SolidColorBrush* brush = brushes_[b.hue].Get();
+        ID2D1SolidColorBrush* brush = brushes_[sceneIdx][b.hue].Get();
         d2dContext_->DrawGeometry(path.Get(), brush,
                                   static_cast<float>(s.thickness));
 

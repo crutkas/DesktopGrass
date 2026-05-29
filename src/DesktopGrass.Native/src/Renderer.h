@@ -81,7 +81,7 @@ private:
     ComPtr<ID2D1Device>                    d2dDevice_;
     ComPtr<ID2D1DeviceContext>             d2dContext_;
     ComPtr<ID2D1Bitmap1>                   d2dTarget_;
-    ComPtr<ID2D1SolidColorBrush>           brushes_[PALETTE_SIZE];
+    ComPtr<ID2D1SolidColorBrush>           brushes_[SCENE_COUNT][PALETTE_SIZE];
     ComPtr<ID2D1SolidColorBrush>           flowerHeadBrushes_[FLOWER_PALETTE_SIZE];
     ComPtr<ID2D1SolidColorBrush>           mushroomCapBrushes_[MUSHROOM_PALETTE_SIZE];
     ComPtr<ID2D1SolidColorBrush>           mushroomStemBrush_;

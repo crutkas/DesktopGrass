@@ -138,6 +138,9 @@ struct Sim {
     Prng               ambientPrng         = { 0 };
     double             nextAmbientGustTime = 0.0;
     double             monitorWidth        = 0.0;
+
+    // Current scene (§13). Default Grass; updated by sim_set_scene.
+    Scene              currentScene        = SCENE_DEFAULT;
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -165,6 +168,11 @@ void sim_apply_ambient_gust(Sim& sim, double x, double signDir, double magFactor
 // on idle ticks (zero PRNG draws); fires zero or more puffs depending on how
 // many scheduled fire times sim.globalTime has crossed.
 void sim_tick_ambient_gusts(Sim& sim) noexcept;
+
+// Set the current scene (§13). State-only update — does not regenerate
+// blades or perturb any PRNG stream. Renderer reads sim.currentScene at
+// draw time.
+void sim_set_scene(Sim& sim, Scene s) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

@@ -116,6 +116,40 @@ constexpr double   AMBIENT_GUST_MAG_FACTOR_MIN  = 0.3;   // unitless, fraction o
 constexpr double   AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
 constexpr double   AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless, fraction of GUST_RADIUS
 
+// Scenes (architecture.md §13). Render-time presentation modes that share
+// generation, sway, gust, cut, and ambient-gust logic. The infrastructure
+// pass swaps only the blade palette; per-scene entity content (cacti,
+// tumbleweeds, snowflakes, frost) ships in §14/§15.
+enum class Scene : uint8_t {
+    Grass  = 0,   // default
+    Desert = 1,
+    Winter = 2,
+};
+constexpr int    SCENE_COUNT   = 3;
+constexpr Scene  SCENE_DEFAULT = Scene::Grass;
+
+// Per-scene blade palettes (§13). Each is six ARGB colors indexed by
+// blade.hue (drawn from the §5 main PRNG stream — generation is
+// scene-agnostic). The Grass palette is the original §4 PALETTE; the
+// Desert and Winter palettes are listed below.
+constexpr uint32_t DESERT_PALETTE[PALETTE_SIZE] = {
+    0xFFC9A26Bu,  // 0 dried-grass tan
+    0xFFB48A56u,  // 1 warm sand
+    0xFFD9B57Au,  // 2 light dune
+    0xFF8F6E3Fu,  // 3 dust brown
+    0xFFE6C896u,  // 4 pale beige
+    0xFFA67843u,  // 5 burnt sienna
+};
+
+constexpr uint32_t WINTER_PALETTE[PALETTE_SIZE] = {
+    0xFFE8EEF5u,  // 0 frost white
+    0xFFB7C4D2u,  // 1 cool silver
+    0xFFCBD8E5u,  // 2 pale ice
+    0xFFD7E2EEu,  // 3 light snow
+    0xFFA8B7C6u,  // 4 winter slate
+    0xFFEEF3F8u,  // 5 hoarfrost
+};
+
 constexpr uint32_t MUSHROOM_PALETTE[MUSHROOM_PALETTE_SIZE] = {
     0xFFD32F2Fu, // 0 red (amanita)
     0xFF8D6E63u, // 1 brown
@@ -137,6 +171,14 @@ constexpr uint32_t PALETTE[PALETTE_SIZE] = {
     0xFF66B845u,
     0xFF7AC957u,
     0xFF8FD96Au,
+};
+
+// (§13) Per-scene blade palettes indexed by `[scene][hue]`. The Grass row
+// is the original §4 PALETTE, repeated for uniform indexing.
+constexpr uint32_t SCENE_PALETTES[SCENE_COUNT][PALETTE_SIZE] = {
+    { PALETTE[0],        PALETTE[1],        PALETTE[2],        PALETTE[3],        PALETTE[4],        PALETTE[5]        },
+    { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
+    { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
 };
 
 } // namespace desktopgrass
