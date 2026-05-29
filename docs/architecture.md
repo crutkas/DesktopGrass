@@ -119,6 +119,12 @@ Each blade is a plain-old-data struct. Field order is not load-bearing across im
 | `flowerHeadColorIdx` | uint8 | `[0, 5]` | static | Index into `FLOWER_PALETTE`. Unused when `isFlower == false`. |
 | `flowerHeadRadius` | double (DIP) | `[1.8, 3.0]` | static | Radius of the filled circle drawn at the tip. Unused when `isFlower == false`. |
 | `heightBonus` | double | `[1.0, 1.5]` | static | Multiplier on `height` for stem length. `1.0` for non-flowers; `[1.2, 1.5]` for flowers — flowers stand visibly taller than the surrounding grass. |
+| `isMushroom` | bool | `{false, true}` | static | If true, this slot renders as a mushroom (filled-ellipse cap on a short stem) and the grass blade + flower head are NOT drawn for the slot. See §5 "Mushroom stream" and §7 "Mushroom". `isMushroom` and `isFlower` are independently sampled; if both happen to be true on the same slot, `isMushroom` wins at render time (the slot is treated as a mushroom). |
+| `mushroomCapColorIdx` | uint8 | `[0, 5]` | static | Index into `MUSHROOM_PALETTE`. Unused when `isMushroom == false`. |
+| `mushroomCapWidth` | double (DIP) | `[4.0, 8.0]` | static | Horizontal radius of the cap ellipse. Unused when `isMushroom == false`. |
+| `mushroomCapHeight` | double (DIP) | `[2.5, 5.0]` | static | Vertical radius of the cap ellipse (always less than `mushroomCapWidth` so the dome is flatter than it is wide). Unused when `isMushroom == false`. |
+| `mushroomStemHeight` | double (DIP) | `[4.0, 10.0]` | static | Stem length from `groundY` to the cap center. Unused when `isMushroom == false`. |
+| `mushroomStemThickness` | double (DIP) | `[2.0, 4.0]` | static | Stem stroke thickness. Unused when `isMushroom == false`. |
 
 ### Color palette
 
@@ -150,6 +156,21 @@ Flowers use a separate 6-color palette so their heads contrast with the grass be
 
 Alpha is always `0xFF` here too.
 
+### Mushroom palette
+
+Mushrooms have their own 6-color palette. Stems are always the single fixed color `MUSHROOM_STEM_COLOR`.
+
+| Index | ARGB (hex) | Approx swatch |
+| --- | --- | --- |
+| 0 | `0xFFD32F2F` | red (amanita) |
+| 1 | `0xFF8D6E63` | brown |
+| 2 | `0xFFC9A66B` | tan |
+| 3 | `0xFFFFF8E1` | ivory |
+| 4 | `0xFFE57373` | dusty pink |
+| 5 | `0xFF6D4C41` | dark brown |
+
+The stem color is `MUSHROOM_STEM_COLOR = 0xFFF5F5DC` (beige / ivory). Alpha is always `0xFF`.
+
 ---
 
 ## 5. Procedural generation
@@ -170,6 +191,9 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
     Prng pf;       // flower stream — decides flower-or-not + flower props
     prng_init(&pf, seed ^ FLOWER_PRNG_SALT);
+
+    Prng pm;       // mushroom stream — decides mushroom-or-not + mushroom props
+    prng_init(&pm, seed ^ MUSHROOM_PRNG_SALT);
 
     double x = 0.0;
     while (x < monitorWidth) {
@@ -216,6 +240,27 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
             b.heightBonus        = 1.0;
         }
 
+        // Mushroom stream. Every blade consumes EXACTLY ONE unconditional
+        // draw (the probability check). Mushroom slots additionally
+        // consume five more conditional draws for cap-color, cap-width,
+        // cap-height, stem-height, stem-thickness. Field-draw order is
+        // fixed and identical across all four implementations.
+        bool isMushroom = prng_uniform(&pm, 0.0, 1.0) < MUSHROOM_PROBABILITY;
+        b.isMushroom = isMushroom;
+        if (isMushroom) {
+            b.mushroomCapColorIdx     = (uint8_t)prng_index(&pm, MUSHROOM_PALETTE_SIZE);
+            b.mushroomCapWidth        = lerp(MUSHROOM_CAP_WIDTH_MIN,      MUSHROOM_CAP_WIDTH_MAX,      prng_uniform_unit(&pm));
+            b.mushroomCapHeight       = lerp(MUSHROOM_CAP_HEIGHT_MIN,     MUSHROOM_CAP_HEIGHT_MAX,     prng_uniform_unit(&pm));
+            b.mushroomStemHeight      = lerp(MUSHROOM_STEM_HEIGHT_MIN,    MUSHROOM_STEM_HEIGHT_MAX,    prng_uniform_unit(&pm));
+            b.mushroomStemThickness   = lerp(MUSHROOM_STEM_THICKNESS_MIN, MUSHROOM_STEM_THICKNESS_MAX, prng_uniform_unit(&pm));
+        } else {
+            b.mushroomCapColorIdx     = 0;
+            b.mushroomCapWidth        = 0.0;
+            b.mushroomCapHeight       = 0.0;
+            b.mushroomStemHeight      = 0.0;
+            b.mushroomStemThickness   = 0.0;
+        }
+
         b.cutHeight        = 1.0;
         b.gustVelocity     = 0.0;
         b.cutAnimStart     = -1.0;
@@ -227,7 +272,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 }
 ```
 
-**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. Reordering or interleaving the three streams changes the per-blade values for a given seed and breaks the snapshot tests. The three streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth or flowers are enabled.
+**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. From the mushroom stream `pm`, the order is `isMushroom` decision (always one draw), and **only if** `isMushroom == true`, then `mushroomCapColorIdx`, `mushroomCapWidth`, `mushroomCapHeight`, `mushroomStemHeight`, `mushroomStemThickness`. Reordering or interleaving the four streams changes the per-blade values for a given seed and breaks the snapshot tests. The four streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth, flowers, or mushrooms are enabled.
 
 At a 1920-DIP-wide monitor with `density = 2.25`, the expected blade count is approximately `2 * 1920 * 2.25 / (4 + 8) ≈ 720`; this is the current app default tuning for a denser field.
 
@@ -329,6 +374,54 @@ if (b->isFlower && b->cutHeight >= CUT_STUMP_THRESHOLD) {
 The head is suppressed once the stem has been cut down past `CUT_STUMP_THRESHOLD` (the same threshold that switches the stem itself to the stump short-circuit). This keeps a cut flower from leaving a colored dot floating just above the ground. No outline / no anti-aliasing toggle is required — implementations may use whatever filled-ellipse primitive their renderer provides (`FillEllipse` on D2D, `FillCircle` on Win2D canvas, `DrawingContext.DrawEllipse` with `pen = null` on WPF). All four implementations MUST place the head **at the same tip point** the chord-preserving stroke math computed.
 
 Chord preservation matters because `effectiveLean` is the horizontal tip displacement: if the tip kept the fixed vertical position `groundY - L` while moving sideways, the painted base-to-tip chord would become longer than the blade and read visually as stretching. Instead, the tip moves on a circle of radius `L` around the base, so `lean / L = sin(θ)` and `dropFactor = sqrt(1 - (lean / L)^2) = cos(θ)`, where `θ` is the bend angle from vertical. At zero lean, `dropFactor` is `1`; at the maximum lean of `0.95 * L`, it is approximately `0.312`.
+
+### Mushroom
+
+When `blade.isMushroom == true`, the renderer **short-circuits** the grass-blade + flower-head path entirely for that slot and instead draws a mushroom: a short ivory stem with a filled-ellipse cap sitting on top of it. Mushrooms are rigid (no sway, no gust response — `effectiveLean` is ignored). They are cuttable and regrowable via the same `cutHeight` machinery as grass; both the stem and the cap scale linearly with `cutHeight` as the cut animation runs.
+
+```c
+if (b->isMushroom) {
+    double baseX = b->baseX;
+    double gy    = groundY;
+
+    if (b->cutHeight < CUT_STUMP_THRESHOLD) {
+        // Stump stub: short ivory stem of STUMP_HEIGHT, no cap.
+        // Matches the grass-blade stump short-circuit so a freshly-cut
+        // mushroom leaves the same visual footprint as a freshly-cut
+        // blade.
+        draw_line(
+            { baseX, gy },
+            { baseX, gy - STUMP_HEIGHT },
+            b->mushroomStemThickness,
+            MUSHROOM_STEM_COLOR);
+        return;
+    }
+
+    double scale = b->cutHeight;
+    double stemH = b->mushroomStemHeight * scale;
+    double capRX = b->mushroomCapWidth  * scale;
+    double capRY = b->mushroomCapHeight * scale;
+    double capCY = gy - stemH;
+
+    // Stem.
+    draw_line(
+        { baseX, gy },
+        { baseX, capCY },
+        b->mushroomStemThickness,
+        MUSHROOM_STEM_COLOR);
+
+    // Cap. Centered above the stem top; wider than tall by spec
+    // (capWidth > capHeight, so the dome reads as flattened).
+    fill_ellipse(
+        { baseX, capCY }, capRX, capRY,
+        MUSHROOM_PALETTE[b->mushroomCapColorIdx]);
+    return;   // mushroom slots do NOT also draw the grass blade or flower
+}
+```
+
+Implementations are free to use whatever line-stroke and filled-ellipse primitives their renderer provides (D2D `DrawLine` + `FillEllipse` on Native, Vortice `DrawLine` + `FillEllipse` on Win2D, Composition `CompositionLineGeometry`/`SpriteShape` + `CompositionEllipseGeometry` on WinUI 3, WPF `DrawingContext.DrawLine` + `DrawEllipse`). The stem thickness uses no caps requirement — round caps are fine, butt caps are fine. The cap MUST be filled, not stroked.
+
+If `isMushroom` and `isFlower` are both true on the same slot (which can happen — the two streams are independent), the renderer treats the slot as a mushroom: it short-circuits before reaching the flower-head code, so the flower never paints.
 
 The rooted-bend control point gives the curve a vertical tangent at the base because `base->control` is purely vertical: both points have `x = baseX`, so the blade emerges rooted from the ground regardless of lean. The tip tangent direction is `(tip - control) = (lean, -L * (1 - CTRL_OFFSET_FACTOR) * dropFactor)`, which points up-and-toward-the-lean so the tip trails naturally instead of the blade bulging evenly around the chord.
 
@@ -585,6 +678,18 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `FLOWER_HEAD_RADIUS_MAX` | 3.0 | DIP | §4, §5, §7 |
 | `FLOWER_PALETTE_SIZE` | 6 | colors | §4, §5 |
 | `FLOWER_PRNG_SALT` | `0xC0FFEEFACE0FFE5` | uint64 | §5 |
+| `MUSHROOM_PROBABILITY` | 0.025 | (unitless) | §5 |
+| `MUSHROOM_CAP_WIDTH_MIN` | 4.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_CAP_WIDTH_MAX` | 8.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_CAP_HEIGHT_MIN` | 2.5 | DIP | §4, §5, §7 |
+| `MUSHROOM_CAP_HEIGHT_MAX` | 5.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_STEM_HEIGHT_MIN` | 4.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_STEM_HEIGHT_MAX` | 10.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_STEM_THICKNESS_MIN` | 2.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_STEM_THICKNESS_MAX` | 4.0 | DIP | §4, §5, §7 |
+| `MUSHROOM_PALETTE_SIZE` | 6 | colors | §4, §5 |
+| `MUSHROOM_PRNG_SALT` | `0xBADC0FFEE0FACE21` | uint64 | §5 |
+| `MUSHROOM_STEM_COLOR` | `0xFFF5F5DC` | uint32 ARGB | §4, §7 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `CTRL_OFFSET_FACTOR` | 0.6 | (unitless) | §7 |
@@ -592,7 +697,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |
 | `CANONICAL_TEST_SEED` | `0x6B6173746F` | uint64 | §12 |
 
-The palette table from §4 (six ARGB values for grass blades) and the Flower palette (six ARGB values for flower heads) are also part of this constants set.
+The palette table from §4 (six ARGB values for grass blades), the Flower palette (six ARGB values for flower heads), and the Mushroom palette (six ARGB values for caps + one `MUSHROOM_STEM_COLOR` for stems) are also part of this constants set.
 
 ---
 
