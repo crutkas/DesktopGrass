@@ -53,7 +53,6 @@ private:
     MouseEventQueue                             queue_{};
     std::vector<std::unique_ptr<GrassWindow>>   windows_;
     uint64_t                                    seed_     = 0;
-    double                                      density_  = 1.25;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     bool                                        quitRequested_ = false;

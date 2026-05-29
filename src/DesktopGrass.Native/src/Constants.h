@@ -15,6 +15,7 @@ constexpr double STRIP_HEIGHT          = 80.0;
 constexpr double HEADROOM              = 30.0;
 
 // Procedural generation -------------------------------------------------------
+constexpr double DEFAULT_DENSITY        = 1.5;
 constexpr double BLADE_SPACING_MIN     = 4.0;
 constexpr double BLADE_SPACING_MAX     = 8.0;
 constexpr double BLADE_HEIGHT_MIN      = 8.0;
@@ -26,8 +27,8 @@ constexpr double STIFFNESS_MAX         = 1.0;
 constexpr int    PALETTE_SIZE          = 6;
 
 // Sway / gust physics ---------------------------------------------------------
-// 2π / 3 → 3-second sway period.
-constexpr double BASE_SWAY_SPEED       = 2.0943951023931953;
+// π / 3 → 6-second sway period.
+constexpr double BASE_SWAY_SPEED       = 1.0471975511965976;
 constexpr double BASE_AMPLITUDE        = 6.0;
 constexpr double DECAY_RATE            = 2.5;
 constexpr double GUST_TO_LEAN_FACTOR   = 1.5;

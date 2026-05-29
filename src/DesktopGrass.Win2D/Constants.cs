@@ -24,7 +24,7 @@ internal static class Constants
     public const int PALETTE_SIZE = 6;
 
     // Sway physics (§6)
-    public static readonly double BASE_SWAY_SPEED = 2.0 * Math.PI / 3.0; // rad/sec → 3-sec period
+    public static readonly double BASE_SWAY_SPEED = Math.PI / 3.0; // rad/sec → 6-sec period
     public const double BASE_AMPLITUDE = 6.0;          // DIP peak sway lean
     public const double DECAY_RATE = 2.5;              // /sec gust decay
     public const double GUST_TO_LEAN_FACTOR = 1.5;     // DIP*sec/rad
@@ -58,7 +58,7 @@ internal static class Constants
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;
 
     // Density override the plan calls for ~400 blades / 1920 px monitor.
-    public const double DEFAULT_DENSITY = 1.25;
+    public const double DEFAULT_DENSITY = 1.5;
 
     // Palette (§4) - exactly 6 ARGB colors, alpha always 0xFF.
     public static readonly uint[] PALETTE =

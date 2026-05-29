@@ -102,9 +102,9 @@ public class SwayTests
     }
 
     [Fact]
-    public void BaseSwaySpeedMatchesThreeSecondPeriod()
+    public void BaseSwaySpeedMatchesSixSecondPeriod()
     {
         // Sanity check on the spec constant itself.
-        Assert.Equal(2.0 * Math.PI / 3.0, Constants.BaseSwaySpeed, 12);
+        Assert.Equal(Math.PI / 3.0, Constants.BaseSwaySpeed, 12);
     }
 }

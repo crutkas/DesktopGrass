@@ -31,7 +31,7 @@ internal static class Constants
     public const int PaletteSize = 6;
 
     // §6 — sway physics.
-    public static readonly double BaseSwaySpeed = 2.0 * Math.PI / 3.0; // rad/sec, 3s period
+    public static readonly double BaseSwaySpeed = Math.PI / 3.0; // rad/sec, 6s period
     public const double BaseAmplitude       = 6.0;   // DIP
     public const double DecayRate           = 2.5;   // /sec
     public const double GustToLeanFactor    = 1.5;   // DIP·sec/rad
@@ -75,9 +75,8 @@ internal static class Constants
         0xFF8FD96A, // light green
     };
 
-    // Default density used by both the runtime renderer and the test
-    // fixtures. The spec says "~400 blades per 1920 DIP" is met by
-    // density ≈ 1.25; we pick a round 1.0 here so the snapshot tests stay
-    // sharable across impls.
-    public const double DefaultDensity = 1.0;
+    // Default density used by the runtime renderer. The spec says
+    // "~400 blades per 1920 DIP" is met by density ≈ 1.25; WinUI 3 uses
+    // 1.5 for a fuller default while snapshot tests pass 1.0 explicitly.
+    public const double DefaultDensity = 1.5;
 }

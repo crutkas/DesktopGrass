@@ -184,7 +184,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
 **Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. Reordering or interleaving the two streams changes the per-blade values for a given seed and breaks the snapshot tests. The two streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth is enabled.
 
-At a 1920-DIP-wide monitor with `density = 1.0`, the expected blade count is approximately `2 * 1920 / (4 + 8) ≈ 320`. The plan's "~400 blades per 1920 px" target is met by `density ≈ 1.25` (a tunable for v1).
+At a 1920-DIP-wide monitor with `density = 1.5`, the expected blade count is approximately `2 * 1920 * 1.5 / (4 + 8) ≈ 480`; this is the current app default tuning for a denser field.
 
 ---
 
@@ -197,7 +197,7 @@ void update_blade_dynamics(Blade* b, double globalTime, double dt) {
     // 1. Gust velocity decays exponentially.
     b->gustVelocity *= exp(-DECAY_RATE * dt);
 
-    // 2. Base oscillation. baseSwaySpeed gives a ~3-second period.
+    // 2. Base oscillation. baseSwaySpeed gives a ~6-second period.
     double swayPhase = b->swayPhaseOffset + globalTime * BASE_SWAY_SPEED;
     double baseLean  = sin(swayPhase) * BASE_AMPLITUDE * b->stiffness;
 
@@ -210,7 +210,7 @@ void update_blade_dynamics(Blade* b, double globalTime, double dt) {
 ```
 
 Constants (see also §11):
-- `BASE_SWAY_SPEED = 2π / 3` rad/sec → 3-second sway period.
+- `BASE_SWAY_SPEED = π / 3 ≈ 1.0471975511965976` rad/sec → 6-second sway period.
 - `BASE_AMPLITUDE = 6.0` DIP → peak horizontal tip displacement under sway alone (before stiffness).
 - `DECAY_RATE = 2.5` /sec → gust velocity half-life ≈ 0.277 sec.
 - `GUST_TO_LEAN_FACTOR = 1.5` DIP·sec/rad → converts the (informal) angular gust velocity into a DIP offset.
@@ -493,6 +493,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `HEADROOM` | 30 | DIP | §2, §8 |
 | `BLADE_SPACING_MIN` | 4.0 | DIP | §5 |
 | `BLADE_SPACING_MAX` | 8.0 | DIP | §5 |
+| `DEFAULT_DENSITY` | 1.5 | (unitless) | §5 |
 | `BLADE_HEIGHT_MIN` | 8.0 | DIP | §4, §5 |
 | `BLADE_HEIGHT_MAX` | 40.0 | DIP | §4, §5 |
 | `BLADE_THICKNESS_MIN` | 1.0 | DIP | §4, §5 |
@@ -500,7 +501,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `STIFFNESS_MIN` | 0.6 | (unitless) | §4, §5 |
 | `STIFFNESS_MAX` | 1.0 | (unitless) | §4, §5 |
 | `PALETTE_SIZE` | 6 | colors | §4 |
-| `BASE_SWAY_SPEED` | 2π / 3 ≈ 2.0943951 | rad/sec | §6 |
+| `BASE_SWAY_SPEED` | π / 3 ≈ 1.0471975511965976 | rad/sec | §6 |
 | `BASE_AMPLITUDE` | 6.0 | DIP | §6 |
 | `DECAY_RATE` | 2.5 | /sec | §6 |
 | `GUST_TO_LEAN_FACTOR` | 1.5 | DIP·sec/rad | §6, §8 |
