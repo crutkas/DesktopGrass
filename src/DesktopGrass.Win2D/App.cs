@@ -17,6 +17,13 @@ internal static class Win32App
     private static volatile bool s_quitRequested;
     public static void SignalQuit() => s_quitRequested = true;
     public static bool QuitRequested => s_quitRequested;
+
+    // -1 = no pending change; 0..2 = pending Scene to apply.
+    private static int s_pendingScene = -1;
+    public static void RequestSceneChange(Scene s) =>
+        System.Threading.Interlocked.Exchange(ref s_pendingScene, (int)s);
+    public static int ConsumePendingSceneChange() =>
+        System.Threading.Interlocked.Exchange(ref s_pendingScene, -1);
 }
 
 internal sealed class App : IDisposable
@@ -27,6 +34,7 @@ internal sealed class App : IDisposable
     private readonly List<GrassWindow> _windows = new();
     private MouseHook? _hook;
     private TrayIcon? _tray;
+    private Scene _currentScene = Constants.SCENE_DEFAULT;
     private Win32.WndProc? _wndProcDelegate; // keep alive for class lifetime
     private ushort _classAtom;
     private long _qpcFreq;
@@ -45,7 +53,7 @@ internal sealed class App : IDisposable
         _hook = new MouseHook();
         _hook.Install();
 
-        _tray = new TrayIcon(0);
+        _tray = new TrayIcon(0, _currentScene);
         _tray.Start();
 
         RunMessageLoop();
@@ -258,6 +266,17 @@ internal sealed class App : IDisposable
                         moveBuffer.Clear();
                         break;
                     }
+                }
+            }
+
+            int pending = Win32App.ConsumePendingSceneChange();
+            if (pending >= 0)
+            {
+                Scene s = (Scene)pending;
+                if (s != _currentScene)
+                {
+                    _currentScene = s;
+                    foreach (var w in _windows) w.SetScene(s);
                 }
             }
 

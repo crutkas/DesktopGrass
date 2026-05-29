@@ -154,7 +154,7 @@ public class CutTests
             CutHeight = 0.02,
             EffectiveLean = 5.0,
         };
-        var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
+        var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0, Scene.Grass);
         Assert.Equal(100.0, stroke.BaseX);
         Assert.Equal(110.0, stroke.BaseY);
         Assert.Equal(100.0, stroke.TipX);
@@ -174,7 +174,7 @@ public class CutTests
             HeightBonus = 1.0,
             EffectiveLean = 5.0,
         };
-        var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
+        var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0, Scene.Grass);
         Assert.Equal(100.0, stroke.BaseX);
         Assert.Equal(110.0, stroke.BaseY);
         Assert.Equal(105.0, stroke.TipX, 9);

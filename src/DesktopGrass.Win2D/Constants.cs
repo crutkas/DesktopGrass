@@ -6,6 +6,8 @@ using System;
 
 namespace DesktopGrass.Win2D;
 
+public enum Scene { Grass = 0, Desert = 1, Winter = 2 }
+
 internal static class Constants
 {
     // Layout (§2, §8, §9)
@@ -130,5 +132,39 @@ internal static class Constants
         0xFF66B845, // 3 grass green
         0xFF7AC957, // 4 bright green
         0xFF8FD96A, // 5 light green
+    };
+
+    // Scenes (§13).
+    public const int    SCENE_COUNT   = 3;
+    public const Scene  SCENE_DEFAULT = Scene.Grass;
+
+    // Desert palette (§13) — sandy/tan tones.
+    public static readonly uint[] DESERT_PALETTE =
+    {
+        0xFFC9A26B, // 0 light sand
+        0xFFB48A56, // 1 dark sand
+        0xFFD9B57A, // 2 pale sand
+        0xFF8F6E3F, // 3 deep tan
+        0xFFE6C896, // 4 very pale sand
+        0xFFA67843, // 5 medium tan
+    };
+
+    // Winter palette (§13) — frosty/icy tones.
+    public static readonly uint[] WINTER_PALETTE =
+    {
+        0xFFE8EEF5, // 0 frost white
+        0xFFB7C4D2, // 1 ice blue
+        0xFFCBD8E5, // 2 pale ice
+        0xFFD7E2EE, // 3 light frost
+        0xFFA8B7C6, // 4 deep frost
+        0xFFEEF3F8, // 5 snow white
+    };
+
+    // 2D lookup: SCENE_PALETTES[(int)scene, hue]. Row 0 must equal PALETTE.
+    public static readonly uint[,] SCENE_PALETTES = new uint[SCENE_COUNT, PALETTE_SIZE]
+    {
+        { PALETTE[0],        PALETTE[1],        PALETTE[2],        PALETTE[3],        PALETTE[4],        PALETTE[5]        },
+        { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
+        { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
     };
 }

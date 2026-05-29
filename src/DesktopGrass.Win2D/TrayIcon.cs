@@ -16,14 +16,16 @@ internal sealed class TrayIcon : IDisposable
     public const uint WM_APP_QUIT = Win32.WM_APP + 1;
 
     private readonly uint _mainThreadId;
+    private readonly Scene _initialScene;
     private Thread? _thread;
     private NotifyIcon? _icon;
     private Form? _hiddenForm;
     private readonly ManualResetEventSlim _started = new(false);
 
-    public TrayIcon(uint mainThreadId)
+    public TrayIcon(uint mainThreadId, Scene initialScene)
     {
         _mainThreadId = mainThreadId;
+        _initialScene = initialScene;
     }
 
     public void Start()
@@ -50,6 +52,27 @@ internal sealed class TrayIcon : IDisposable
         var menu = new ContextMenuStrip();
         var quitItem = new ToolStripMenuItem("Quit") { Name = "QuitItem" };
         quitItem.Click += (_, _) => RequestQuit();
+
+        var sceneMenu = new ToolStripMenuItem("Scene");
+        var grassItem  = new ToolStripMenuItem("Grass")  { Tag = Scene.Grass,  CheckOnClick = false };
+        var desertItem = new ToolStripMenuItem("Desert") { Tag = Scene.Desert, CheckOnClick = false };
+        var winterItem = new ToolStripMenuItem("Winter") { Tag = Scene.Winter, CheckOnClick = false };
+        var sceneItems = new[] { grassItem, desertItem, winterItem };
+
+        void SelectScene(Scene s)
+        {
+            foreach (var it in sceneItems)
+                it.Checked = ((Scene)it.Tag!) == s;
+            Win32App.RequestSceneChange(s);
+        }
+        grassItem.Click  += (_, _) => SelectScene(Scene.Grass);
+        desertItem.Click += (_, _) => SelectScene(Scene.Desert);
+        winterItem.Click += (_, _) => SelectScene(Scene.Winter);
+        SelectScene(_initialScene);
+
+        sceneMenu.DropDownItems.AddRange(sceneItems);
+        menu.Items.Add(sceneMenu);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(quitItem);
 
         _icon = new NotifyIcon

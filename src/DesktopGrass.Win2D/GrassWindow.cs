@@ -41,7 +41,7 @@ internal sealed class GrassWindow : IDisposable
     private IDCompositionDesktopDevice? _dcompDevice;
     private IDCompositionTarget? _dcompTarget;
     private IDCompositionVisual2? _dcompVisual;
-    private ID2D1SolidColorBrush[]? _brushes;
+    private ID2D1SolidColorBrush[,]? _brushes; // [SCENE_COUNT, PALETTE_SIZE]
     private ID2D1SolidColorBrush[]? _flowerHeadBrushes;
     private ID2D1SolidColorBrush[]? _mushroomCapBrushes;
     private ID2D1SolidColorBrush? _mushroomStemBrush;
@@ -53,6 +53,8 @@ internal sealed class GrassWindow : IDisposable
     public int HeightPx => _heightPx;
     public float DpiScale => _dpiScale;
     public Rectangle MonitorBoundsPx => _monitorBoundsPx;
+
+    public void SetScene(Scene s) => Sim.SetScene(s);
 
     public GrassWindow(IntPtr hwnd, int widthPx, int heightPx, float dpiScale,
                        Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip)
@@ -132,11 +134,14 @@ internal sealed class GrassWindow : IDisposable
 
         BindBackBuffer();
 
-        // Brushes from PALETTE.
-        _brushes = new ID2D1SolidColorBrush[Constants.PALETTE_SIZE];
-        for (int i = 0; i < Constants.PALETTE_SIZE; i++)
+        // Brushes from per-scene blade palettes (§13).
+        _brushes = new ID2D1SolidColorBrush[Constants.SCENE_COUNT, Constants.PALETTE_SIZE];
+        for (int s = 0; s < Constants.SCENE_COUNT; s++)
         {
-            _brushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PALETTE[i]));
+            for (int i = 0; i < Constants.PALETTE_SIZE; i++)
+            {
+                _brushes[s, i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SCENE_PALETTES[s, i]));
+            }
         }
 
         // Flower head brushes from FLOWER_PALETTE.
@@ -256,10 +261,10 @@ internal sealed class GrassWindow : IDisposable
             return;
         }
 
-        var stroke = Sim.ComputeBladeStroke(b, groundY);
+        var stroke = Sim.ComputeBladeStroke(b, groundY, Sim.CurrentScene);
         int hue = b.Hue;
-        if ((uint)hue >= (uint)_brushes!.Length) hue = 0;
-        var brush = _brushes[hue];
+        if ((uint)hue >= (uint)Constants.PALETTE_SIZE) hue = 0;
+        var brush = _brushes![(int)Sim.CurrentScene, hue];
 
         float bx = (float)stroke.BaseX;
         float by = (float)stroke.BaseY;
@@ -313,10 +318,14 @@ internal sealed class GrassWindow : IDisposable
         try { _strokeStyle?.Dispose(); } catch { }
         if (_brushes is not null)
         {
-            foreach (var br in _brushes)
+            for (int s = 0; s < Constants.SCENE_COUNT; s++)
             {
-                try { br?.Dispose(); } catch { }
+                for (int i = 0; i < Constants.PALETTE_SIZE; i++)
+                {
+                    try { _brushes[s, i]?.Dispose(); } catch { }
+                }
             }
+            _brushes = null;
         }
         if (_flowerHeadBrushes is not null)
         {

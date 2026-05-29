@@ -128,6 +128,12 @@ internal sealed class Sim
     public double NextAmbientGustTime;
     public double MonitorWidth;
 
+    // Scene (§13). State-only field — switching scenes does not regenerate
+    // blades or perturb any PRNG stream.
+    public Scene CurrentScene = Constants.SCENE_DEFAULT;
+
+    public void SetScene(Scene s) => CurrentScene = s;
+
     // (§8.1) Initialize / reset the ambient gust scheduler. Called by the
     // window factory after constructing the Sim and assigning MonitorWidth.
     // Public for unit tests.
@@ -437,9 +443,9 @@ internal sealed class Sim
         }
     }
 
-    public static Stroke ComputeBladeStroke(in Blade b, double groundY)
+    public static Stroke ComputeBladeStroke(in Blade b, double groundY, Scene scene)
     {
-        uint argb = Constants.PALETTE[b.Hue];
+        uint argb = Constants.SCENE_PALETTES[(int)scene, b.Hue];
 
         if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
         {
