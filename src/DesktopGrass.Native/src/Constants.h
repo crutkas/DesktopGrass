@@ -236,4 +236,18 @@ constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
 constexpr double   SNOW_TIP_RADIUS_FACTOR          = 1.25;
 constexpr uint32_t SNOW_TIP_COLOR                  = 0xFFFFFFFFu;
 
+// Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
+constexpr double   PINE_PROBABILITY                = 0.006;
+constexpr double   PINE_HEIGHT_MIN                 = 36.0;
+constexpr double   PINE_HEIGHT_MAX                 = 72.0;
+constexpr double   PINE_WIDTH_MIN                  = 16.0;
+constexpr double   PINE_WIDTH_MAX                  = 28.0;
+constexpr int      PINE_TIER_COUNT_MIN             = 2;
+constexpr int      PINE_TIER_COUNT_MAX             = 4;
+constexpr double   PINE_TIP_TAPER                  = 0.25;
+constexpr double   PINE_TIER_OVERLAP               = 0.15;
+constexpr double   PINE_SNOW_CAP_FRACTION          = 0.30;
+constexpr uint32_t PINE_COLOR                      = 0xFF1B5E20u;
+constexpr uint64_t PINE_PRNG_SALT                  = 0x50494E4550494E45ull;
+
 } // namespace desktopgrass

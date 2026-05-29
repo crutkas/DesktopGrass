@@ -90,6 +90,7 @@ private:
     ComPtr<ID2D1SolidColorBrush>           tumbleweedBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
+    ComPtr<ID2D1SolidColorBrush>           pineBrush_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;

@@ -92,6 +92,7 @@
     <ClCompile Include="src\entity_skeleton_tests.cpp" />
     <ClCompile Include="src\desert_tests.cpp" />
     <ClCompile Include="src\winter_tests.cpp" />
+    <ClCompile Include="src\pine_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 

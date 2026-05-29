@@ -214,4 +214,18 @@ internal static class Constants
     // Snow-tipped blade caps (§15)
     public const double SNOW_TIP_RADIUS_FACTOR = 1.25;
     public const uint SNOW_TIP_COLOR = 0xFFFFFFFFu;
+
+    // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
+    public const double PINE_PROBABILITY        = 0.006;
+    public const double PINE_HEIGHT_MIN         = 36.0;
+    public const double PINE_HEIGHT_MAX         = 72.0;
+    public const double PINE_WIDTH_MIN          = 16.0;
+    public const double PINE_WIDTH_MAX          = 28.0;
+    public const int    PINE_TIER_COUNT_MIN     = 2;
+    public const int    PINE_TIER_COUNT_MAX     = 4;
+    public const double PINE_TIP_TAPER          = 0.25;
+    public const double PINE_TIER_OVERLAP       = 0.15;
+    public const double PINE_SNOW_CAP_FRACTION  = 0.30;
+    public const uint   PINE_COLOR              = 0xFF1B5E20u;
+    public const ulong  PINE_PRNG_SALT          = 0x50494E4550494E45ul;
 }

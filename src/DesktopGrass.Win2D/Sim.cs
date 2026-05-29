@@ -110,6 +110,12 @@ internal struct Blade
     public double CactusWidth;     // DIP
     public sbyte  CactusArmSide;   // -1 or +1 for type 1
 
+    // Pine (§15.1). Winter-only slot-bound blade variant.
+    public bool   IsPine;
+    public byte   PineTierCount;   // 2..4
+    public double PineHeight;      // DIP
+    public double PineWidth;       // DIP (base-tier width)
+
     public double EffectiveLean;
 }
 
@@ -205,6 +211,7 @@ internal sealed class Sim
                 GenerateTumbleweeds(this);
                 break;
             case Scene.Winter:
+                GeneratePinesForWinter(this);
                 SnowflakePrng = Prng.Init(EntitySeed ^ Constants.SNOWFLAKE_PRNG_SALT);
                 double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
                 NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
@@ -225,8 +232,39 @@ internal sealed class Sim
         b.CactusHeight = 0.0;
         b.CactusWidth = 0.0;
         b.CactusArmSide = +1;
+        b.IsPine = false;
+        b.PineTierCount = 0;
+        b.PineHeight = 0.0;
+        b.PineWidth = 0.0;
         b.IsFlower = b.OriginalIsFlower;
         b.IsMushroom = b.OriginalIsMushroom;
+    }
+
+    public static void GeneratePinesForWinter(Sim sim)
+    {
+        var pinePrng = Prng.Init(sim.EntitySeed ^ Constants.PINE_PRNG_SALT);
+
+        for (int i = 0; i < sim.Blades.Length; i++)
+        {
+            ref Blade b = ref sim.Blades[i];
+            RestoreOriginalVariants(ref b);
+
+            double r = pinePrng.Uniform(0.0, 1.0);
+            if (r >= Constants.PINE_PROBABILITY) continue;
+
+            b.IsPine = true;
+            b.IsFlower = false;
+            b.IsMushroom = false;
+            b.PineHeight = pinePrng.Uniform(Constants.PINE_HEIGHT_MIN, Constants.PINE_HEIGHT_MAX);
+            b.PineWidth = pinePrng.Uniform(Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
+
+            double tierDraw = pinePrng.Uniform(Constants.PINE_TIER_COUNT_MIN,
+                                                Constants.PINE_TIER_COUNT_MAX + 1);
+            int tiers = (int)Math.Floor(tierDraw);
+            if (tiers < Constants.PINE_TIER_COUNT_MIN) tiers = Constants.PINE_TIER_COUNT_MIN;
+            if (tiers > Constants.PINE_TIER_COUNT_MAX) tiers = Constants.PINE_TIER_COUNT_MAX;
+            b.PineTierCount = (byte)tiers;
+        }
     }
 
     public static void GenerateCactiForDesert(Sim sim)

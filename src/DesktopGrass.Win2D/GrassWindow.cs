@@ -49,6 +49,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _tumbleweedBrush;
     private ID2D1SolidColorBrush? _snowflakeBrush;
     private ID2D1SolidColorBrush? _snowTipBrush;
+    private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -166,6 +167,7 @@ internal sealed class GrassWindow : IDisposable
         _tumbleweedBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.TUMBLEWEED_COLOR));
         _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
         _snowTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_TIP_COLOR));
+        _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -272,6 +274,22 @@ internal sealed class GrassWindow : IDisposable
         }
     }
 
+    private void DrawFilledPineTri(float cx, float baseY, float topY, float halfW, ID2D1SolidColorBrush brush)
+    {
+        float h = baseY - topY;
+        if (h <= 0.0f || halfW <= 0.0f) return;
+        const float kStep = 0.5f;
+        for (float y = baseY; y >= topY; y -= kStep)
+        {
+            float t = (baseY - y) / h;
+            float hw = halfW * (1.0f - t);
+            if (hw <= 0.0f) continue;
+            _dc!.DrawLine(new Vector2(cx - hw, y),
+                          new Vector2(cx + hw, y),
+                          brush, kStep * 1.5f, _strokeStyle);
+        }
+    }
+
     private void DrawCactusArm(float baseX, float gy, float h, float width, int side)
     {
         float sx = baseX;
@@ -328,6 +346,41 @@ internal sealed class GrassWindow : IDisposable
             {
                 DrawCactusArm(baseX, gy, h, width, -1);
                 DrawCactusArm(baseX, gy, h, width, +1);
+            }
+            return;
+        }
+
+        if (b.IsPine)
+        {
+            float baseX = (float)b.BaseX;
+            float gy = groundY;
+
+            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            {
+                float stumpW = (float)Math.Max(2.0, b.PineWidth * 0.25);
+                _dc!.DrawLine(new Vector2(baseX, gy),
+                              new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                              _pineBrush!, stumpW, _strokeStyle);
+                return;
+            }
+
+            int tierCount = b.PineTierCount > 0 ? b.PineTierCount : Constants.PINE_TIER_COUNT_MIN;
+            double totalH = b.PineHeight * b.CutHeight;
+            double tierH = totalH / tierCount;
+
+            for (int i = 0; i < tierCount; i++)
+            {
+                double tFrac = (tierCount == 1) ? 0.0 : (double)i / (tierCount - 1);
+                double widthAt = b.PineWidth * (1.0 - tFrac * (1.0 - Constants.PINE_TIP_TAPER));
+                double baseY = gy - i * tierH * (1.0 - Constants.PINE_TIER_OVERLAP);
+                double topY = baseY - tierH;
+
+                DrawFilledPineTri(baseX, (float)baseY, (float)topY, (float)(widthAt * 0.5), _pineBrush!);
+
+                double capH = tierH * Constants.PINE_SNOW_CAP_FRACTION;
+                double capBaseY = topY + capH;
+                double capHalfW = widthAt * 0.5 * Constants.PINE_SNOW_CAP_FRACTION * 1.4;
+                DrawFilledPineTri(baseX, (float)capBaseY, (float)topY, (float)capHalfW, _snowTipBrush!);
             }
             return;
         }
@@ -410,7 +463,7 @@ internal sealed class GrassWindow : IDisposable
             _dc!.FillEllipse(ellipse, _flowerHeadBrushes[hi]);
         }
 
-        if (Sim.CurrentScene == Scene.Winter && !b.IsCactus && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
+        if (Sim.CurrentScene == Scene.Winter && !b.IsCactus && !b.IsPine && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
         {
             float r = (float)(b.Thickness * Constants.SNOW_TIP_RADIUS_FACTOR);
             var cap = new Ellipse(new Vector2(tx, ty), r, r);
@@ -460,6 +513,7 @@ internal sealed class GrassWindow : IDisposable
         try { _tumbleweedBrush?.Dispose(); } catch { }
         try { _snowflakeBrush?.Dispose(); } catch { }
         try { _snowTipBrush?.Dispose(); } catch { }
+        try { _pineBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

@@ -99,6 +99,12 @@ struct Blade {
     double  cactusWidth             = 0.0;   // DIP
     int8_t  cactusArmSide           = +1;    // -1 or +1 for type 1
 
+    // Pine (§15.1). Winter-only slot-bound blade variant.
+    bool    isPine                  = false;
+    uint8_t pineTierCount           = 0;     // 2..4
+    double  pineHeight              = 0.0;   // DIP
+    double  pineWidth               = 0.0;   // DIP, base-tier width
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;
@@ -250,6 +256,11 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 // Desert generators (§14). Exposed for unit tests.
 void generate_cacti_for_desert(Sim& sim) noexcept;
 void generate_tumbleweeds(Sim& sim) noexcept;
+
+// Pine tree generator (§15.1). Iterates blade slots; promotes a small
+// fraction to pines from the PINE_PRNG_SALT stream when entering Winter.
+// Slot-bound and reversed by restore_original_variants on scene exit.
+void generate_pines_for_winter(Sim& sim) noexcept;
 
 // Per-blade dynamics helper (visible for tests).
 void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept;

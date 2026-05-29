@@ -165,6 +165,11 @@ bool Renderer::CreateDeviceResources() {
                                             snowTipBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    pineBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(PINE_COLOR),
+                                            pineBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -225,6 +230,7 @@ void Renderer::DiscardDeviceResources() {
     tumbleweedBrush_.Reset();
     snowflakeBrush_.Reset();
     snowTipBrush_.Reset();
+    pineBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -412,6 +418,72 @@ void Renderer::DrawGrass() {
             continue;
         }
 
+        // Pine (§15.1). Slot-bound Winter variant: stack of isoceles
+        // triangle tiers, each with a white snow cap on top. Filled via
+        // horizontal scan lines so we avoid per-frame PathGeometry
+        // allocation. Below CUT_STUMP_THRESHOLD reduces to a stump.
+        if (b.isPine) {
+            const float baseX = static_cast<float>(b.baseX);
+            const float gy    = static_cast<float>(groundY);
+
+            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+                d2dContext_->DrawLine(
+                    D2D1::Point2F(baseX, gy),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    pineBrush_.Get(),
+                    static_cast<float>(std::max(2.0, b.pineWidth * 0.25)));
+                continue;
+            }
+
+            const int    tierCount  = b.pineTierCount > 0 ? b.pineTierCount : PINE_TIER_COUNT_MIN;
+            const double totalH     = b.pineHeight * b.cutHeight;
+            const double tierStride = totalH / tierCount * (1.0 - PINE_TIER_OVERLAP)
+                                    + totalH / tierCount * PINE_TIER_OVERLAP / tierCount;
+            const double tierH      = totalH / tierCount;
+
+            auto drawFilledTri = [&](float cx, float baseY, float topY, float halfW,
+                                     ID2D1SolidColorBrush* brush) {
+                const float h = baseY - topY;
+                if (h <= 0.0f || halfW <= 0.0f) return;
+                constexpr float kStep = 0.5f;
+                for (float y = baseY; y >= topY; y -= kStep) {
+                    const float t  = (baseY - y) / h;
+                    const float hw = halfW * (1.0f - t);
+                    if (hw <= 0.0f) continue;
+                    d2dContext_->DrawLine(
+                        D2D1::Point2F(cx - hw, y),
+                        D2D1::Point2F(cx + hw, y),
+                        brush, kStep * 1.5f);
+                }
+            };
+
+            for (int i = 0; i < tierCount; ++i) {
+                const double tFrac    = (tierCount == 1) ? 0.0
+                                       : static_cast<double>(i) / static_cast<double>(tierCount - 1);
+                const double widthAt  = b.pineWidth * (1.0 - tFrac * (1.0 - PINE_TIP_TAPER));
+                const double baseY    = gy - i * tierH * (1.0 - PINE_TIER_OVERLAP);
+                const double topY     = baseY - tierH;
+                drawFilledTri(baseX,
+                              static_cast<float>(baseY),
+                              static_cast<float>(topY),
+                              static_cast<float>(widthAt * 0.5),
+                              pineBrush_.Get());
+
+                // Snow cap: smaller triangle covering top PINE_SNOW_CAP_FRACTION
+                // of the tier. Inherits the tier's apex; base is at the cap's
+                // bottom (PINE_SNOW_CAP_FRACTION up from the tier apex).
+                const double capH      = tierH * PINE_SNOW_CAP_FRACTION;
+                const double capBaseY  = topY + capH;
+                const double capHalfW  = widthAt * 0.5 * PINE_SNOW_CAP_FRACTION * 1.4;
+                drawFilledTri(baseX,
+                              static_cast<float>(capBaseY),
+                              static_cast<float>(topY),
+                              static_cast<float>(capHalfW),
+                              snowTipBrush_.Get());
+            }
+            continue;
+        }
+
         // Mushroom slots preempt grass + flower rendering at this position.
         // Cap + stem scale linearly with cutHeight so the cut animation
         // visibly shrinks them; below CUT_STUMP_THRESHOLD the mushroom is
@@ -495,7 +567,7 @@ void Renderer::DrawGrass() {
             d2dContext_->FillEllipse(ellipse, flowerHeadBrushes_[idx].Get());
         }
 
-        if (sim_.currentScene == Scene::Winter && !b.isCactus && b.cutHeight >= CUT_STUMP_THRESHOLD) {
+        if (sim_.currentScene == Scene::Winter && !b.isCactus && !b.isPine && b.cutHeight >= CUT_STUMP_THRESHOLD) {
             const float r = static_cast<float>(b.thickness * SNOW_TIP_RADIUS_FACTOR);
             const D2D1_ELLIPSE cap = D2D1::Ellipse(
                 D2D1::Point2F(static_cast<float>(s.tip.x), static_cast<float>(s.tip.y)),

@@ -171,6 +171,10 @@ void restore_original_variants(Blade& b) noexcept {
     b.cactusHeight   = 0.0;
     b.cactusWidth    = 0.0;
     b.cactusArmSide  = +1;
+    b.isPine         = false;
+    b.pineTierCount  = 0;
+    b.pineHeight     = 0.0;
+    b.pineWidth      = 0.0;
     b.isFlower       = b.originalIsFlower;
     b.isMushroom     = b.originalIsMushroom;
 }
@@ -255,6 +259,33 @@ void generate_tumbleweeds(Sim& sim) noexcept {
     const int count = tumbleweed_count_for_width(sim.monitorWidth);
     for (int i = 0; i < count; ++i) {
         sim.entities.push_back(make_tumbleweed(sim.tumbleweedPrng, sim.monitorWidth, sim.windowHeight));
+    }
+}
+
+void generate_pines_for_winter(Sim& sim) noexcept {
+    Prng pinePrng;
+    prng_init(pinePrng, sim.entitySeed ^ PINE_PRNG_SALT);
+
+    for (Blade& b : sim.blades) {
+        restore_original_variants(b);
+
+        const double r = prng_uniform(pinePrng, 0.0, 1.0);
+        if (r >= PINE_PROBABILITY) continue;
+
+        b.isPine     = true;
+        b.isFlower   = false;
+        b.isMushroom = false;
+        b.pineHeight = prng_uniform(pinePrng, PINE_HEIGHT_MIN, PINE_HEIGHT_MAX);
+        b.pineWidth  = prng_uniform(pinePrng, PINE_WIDTH_MIN, PINE_WIDTH_MAX);
+
+        // Floor a uniform draw from [MIN, MAX+1) into the integer tier count.
+        const double tierDraw = prng_uniform(pinePrng,
+            static_cast<double>(PINE_TIER_COUNT_MIN),
+            static_cast<double>(PINE_TIER_COUNT_MAX + 1));
+        int tiers = static_cast<int>(std::floor(tierDraw));
+        if (tiers < PINE_TIER_COUNT_MIN) tiers = PINE_TIER_COUNT_MIN;
+        if (tiers > PINE_TIER_COUNT_MAX) tiers = PINE_TIER_COUNT_MAX;
+        b.pineTierCount = static_cast<uint8_t>(tiers);
     }
 }
 
@@ -449,6 +480,7 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         generate_tumbleweeds(sim);
         break;
     case Scene::Winter: {
+        generate_pines_for_winter(sim);
         prng_init(sim.snowflakePrng, sim.entitySeed ^ SNOWFLAKE_PRNG_SALT);
         const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         sim.nextSnowflakeSpawnTime = sim.globalTime + prng_exponential(sim.snowflakePrng, lambda);
