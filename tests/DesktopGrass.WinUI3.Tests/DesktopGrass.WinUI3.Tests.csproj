@@ -36,6 +36,7 @@
     <Compile Include="SimTests\PrngTests.cs" />
     <Compile Include="SimTests\BladeGenTests.cs" />
     <Compile Include="SimTests\FlowerTests.cs" />
+    <Compile Include="SimTests\MushroomTests.cs" />
     <Compile Include="SimTests\SwayTests.cs" />
     <Compile Include="SimTests\GustTests.cs" />
     <Compile Include="SimTests\CutTests.cs" />

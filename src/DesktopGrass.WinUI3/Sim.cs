@@ -90,6 +90,14 @@ internal struct Blade
     public double FlowerHeadRadius;
     public double HeightBonus;          // 1.0 for non-flowers
 
+    // Mushroom (§4, §5, §7). Static, set once at generation.
+    public bool   IsMushroom;
+    public byte   MushroomCapColorIdx;
+    public double MushroomCapWidth;
+    public double MushroomCapHeight;
+    public double MushroomStemHeight;
+    public double MushroomStemThickness;
+
     // Derived per frame by UpdateBladeDynamics (§6).
     public double EffectiveLean;
 }
@@ -155,6 +163,10 @@ internal sealed class Sim
         // unconditional draw (probability check); flowers additionally
         // consume 3 more (head color, head radius, height bonus).
         var pFlower = new Prng(seed ^ Constants.FlowerPrngSalt);
+        // Mushroom stream — fourth independent stream. Order: probability,
+        // then (if mushroom) cap-color, cap-width, cap-height,
+        // stem-height, stem-thickness.
+        var pMushroom = new Prng(seed ^ Constants.MushroomPrngSalt);
         var list = new List<Blade>(capacity: (int)(monitorWidth / 6.0));
 
         double x = 0.0;
@@ -202,6 +214,25 @@ internal sealed class Sim
                 b.FlowerHeadColorIdx = 0;
                 b.FlowerHeadRadius   = 0.0;
                 b.HeightBonus        = 1.0;
+            }
+
+            bool isMushroom = pMushroom.Uniform(0.0, 1.0) < Constants.MushroomProbability;
+            b.IsMushroom = isMushroom;
+            if (isMushroom)
+            {
+                b.MushroomCapColorIdx     = (byte)pMushroom.Index((uint)Constants.MushroomPaletteSize);
+                b.MushroomCapWidth        = pMushroom.Uniform(Constants.MushroomCapWidthMin,      Constants.MushroomCapWidthMax);
+                b.MushroomCapHeight       = pMushroom.Uniform(Constants.MushroomCapHeightMin,     Constants.MushroomCapHeightMax);
+                b.MushroomStemHeight      = pMushroom.Uniform(Constants.MushroomStemHeightMin,    Constants.MushroomStemHeightMax);
+                b.MushroomStemThickness   = pMushroom.Uniform(Constants.MushroomStemThicknessMin, Constants.MushroomStemThicknessMax);
+            }
+            else
+            {
+                b.MushroomCapColorIdx     = 0;
+                b.MushroomCapWidth        = 0.0;
+                b.MushroomCapHeight       = 0.0;
+                b.MushroomStemHeight      = 0.0;
+                b.MushroomStemThickness   = 0.0;
             }
 
             list.Add(b);

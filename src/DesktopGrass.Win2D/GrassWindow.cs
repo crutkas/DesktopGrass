@@ -43,6 +43,8 @@ internal sealed class GrassWindow : IDisposable
     private IDCompositionVisual2? _dcompVisual;
     private ID2D1SolidColorBrush[]? _brushes;
     private ID2D1SolidColorBrush[]? _flowerHeadBrushes;
+    private ID2D1SolidColorBrush[]? _mushroomCapBrushes;
+    private ID2D1SolidColorBrush? _mushroomStemBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -143,6 +145,13 @@ internal sealed class GrassWindow : IDisposable
             _flowerHeadBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FLOWER_PALETTE[i]));
         }
 
+        _mushroomCapBrushes = new ID2D1SolidColorBrush[Constants.MUSHROOM_PALETTE.Length];
+        for (int i = 0; i < _mushroomCapBrushes.Length; i++)
+        {
+            _mushroomCapBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MUSHROOM_PALETTE[i]));
+        }
+        _mushroomStemBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MUSHROOM_STEM_COLOR));
+
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
         {
@@ -210,6 +219,41 @@ internal sealed class GrassWindow : IDisposable
 
     private void DrawBlade(in Blade b, float groundY)
     {
+        if (b.IsMushroom)
+        {
+            float baseX = (float)b.BaseX;
+            float gy    = groundY;
+            float stemT = (float)b.MushroomStemThickness;
+
+            // Stump stub: when cut below the threshold, draw a short
+            // ivory stem with no cap — same footprint as a cut blade.
+            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            {
+                _dc!.DrawLine(
+                    new Vector2(baseX, gy),
+                    new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                    _mushroomStemBrush!, stemT, _strokeStyle);
+                return;
+            }
+
+            float scale = (float)b.CutHeight;
+            float stemH = (float)b.MushroomStemHeight * scale;
+            float capRX = (float)b.MushroomCapWidth   * scale;
+            float capRY = (float)b.MushroomCapHeight  * scale;
+            float capCY = gy - stemH;
+
+            _dc!.DrawLine(
+                new Vector2(baseX, gy),
+                new Vector2(baseX, capCY),
+                _mushroomStemBrush!, stemT, _strokeStyle);
+
+            int ci = b.MushroomCapColorIdx;
+            if ((uint)ci >= (uint)_mushroomCapBrushes!.Length) ci = 0;
+            var cap = new Ellipse(new Vector2(baseX, capCY), capRX, capRY);
+            _dc.FillEllipse(cap, _mushroomCapBrushes[ci]);
+            return;
+        }
+
         var stroke = Sim.ComputeBladeStroke(b, groundY);
         int hue = b.Hue;
         if ((uint)hue >= (uint)_brushes!.Length) hue = 0;
@@ -279,6 +323,14 @@ internal sealed class GrassWindow : IDisposable
                 try { br?.Dispose(); } catch { }
             }
         }
+        if (_mushroomCapBrushes is not null)
+        {
+            foreach (var br in _mushroomCapBrushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
+        try { _mushroomStemBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

@@ -70,6 +70,33 @@ internal static class Constants
         0xFFEF5350, // 5 red (poppy)
     };
 
+    // Mushroom stream (§4, §5, §7). Independent PRNG stream salted with
+    // MUSHROOM_PRNG_SALT so main / regrowth / flower stay bit-identical.
+    public const double MUSHROOM_PROBABILITY        = 0.025;
+    public const double MUSHROOM_CAP_WIDTH_MIN      = 4.0;
+    public const double MUSHROOM_CAP_WIDTH_MAX      = 8.0;
+    public const double MUSHROOM_CAP_HEIGHT_MIN     = 2.5;
+    public const double MUSHROOM_CAP_HEIGHT_MAX     = 5.0;
+    public const double MUSHROOM_STEM_HEIGHT_MIN    = 4.0;
+    public const double MUSHROOM_STEM_HEIGHT_MAX    = 10.0;
+    public const double MUSHROOM_STEM_THICKNESS_MIN = 2.0;
+    public const double MUSHROOM_STEM_THICKNESS_MAX = 4.0;
+    public const int    MUSHROOM_PALETTE_SIZE       = 6;
+    public const ulong  MUSHROOM_PRNG_SALT          = 0xBADC0FFEE0FACE21UL;
+    public const uint   MUSHROOM_STEM_COLOR         = 0xFFF5F5DC; // beige/ivory
+
+    // Mushroom palette (§4) — 6 ARGB cap colors. Stems are always
+    // MUSHROOM_STEM_COLOR.
+    public static readonly uint[] MUSHROOM_PALETTE =
+    {
+        0xFFD32F2F, // 0 red (amanita)
+        0xFF8D6E63, // 1 brown
+        0xFFC9A66B, // 2 tan
+        0xFFFFF8E1, // 3 ivory
+        0xFFE57373, // 4 dusty pink
+        0xFF6D4C41, // 5 dark brown
+    };
+
     // Bezier rendering (§7)
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP

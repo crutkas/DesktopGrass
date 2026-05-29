@@ -32,6 +32,12 @@ public class BladeGenTests
             Assert.Equal(a[i].FlowerHeadColorIdx, b[i].FlowerHeadColorIdx);
             Assert.Equal(a[i].FlowerHeadRadius, b[i].FlowerHeadRadius);
             Assert.Equal(a[i].HeightBonus, b[i].HeightBonus);
+            Assert.Equal(a[i].IsMushroom, b[i].IsMushroom);
+            Assert.Equal(a[i].MushroomCapColorIdx, b[i].MushroomCapColorIdx);
+            Assert.Equal(a[i].MushroomCapWidth, b[i].MushroomCapWidth);
+            Assert.Equal(a[i].MushroomCapHeight, b[i].MushroomCapHeight);
+            Assert.Equal(a[i].MushroomStemHeight, b[i].MushroomStemHeight);
+            Assert.Equal(a[i].MushroomStemThickness, b[i].MushroomStemThickness);
         }
     }
 
@@ -76,6 +82,23 @@ public class BladeGenTests
                 Assert.Equal((byte)0, b.FlowerHeadColorIdx);
                 Assert.Equal(0.0, b.FlowerHeadRadius);
                 Assert.Equal(1.0, b.HeightBonus);
+            }
+
+            if (b.IsMushroom)
+            {
+                Assert.InRange((int)b.MushroomCapColorIdx, 0, Constants.MushroomPaletteSize - 1);
+                Assert.InRange(b.MushroomCapWidth, Constants.MushroomCapWidthMin, Constants.MushroomCapWidthMax);
+                Assert.InRange(b.MushroomCapHeight, Constants.MushroomCapHeightMin, Constants.MushroomCapHeightMax);
+                Assert.InRange(b.MushroomStemHeight, Constants.MushroomStemHeightMin, Constants.MushroomStemHeightMax);
+                Assert.InRange(b.MushroomStemThickness, Constants.MushroomStemThicknessMin, Constants.MushroomStemThicknessMax);
+            }
+            else
+            {
+                Assert.Equal((byte)0, b.MushroomCapColorIdx);
+                Assert.Equal(0.0, b.MushroomCapWidth);
+                Assert.Equal(0.0, b.MushroomCapHeight);
+                Assert.Equal(0.0, b.MushroomStemHeight);
+                Assert.Equal(0.0, b.MushroomStemThickness);
             }
         }
     }
@@ -157,6 +180,12 @@ public class BladeGenTests
             Assert.Equal(first[i].FlowerHeadColorIdx, second[i].FlowerHeadColorIdx);
             Assert.Equal(first[i].FlowerHeadRadius, second[i].FlowerHeadRadius);
             Assert.Equal(first[i].HeightBonus, second[i].HeightBonus);
+            Assert.Equal(first[i].IsMushroom, second[i].IsMushroom);
+            Assert.Equal(first[i].MushroomCapColorIdx, second[i].MushroomCapColorIdx);
+            Assert.Equal(first[i].MushroomCapWidth, second[i].MushroomCapWidth);
+            Assert.Equal(first[i].MushroomCapHeight, second[i].MushroomCapHeight);
+            Assert.Equal(first[i].MushroomStemHeight, second[i].MushroomStemHeight);
+            Assert.Equal(first[i].MushroomStemThickness, second[i].MushroomStemThickness);
         }
     }
 }

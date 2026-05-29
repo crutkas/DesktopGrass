@@ -76,6 +76,32 @@ internal static class Constants
         0xFFEF5350, // red (poppy)
     };
 
+    // §4 / §5 / §7 — mushroom stream. Independent PRNG stream salted with
+    // MushroomPrngSalt so main / regrowth / flower stay bit-identical.
+    public const double MushroomProbability        = 0.025;
+    public const double MushroomCapWidthMin        = 4.0;
+    public const double MushroomCapWidthMax        = 8.0;
+    public const double MushroomCapHeightMin       = 2.5;
+    public const double MushroomCapHeightMax       = 5.0;
+    public const double MushroomStemHeightMin      = 4.0;
+    public const double MushroomStemHeightMax      = 10.0;
+    public const double MushroomStemThicknessMin   = 2.0;
+    public const double MushroomStemThicknessMax   = 4.0;
+    public const int    MushroomPaletteSize        = 6;
+    public const ulong  MushroomPrngSalt           = 0xBADC0FFEE0FACE21UL;
+    public const uint   MushroomStemColor          = 0xFFF5F5DC; // beige/ivory
+
+    // §4 — mushroom palette. 6 ARGB cap colors; stems are always MushroomStemColor.
+    public static readonly uint[] MushroomPalette = new uint[]
+    {
+        0xFFD32F2F, // red (amanita)
+        0xFF8D6E63, // brown
+        0xFFC9A66B, // tan
+        0xFFFFF8E1, // ivory
+        0xFFE57373, // dusty pink
+        0xFF6D4C41, // dark brown
+    };
+
     // §7 — rendering geometry.
     public const double CutStumpThreshold   = 0.05;
     public const double StumpHeight         = 2.0;    // DIP

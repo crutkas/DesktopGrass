@@ -30,9 +30,14 @@ internal sealed class GrassRenderer
     private readonly ShapeVisual _root;
     private readonly CompositionColorBrush[] _brushes;
     private readonly CompositionColorBrush[] _flowerHeadBrushes;
+    private readonly CompositionColorBrush[] _mushroomCapBrushes;
+    private readonly CompositionColorBrush _mushroomStemBrush;
     private readonly CompositionSpriteShape[] _shapes;
     private readonly CompositionPathGeometry[] _paths;
     private readonly CompositionEllipseGeometry?[] _flowerHeadGeometries;
+    private readonly CompositionEllipseGeometry?[] _mushroomCapGeometries;
+    private readonly CompositionLineGeometry?[] _mushroomStemGeometries;
+    private readonly CompositionSpriteShape?[] _mushroomStemShapes;
     private readonly CanvasDevice _device;
 
     public GrassRenderer(FrameworkElement host, Sim sim)
@@ -76,11 +81,35 @@ internal sealed class GrassRenderer
             _flowerHeadBrushes[i] = _compositor.CreateColorBrush(color);
         }
 
+        _mushroomCapBrushes = new CompositionColorBrush[Constants.MushroomPalette.Length];
+        for (int i = 0; i < _mushroomCapBrushes.Length; i++)
+        {
+            uint argb = Constants.MushroomPalette[i];
+            var color = Color.FromArgb(
+                (byte)((argb >> 24) & 0xFF),
+                (byte)((argb >> 16) & 0xFF),
+                (byte)((argb >> 8) & 0xFF),
+                (byte)(argb & 0xFF));
+            _mushroomCapBrushes[i] = _compositor.CreateColorBrush(color);
+        }
+        {
+            uint argb = Constants.MushroomStemColor;
+            var stemColor = Color.FromArgb(
+                (byte)((argb >> 24) & 0xFF),
+                (byte)((argb >> 16) & 0xFF),
+                (byte)((argb >> 8) & 0xFF),
+                (byte)(argb & 0xFF));
+            _mushroomStemBrush = _compositor.CreateColorBrush(stemColor);
+        }
+
         // One shape + path per blade, allocated up-front.
         int n = _sim.Blades.Length;
         _shapes = new CompositionSpriteShape[n];
         _paths  = new CompositionPathGeometry[n];
         _flowerHeadGeometries = new CompositionEllipseGeometry?[n];
+        _mushroomCapGeometries  = new CompositionEllipseGeometry?[n];
+        _mushroomStemGeometries = new CompositionLineGeometry?[n];
+        _mushroomStemShapes     = new CompositionSpriteShape?[n];
 
         for (int i = 0; i < n; i++)
         {
@@ -112,6 +141,32 @@ internal sealed class GrassRenderer
                 headShape.FillBrush = _flowerHeadBrushes[hi];
                 _root.Shapes.Add(headShape);
             }
+
+            if (b.IsMushroom)
+            {
+                int ci = b.MushroomCapColorIdx;
+                if ((uint)ci >= (uint)_mushroomCapBrushes.Length) ci = 0;
+
+                var stemGeom = _compositor.CreateLineGeometry();
+                stemGeom.Start = Vector2.Zero;
+                stemGeom.End   = Vector2.Zero;
+                _mushroomStemGeometries[i] = stemGeom;
+
+                var stemShape = _compositor.CreateSpriteShape(stemGeom);
+                stemShape.StrokeBrush     = _mushroomStemBrush;
+                stemShape.StrokeThickness = (float)b.MushroomStemThickness;
+                _mushroomStemShapes[i]    = stemShape;
+                _root.Shapes.Add(stemShape);
+
+                var capGeom = _compositor.CreateEllipseGeometry();
+                capGeom.Center = Vector2.Zero;
+                capGeom.Radius = Vector2.Zero;
+                _mushroomCapGeometries[i] = capGeom;
+
+                var capShape = _compositor.CreateSpriteShape(capGeom);
+                capShape.FillBrush = _mushroomCapBrushes[ci];
+                _root.Shapes.Add(capShape);
+            }
         }
     }
 
@@ -131,6 +186,53 @@ internal sealed class GrassRenderer
         for (int i = 0; i < n; i++)
         {
             ref readonly var b = ref _sim.Blades[i];
+
+            if (b.IsMushroom)
+            {
+                var capGeom  = _mushroomCapGeometries[i];
+                var stemGeom = _mushroomStemGeometries[i];
+                if (capGeom is null || stemGeom is null) continue;
+
+                float baseX = (float)b.BaseX;
+                float gy    = (float)_sim.GroundY;
+
+                if (b.CutHeight < Constants.CutStumpThreshold)
+                {
+                    stemGeom.Start = new Vector2(baseX, gy);
+                    stemGeom.End   = new Vector2(baseX, gy - (float)Constants.StumpHeight);
+                    capGeom.Radius = Vector2.Zero;
+                }
+                else
+                {
+                    float scale = (float)b.CutHeight;
+                    float stemH = (float)b.MushroomStemHeight * scale;
+                    float capRX = (float)b.MushroomCapWidth   * scale;
+                    float capRY = (float)b.MushroomCapHeight  * scale;
+                    float capCY = gy - stemH;
+
+                    stemGeom.Start = new Vector2(baseX, gy);
+                    stemGeom.End   = new Vector2(baseX, capCY);
+                    capGeom.Center = new Vector2(baseX, capCY);
+                    capGeom.Radius = new Vector2(capRX, capRY);
+                }
+
+                var stemShape = _mushroomStemShapes[i];
+                if (stemShape is not null)
+                {
+                    stemShape.StrokeThickness = (float)b.MushroomStemThickness;
+                }
+
+                var bladeShape = _shapes[i];
+                bladeShape.StrokeThickness = 0f;
+
+                var flowerHead = _flowerHeadGeometries[i];
+                if (flowerHead is not null)
+                {
+                    flowerHead.Radius = Vector2.Zero;
+                }
+                continue;
+            }
+
             var s = _sim.GetStroke(i);
 
             // Build a fresh quadratic Bezier path via Win2D's CanvasPathBuilder
