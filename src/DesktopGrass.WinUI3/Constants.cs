@@ -55,6 +55,27 @@ internal static class Constants
     public const double RegrowDurationMax  = 4.0;    // sec
     public const ulong  RegrowPrngSalt     = 0xDEADBEEFCAFEBABEUL;
 
+    // §4 / §5 / §7 — flower stream. Independent PRNG stream salted with
+    // FlowerPrngSalt so the main stream stays bit-identical.
+    public const double FlowerProbability      = 0.04;
+    public const double FlowerHeightBonusMin   = 1.2;
+    public const double FlowerHeightBonusMax   = 1.5;
+    public const double FlowerHeadRadiusMin    = 1.8;  // DIP
+    public const double FlowerHeadRadiusMax    = 3.0;  // DIP
+    public const int    FlowerPaletteSize      = 6;
+    public const ulong  FlowerPrngSalt         = 0xC0FFEEFACE0FFE5UL;
+
+    // §4 — flower palette. 6 ARGB colors used for flower heads.
+    public static readonly uint[] FlowerPalette = new uint[]
+    {
+        0xFFFFEB3B, // yellow (dandelion)
+        0xFFFFA726, // orange (marigold)
+        0xFFFF80AB, // pink (cosmos)
+        0xFFE1BEE7, // lavender
+        0xFFFFFFFF, // white (daisy)
+        0xFFEF5350, // red (poppy)
+    };
+
     // §7 — rendering geometry.
     public const double CutStumpThreshold   = 0.05;
     public const double StumpHeight         = 2.0;    // DIP

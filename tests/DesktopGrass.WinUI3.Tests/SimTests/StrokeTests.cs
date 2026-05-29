@@ -19,6 +19,7 @@ public class StrokeTests
             Thickness = 1.5,
             Hue = 2,
             CutHeight = 0.02,
+            HeightBonus = 1.0,
             EffectiveLean = 5.0,
         };
         var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
@@ -38,6 +39,7 @@ public class StrokeTests
             Thickness = 1.5,
             Hue = 2,
             CutHeight = 1.0,
+            HeightBonus = 1.0,
             EffectiveLean = 5.0,
         };
         var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
@@ -60,6 +62,7 @@ public class StrokeTests
             Thickness = 2.0,
             Hue = 0,
             CutHeight = 1.0,
+            HeightBonus = 1.0,
             EffectiveLean = 0.0,
         };
         var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
@@ -71,6 +74,33 @@ public class StrokeTests
         // CtrlOffsetFactor (60%) of the blade height.
         Assert.Equal(200.0, stroke.ControlX, 9);
         Assert.Equal(110.0 - 25.0 * 1.0 * Constants.CtrlOffsetFactor, stroke.ControlY, 9);
+    }
+
+    [Fact]
+    public void FlowerHeightBonusExtendsStrokeLength()
+    {
+        var b = new Blade
+        {
+            BaseX = 200.0,
+            Height = 20.0,
+            Thickness = 2.0,
+            Hue = 0,
+            CutHeight = 1.0,
+            IsFlower = true,
+            FlowerHeadColorIdx = 2,
+            FlowerHeadRadius = 2.5,
+            HeightBonus = 1.5,
+            EffectiveLean = 0.0,
+        };
+
+        var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
+
+        Assert.Equal(80.0, stroke.TipY, 9);
+        Assert.Equal(110.0 - 30.0 * Constants.CtrlOffsetFactor, stroke.ControlY, 9);
+        Assert.True(b.IsFlower);
+        Assert.Equal((byte)2, b.FlowerHeadColorIdx);
+        Assert.Equal(2.5, b.FlowerHeadRadius);
+        Assert.Equal(1.5, b.HeightBonus);
     }
 
     [Fact]

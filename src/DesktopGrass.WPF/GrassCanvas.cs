@@ -12,6 +12,7 @@ internal sealed class GrassCanvas : FrameworkElement
 {
     private readonly Sim _sim;
     private readonly MediaBrush[] _brushes;
+    private readonly MediaBrush[] _flowerHeadBrushes;
 
     public GrassCanvas(Sim sim)
     {
@@ -29,6 +30,19 @@ internal sealed class GrassCanvas : FrameworkElement
                 (byte)argb));
             brush.Freeze();
             _brushes[i] = brush;
+        }
+
+        _flowerHeadBrushes = new MediaBrush[Constants.FLOWER_PALETTE.Length];
+        for (int i = 0; i < Constants.FLOWER_PALETTE.Length; i++)
+        {
+            uint argb = Constants.FLOWER_PALETTE[i];
+            var brush = new SolidColorBrush(MediaColor.FromArgb(
+                (byte)(argb >> 24),
+                (byte)(argb >> 16),
+                (byte)(argb >> 8),
+                (byte)argb));
+            brush.Freeze();
+            _flowerHeadBrushes[i] = brush;
         }
     }
 
@@ -64,6 +78,18 @@ internal sealed class GrassCanvas : FrameworkElement
             };
             pen.Freeze();
             dc.DrawGeometry(null, pen, geometry);
+
+            if (blade.IsFlower && blade.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
+            {
+                int hi = blade.FlowerHeadColorIdx;
+                if ((uint)hi >= (uint)_flowerHeadBrushes.Length) hi = 0;
+                dc.DrawEllipse(
+                    _flowerHeadBrushes[hi],
+                    null,
+                    new WpfPoint(stroke.TipX, stroke.TipY),
+                    blade.FlowerHeadRadius,
+                    blade.FlowerHeadRadius);
+            }
         }
     }
 }

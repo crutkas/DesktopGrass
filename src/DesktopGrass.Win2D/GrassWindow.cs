@@ -42,6 +42,7 @@ internal sealed class GrassWindow : IDisposable
     private IDCompositionTarget? _dcompTarget;
     private IDCompositionVisual2? _dcompVisual;
     private ID2D1SolidColorBrush[]? _brushes;
+    private ID2D1SolidColorBrush[]? _flowerHeadBrushes;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -133,6 +134,13 @@ internal sealed class GrassWindow : IDisposable
         for (int i = 0; i < Constants.PALETTE_SIZE; i++)
         {
             _brushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PALETTE[i]));
+        }
+
+        // Flower head brushes from FLOWER_PALETTE.
+        _flowerHeadBrushes = new ID2D1SolidColorBrush[Constants.FLOWER_PALETTE.Length];
+        for (int i = 0; i < Constants.FLOWER_PALETTE.Length; i++)
+        {
+            _flowerHeadBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FLOWER_PALETTE[i]));
         }
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
@@ -234,6 +242,15 @@ internal sealed class GrassWindow : IDisposable
             prevX = px;
             prevY = py;
         }
+
+        if (b.IsFlower && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
+        {
+            int hi = b.FlowerHeadColorIdx;
+            if ((uint)hi >= (uint)_flowerHeadBrushes!.Length) hi = 0;
+            float r = (float)b.FlowerHeadRadius;
+            var ellipse = new Ellipse(new Vector2(tx, ty), r, r);
+            _dc!.FillEllipse(ellipse, _flowerHeadBrushes[hi]);
+        }
     }
 
     private static Color4 ArgbToColor4(uint argb)
@@ -251,6 +268,13 @@ internal sealed class GrassWindow : IDisposable
         if (_brushes is not null)
         {
             foreach (var br in _brushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
+        if (_flowerHeadBrushes is not null)
+        {
+            foreach (var br in _flowerHeadBrushes)
             {
                 try { br?.Dispose(); } catch { }
             }

@@ -72,6 +72,13 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
     Prng pRegrow;
     prng_init(pRegrow, seed ^ REGROW_PRNG_SALT);
 
+    // Flower stream — INDEPENDENT from main and regrowth. Every blade
+    // consumes exactly one unconditional draw (the probability check);
+    // flowers additionally consume 3 more draws. The order MUST be:
+    // probability, then (if flower) head-color, head-radius, height-bonus.
+    Prng pFlower;
+    prng_init(pFlower, seed ^ FLOWER_PRNG_SALT);
+
     double x = 0.0;
     while (true) {
         double step = prng_uniform(p, BLADE_SPACING_MIN, BLADE_SPACING_MAX) / density;
@@ -97,6 +104,20 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.regrowDelay      = prng_uniform(pRegrow, REGROW_DELAY_MIN,    REGROW_DELAY_MAX);
         b.regrowDuration   = prng_uniform(pRegrow, REGROW_DURATION_MIN, REGROW_DURATION_MAX);
         b.regrowStart      = -1.0;
+
+        // Flower stream (architecture.md §5). Order MUST be: probability,
+        // then head-color, head-radius, height-bonus IF flower.
+        const bool isFlower = prng_uniform(pFlower, 0.0, 1.0) < FLOWER_PROBABILITY;
+        b.isFlower = isFlower;
+        if (isFlower) {
+            b.flowerHeadColorIdx = static_cast<uint8_t>(prng_index(pFlower, FLOWER_PALETTE_SIZE));
+            b.flowerHeadRadius   = prng_uniform(pFlower, FLOWER_HEAD_RADIUS_MIN, FLOWER_HEAD_RADIUS_MAX);
+            b.heightBonus        = prng_uniform(pFlower, FLOWER_HEIGHT_BONUS_MIN, FLOWER_HEIGHT_BONUS_MAX);
+        } else {
+            b.flowerHeadColorIdx = 0;
+            b.flowerHeadRadius   = 0.0;
+            b.heightBonus        = 1.0;
+        }
 
         out.push_back(b);
     }
@@ -249,7 +270,7 @@ Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
         return s;
     }
 
-    const double L = b.height * b.cutHeight;
+    const double L = b.height * b.heightBonus * b.cutHeight;
 
     // Chord preservation: blades have a fixed length L. As effectiveLean
     // grows, the tip arcs over (Y drops) rather than the blade stretching

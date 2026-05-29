@@ -59,6 +59,28 @@ constexpr double REGROW_DURATION_MIN   = 2.0;
 constexpr double REGROW_DURATION_MAX   = 4.0;
 constexpr uint64_t REGROW_PRNG_SALT    = 0xDEADBEEFCAFEBABEull;
 
+// Flowers (§4, §5, §7). Sampled from a third independent PRNG stream
+// (seed XOR FLOWER_PRNG_SALT) so the main stream stays bit-identical
+// to the pre-flower implementation. 4% of blades become flowers; each
+// flower has a head color (6-entry palette), head radius, and a stem
+// height bonus of 1.2x–1.5x. Non-flower blades carry heightBonus=1.0.
+constexpr double   FLOWER_PROBABILITY        = 0.04;
+constexpr double   FLOWER_HEIGHT_BONUS_MIN   = 1.2;
+constexpr double   FLOWER_HEIGHT_BONUS_MAX   = 1.5;
+constexpr double   FLOWER_HEAD_RADIUS_MIN    = 1.8;   // DIP
+constexpr double   FLOWER_HEAD_RADIUS_MAX    = 3.0;   // DIP
+constexpr int      FLOWER_PALETTE_SIZE       = 6;
+constexpr uint64_t FLOWER_PRNG_SALT          = 0xC0FFEEFACE0FFE5ull;
+
+constexpr uint32_t FLOWER_PALETTE[FLOWER_PALETTE_SIZE] = {
+    0xFFFFEB3Bu, // 0 yellow (dandelion)
+    0xFFFFA726u, // 1 orange (marigold)
+    0xFFFF80ABu, // 2 pink (cosmos)
+    0xFFE1BEE7u, // 3 lavender
+    0xFFFFFFFFu, // 4 white (daisy)
+    0xFFEF5350u, // 5 red (poppy)
+};
+
 // Tests -----------------------------------------------------------------------
 constexpr uint64_t CANONICAL_TEST_SEED = 0x6B6173746Full;
 

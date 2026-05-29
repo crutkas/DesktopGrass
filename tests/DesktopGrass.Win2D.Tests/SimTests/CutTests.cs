@@ -171,6 +171,7 @@ public class CutTests
             Thickness = 1.5,
             Hue = 2,
             CutHeight = 1.0,
+            HeightBonus = 1.0,
             EffectiveLean = 5.0,
         };
         var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);

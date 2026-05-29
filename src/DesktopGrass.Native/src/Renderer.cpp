@@ -122,6 +122,13 @@ bool Renderer::CreateDeviceResources() {
         if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
     }
 
+    for (int i = 0; i < FLOWER_PALETTE_SIZE; ++i) {
+        flowerHeadBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(FLOWER_PALETTE[i]),
+                                                flowerHeadBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+
     return true;
 }
 
@@ -175,6 +182,7 @@ bool Renderer::CreateSwapChainResources(int widthPx, int heightPx) {
 
 void Renderer::DiscardDeviceResources() {
     for (auto& b : brushes_) b.Reset();
+    for (auto& b : flowerHeadBrushes_) b.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -332,6 +340,17 @@ void Renderer::DrawGrass() {
         ID2D1SolidColorBrush* brush = brushes_[b.hue].Get();
         d2dContext_->DrawGeometry(path.Get(), brush,
                                   static_cast<float>(s.thickness));
+
+        if (b.isFlower && b.cutHeight >= CUT_STUMP_THRESHOLD) {
+            const D2D1_ELLIPSE ellipse = D2D1::Ellipse(
+                D2D1::Point2F(static_cast<float>(s.tip.x),
+                              static_cast<float>(s.tip.y)),
+                static_cast<float>(b.flowerHeadRadius),
+                static_cast<float>(b.flowerHeadRadius));
+            uint8_t idx = b.flowerHeadColorIdx;
+            if (idx >= FLOWER_PALETTE_SIZE) idx = 0;
+            d2dContext_->FillEllipse(ellipse, flowerHeadBrushes_[idx].Get());
+        }
     }
 }
 

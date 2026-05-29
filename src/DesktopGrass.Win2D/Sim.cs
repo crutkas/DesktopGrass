@@ -81,6 +81,12 @@ internal struct Blade
     public double RegrowDuration;
     public double RegrowStart;
 
+    // Flower (§4, §5, §7). Static, set once at generation.
+    public bool   IsFlower;
+    public byte   FlowerHeadColorIdx;
+    public double FlowerHeadRadius;
+    public double HeightBonus;          // 1.0 for non-flowers
+
     public double EffectiveLean;
 }
 
@@ -117,6 +123,10 @@ internal sealed class Sim
         // salt so the main stream stays bit-identical to the pre-regrowth
         // implementation (preserves the 10,787 cross-impl conformance).
         var rngRegrow = Prng.Init(seed ^ Constants.REGROW_PRNG_SALT);
+        // Flower stream — independent of main and regrowth. Every blade
+        // consumes exactly one unconditional draw (probability check);
+        // flowers additionally consume 3 more (head color, radius, bonus).
+        var rngFlower = Prng.Init(seed ^ Constants.FLOWER_PRNG_SALT);
         var list = new List<Blade>(capacity: (int)(monitorWidth / 4.0));
         double x = 0.0;
 
@@ -144,6 +154,23 @@ internal sealed class Sim
             b.RegrowDelay    = rngRegrow.Uniform(Constants.REGROW_DELAY_MIN, Constants.REGROW_DELAY_MAX);
             b.RegrowDuration = rngRegrow.Uniform(Constants.REGROW_DURATION_MIN, Constants.REGROW_DURATION_MAX);
             b.RegrowStart    = -1.0;
+
+            // Flower stream — draw order MUST be probability, then
+            // (if flower) head-color, head-radius, height-bonus.
+            bool isFlower = rngFlower.Uniform(0.0, 1.0) < Constants.FLOWER_PROBABILITY;
+            b.IsFlower = isFlower;
+            if (isFlower)
+            {
+                b.FlowerHeadColorIdx = (byte)rngFlower.Index((uint)Constants.FLOWER_PALETTE_SIZE);
+                b.FlowerHeadRadius   = rngFlower.Uniform(Constants.FLOWER_HEAD_RADIUS_MIN, Constants.FLOWER_HEAD_RADIUS_MAX);
+                b.HeightBonus        = rngFlower.Uniform(Constants.FLOWER_HEIGHT_BONUS_MIN, Constants.FLOWER_HEIGHT_BONUS_MAX);
+            }
+            else
+            {
+                b.FlowerHeadColorIdx = 0;
+                b.FlowerHeadRadius   = 0.0;
+                b.HeightBonus        = 1.0;
+            }
 
             list.Add(b);
         }
@@ -326,7 +353,7 @@ internal sealed class Sim
                 b.Thickness, argb);
         }
 
-        double L = b.Height * b.CutHeight;
+        double L = b.Height * b.HeightBonus * b.CutHeight;
 
         // Chord preservation: blades have a fixed length L. As EffectiveLean
         // grows, the tip arcs over (Y drops) rather than the blade stretching

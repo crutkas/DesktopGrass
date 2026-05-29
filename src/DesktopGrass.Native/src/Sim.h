@@ -64,6 +64,15 @@ struct Blade {
     double  regrowDuration = 0.0;
     double  regrowStart    = -1.0;
 
+    // Flower (§4, §5, §7). Static, set once at generation from an
+    // independent PRNG stream. isFlower=false means this is an ordinary
+    // grass blade; heightBonus defaults to 1.0 so the L formula in
+    // compute_blade_stroke is a no-op for non-flowers.
+    bool    isFlower            = false;
+    uint8_t flowerHeadColorIdx  = 0;
+    double  flowerHeadRadius    = 0.0;
+    double  heightBonus         = 1.0;
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;

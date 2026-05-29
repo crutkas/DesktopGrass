@@ -25,6 +25,10 @@ public class BladeGenTests
             Assert.Equal(a[i].Hue, b[i].Hue);
             Assert.Equal(a[i].SwayPhaseOffset, b[i].SwayPhaseOffset);
             Assert.Equal(a[i].Stiffness, b[i].Stiffness);
+            Assert.Equal(a[i].IsFlower, b[i].IsFlower);
+            Assert.Equal(a[i].FlowerHeadColorIdx, b[i].FlowerHeadColorIdx);
+            Assert.Equal(a[i].FlowerHeadRadius, b[i].FlowerHeadRadius);
+            Assert.Equal(a[i].HeightBonus, b[i].HeightBonus);
         }
     }
 
@@ -52,6 +56,18 @@ public class BladeGenTests
             Assert.InRange(b.Hue, (byte)0, (byte)(Constants.PALETTE_SIZE - 1));
             Assert.InRange(b.SwayPhaseOffset, 0.0, 2.0 * System.Math.PI);
             Assert.InRange(b.Stiffness, Constants.STIFFNESS_MIN, Constants.STIFFNESS_MAX);
+            if (b.IsFlower)
+            {
+                Assert.InRange(b.FlowerHeadColorIdx, (byte)0, (byte)(Constants.FLOWER_PALETTE_SIZE - 1));
+                Assert.InRange(b.FlowerHeadRadius, Constants.FLOWER_HEAD_RADIUS_MIN, Constants.FLOWER_HEAD_RADIUS_MAX);
+                Assert.InRange(b.HeightBonus, Constants.FLOWER_HEIGHT_BONUS_MIN, Constants.FLOWER_HEIGHT_BONUS_MAX);
+            }
+            else
+            {
+                Assert.Equal((byte)0, b.FlowerHeadColorIdx);
+                Assert.Equal(0.0, b.FlowerHeadRadius);
+                Assert.Equal(1.0, b.HeightBonus);
+            }
 
             Assert.Equal(1.0, b.CutHeight);
             Assert.Equal(0.0, b.GustVelocity);

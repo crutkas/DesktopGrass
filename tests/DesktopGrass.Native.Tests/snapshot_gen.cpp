@@ -26,14 +26,17 @@ int main() {
     generate_blades(CANONICAL_TEST_SEED, 1920.0, 1.0, blades);
     std::printf("\n// blade count: %zu\n", blades.size());
     std::printf("constexpr size_t CANONICAL_BLADE_COUNT = %zu;\n", blades.size());
-    std::printf("\n// first 10 blades (baseX, height, thickness, hue, swayPhaseOffset, stiffness)\n");
-    std::printf("struct SnapshotBlade { double baseX, height, thickness; uint8_t hue; double sway, stiffness; };\n");
+    std::printf("\n// first 10 blades (baseX, height, thickness, hue, swayPhaseOffset, stiffness, isFlower, flowerHeadColorIdx, flowerHeadRadius, heightBonus)\n");
+    std::printf("struct SnapshotBlade { double baseX, height, thickness; uint8_t hue; double sway, stiffness; bool isFlower; uint8_t flowerHeadColorIdx; double flowerHeadRadius, heightBonus; };\n");
     std::printf("constexpr SnapshotBlade CANONICAL_FIRST_10[10] = {\n");
     for (int i = 0; i < 10 && i < (int)blades.size(); ++i) {
         const Blade& b = blades[i];
-        std::printf("    { %.17g, %.17g, %.17g, %u, %.17g, %.17g },\n",
+        std::printf("    { %.17g, %.17g, %.17g, %u, %.17g, %.17g, %s, %u, %.17g, %.17g },\n",
                     b.baseX, b.height, b.thickness, (unsigned)b.hue,
-                    b.swayPhaseOffset, b.stiffness);
+                    b.swayPhaseOffset, b.stiffness,
+                    b.isFlower ? "true" : "false",
+                    (unsigned)b.flowerHeadColorIdx,
+                    b.flowerHeadRadius, b.heightBonus);
     }
     std::printf("};\n");
     std::printf("\n// last 10 blades\n");
@@ -42,9 +45,12 @@ int main() {
     if (start < 0) start = 0;
     for (int i = start; i < (int)blades.size(); ++i) {
         const Blade& b = blades[i];
-        std::printf("    { %.17g, %.17g, %.17g, %u, %.17g, %.17g },\n",
+        std::printf("    { %.17g, %.17g, %.17g, %u, %.17g, %.17g, %s, %u, %.17g, %.17g },\n",
                     b.baseX, b.height, b.thickness, (unsigned)b.hue,
-                    b.swayPhaseOffset, b.stiffness);
+                    b.swayPhaseOffset, b.stiffness,
+                    b.isFlower ? "true" : "false",
+                    (unsigned)b.flowerHeadColorIdx,
+                    b.flowerHeadRadius, b.heightBonus);
     }
     std::printf("};\n");
     return 0;

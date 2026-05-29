@@ -20,8 +20,12 @@ void requireBladeEquals(const Blade& actual, const SnapshotBlade& expected, std:
     REQUIRE(actual.height          == Approx(expected.height         ).margin(1e-12));
     REQUIRE(actual.thickness       == Approx(expected.thickness      ).margin(1e-12));
     REQUIRE(actual.hue             == expected.hue);
-    REQUIRE(actual.swayPhaseOffset == Approx(expected.swayPhaseOffset).margin(1e-12));
-    REQUIRE(actual.stiffness       == Approx(expected.stiffness      ).margin(1e-12));
+    REQUIRE(actual.swayPhaseOffset == Approx(expected.sway          ).margin(1e-12));
+    REQUIRE(actual.stiffness       == Approx(expected.stiffness     ).margin(1e-12));
+    REQUIRE(actual.isFlower             == expected.isFlower);
+    REQUIRE(actual.flowerHeadColorIdx   == expected.flowerHeadColorIdx);
+    REQUIRE(actual.flowerHeadRadius     == Approx(expected.flowerHeadRadius).margin(1e-12));
+    REQUIRE(actual.heightBonus          == Approx(expected.heightBonus    ).margin(1e-12));
 }
 
 } // anonymous
@@ -69,7 +73,42 @@ TEST_CASE("blade fields stay within spec ranges", "[blade-gen]") {
         REQUIRE(b.gustVelocity     == Approx(0.0));
         REQUIRE(b.cutAnimStart     == Approx(-1.0));
         REQUIRE(b.cutInitialHeight == Approx(1.0));
+        if (b.isFlower) {
+            REQUIRE(b.flowerHeadColorIdx < FLOWER_PALETTE_SIZE);
+            REQUIRE(b.flowerHeadRadius >= FLOWER_HEAD_RADIUS_MIN);
+            REQUIRE(b.flowerHeadRadius <  FLOWER_HEAD_RADIUS_MAX);
+            REQUIRE(b.heightBonus      >= FLOWER_HEIGHT_BONUS_MIN);
+            REQUIRE(b.heightBonus      <  FLOWER_HEIGHT_BONUS_MAX);
+        } else {
+            REQUIRE(b.flowerHeadColorIdx == 0);
+            REQUIRE(b.flowerHeadRadius   == Approx(0.0));
+            REQUIRE(b.heightBonus        == Approx(1.0));
+        }
     }
+}
+
+TEST_CASE("flower count is near configured probability and ordinary blades use defaults", "[blade-gen][flowers]") {
+    std::vector<Blade> blades;
+    generate_blades(CANONICAL_TEST_SEED, 1920.0, 1.0, blades);
+    REQUIRE(blades.size() > 100);
+
+    std::size_t flowerCount = 0;
+    for (const Blade& b : blades) {
+        if (b.isFlower) {
+            ++flowerCount;
+        } else {
+            REQUIRE(b.flowerHeadColorIdx == 0);
+            REQUIRE(b.flowerHeadRadius   == Approx(0.0));
+            REQUIRE(b.heightBonus        == Approx(1.0));
+        }
+    }
+
+    const double n  = static_cast<double>(blades.size());
+    const double p  = FLOWER_PROBABILITY;
+    const double mu = n * p;
+    const double sd = std::sqrt(n * p * (1.0 - p));
+    REQUIRE(flowerCount >= static_cast<std::size_t>(std::floor(mu - 3.0 * sd)));
+    REQUIRE(flowerCount <= static_cast<std::size_t>(std::ceil(mu + 3.0 * sd)));
 }
 
 TEST_CASE("blade baseX is strictly increasing", "[blade-gen]") {
