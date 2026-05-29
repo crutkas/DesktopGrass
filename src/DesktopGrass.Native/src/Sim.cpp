@@ -252,20 +252,12 @@ Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
     const double tipX = b.baseX + b.effectiveLean;
     const double tipY = groundY - b.height * b.cutHeight;
 
-    const double dx   = tipX - b.baseX;
-    const double dy   = tipY - groundY;
-    const double len  = std::sqrt(dx * dx + dy * dy);
-
-    // Perpendicular rotated 90° CCW: (x, y) -> (-y, x).
-    const double nx = (len > 0.0) ? (-dy / len) : 0.0;
-    const double ny = (len > 0.0) ? ( dx / len) : 0.0;
-
-    const double midX   = (b.baseX + tipX) * 0.5;
-    const double midY   = (groundY + tipY) * 0.5;
-    const double offset = CTRL_OFFSET_FACTOR * b.effectiveLean;
-
+    // Rooted-bend control point: directly above the base, at a fraction
+    // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
+    // quadratic Bezier a vertical tangent at the base (blade comes out of
+    // the ground rooted) and a smooth curve toward the leaning tip.
     s.base    = { b.baseX, groundY };
-    s.control = { midX + nx * offset, midY + ny * offset };
+    s.control = { b.baseX, groundY - b.height * b.cutHeight * CTRL_OFFSET_FACTOR };
     s.tip     = { tipX, tipY };
     return s;
 }

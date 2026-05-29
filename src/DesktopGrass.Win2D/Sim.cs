@@ -329,21 +329,13 @@ internal sealed class Sim
         double tipX = b.BaseX + b.EffectiveLean;
         double tipY = groundY - b.Height * b.CutHeight;
 
-        double dx = tipX - b.BaseX;
-        double dy = tipY - groundY;
-        double len = Math.Sqrt(dx * dx + dy * dy);
-
-        // (x,y) -> (-y, x) - rotates 90° CCW in math coords (downward y).
-        double nx = -dy / len;
-        double ny = dx / len;
-
-        double midX = (b.BaseX + tipX) * 0.5;
-        double midY = (groundY + tipY) * 0.5;
-        double offset = Constants.CTRL_OFFSET_FACTOR * b.EffectiveLean;
-
+        // Rooted-bend control point: directly above the base, at a fraction
+        // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
+        // quadratic Bezier a vertical tangent at the base (rooted) and a
+        // smooth curve toward the leaning tip.
         return new Stroke(
             b.BaseX, groundY,
-            midX + nx * offset, midY + ny * offset,
+            b.BaseX, groundY - b.Height * b.CutHeight * Constants.CTRL_OFFSET_FACTOR,
             tipX, tipY,
             b.Thickness, argb);
     }

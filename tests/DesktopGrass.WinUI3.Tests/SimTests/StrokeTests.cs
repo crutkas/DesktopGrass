@@ -67,10 +67,10 @@ public class StrokeTests
         Assert.Equal(110.0, stroke.BaseY);
         Assert.Equal(200.0, stroke.TipX, 9);
         Assert.Equal(85.0, stroke.TipY, 9);
-        // No lean → control point is exactly the midpoint between base and
-        // tip (offset = CtrlOffsetFactor * 0 = 0).
+        // Rooted-bend: control sits directly above the base at
+        // CtrlOffsetFactor (60%) of the blade height.
         Assert.Equal(200.0, stroke.ControlX, 9);
-        Assert.Equal((110.0 + 85.0) * 0.5, stroke.ControlY, 9);
+        Assert.Equal(110.0 - 25.0 * 1.0 * Constants.CtrlOffsetFactor, stroke.ControlY, 9);
     }
 
     [Fact]

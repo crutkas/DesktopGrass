@@ -253,21 +253,21 @@ internal sealed class Sim
         double tipX = b.BaseX + b.EffectiveLean;
         double tipY = groundY - b.Height * b.CutHeight;
 
-        double dx = tipX - b.BaseX;
-        double dy = tipY - groundY;
-        double len = Math.Sqrt(dx * dx + dy * dy);
-
-        double nx = -dy / len;
-        double ny =  dx / len;
-
-        double midX = (b.BaseX + tipX) * 0.5;
-        double midY = (groundY + tipY) * 0.5;
-        double offset = Constants.CtrlOffsetFactor * b.EffectiveLean;
-
-        s.BaseX    = b.BaseX; s.BaseY = groundY;
-        s.ControlX = midX + nx * offset; s.ControlY = midY + ny * offset;
-        s.TipX     = tipX; s.TipY = tipY;
-        return s;
+        // Rooted-bend control point: directly above the base, at a fraction
+        // CtrlOffsetFactor of the visible blade height. This gives the
+        // quadratic Bezier a vertical tangent at the base (rooted) and a
+        // smooth curve toward the leaning tip.
+        return new Stroke
+        {
+            BaseX     = b.BaseX,
+            BaseY     = groundY,
+            ControlX  = b.BaseX,
+            ControlY  = groundY - b.Height * b.CutHeight * Constants.CtrlOffsetFactor,
+            TipX      = tipX,
+            TipY      = tipY,
+            Thickness = b.Thickness,
+            Argb      = Constants.Palette[b.Hue],
+        };
     }
 
     // §6 — sway + gust decay.
@@ -417,22 +417,21 @@ internal sealed class Sim
         double tipX = b.BaseX + b.EffectiveLean;
         double tipY = GroundY - b.Height * b.CutHeight;
 
-        double dx = tipX - b.BaseX;
-        double dy = tipY - GroundY;
-        double len = Math.Sqrt(dx * dx + dy * dy);
-
-        // Perpendicular: rotate (dx, dy) 90° CCW. Spec §7.
-        double nx = -dy / len;
-        double ny =  dx / len;
-
-        double midX = (b.BaseX + tipX) * 0.5;
-        double midY = (GroundY + tipY) * 0.5;
-        double offset = Constants.CtrlOffsetFactor * b.EffectiveLean;
-
-        s.BaseX    = b.BaseX; s.BaseY = GroundY;
-        s.ControlX = midX + nx * offset; s.ControlY = midY + ny * offset;
-        s.TipX     = tipX; s.TipY = tipY;
-        return s;
+        // Rooted-bend control point: directly above the base, at a fraction
+        // CtrlOffsetFactor of the visible blade height. This gives the
+        // quadratic Bezier a vertical tangent at the base (rooted) and a
+        // smooth curve toward the leaning tip.
+        return new Stroke
+        {
+            BaseX     = b.BaseX,
+            BaseY     = GroundY,
+            ControlX  = b.BaseX,
+            ControlY  = GroundY - b.Height * b.CutHeight * Constants.CtrlOffsetFactor,
+            TipX      = tipX,
+            TipY      = tipY,
+            Thickness = b.Thickness,
+            Argb      = Constants.Palette[b.Hue],
+        };
     }
 
     // .NET <8 polyfill — Math.Clamp works fine on net8.0 but keeping a local

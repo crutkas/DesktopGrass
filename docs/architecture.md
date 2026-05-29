@@ -244,34 +244,23 @@ Stroke compute_blade_stroke(const Blade* b, double groundY) {
     double tipX = b->baseX + b->effectiveLean;
     double tipY = groundY - b->height * b->cutHeight;
 
-    // base->tip vector (note: dy is negative because y grows down).
-    double dx = tipX - b->baseX;        // == effectiveLean
-    double dy = tipY - groundY;         // == -height*cutHeight (negative)
-    double len = sqrt(dx*dx + dy*dy);
-
-    // Perpendicular to (dx,dy), rotated 90° CCW in math coords
-    // (which, in screen-y-down, points "outward in the direction of lean").
-    // Rotation: (x,y) -> (-y, x).
-    double nx = -dy / len;
-    double ny =  dx / len;
-
-    // Offset the midpoint along the perpendicular by 0.6 * effectiveLean.
-    // The factor is signed, so when the blade leans right (effectiveLean > 0)
-    // the control point shifts to the right of the base->tip chord, bowing
-    // the blade into a natural curve. When effectiveLean == 0, the bezier
-    // degenerates to a straight vertical line (control == midpoint).
-    double midX = (b->baseX + tipX) * 0.5;
-    double midY = (groundY + tipY) * 0.5;
-    double offset = CTRL_OFFSET_FACTOR * b->effectiveLean;
-
+    // Rooted-bend control point: directly above the base, at a fraction
+    // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
+    // quadratic Bezier a vertical tangent at the base (rooted, like a
+    // blade emerging from the ground) and curves smoothly toward the
+    // leaning tip.
     s.base    = (Point){ b->baseX, groundY };
-    s.control = (Point){ midX + nx * offset, midY + ny * offset };
+    s.control = (Point){ b->baseX, groundY - b->height * b->cutHeight * CTRL_OFFSET_FACTOR };
     s.tip     = (Point){ tipX, tipY };
     return s;
 }
 ```
 
 The renderer draws each `Stroke` as a quadratic Bezier with rounded line caps. Anti-aliasing is enabled. Implementations MAY batch strokes by color for GPU efficiency; ordering within a batch doesn't affect correctness (blades don't overlap meaningfully at typical density).
+
+The rooted-bend control point gives the curve a vertical tangent at the base because `base->control` is purely vertical. The tip tangent direction is `(tipX - controlX, tipY - controlY) = (effectiveLean, -height * cutHeight * (1 - CTRL_OFFSET_FACTOR))`, so the curve naturally points up-and-toward-the-lean at the tip and the blade trails its tip instead of bulging evenly around the chord.
+
+`CTRL_OFFSET_FACTOR` now means the fraction of the visible blade height where the control point sits. The default remains `0.6`: 60% up the blade balances a tighter bend near the middle against a whippier curve with the control point nearer the tip.
 
 ---
 
