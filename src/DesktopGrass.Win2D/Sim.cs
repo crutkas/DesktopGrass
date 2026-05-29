@@ -98,6 +98,26 @@ internal struct Blade
     public double EffectiveLean;
 }
 
+// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14) and
+// snowflakes (Winter §15) live in Sim.Entities. The struct fields are
+// shared across kinds; per-kind tick logic branches on Kind.
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2 }
+
+public struct Entity
+{
+    public EntityKind Kind;
+    public double X;
+    public double Y;
+    public double Vx;
+    public double Vy;
+    public double Size;
+    public double Rotation;
+    public double RotationSpeed;
+    public double Age;
+    public double Lifetime;   // <= 0 means infinite (respawn-in-place)
+    public uint   Seed;
+}
+
 internal enum EventType { Move, Click }
 
 internal readonly struct InputEvent
@@ -132,7 +152,46 @@ internal sealed class Sim
     // blades or perturb any PRNG stream.
     public Scene CurrentScene = Constants.SCENE_DEFAULT;
 
-    public void SetScene(Scene s) => CurrentScene = s;
+    // Roaming entities (§13.2). Empty in the Grass scene; populated by the
+    // per-scene generators dispatched from SetScene (Desert: tumbleweeds,
+    // Winter: snowflakes). Pre-sized to MAX_ENTITIES_PER_MONITOR capacity
+    // at construction so the tick path never grows the list.
+    public List<Entity> Entities = new(Constants.MAX_ENTITIES_PER_MONITOR);
+
+    // Per-scene entity-stream seed. Initially zero; set by ResetEntities().
+    public ulong EntitySeed;
+
+    public void SetScene(Scene s)
+    {
+        CurrentScene = s;
+        // §13.1 amendment: clear roaming entities and (in §14/§15) dispatch
+        // to per-scene generators. The skeleton has no generators yet — the
+        // Desert and Winter content agents add their hooks here.
+        Entities.Clear();
+    }
+
+    public void ResetEntities(ulong seed)
+    {
+        EntitySeed = seed;
+        Entities.Clear();
+    }
+
+    // §13.2 — generic roaming-entity tick. Integrates position + rotation,
+    // ages each entity. Per-kind logic (tumbleweed respawn, snowflake sway
+    // and culling) is added by the §14 / §15 content agents.
+    public void TickEntities(double dt)
+    {
+        if (Entities.Count == 0) return;
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            e.X        += e.Vx * dt;
+            e.Y        += e.Vy * dt;
+            e.Rotation += e.RotationSpeed * dt;
+            e.Age      += dt;
+            Entities[i] = e;
+        }
+    }
 
     // (§8.1) Initialize / reset the ambient gust scheduler. Called by the
     // window factory after constructing the Sim and assigning MonitorWidth.
@@ -425,6 +484,8 @@ internal sealed class Sim
             UpdateBladeDynamics(ref b, GlobalTime, dt);
             AdvanceCut(ref b, GlobalTime);
         }
+
+        TickEntities(dt);
     }
 
     // §7 stroke geometry, returned to the renderer.

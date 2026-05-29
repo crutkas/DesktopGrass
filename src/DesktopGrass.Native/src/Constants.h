@@ -181,4 +181,15 @@ constexpr uint32_t SCENE_PALETTES[SCENE_COUNT][PALETTE_SIZE] = {
     { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
 };
 
+// Roaming-entity subsystem (§13.2). EntityKind discriminants are
+// cross-impl-locked. MAX_ENTITIES_PER_MONITOR caps the snowflake emitter
+// so the entities vector cannot grow without bound; the Sim pre-reserves
+// to this size at construction to avoid grow churn during the tick.
+enum class EntityKind : uint8_t {
+    None       = 0,
+    Tumbleweed = 1,
+    Snowflake  = 2,
+};
+constexpr int MAX_ENTITIES_PER_MONITOR = 64;
+
 } // namespace desktopgrass

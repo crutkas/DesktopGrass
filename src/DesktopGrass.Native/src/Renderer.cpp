@@ -293,6 +293,7 @@ void Renderer::RenderFrame(double dt,
     d2dContext_->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
 
     DrawGrass();
+    DrawEntities();
 
     HRESULT hr = d2dContext_->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {
@@ -327,7 +328,6 @@ void Renderer::RenderFrame(double dt,
 void Renderer::DrawGrass() {
     const double groundY = sim_.windowHeight;
     const int sceneIdx = static_cast<int>(sim_.currentScene);
-
     ComPtr<ID2D1Factory> factoryGeneric;
     d2dFactory_.As(&factoryGeneric);
 
@@ -415,6 +415,14 @@ void Renderer::DrawGrass() {
             d2dContext_->FillEllipse(ellipse, flowerHeadBrushes_[idx].Get());
         }
     }
+}
+
+// Render roaming entities (§13.2). Skeleton: no-op when sim.entities is
+// empty, which is always until §14/§15 generators run. The Desert and
+// Winter content agents add per-kind render branches here.
+void Renderer::DrawEntities() {
+    if (sim_.entities.empty()) return;
+    // Per-kind rendering (tumbleweeds, snowflakes) lands in §14 / §15.
 }
 
 } // namespace desktopgrass

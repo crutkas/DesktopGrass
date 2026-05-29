@@ -218,9 +218,20 @@ internal sealed class GrassWindow : IDisposable
             DrawBlade(in b, groundY);
         }
 
+        DrawEntities(groundY);
+
         _dc.EndDraw();
         _swapChain.Present(0, PresentFlags.None);
         _dcompDevice?.Commit();
+    }
+
+    // §13.2 — render roaming entities. Skeleton: no-op when Sim.Entities is
+    // empty (always until §14/§15 generators run). Per-kind branches added
+    // by Desert / Winter content agents.
+    private void DrawEntities(float groundY)
+    {
+        if (Sim.Entities.Count == 0) return;
+        // Per-kind rendering lands in §14 / §15.
     }
 
     private void DrawBlade(in Blade b, float groundY)

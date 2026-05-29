@@ -64,6 +64,7 @@ private:
     bool CreateSwapChainResources(int widthPx, int heightPx);
     void DiscardDeviceResources();
     void DrawGrass();
+    void DrawEntities();
 
     HWND                                   hwnd_ = nullptr;
     int                                    widthPx_   = 0;

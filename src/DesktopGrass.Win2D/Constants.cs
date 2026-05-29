@@ -13,7 +13,6 @@ internal static class Constants
     // Layout (§2, §8, §9)
     public const double STRIP_HEIGHT = 80.0;       // DIP - visible grass band height
     public const double HEADROOM = 30.0;           // DIP - extra above strip for sway/gust
-
     // Blade generation (§4, §5)
     public const double BLADE_SPACING_MIN = 4.0;
     public const double BLADE_SPACING_MAX = 8.0;
@@ -167,4 +166,8 @@ internal static class Constants
         { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
         { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
     };
+
+    // Roaming-entity subsystem (§13.2). Caps Sim.Entities so the snowflake
+    // emitter can't grow without bound; matches Native MAX_ENTITIES_PER_MONITOR.
+    public const int MAX_ENTITIES_PER_MONITOR = 64;
 }

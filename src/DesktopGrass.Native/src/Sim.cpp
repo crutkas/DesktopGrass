@@ -322,6 +322,44 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 
 void sim_set_scene(Sim& sim, Scene s) noexcept {
     sim.currentScene = s;
+    // §13.1 amendment: clear roaming entities and (in §14/§15) dispatch
+    // to per-scene generators. The skeleton has no generators yet — the
+    // Desert and Winter content agents add their hooks here.
+    sim.entities.clear();
+    // switch (s) {
+    //   case Scene::Desert: generate_cacti_for_desert(sim); generate_tumbleweeds(sim); break;
+    //   case Scene::Winter: reset_snowflake_emitter(sim); break;
+    //   default: /* Grass has no roamers */ break;
+    // }
+}
+
+// ---------------------------------------------------------------------------
+// Roaming entities (§13.2)
+//
+// Generic tick: integrate position, advance rotation, age the entity.
+// Per-kind branches handle off-screen respawn (tumbleweed), horizontal
+// sway (snowflake), and end-of-life culling (snowflake). The skeleton is
+// safe to call on an empty vector — it walks zero iterations and exits.
+// ---------------------------------------------------------------------------
+
+void sim_tick_entities(Sim& sim, double dt) noexcept {
+    if (sim.entities.empty()) return;
+
+    const double groundY = sim.windowHeight;
+
+    // Forward pass: update positions / rotations / per-kind dynamics.
+    for (Entity& e : sim.entities) {
+        e.x        += e.vx * dt;
+        e.y        += e.vy * dt;
+        e.rotation += e.rotationSpeed * dt;
+        e.age      += dt;
+        // Per-kind logic (tumbleweed respawn, snowflake sway) is added
+        // by the §14 / §15 content agents.
+        (void)groundY;
+    }
+
+    // Backward pass: cull dead snowflakes / off-screen ephemerals.
+    // The §15 agent fills this in.
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +410,8 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     Sim s;
     s.windowHeight = STRIP_HEIGHT + HEADROOM;
     s.monitorWidth = monitorWidth;
+    s.entitySeed   = seed;
+    s.entities.reserve(MAX_ENTITIES_PER_MONITOR);
     generate_blades(seed, monitorWidth, density, s.blades);
 
     // §8.1 ambient gust scheduler — fifth independent stream, salted off
@@ -391,6 +431,11 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.prevCursorX    = 0.0;
     sim.prevCursorTime = -1.0;
     sim.monitorWidth   = monitorWidth;
+    sim.entitySeed     = seed;
+    sim.entities.clear();
+    if (sim.entities.capacity() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
+        sim.entities.reserve(MAX_ENTITIES_PER_MONITOR);
+    }
     generate_blades(seed, monitorWidth, density, sim.blades);
 
     prng_init(sim.ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
@@ -419,6 +464,8 @@ void sim_tick(Sim& sim, double dt,
         update_blade_dynamics(b, sim.globalTime, dt);
         advance_cut(b, sim.globalTime);
     }
+
+    sim_tick_entities(sim, dt);
 }
 
 } // namespace desktopgrass

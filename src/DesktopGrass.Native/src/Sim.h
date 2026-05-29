@@ -124,6 +124,26 @@ struct InputEvent {
 };
 
 // ---------------------------------------------------------------------------
+// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14) and
+// snowflakes (Winter §15) live in sim.entities. The struct fields are
+// shared across kinds; per-kind tick logic branches on `kind`.
+// ---------------------------------------------------------------------------
+
+struct Entity {
+    EntityKind kind          = EntityKind::None;
+    double     x             = 0.0;
+    double     y             = 0.0;
+    double     vx            = 0.0;
+    double     vy            = 0.0;
+    double     size          = 0.0;   // radius (DIP)
+    double     rotation      = 0.0;   // radians
+    double     rotationSpeed = 0.0;   // rad/sec
+    double     age           = 0.0;
+    double     lifetime      = -1.0;  // <= 0 means infinite (respawn-in-place)
+    uint32_t   seed          = 0;
+};
+
+// ---------------------------------------------------------------------------
 // Sim — the simulation state for one monitor window.
 // ---------------------------------------------------------------------------
 
@@ -141,6 +161,16 @@ struct Sim {
 
     // Current scene (§13). Default Grass; updated by sim_set_scene.
     Scene              currentScene        = SCENE_DEFAULT;
+
+    // Roaming entities (§13.2). Empty in the Grass scene; populated by the
+    // per-scene generators dispatched from sim_set_scene (Desert: tumbleweeds,
+    // Winter: snowflakes). Pre-reserved to MAX_ENTITIES_PER_MONITOR at init
+    // so the tick path never grows the vector.
+    std::vector<Entity> entities;
+
+    // Per-scene entity-stream seed. Set at sim_init; used by sim_set_scene
+    // to construct the per-kind generator PRNGs.
+    uint64_t           entitySeed          = 0;
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -172,7 +202,18 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept;
 // Set the current scene (§13). State-only update — does not regenerate
 // blades or perturb any PRNG stream. Renderer reads sim.currentScene at
 // draw time.
+//
+// Phase-3 amendment (§13.1): in addition to the field assign, this clears
+// sim.entities and dispatches to per-scene generators (none yet — empty
+// generator hooks for Grass / Desert / Winter; Desert and Winter content
+// agents add their generators here).
 void sim_set_scene(Sim& sim, Scene s) noexcept;
+
+// Advance roaming entities by dt (§13.2). Generic per-kind tick: position
+// integration, rotation update, age advance, snowflake horizontal sway,
+// tumbleweed off-edge respawn, snowflake culling. Currently a no-op when
+// sim.entities is empty (which is always until §14/§15 generators run).
+void sim_tick_entities(Sim& sim, double dt) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

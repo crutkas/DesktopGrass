@@ -37,6 +37,7 @@
     <Compile Include="SimTests\RegrowthTests.cs" />
     <Compile Include="SimTests\AmbientGustTests.cs" />
     <Compile Include="SimTests\SceneTests.cs" />
+    <Compile Include="SimTests\EntitySkeletonTests.cs" />
     <Compile Include="InternalsVisible.cs" />
   </ItemGroup>
 
