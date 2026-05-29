@@ -828,6 +828,18 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `SNOWFLAKE_PRNG_SALT` | `0xC0FFEE1CECAFEBAB` | uint64 | §15 |
 | `SNOW_TIP_RADIUS_FACTOR` | 1.25 | × `blade.thickness` | §15 |
 | `SNOW_TIP_COLOR` | `0xFFFFFFFF` | uint32 ARGB | §15 |
+| `PINE_PROBABILITY` | 0.006 | (unitless) | §15.1 |
+| `PINE_HEIGHT_MIN` | 36.0 | DIP | §15.1 |
+| `PINE_HEIGHT_MAX` | 72.0 | DIP | §15.1 |
+| `PINE_WIDTH_MIN` | 16.0 | DIP | §15.1 |
+| `PINE_WIDTH_MAX` | 28.0 | DIP | §15.1 |
+| `PINE_TIER_COUNT_MIN` | 2 | (count) | §15.1 |
+| `PINE_TIER_COUNT_MAX` | 4 | (count) | §15.1 |
+| `PINE_TIP_TAPER` | 0.25 | (unitless) | §15.1 |
+| `PINE_TIER_OVERLAP` | 0.15 | (unitless) | §15.1 |
+| `PINE_SNOW_CAP_FRACTION` | 0.30 | (unitless) | §15.1 |
+| `PINE_COLOR` | `0xFF1B5E20` | uint32 ARGB | §15.1 |
+| `PINE_PRNG_SALT` | `0x50494E4550494E45` | uint64 ("PINEPINE" packed) | §15.1 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `MUSHROOM_STUMP_HEIGHT` | 4.0 | DIP | §7 |
@@ -1182,6 +1194,78 @@ Flowers in Winter render their flower head as normal (the snow tip caps on top o
 - The first snowflake spawned with `CANONICAL_TEST_SEED + monitorWidth=1920 + Winter`, after stepping the sim forward one tick at `dt = 0.5s` from `t = 0`, matches a pinned `(size, x, fallSpeed, rotation, rotationSpeed)` snapshot derivable in tests from a side `Prng(CANONICAL_TEST_SEED XOR SNOWFLAKE_PRNG_SALT)`.
 - `MAX_ENTITIES_PER_MONITOR` is honored: a stress test running 60 seconds of sim time with no entity removal MUST observe `len(sim.entities) ≤ MAX_ENTITIES_PER_MONITOR` at every tick.
 - Switching scenes away from Winter clears `sim.entities` and resets the snowflake emitter.
+
+## 15.1 Pine trees (Winter slot-bound variant)
+
+Pines are the Winter biome anchor — the structural counterpart to Desert cacti.
+They are slot-bound (replace some grass slots), procedurally promoted on
+`sim_set_scene(Winter)` from an independent PRNG stream, cuttable and
+regrowable via the existing §9 model, and cleared on every non-Winter scene
+transition via the same `restore_original_variants` path that clears cacti.
+
+### Generation
+
+Driven by `pinePrng = Prng(seed XOR PINE_PRNG_SALT)`. Iterate blade slots in
+order, draw `r = pinePrng.uniform(0, 1)`. If `r >= PINE_PROBABILITY` the slot
+is skipped (no further draws for that slot). Otherwise promote:
+
+```
+b.isPine        = true
+b.isFlower      = false      // suppressed under pine
+b.isMushroom    = false
+b.pineHeight    = pinePrng.uniform(PINE_HEIGHT_MIN, PINE_HEIGHT_MAX)
+b.pineWidth     = pinePrng.uniform(PINE_WIDTH_MIN, PINE_WIDTH_MAX)
+b.pineTierCount = floor(pinePrng.uniform(PINE_TIER_COUNT_MIN, PINE_TIER_COUNT_MAX + 1))
+```
+
+Per-fire draw order (4 draws on promotion: `r`, `pineHeight`, `pineWidth`,
+`pineTierCount`). Both impls MUST follow this exact order for cross-impl
+bit-identity of the first-pine snapshot.
+
+### Rendering
+
+Each pine is N stacked isoceles triangles (N = `pineTierCount`, 2..4). Tier
+heights are equal (`pineHeight / N`). Tier widths taper from `pineWidth` at
+the base tier to `pineWidth * PINE_TIP_TAPER` at the top tier — interpolated
+linearly per tier. Adjacent tiers overlap by `PINE_TIER_OVERLAP` (fraction of
+tier height) so the silhouette reads continuous.
+
+Each tier carries a white snow cap — a smaller filled triangle covering the
+top `PINE_SNOW_CAP_FRACTION` of the tier (0.30 by default). The cap inherits
+the tier's base width and apex.
+
+Cut model: total height scales by `cutHeight` (linear, same as grass and
+cacti). Below `CUT_STUMP_THRESHOLD` the pine renders as a short brown stump
+(see `STUMP_HEIGHT`).
+
+### Scene clearing
+
+`restore_original_variants(b)` is amended to also clear pine fields:
+`isPine = false; pineTierCount = 0; pineHeight = 0; pineWidth = 0;`. Every
+scene transition routes through this path (see §13.1 amendment), so pines
+disappear on Winter→{Grass,Desert} the same way cacti disappear on
+Desert→{Grass,Winter}.
+
+### Snow-tipped blades interaction
+
+The §15 snow-tipped-blade render branch must ALSO exclude pines (they carry
+their own per-tier snow caps), so the existing predicate becomes:
+
+```
+if currentScene == Winter and !isMushroom and !isCactus and !isPine
+   and cutHeight >= CUT_STUMP_THRESHOLD:
+    draw snow tip
+```
+
+### Conformance
+
+- For `CANONICAL_TEST_SEED + monitorWidth = 1920`, after
+  `sim_set_scene(Winter)`, the first slot promoted to a pine has
+  `(slotIndex, pineHeight, pineWidth, pineTierCount)` derivable from a side
+  `Prng(CANONICAL_TEST_SEED XOR PINE_PRNG_SALT)` walking the same draw
+  sequence.
+- Scene→Grass (or Scene→Desert) clears `isPine` on every slot.
+- Pine generation does NOT touch the §12 first-blade snapshot.
 
 ---
 
