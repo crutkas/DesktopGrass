@@ -170,6 +170,16 @@ bool Renderer::CreateDeviceResources() {
                                             pineBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    birchBarkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BIRCH_BARK_COLOR),
+                                            birchBarkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    birchMarkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BIRCH_MARK_COLOR),
+                                            birchMarkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -231,6 +241,8 @@ void Renderer::DiscardDeviceResources() {
     snowflakeBrush_.Reset();
     snowTipBrush_.Reset();
     pineBrush_.Reset();
+    birchBarkBrush_.Reset();
+    birchMarkBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -418,10 +430,10 @@ void Renderer::DrawGrass() {
             continue;
         }
 
-        // Pine (§15.1). Slot-bound Winter variant: stack of isoceles
-        // triangle tiers, each with a white snow cap on top. Filled via
-        // horizontal scan lines so we avoid per-frame PathGeometry
-        // allocation. Below CUT_STUMP_THRESHOLD reduces to a stump.
+        // Tree (§15.1). Slot-bound Winter variant. Two styles selected
+        // by treeVariant: 0 = classic tiered pine, 1 = bare birch with
+        // dark bark marks and short branch stubs. Below CUT_STUMP_THRESHOLD
+        // both styles reduce to a short brown stump.
         if (b.isPine) {
             const float baseX = static_cast<float>(b.baseX);
             const float gy    = static_cast<float>(groundY);
@@ -434,12 +446,6 @@ void Renderer::DrawGrass() {
                     static_cast<float>(std::max(2.0, b.pineWidth * 0.25)));
                 continue;
             }
-
-            const int    tierCount  = b.pineTierCount > 0 ? b.pineTierCount : PINE_TIER_COUNT_MIN;
-            const double totalH     = b.pineHeight * b.cutHeight;
-            const double tierStride = totalH / tierCount * (1.0 - PINE_TIER_OVERLAP)
-                                    + totalH / tierCount * PINE_TIER_OVERLAP / tierCount;
-            const double tierH      = totalH / tierCount;
 
             auto drawFilledTri = [&](float cx, float baseY, float topY, float halfW,
                                      ID2D1SolidColorBrush* brush) {
@@ -456,6 +462,63 @@ void Renderer::DrawGrass() {
                         brush, kStep * 1.5f);
                 }
             };
+
+            if (b.treeVariant == 1) {
+                // ---- Birch: vertical trunk with bark marks + branch stubs ----
+                const float totalH    = static_cast<float>(b.pineHeight * b.cutHeight);
+                const float trunkW    = static_cast<float>(b.pineWidth);
+                const float trunkTopY = gy - totalH;
+
+                d2dContext_->DrawLine(
+                    D2D1::Point2F(baseX, gy),
+                    D2D1::Point2F(baseX, trunkTopY),
+                    birchBarkBrush_.Get(),
+                    trunkW);
+
+                // Dark horizontal bark marks distributed up the trunk.
+                const float markLen = trunkW * 0.85f;
+                for (int m = 0; m < BIRCH_BARK_MARK_COUNT; ++m) {
+                    const float tM   = (m + 1.0f) / (BIRCH_BARK_MARK_COUNT + 1.0f);
+                    const float yM   = gy - totalH * tM;
+                    d2dContext_->DrawLine(
+                        D2D1::Point2F(baseX - markLen * 0.5f, yM),
+                        D2D1::Point2F(baseX + markLen * 0.5f, yM),
+                        birchMarkBrush_.Get(),
+                        std::max(1.0f, trunkW * 0.30f));
+                }
+
+                // Short bare branch stubs near the top — alternating sides.
+                const float branchLen = trunkW * 2.2f;
+                for (int p = 0; p < BIRCH_BRANCH_PAIRS; ++p) {
+                    const float tB = 0.55f + p * 0.18f;
+                    const float yB = gy - totalH * tB;
+                    const float side = (p % 2 == 0) ? +1.0f : -1.0f;
+                    d2dContext_->DrawLine(
+                        D2D1::Point2F(baseX, yB),
+                        D2D1::Point2F(baseX + side * branchLen, yB - branchLen * 0.5f),
+                        birchBarkBrush_.Get(),
+                        std::max(1.0f, trunkW * 0.45f));
+                    d2dContext_->DrawLine(
+                        D2D1::Point2F(baseX, yB - branchLen * 0.15f),
+                        D2D1::Point2F(baseX - side * branchLen * 0.8f, yB - branchLen * 0.55f),
+                        birchBarkBrush_.Get(),
+                        std::max(1.0f, trunkW * 0.45f));
+                }
+
+                // Small snow cap at the very top of the trunk.
+                const float capH = totalH * static_cast<float>(BIRCH_SNOW_CAP_FRACTION);
+                drawFilledTri(baseX,
+                              trunkTopY + capH,
+                              trunkTopY,
+                              trunkW * 1.1f,
+                              snowTipBrush_.Get());
+                continue;
+            }
+
+            // ---- Pine: stacked snow-capped triangle tiers ----
+            const int    tierCount  = b.pineTierCount > 0 ? b.pineTierCount : PINE_TIER_COUNT_MIN;
+            const double totalH     = b.pineHeight * b.cutHeight;
+            const double tierH      = totalH / tierCount;
 
             for (int i = 0; i < tierCount; ++i) {
                 const double tFrac    = (tierCount == 1) ? 0.0

@@ -10,16 +10,18 @@ public class PineTests
 {
     private const double Monitor1920 = 1920.0;
 
-    private readonly struct ExpectedPine
+    private readonly struct ExpectedTree
     {
         public readonly int SlotIndex;
+        public readonly byte Variant;
         public readonly double Height;
         public readonly double Width;
         public readonly int TierCount;
 
-        public ExpectedPine(int slotIndex, double height, double width, int tierCount)
+        public ExpectedTree(int slotIndex, byte variant, double height, double width, int tierCount)
         {
             SlotIndex = slotIndex;
+            Variant = variant;
             Height = height;
             Width = width;
             TierCount = tierCount;
@@ -39,7 +41,7 @@ public class PineTests
         return sim;
     }
 
-    private static ExpectedPine FirstExpectedPine(int bladeCount)
+    private static ExpectedTree FirstExpectedTree(int bladeCount)
     {
         var prng = Prng.Init(Constants.CANONICAL_TEST_SEED ^ Constants.PINE_PRNG_SALT);
         for (int i = 0; i < bladeCount; i++)
@@ -47,21 +49,25 @@ public class PineTests
             double r = prng.Uniform(0.0, 1.0);
             if (r >= Constants.PINE_PROBABILITY) continue;
 
+            double variantDraw = prng.Uniform(0.0, 1.0);
+            byte variant = (variantDraw < Constants.BIRCH_VARIANT_PROBABILITY) ? (byte)1 : (byte)0;
             double height = prng.Uniform(Constants.PINE_HEIGHT_MIN, Constants.PINE_HEIGHT_MAX);
-            double width = prng.Uniform(Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
+            double width = (variant == 1)
+                ? prng.Uniform(Constants.BIRCH_TRUNK_WIDTH_MIN, Constants.BIRCH_TRUNK_WIDTH_MAX)
+                : prng.Uniform(Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
             double tierDraw = prng.Uniform(Constants.PINE_TIER_COUNT_MIN, Constants.PINE_TIER_COUNT_MAX + 1);
             int tiers = (int)Math.Floor(tierDraw);
             if (tiers < Constants.PINE_TIER_COUNT_MIN) tiers = Constants.PINE_TIER_COUNT_MIN;
             if (tiers > Constants.PINE_TIER_COUNT_MAX) tiers = Constants.PINE_TIER_COUNT_MAX;
-            return new ExpectedPine(i, height, width, tiers);
+            return new ExpectedTree(i, variant, height, width, tiers);
         }
-        throw new InvalidOperationException("canonical seed produced no pine slot");
+        throw new InvalidOperationException("canonical seed produced no tree slot");
     }
 
     [Fact]
     public void PineConstantsArePinned()
     {
-        Assert.Equal(0.006, Constants.PINE_PROBABILITY);
+        Assert.Equal(0.0075, Constants.PINE_PROBABILITY);
         Assert.Equal(45.0, Constants.PINE_HEIGHT_MIN);
         Assert.Equal(90.0, Constants.PINE_HEIGHT_MAX);
         Assert.Equal(16.0, Constants.PINE_WIDTH_MIN);
@@ -76,46 +82,62 @@ public class PineTests
     }
 
     [Fact]
-    public void SetSceneWinterPromotesSomeSlotsToPines()
+    public void BirchConstantsArePinned()
+    {
+        Assert.Equal(0.30, Constants.BIRCH_VARIANT_PROBABILITY);
+        Assert.Equal(4.0, Constants.BIRCH_TRUNK_WIDTH_MIN);
+        Assert.Equal(7.0, Constants.BIRCH_TRUNK_WIDTH_MAX);
+        Assert.Equal(4, Constants.BIRCH_BARK_MARK_COUNT);
+        Assert.Equal(2, Constants.BIRCH_BRANCH_PAIRS);
+        Assert.Equal(0.18, Constants.BIRCH_SNOW_CAP_FRACTION);
+        Assert.Equal(0xFFEFEFE6u, Constants.BIRCH_BARK_COLOR);
+        Assert.Equal(0xFF2A2A28u, Constants.BIRCH_MARK_COLOR);
+    }
+
+    [Fact]
+    public void SetSceneWinterPromotesSomeSlotsToTrees()
     {
         var sim = BuildSim();
         sim.SetScene(Scene.Winter);
 
-        int pineCount = 0;
+        int treeCount = 0;
         foreach (var b in sim.Blades)
         {
             if (b.IsPine)
             {
-                pineCount++;
+                treeCount++;
                 Assert.InRange(b.PineTierCount, Constants.PINE_TIER_COUNT_MIN, Constants.PINE_TIER_COUNT_MAX);
                 Assert.InRange(b.PineHeight, Constants.PINE_HEIGHT_MIN, Constants.PINE_HEIGHT_MAX);
-                Assert.InRange(b.PineWidth, Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
+                double widthMin = (b.TreeVariant == 1) ? Constants.BIRCH_TRUNK_WIDTH_MIN : Constants.PINE_WIDTH_MIN;
+                double widthMax = (b.TreeVariant == 1) ? Constants.BIRCH_TRUNK_WIDTH_MAX : Constants.PINE_WIDTH_MAX;
+                Assert.InRange(b.PineWidth, widthMin, widthMax);
             }
         }
-        Assert.InRange(pineCount, 1, 20);
+        Assert.InRange(treeCount, 1, 25);
     }
 
     [Fact]
-    public void FirstPineMatchesSpecDerivedPrngSnapshot()
+    public void FirstTreeMatchesSpecDerivedPrngSnapshot()
     {
         var sim = BuildSim();
-        var expected = FirstExpectedPine(sim.Blades.Length);
+        var expected = FirstExpectedTree(sim.Blades.Length);
 
         sim.SetScene(Scene.Winter);
 
         Assert.InRange(expected.SlotIndex, 0, sim.Blades.Length - 1);
         var b = sim.Blades[expected.SlotIndex];
         Assert.True(b.IsPine);
-        Assert.Equal(expected.TierCount, b.PineTierCount);
+        Assert.Equal(expected.Variant, b.TreeVariant);
         Assert.Equal(expected.Height, b.PineHeight, 12);
         Assert.Equal(expected.Width, b.PineWidth, 12);
+        Assert.Equal(expected.TierCount, b.PineTierCount);
     }
 
     [Fact]
-    public void GrassSceneRestoresPineSlotsToVanillaVariants()
+    public void GrassSceneRestoresTreeSlotsToVanillaVariants()
     {
         var sim = BuildSim();
-        var expected = FirstExpectedPine(sim.Blades.Length);
+        var expected = FirstExpectedTree(sim.Blades.Length);
         Assert.InRange(expected.SlotIndex, 0, sim.Blades.Length - 1);
 
         sim.Blades[expected.SlotIndex].IsFlower = true;
@@ -130,8 +152,27 @@ public class PineTests
 
         sim.SetScene(Scene.Grass);
         Assert.False(sim.Blades[expected.SlotIndex].IsPine);
+        Assert.Equal((byte)0, sim.Blades[expected.SlotIndex].TreeVariant);
         Assert.True(sim.Blades[expected.SlotIndex].IsFlower);
         Assert.True(sim.Blades[expected.SlotIndex].IsMushroom);
+    }
+
+    [Fact]
+    public void WinterProducesBothPineAndBirchVariants()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        int pineCount = 0;
+        int birchCount = 0;
+        foreach (var b in sim.Blades)
+        {
+            if (!b.IsPine) continue;
+            if (b.TreeVariant == 0) pineCount++;
+            else { Assert.Equal((byte)1, b.TreeVariant); birchCount++; }
+        }
+        Assert.True(pineCount >= 1, $"expected >=1 pine, got {pineCount}");
+        Assert.True(birchCount >= 1, $"expected >=1 birch, got {birchCount}");
     }
 
     [Fact]

@@ -50,6 +50,8 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _snowflakeBrush;
     private ID2D1SolidColorBrush? _snowTipBrush;
     private ID2D1SolidColorBrush? _pineBrush;
+    private ID2D1SolidColorBrush? _birchBarkBrush;
+    private ID2D1SolidColorBrush? _birchMarkBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -168,6 +170,8 @@ internal sealed class GrassWindow : IDisposable
         _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
         _snowTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_TIP_COLOR));
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
+        _birchBarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_BARK_COLOR));
+        _birchMarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_MARK_COLOR));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -364,9 +368,55 @@ internal sealed class GrassWindow : IDisposable
                 return;
             }
 
+            if (b.TreeVariant == 1)
+            {
+                // ---- Birch: vertical trunk with bark marks + branch stubs ----
+                float totalH = (float)(b.PineHeight * b.CutHeight);
+                float trunkW = (float)b.PineWidth;
+                float trunkTopY = gy - totalH;
+
+                _dc!.DrawLine(new Vector2(baseX, gy),
+                              new Vector2(baseX, trunkTopY),
+                              _birchBarkBrush!, trunkW, _strokeStyle);
+
+                float markLen = trunkW * 0.85f;
+                for (int m = 0; m < Constants.BIRCH_BARK_MARK_COUNT; m++)
+                {
+                    float tM = (m + 1.0f) / (Constants.BIRCH_BARK_MARK_COUNT + 1.0f);
+                    float yM = gy - totalH * tM;
+                    _dc.DrawLine(new Vector2(baseX - markLen * 0.5f, yM),
+                                 new Vector2(baseX + markLen * 0.5f, yM),
+                                 _birchMarkBrush!,
+                                 Math.Max(1.0f, trunkW * 0.30f),
+                                 _strokeStyle);
+                }
+
+                float branchLen = trunkW * 2.2f;
+                for (int p = 0; p < Constants.BIRCH_BRANCH_PAIRS; p++)
+                {
+                    float tB = 0.55f + p * 0.18f;
+                    float yB = gy - totalH * tB;
+                    float side = (p % 2 == 0) ? +1.0f : -1.0f;
+                    _dc.DrawLine(new Vector2(baseX, yB),
+                                 new Vector2(baseX + side * branchLen, yB - branchLen * 0.5f),
+                                 _birchBarkBrush!,
+                                 Math.Max(1.0f, trunkW * 0.45f),
+                                 _strokeStyle);
+                    _dc.DrawLine(new Vector2(baseX, yB - branchLen * 0.15f),
+                                 new Vector2(baseX - side * branchLen * 0.8f, yB - branchLen * 0.55f),
+                                 _birchBarkBrush!,
+                                 Math.Max(1.0f, trunkW * 0.45f),
+                                 _strokeStyle);
+                }
+
+                float capH = totalH * (float)Constants.BIRCH_SNOW_CAP_FRACTION;
+                DrawFilledPineTri(baseX, trunkTopY + capH, trunkTopY, trunkW * 1.1f, _snowTipBrush!);
+                return;
+            }
+
             int tierCount = b.PineTierCount > 0 ? b.PineTierCount : Constants.PINE_TIER_COUNT_MIN;
-            double totalH = b.PineHeight * b.CutHeight;
-            double tierH = totalH / tierCount;
+            double totalHd = b.PineHeight * b.CutHeight;
+            double tierH = totalHd / tierCount;
 
             for (int i = 0; i < tierCount; i++)
             {
@@ -377,8 +427,8 @@ internal sealed class GrassWindow : IDisposable
 
                 DrawFilledPineTri(baseX, (float)baseY, (float)topY, (float)(widthAt * 0.5), _pineBrush!);
 
-                double capH = tierH * Constants.PINE_SNOW_CAP_FRACTION;
-                double capBaseY = topY + capH;
+                double capHd = tierH * Constants.PINE_SNOW_CAP_FRACTION;
+                double capBaseY = topY + capHd;
                 double capHalfW = widthAt * 0.5 * Constants.PINE_SNOW_CAP_FRACTION * 1.4;
                 DrawFilledPineTri(baseX, (float)capBaseY, (float)topY, (float)capHalfW, _snowTipBrush!);
             }
@@ -514,6 +564,8 @@ internal sealed class GrassWindow : IDisposable
         try { _snowflakeBrush?.Dispose(); } catch { }
         try { _snowTipBrush?.Dispose(); } catch { }
         try { _pineBrush?.Dispose(); } catch { }
+        try { _birchBarkBrush?.Dispose(); } catch { }
+        try { _birchMarkBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

@@ -241,7 +241,7 @@ constexpr double   SNOW_TIP_RADIUS_FACTOR          = 1.25;
 constexpr uint32_t SNOW_TIP_COLOR                  = 0xFFFFFFFFu;
 
 // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
-constexpr double   PINE_PROBABILITY                = 0.006;
+constexpr double   PINE_PROBABILITY                = 0.0075;
 constexpr double   PINE_HEIGHT_MIN                 = 45.0;
 constexpr double   PINE_HEIGHT_MAX                 = 90.0;
 constexpr double   PINE_WIDTH_MIN                  = 16.0;
@@ -253,5 +253,17 @@ constexpr double   PINE_TIER_OVERLAP               = 0.15;
 constexpr double   PINE_SNOW_CAP_FRACTION          = 0.30;
 constexpr uint32_t PINE_COLOR                      = 0xFF1B5E20u;
 constexpr uint64_t PINE_PRNG_SALT                  = 0x50494E4550494E45ull;
+
+// Birch tree variant (§15.1). Second tree style — vertical white trunk
+// with dark bark marks and short bare branches. Selected per-slot via
+// an additional PRNG draw on tree promotion.
+constexpr double   BIRCH_VARIANT_PROBABILITY       = 0.30;
+constexpr double   BIRCH_TRUNK_WIDTH_MIN           = 4.0;   // DIP
+constexpr double   BIRCH_TRUNK_WIDTH_MAX           = 7.0;   // DIP
+constexpr int      BIRCH_BARK_MARK_COUNT           = 4;     // horizontal stripes
+constexpr int      BIRCH_BRANCH_PAIRS              = 2;     // pairs of stub branches
+constexpr double   BIRCH_SNOW_CAP_FRACTION         = 0.18;  // fraction of trunk height
+constexpr uint32_t BIRCH_BARK_COLOR                = 0xFFEFEFE6u; // off-white trunk
+constexpr uint32_t BIRCH_MARK_COLOR                = 0xFF2A2A28u; // dark bark stripes
 
 } // namespace desktopgrass

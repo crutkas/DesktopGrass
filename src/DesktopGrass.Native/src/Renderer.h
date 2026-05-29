@@ -91,6 +91,8 @@ private:
     ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
+    ComPtr<ID2D1SolidColorBrush>           birchBarkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           birchMarkBrush_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;

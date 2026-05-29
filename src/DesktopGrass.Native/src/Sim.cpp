@@ -173,6 +173,7 @@ void restore_original_variants(Blade& b) noexcept {
     b.cactusArmSide  = +1;
     b.isPine         = false;
     b.pineTierCount  = 0;
+    b.treeVariant    = 0;
     b.pineHeight     = 0.0;
     b.pineWidth      = 0.0;
     b.isFlower       = b.originalIsFlower;
@@ -274,13 +275,27 @@ void generate_pines_for_winter(Sim& sim) noexcept {
         const double r = prng_uniform(pinePrng, 0.0, 1.0);
         if (r >= PINE_PROBABILITY) continue;
 
-        b.isPine     = true;
-        b.isFlower   = false;
-        b.isMushroom = false;
-        b.pineHeight = prng_uniform(pinePrng, PINE_HEIGHT_MIN, PINE_HEIGHT_MAX);
-        b.pineWidth  = prng_uniform(pinePrng, PINE_WIDTH_MIN, PINE_WIDTH_MAX);
+        // Draw order: r (consumed above), variant, height, width, tierCount.
+        // Locked sequence so both impls are bit-identical regardless of variant.
+        const double variantDraw = prng_uniform(pinePrng, 0.0, 1.0);
+        const uint8_t variant    = (variantDraw < BIRCH_VARIANT_PROBABILITY)
+                                   ? static_cast<uint8_t>(1)
+                                   : static_cast<uint8_t>(0);
 
-        // Floor a uniform draw from [MIN, MAX+1) into the integer tier count.
+        b.isPine      = true;
+        b.isFlower    = false;
+        b.isMushroom  = false;
+        b.treeVariant = variant;
+        b.pineHeight  = prng_uniform(pinePrng, PINE_HEIGHT_MIN, PINE_HEIGHT_MAX);
+
+        if (variant == 1) {
+            b.pineWidth = prng_uniform(pinePrng, BIRCH_TRUNK_WIDTH_MIN, BIRCH_TRUNK_WIDTH_MAX);
+        } else {
+            b.pineWidth = prng_uniform(pinePrng, PINE_WIDTH_MIN, PINE_WIDTH_MAX);
+        }
+
+        // Tier count drawn for every tree slot to keep the PRNG stream
+        // bit-identical across variant outcomes. Only used by pines.
         const double tierDraw = prng_uniform(pinePrng,
             static_cast<double>(PINE_TIER_COUNT_MIN),
             static_cast<double>(PINE_TIER_COUNT_MAX + 1));

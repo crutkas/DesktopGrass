@@ -101,9 +101,10 @@ struct Blade {
 
     // Pine (§15.1). Winter-only slot-bound blade variant.
     bool    isPine                  = false;
-    uint8_t pineTierCount           = 0;     // 2..4
+    uint8_t pineTierCount           = 0;     // 2..4 (only meaningful for treeVariant == 0)
+    uint8_t treeVariant             = 0;     // 0 = pine, 1 = birch
     double  pineHeight              = 0.0;   // DIP
-    double  pineWidth               = 0.0;   // DIP, base-tier width
+    double  pineWidth               = 0.0;   // DIP, base-tier width (pine) or trunk width (birch)
 
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.

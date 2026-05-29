@@ -217,7 +217,7 @@ internal static class Constants
     public const uint SNOW_TIP_COLOR = 0xFFFFFFFFu;
 
     // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
-    public const double PINE_PROBABILITY        = 0.006;
+    public const double PINE_PROBABILITY        = 0.0075;
     public const double PINE_HEIGHT_MIN         = 45.0;
     public const double PINE_HEIGHT_MAX         = 90.0;
     public const double PINE_WIDTH_MIN          = 16.0;
@@ -229,4 +229,15 @@ internal static class Constants
     public const double PINE_SNOW_CAP_FRACTION  = 0.30;
     public const uint   PINE_COLOR              = 0xFF1B5E20u;
     public const ulong  PINE_PRNG_SALT          = 0x50494E4550494E45ul;
+
+    // Birch tree variant (§15.1). Second tree style — vertical white trunk
+    // with dark bark marks and short bare branches.
+    public const double BIRCH_VARIANT_PROBABILITY = 0.30;
+    public const double BIRCH_TRUNK_WIDTH_MIN     = 4.0;
+    public const double BIRCH_TRUNK_WIDTH_MAX     = 7.0;
+    public const int    BIRCH_BARK_MARK_COUNT     = 4;
+    public const int    BIRCH_BRANCH_PAIRS        = 2;
+    public const double BIRCH_SNOW_CAP_FRACTION   = 0.18;
+    public const uint   BIRCH_BARK_COLOR          = 0xFFEFEFE6u;
+    public const uint   BIRCH_MARK_COLOR          = 0xFF2A2A28u;
 }

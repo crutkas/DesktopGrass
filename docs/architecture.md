@@ -830,7 +830,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `SNOW_TIP_COLOR` | `0xFFFFFFFF` | uint32 ARGB | §15 |
 | `DESERT_GRASS_HEIGHT_SCALE` | 0.5 | (unitless) | §14 |
 | `WINTER_GRASS_HEIGHT_SCALE` | 0.5 | (unitless) | §15 |
-| `PINE_PROBABILITY` | 0.006 | (unitless) | §15.1 |
+| `PINE_PROBABILITY` | 0.0075 | (unitless) | §15.1 |
 | `PINE_HEIGHT_MIN` | 45.0 | DIP | §15.1 |
 | `PINE_HEIGHT_MAX` | 90.0 | DIP | §15.1 |
 | `PINE_WIDTH_MIN` | 16.0 | DIP | §15.1 |
@@ -842,6 +842,14 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `PINE_SNOW_CAP_FRACTION` | 0.30 | (unitless) | §15.1 |
 | `PINE_COLOR` | `0xFF1B5E20` | uint32 ARGB | §15.1 |
 | `PINE_PRNG_SALT` | `0x50494E4550494E45` | uint64 ("PINEPINE" packed) | §15.1 |
+| `BIRCH_VARIANT_PROBABILITY` | 0.30 | (unitless) | §15.1 |
+| `BIRCH_TRUNK_WIDTH_MIN` | 4.0 | DIP | §15.1 |
+| `BIRCH_TRUNK_WIDTH_MAX` | 7.0 | DIP | §15.1 |
+| `BIRCH_BARK_MARK_COUNT` | 4 | (count) | §15.1 |
+| `BIRCH_BRANCH_PAIRS` | 2 | (count) | §15.1 |
+| `BIRCH_SNOW_CAP_FRACTION` | 0.18 | (unitless) | §15.1 |
+| `BIRCH_BARK_COLOR` | `0xFFEFEFE6` | uint32 ARGB | §15.1 |
+| `BIRCH_MARK_COLOR` | `0xFF2A2A28` | uint32 ARGB | §15.1 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `MUSHROOM_STUMP_HEIGHT` | 4.0 | DIP | §7 |
@@ -1221,16 +1229,33 @@ is skipped (no further draws for that slot). Otherwise promote:
 
 ```
 b.isPine        = true
-b.isFlower      = false      // suppressed under pine
+b.isFlower      = false      // suppressed under tree
 b.isMushroom    = false
+variantDraw     = pinePrng.uniform(0, 1)
+b.treeVariant   = (variantDraw < BIRCH_VARIANT_PROBABILITY) ? 1 : 0  // 0 = pine, 1 = birch
 b.pineHeight    = pinePrng.uniform(PINE_HEIGHT_MIN, PINE_HEIGHT_MAX)
-b.pineWidth     = pinePrng.uniform(PINE_WIDTH_MIN, PINE_WIDTH_MAX)
+if b.treeVariant == 1:
+    b.pineWidth = pinePrng.uniform(BIRCH_TRUNK_WIDTH_MIN, BIRCH_TRUNK_WIDTH_MAX)
+else:
+    b.pineWidth = pinePrng.uniform(PINE_WIDTH_MIN, PINE_WIDTH_MAX)
 b.pineTierCount = floor(pinePrng.uniform(PINE_TIER_COUNT_MIN, PINE_TIER_COUNT_MAX + 1))
 ```
 
-Per-fire draw order (4 draws on promotion: `r`, `pineHeight`, `pineWidth`,
-`pineTierCount`). Both impls MUST follow this exact order for cross-impl
-bit-identity of the first-pine snapshot.
+Per-fire draw order (5 draws on promotion: `r`, `variantDraw`, `pineHeight`,
+`pineWidth`, `tierDraw`). Both impls MUST follow this exact order regardless
+of the variant outcome — the tier-count draw happens for birch slots too even
+though it is unused at render time. This preserves cross-impl bit-identity of
+the per-tree PRNG state without branching the stream.
+
+### Birch variant (treeVariant == 1)
+
+A bare-winter birch: vertical off-white trunk (`BIRCH_BARK_COLOR`) of width
+`pineWidth` ∈ [`BIRCH_TRUNK_WIDTH_MIN`, `BIRCH_TRUNK_WIDTH_MAX`), with
+`BIRCH_BARK_MARK_COUNT` dark horizontal stripes (`BIRCH_MARK_COLOR`)
+distributed evenly along the trunk, `BIRCH_BRANCH_PAIRS` pairs of short
+angled branch stubs near the upper third (alternating sides), and a small
+white triangular snow cap covering the top `BIRCH_SNOW_CAP_FRACTION` of the
+trunk height. Birches share the pine cut/regrow + stump behavior.
 
 ### Rendering
 

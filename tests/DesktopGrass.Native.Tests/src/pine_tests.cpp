@@ -13,14 +13,15 @@ namespace {
 
 constexpr double kMonitor1920 = 1920.0;
 
-struct ExpectedPine {
+struct ExpectedTree {
     std::size_t slotIndex = 0;
+    uint8_t variant = 0;
     double height = 0.0;
     double width = 0.0;
     int tierCount = 0;
 };
 
-ExpectedPine first_expected_pine(std::size_t bladeCount) {
+ExpectedTree first_expected_tree(std::size_t bladeCount) {
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ PINE_PRNG_SALT);
 
@@ -28,10 +29,16 @@ ExpectedPine first_expected_pine(std::size_t bladeCount) {
         const double r = prng_uniform(p, 0.0, 1.0);
         if (r >= PINE_PROBABILITY) continue;
 
-        ExpectedPine expected{};
+        ExpectedTree expected{};
         expected.slotIndex = i;
+        const double variantDraw = prng_uniform(p, 0.0, 1.0);
+        expected.variant = variantDraw < BIRCH_VARIANT_PROBABILITY ? 1 : 0;
         expected.height = prng_uniform(p, PINE_HEIGHT_MIN, PINE_HEIGHT_MAX);
-        expected.width  = prng_uniform(p, PINE_WIDTH_MIN,  PINE_WIDTH_MAX);
+        if (expected.variant == 1) {
+            expected.width = prng_uniform(p, BIRCH_TRUNK_WIDTH_MIN, BIRCH_TRUNK_WIDTH_MAX);
+        } else {
+            expected.width = prng_uniform(p, PINE_WIDTH_MIN, PINE_WIDTH_MAX);
+        }
         const double tierDraw = prng_uniform(p,
             static_cast<double>(PINE_TIER_COUNT_MIN),
             static_cast<double>(PINE_TIER_COUNT_MAX + 1));
@@ -42,14 +49,14 @@ ExpectedPine first_expected_pine(std::size_t bladeCount) {
         return expected;
     }
 
-    FAIL("canonical seed produced no pine slot");
+    FAIL("canonical seed produced no tree slot");
     return {};
 }
 
 } // anonymous
 
 TEST_CASE("Pine constants are pinned", "[pine][constants]") {
-    REQUIRE(PINE_PROBABILITY == Approx(0.006));
+    REQUIRE(PINE_PROBABILITY == Approx(0.0075));
     REQUIRE(PINE_HEIGHT_MIN == Approx(45.0));
     REQUIRE(PINE_HEIGHT_MAX == Approx(90.0));
     REQUIRE(PINE_WIDTH_MIN  == Approx(16.0));
@@ -63,44 +70,58 @@ TEST_CASE("Pine constants are pinned", "[pine][constants]") {
     REQUIRE(PINE_PRNG_SALT == 0x50494E4550494E45ull);
 }
 
-TEST_CASE("sim_set_scene Winter promotes some slots to pines", "[pine][scene]") {
+TEST_CASE("Birch constants are pinned", "[pine][birch][constants]") {
+    REQUIRE(BIRCH_VARIANT_PROBABILITY == Approx(0.30));
+    REQUIRE(BIRCH_TRUNK_WIDTH_MIN == Approx(4.0));
+    REQUIRE(BIRCH_TRUNK_WIDTH_MAX == Approx(7.0));
+    REQUIRE(BIRCH_BARK_MARK_COUNT == 4);
+    REQUIRE(BIRCH_BRANCH_PAIRS == 2);
+    REQUIRE(BIRCH_SNOW_CAP_FRACTION == Approx(0.18));
+    REQUIRE(BIRCH_BARK_COLOR == 0xFFEFEFE6u);
+    REQUIRE(BIRCH_MARK_COLOR == 0xFF2A2A28u);
+}
+
+TEST_CASE("sim_set_scene Winter promotes some slots to trees", "[pine][scene]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Winter);
 
     REQUIRE(sim.currentScene == Scene::Winter);
-    std::size_t pineCount = 0;
+    std::size_t treeCount = 0;
     for (const Blade& b : sim.blades) {
         if (b.isPine) {
-            ++pineCount;
+            ++treeCount;
             REQUIRE(b.pineTierCount >= PINE_TIER_COUNT_MIN);
             REQUIRE(b.pineTierCount <= PINE_TIER_COUNT_MAX);
             REQUIRE(b.pineHeight >= PINE_HEIGHT_MIN);
             REQUIRE(b.pineHeight <= PINE_HEIGHT_MAX);
-            REQUIRE(b.pineWidth  >= PINE_WIDTH_MIN);
-            REQUIRE(b.pineWidth  <= PINE_WIDTH_MAX);
+            const double widthMin = (b.treeVariant == 1) ? BIRCH_TRUNK_WIDTH_MIN : PINE_WIDTH_MIN;
+            const double widthMax = (b.treeVariant == 1) ? BIRCH_TRUNK_WIDTH_MAX : PINE_WIDTH_MAX;
+            REQUIRE(b.pineWidth >= widthMin);
+            REQUIRE(b.pineWidth <= widthMax);
         }
     }
-    REQUIRE(pineCount >= 1);
-    REQUIRE(pineCount <= 20);
+    REQUIRE(treeCount >= 1);
+    REQUIRE(treeCount <= 25);
 }
 
-TEST_CASE("First pine matches the spec-derived PRNG snapshot", "[pine][snapshot]") {
+TEST_CASE("First tree matches the spec-derived PRNG snapshot", "[pine][snapshot]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
-    const ExpectedPine expected = first_expected_pine(sim.blades.size());
+    const ExpectedTree expected = first_expected_tree(sim.blades.size());
 
     sim_set_scene(sim, Scene::Winter);
 
     REQUIRE(expected.slotIndex < sim.blades.size());
     const Blade& b = sim.blades[expected.slotIndex];
     REQUIRE(b.isPine);
-    REQUIRE(b.pineTierCount == expected.tierCount);
+    REQUIRE(b.treeVariant == expected.variant);
     REQUIRE(b.pineHeight == Approx(expected.height).margin(1e-12));
     REQUIRE(b.pineWidth  == Approx(expected.width).margin(1e-12));
+    REQUIRE(b.pineTierCount == expected.tierCount);
 }
 
-TEST_CASE("Grass scene restores pine slots to vanilla variants", "[pine][restore]") {
+TEST_CASE("Grass scene restores tree slots to vanilla variants", "[pine][restore]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
-    const ExpectedPine expected = first_expected_pine(sim.blades.size());
+    const ExpectedTree expected = first_expected_tree(sim.blades.size());
     REQUIRE(expected.slotIndex < sim.blades.size());
 
     Blade& target = sim.blades[expected.slotIndex];
@@ -116,8 +137,32 @@ TEST_CASE("Grass scene restores pine slots to vanilla variants", "[pine][restore
 
     sim_set_scene(sim, Scene::Grass);
     REQUIRE_FALSE(sim.blades[expected.slotIndex].isPine);
+    REQUIRE(sim.blades[expected.slotIndex].treeVariant == 0);
     REQUIRE(sim.blades[expected.slotIndex].isFlower);
     REQUIRE(sim.blades[expected.slotIndex].isMushroom);
+}
+
+TEST_CASE("Winter produces both pine and birch variants over canonical seed", "[pine][birch]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Winter);
+
+    std::size_t pineCount = 0;
+    std::size_t birchCount = 0;
+    for (const Blade& b : sim.blades) {
+        if (!b.isPine) continue;
+        if (b.treeVariant == 0) {
+            ++pineCount;
+            REQUIRE(b.pineWidth >= PINE_WIDTH_MIN);
+            REQUIRE(b.pineWidth <= PINE_WIDTH_MAX);
+        } else {
+            REQUIRE(b.treeVariant == 1);
+            ++birchCount;
+            REQUIRE(b.pineWidth >= BIRCH_TRUNK_WIDTH_MIN);
+            REQUIRE(b.pineWidth <= BIRCH_TRUNK_WIDTH_MAX);
+        }
+    }
+    REQUIRE(pineCount >= 1);
+    REQUIRE(birchCount >= 1);
 }
 
 TEST_CASE("Winter scene suppresses mushrooms on every slot", "[pine][winter][mushroom]") {

@@ -112,9 +112,10 @@ internal struct Blade
 
     // Pine (§15.1). Winter-only slot-bound blade variant.
     public bool   IsPine;
-    public byte   PineTierCount;   // 2..4
+    public byte   PineTierCount;   // 2..4 (only meaningful for TreeVariant == 0)
+    public byte   TreeVariant;     // 0 = pine, 1 = birch
     public double PineHeight;      // DIP
-    public double PineWidth;       // DIP (base-tier width)
+    public double PineWidth;       // DIP (pine base-tier width OR birch trunk width)
 
     public double EffectiveLean;
 }
@@ -234,6 +235,7 @@ internal sealed class Sim
         b.CactusArmSide = +1;
         b.IsPine = false;
         b.PineTierCount = 0;
+        b.TreeVariant = 0;
         b.PineHeight = 0.0;
         b.PineWidth = 0.0;
         b.IsFlower = b.OriginalIsFlower;
@@ -254,12 +256,28 @@ internal sealed class Sim
             double r = pinePrng.Uniform(0.0, 1.0);
             if (r >= Constants.PINE_PROBABILITY) continue;
 
+            // Draw order: r (consumed above), variant, height, width, tierCount.
+            // Locked sequence so both impls are bit-identical regardless of variant.
+            double variantDraw = pinePrng.Uniform(0.0, 1.0);
+            byte variant = (variantDraw < Constants.BIRCH_VARIANT_PROBABILITY) ? (byte)1 : (byte)0;
+
             b.IsPine = true;
             b.IsFlower = false;
             b.IsMushroom = false;
+            b.TreeVariant = variant;
             b.PineHeight = pinePrng.Uniform(Constants.PINE_HEIGHT_MIN, Constants.PINE_HEIGHT_MAX);
-            b.PineWidth = pinePrng.Uniform(Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
 
+            if (variant == 1)
+            {
+                b.PineWidth = pinePrng.Uniform(Constants.BIRCH_TRUNK_WIDTH_MIN, Constants.BIRCH_TRUNK_WIDTH_MAX);
+            }
+            else
+            {
+                b.PineWidth = pinePrng.Uniform(Constants.PINE_WIDTH_MIN, Constants.PINE_WIDTH_MAX);
+            }
+
+            // Tier count drawn for every tree slot to keep the PRNG stream
+            // bit-identical across variant outcomes. Only used by pines.
             double tierDraw = pinePrng.Uniform(Constants.PINE_TIER_COUNT_MIN,
                                                 Constants.PINE_TIER_COUNT_MAX + 1);
             int tiers = (int)Math.Floor(tierDraw);
