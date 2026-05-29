@@ -1,6 +1,8 @@
 # DesktopGrass implementation comparison
 
-This is a side-by-side comparison of the four v1 DesktopGrass implementations on `main`.
+> **Status (post-comparison):** the WinUI 3 and WPF implementations were **removed from `main`** after the head-to-head A/B documented below. Only Native and Win2D continue to ship. A second round of evaluation done after this document was written added a steady-state working-set measurement (Native 55 MB, Win2D 99 MB, WinUI 3 158 MB, WPF 579 MB) and confirmed the build-experience friction described here was matched by a runtime-footprint penalty. The WinUI 3 / WPF rows below are retained as the historical record that justifies the removal — do not treat them as live impls.
+
+This is a side-by-side comparison of the four DesktopGrass implementations as they stood at the comparison point on `main`.
 
 ## TL;DR
 

@@ -1,7 +1,7 @@
 # DesktopGrass smoke tests
 
-Screenshot-based smoke harness for the three DesktopGrass implementations
-(`Native`, `Win2D`, `WinUI3`). Designed to be the post-build sanity check
+Screenshot-based smoke harness for the two DesktopGrass implementations
+(`Native`, `Win2D`). Designed to be the post-build sanity check
 that says "yes, this build actually painted something click-through on top
 of the desktop".
 
@@ -15,7 +15,7 @@ pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
 ```
 
-`-Target` accepts `Native`, `Win2D`, `WinUI3`, or `All`. The script exits
+`-Target` accepts `Native`, `Win2D`, or `All`. The script exits
 non-zero (`$LASTEXITCODE = 1`) if any target failed; without
 `-ContinueOnFailure` it also `throw`s so CI noticed loudly.
 
@@ -27,8 +27,7 @@ Each per-target check performs, in order:
 3. Read `GWL_EXSTYLE` and assert
    `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE`
    are all set. (Click-through gate.)
-4. Sleep 1500 ms so DirectComposition / XAML Composition can produce a real
-   first frame.
+4. Sleep 1500 ms so DirectComposition can produce a real first frame.
 5. Screenshot the bottom 80 px strip of the primary monitor and count
    unique ARGB values sampled every 4th pixel. Fail if fewer than 50.
 6. `PostMessage(WM_CLOSE)`; wait up to 2 s; force-kill if it hangs.
@@ -50,12 +49,11 @@ For v1 the harness is also runnable directly against the built exe (no
 
 ## Why no UIA assertions
 
-All three implementations render their content via Direct2D /
-DirectComposition (Native, Win2D) or XAML Composition (WinUI 3). **None
-of that content is in the UIA tree in any meaningful way** — it's the
-same blind spot WebView2 has with its DOM. A UIA-property assertion would
-either find nothing or, worse, succeed against an empty placeholder
-window that never actually painted.
+Both implementations render their content via Direct2D /
+DirectComposition. **None of that content is in the UIA tree in any
+meaningful way** — it's the same blind spot WebView2 has with its DOM.
+A UIA-property assertion would either find nothing or, worse, succeed
+against an empty placeholder window that never actually painted.
 
 So the harness deliberately uses *pixel variance from a screenshot* as
 the source of truth for "did it draw?". `GetWindowLongPtr` is used for

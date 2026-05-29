@@ -1,6 +1,8 @@
 # DesktopGrass — Shared Algorithm Specification
 
-This document is the **single source of truth** for the grass simulation. The four v1 implementations — `DesktopGrass.Native` (Win32 + Direct2D, C++), `DesktopGrass.Win2D` (C# + Win2D), `DesktopGrass.WinUI3` (packaged WinUI 3, C#), and `DesktopGrass.WPF` (vanilla .NET WPF, C#) — each port the algorithms below into their own language. There is no shared library; the spec **is** the contract.
+This document is the **single source of truth** for the grass simulation. The two shipping implementations — `DesktopGrass.Native` (Win32 + Direct2D, C++) and `DesktopGrass.Win2D` (C# + Vortice Direct2D) — each port the algorithms below into their own language. There is no shared library; the spec **is** the contract.
+
+> **History:** the repo originally shipped four parallel implementations (Native, Win2D, packaged WinUI 3, vanilla WPF). The WinUI 3 and WPF impls were dropped after a head-to-head A/B because they were 3–10× heavier on working set than the Native and Win2D builds while offering no behavioral advantage for a transparent, click-through, topmost overlay. See `docs/comparison.md` for the full evaluation.
 
 For the product goals, window model, input model, and project layout, see [`plan.md`](../plan.md). This document covers only the math/state machine that every implementation must reproduce.
 
@@ -10,9 +12,9 @@ For the product goals, window model, input model, and project layout, see [`plan
 
 DesktopGrass paints a strip of procedurally generated grass along the bottom of every monitor, on top of all windows, fully click-through. The strip sways gently on its own, reacts to cursor motion with localized gusts, and reacts to left-clicks by cutting blades.
 
-The v1 plan calls for **four independent implementations** of the same feature set, so they can be compared side-by-side on LoC, CPU/GPU cost, startup time, and binary size. To make that comparison honest, all four must produce **pixel-equivalent output** for a given `(seed, monitorWidth, density)` and an identical event stream. This spec fixes every constant, function, and ordering decision needed to make that true.
+The v1 plan called for **four independent implementations** of the same feature set so they could be compared side-by-side on LoC, CPU/GPU cost, startup time, and binary size; two of those impls (WinUI 3, WPF) were dropped after the comparison and the remaining two (Native, Win2D) continue to ship together specifically so cross-impl conformance keeps the spec honest. To make that conformance meaningful, both impls must produce **pixel-equivalent output** for a given `(seed, monitorWidth, density)` and an identical event stream. This spec fixes every constant, function, and ordering decision needed to make that true.
 
-Pseudocode is given in a C-like form chosen to port cleanly to C++ (Native), C# (Win2D, WinUI 3, WPF), and any future Rust/Go port. Where a port idiom differs (e.g., `Math.Sin` vs `std::sin`), the spec uses the mathematical name (`sin`, `exp`, `sqrt`, `clamp`).
+Pseudocode is given in a C-like form chosen to port cleanly to C++ (Native), C# (Win2D), and any future Rust/Go port. Where a port idiom differs (e.g., `Math.Sin` vs `std::sin`), the spec uses the mathematical name (`sin`, `exp`, `sqrt`, `clamp`).
 
 ---
 
@@ -223,7 +225,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         // / height bonus. Non-flower blades stop after the first draw.
         // This ordering is required for the flower stream to produce an
         // identical (isFlower, headColor, headRadius, heightBonus)
-        // sequence across all four implementations for a given seed.
+        // sequence across both implementations for a given seed.
         bool isFlower = prng_uniform(&pf, 0.0, 1.0) < FLOWER_PROBABILITY;
         b.isFlower            = isFlower;
         if (isFlower) {
@@ -244,7 +246,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         // draw (the probability check). Mushroom slots additionally
         // consume five more conditional draws for cap-color, cap-width,
         // cap-height, stem-height, stem-thickness. Field-draw order is
-        // fixed and identical across all four implementations.
+        // fixed and identical across both implementations.
         bool isMushroom = prng_uniform(&pm, 0.0, 1.0) < MUSHROOM_PROBABILITY;
         b.isMushroom = isMushroom;
         if (isMushroom) {
@@ -272,7 +274,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 }
 ```
 
-**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. From the mushroom stream `pm`, the order is `isMushroom` decision (always one draw), and **only if** `isMushroom == true`, then `mushroomCapColorIdx`, `mushroomCapWidth`, `mushroomCapHeight`, `mushroomStemHeight`, `mushroomStemThickness`. Reordering or interleaving the four streams changes the per-blade values for a given seed and breaks the snapshot tests. The four streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth, flowers, or mushrooms are enabled.
+**Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. From the mushroom stream `pm`, the order is `isMushroom` decision (always one draw), and **only if** `isMushroom == true`, then `mushroomCapColorIdx`, `mushroomCapWidth`, `mushroomCapHeight`, `mushroomStemHeight`, `mushroomStemThickness`. Reordering or interleaving the four streams changes the per-blade values for a given seed and breaks the snapshot tests. The four streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth, flowers, or mushrooms are enabled. Both impls MUST emit the same per-stream sequence; cross-impl tests pin this.
 
 At a 1920-DIP-wide monitor with `density = 2.25`, the expected blade count is approximately `2 * 1920 * 2.25 / (4 + 8) ≈ 720`; this is the current app default tuning for a denser field.
 
@@ -371,7 +373,7 @@ if (b->isFlower && b->cutHeight >= CUT_STUMP_THRESHOLD) {
 }
 ```
 
-The head is suppressed once the stem has been cut down past `CUT_STUMP_THRESHOLD` (the same threshold that switches the stem itself to the stump short-circuit). This keeps a cut flower from leaving a colored dot floating just above the ground. No outline / no anti-aliasing toggle is required — implementations may use whatever filled-ellipse primitive their renderer provides (`FillEllipse` on D2D, `FillCircle` on Win2D canvas, `DrawingContext.DrawEllipse` with `pen = null` on WPF). All four implementations MUST place the head **at the same tip point** the chord-preserving stroke math computed.
+The head is suppressed once the stem has been cut down past `CUT_STUMP_THRESHOLD` (the same threshold that switches the stem itself to the stump short-circuit). This keeps a cut flower from leaving a colored dot floating just above the ground. No outline / no anti-aliasing toggle is required — implementations may use whatever filled-ellipse primitive their renderer provides (`FillEllipse` on D2D, `FillEllipse` on Vortice). Both implementations MUST place the head **at the same tip point** the chord-preserving stroke math computed.
 
 Chord preservation matters because `effectiveLean` is the horizontal tip displacement: if the tip kept the fixed vertical position `groundY - L` while moving sideways, the painted base-to-tip chord would become longer than the blade and read visually as stretching. Instead, the tip moves on a circle of radius `L` around the base, so `lean / L = sin(θ)` and `dropFactor = sqrt(1 - (lean / L)^2) = cos(θ)`, where `θ` is the bend angle from vertical. At zero lean, `dropFactor` is `1`; at the maximum lean of `0.95 * L`, it is approximately `0.312`.
 
@@ -418,7 +420,7 @@ if (b->isMushroom) {
 }
 ```
 
-Implementations are free to use whatever line-stroke and filled-ellipse primitives their renderer provides (D2D `DrawLine` + `FillEllipse` on Native, Vortice `DrawLine` + `FillEllipse` on Win2D, Composition `CompositionLineGeometry`/`SpriteShape` + `CompositionEllipseGeometry` on WinUI 3, WPF `DrawingContext.DrawLine` + `DrawEllipse`). The stem thickness uses no caps requirement — round caps are fine, butt caps are fine. The cap MUST be filled, not stroked.
+Implementations are free to use whatever line-stroke and filled-ellipse primitives their renderer provides (D2D `DrawLine` + `FillEllipse` on Native, Vortice `DrawLine` + `FillEllipse` on Win2D). The stem thickness uses no caps requirement — round caps are fine, butt caps are fine. The cap MUST be filled, not stroked.
 
 If `isMushroom` and `isFlower` are both true on the same slot (which can happen — the two streams are independent), the renderer treats the slot as a mushroom: it short-circuits before reaching the flower-head code, so the flower never paints.
 
@@ -703,7 +705,7 @@ The palette table from §4 (six ARGB values for grass blades), the Flower palett
 
 ## 12. Conformance
 
-Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests`, `DesktopGrass.Win2D.Tests`, `DesktopGrass.WinUI3.Tests`, and `DesktopGrass.WPF.Tests` can share a single snapshot fixture. WPF joins as the fourth conformant implementation.
+Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests` and `DesktopGrass.Win2D.Tests` can share a single snapshot fixture.
 
 ### Canonical test seed
 
@@ -713,7 +715,7 @@ CANONICAL_TEST_SEED = 0x6B6173746F  // uint64
 
 Tests at minimum SHOULD assert:
 
-1. **PRNG snapshot.** With `prng_init(seed = CANONICAL_TEST_SEED)`, the first 16 outputs of `prng_next_u64` match a fixed snapshot array embedded in each test project. Identical across all four impls.
+1. **PRNG snapshot.** With `prng_init(seed = CANONICAL_TEST_SEED)`, the first 16 outputs of `prng_next_u64` match a fixed snapshot array embedded in each test project. Identical across both impls.
 
 2. **Blade generation snapshot.** With `(seed = CANONICAL_TEST_SEED, monitorWidth = 1920.0, density = 1.0)`:
    - The blade count matches across impls.
@@ -729,4 +731,4 @@ Tests at minimum SHOULD assert:
 
 6. **Idempotence.** Clicking twice on the same blade within the 200 ms cut window does not change the trajectory of the first cut. Clicking on an already-cut blade is a no-op.
 
-When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to all four impls.
+When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to both impls.

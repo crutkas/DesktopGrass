@@ -6,7 +6,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('Native','Win2D','WinUI3','WPF','All')]
+    [ValidateSet('Native','Win2D','All')]
     [string] $Target = 'All',
 
     [string] $Configuration = 'Release',
@@ -22,7 +22,6 @@ Import-Module "$PSScriptRoot\Smoke.Common.psm1" -Force
 # Relative paths follow the build-output convention from the plan:
 #   * Native (MSBuild C++):  src\DesktopGrass.Native\out\<Config>\DesktopGrass.Native.exe
 #   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Config>\<TFM>\DesktopGrass.Win2D.exe
-#   * WinUI3 (.NET):         src\DesktopGrass.WinUI3\bin\<Config>\<TFM>\DesktopGrass.WinUI3.exe
 # TFM is resolved lazily at run time so we don't hardcode net8.0-windows10.0.*.
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 
@@ -39,9 +38,9 @@ function Resolve-DotnetExe {
     }
     # Walk the bin\<Config> tree to find the most-recently-written copy of
     # the exe. This handles both the flat layout (Win2D: bin\Release\<TFM>\app.exe)
-    # and the RID-nested layout used when RuntimeIdentifier is set (WinUI3:
-    # bin\Release\<TFM>\<RID>\app.exe). Recursion at depth 2 is bounded and
-    # cheap.
+    # and any future RID-nested layout (bin\Release\<TFM>\<RID>\app.exe) that
+    # appears when a project declares a RuntimeIdentifier. Recursion at
+    # depth 2 is bounded and cheap.
     $found = Get-ChildItem -LiteralPath $binConfig -Filter $ExeName -File -Recurse -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($null -ne $found) { return $found.FullName }
@@ -64,18 +63,6 @@ $Targets = [ordered]@{
     'Win2D'  = @{
         ExePath     = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.Win2D')  -ExeName 'DesktopGrass.Win2D.exe'  -Configuration $Configuration
         WindowClass = 'DesktopGrass.Win2D.Window'
-    }
-    'WinUI3' = @{
-        # WinUI 3 owns the Win32 window class name
-        # ('WinUIDesktopWin32WindowClass') and we can't rename it, so the
-        # smoke harness has to match by AppWindow.Title instead. MainWindow.xaml.cs
-        # sets the title to exactly "DesktopGrass.WinUI3.Window" at construction.
-        ExePath    = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WinUI3') -ExeName 'DesktopGrass.WinUI3.exe' -Configuration $Configuration
-        TitleMatch = '^DesktopGrass\.WinUI3\.Window$'
-    }
-    'WPF' = @{
-        ExePath    = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WPF') -ExeName 'DesktopGrass.WPF.exe' -Configuration $Configuration
-        TitleMatch = '^DesktopGrass\.WPF\.Window$'
     }
 }
 
