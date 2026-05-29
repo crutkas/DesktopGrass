@@ -493,6 +493,83 @@ for (Blade* b in blades) {
 
 ---
 
+## 8.1 Ambient gusts
+
+Real grass moves even when no one is touching it. The simulation therefore emits **ambient gusts**: small, randomly scheduled puffs of wind that fire independently of cursor input. Each puff reuses the §8 impulse-distribution kernel — same `gustVelocity` field on the blades, same `DECAY_RATE` for the trailing exponential — so visually they read as the same wind, just smaller and self-driven.
+
+### Scheduler state
+
+Each `Sim` carries three additional pieces of state:
+
+- `Prng ambientPrng` — fifth independent xorshift64 stream, seeded with `seed XOR AMBIENT_GUST_PRNG_SALT`. Never mixed into the main / regrowth / flower / mushroom streams.
+- `double nextAmbientGustTime` — absolute `globalTime` at which the next puff fires.
+- `double monitorWidth` — snapshotted at `sim_init` / `sim_regenerate` so the ambient X distribution is unaffected by later window resizes.
+
+At init / regenerate:
+
+```c
+prng_init(&sim->ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
+sim->monitorWidth        = monitorWidth;
+sim->nextAmbientGustTime = sim->globalTime
+                         + prng_uniform(&sim->ambientPrng,
+                                         AMBIENT_GUST_INTERVAL_MIN,
+                                         AMBIENT_GUST_INTERVAL_MAX);
+```
+
+The very first interval is sampled at init — i.e. the first puff never fires at `globalTime = 0`. This keeps the four-draws-per-fire ordering below consistent for every subsequent puff.
+
+### Per-frame step
+
+Inside `tick` (§10), after draining cursor / click events and **before** the per-blade dynamics update, run:
+
+```c
+while (sim->globalTime >= sim->nextAmbientGustTime) {
+    double x         = prng_uniform(&sim->ambientPrng, 0.0, sim->monitorWidth);
+    double signDir   = prng_uniform(&sim->ambientPrng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+    double magFactor = prng_uniform(&sim->ambientPrng,
+                                     AMBIENT_GUST_MAG_FACTOR_MIN,
+                                     AMBIENT_GUST_MAG_FACTOR_MAX);
+    apply_ambient_gust(sim, x, signDir, magFactor);
+
+    double interval  = prng_uniform(&sim->ambientPrng,
+                                     AMBIENT_GUST_INTERVAL_MIN,
+                                     AMBIENT_GUST_INTERVAL_MAX);
+    sim->nextAmbientGustTime += interval;
+}
+```
+
+**Field-draw order is fixed: `x`, `signDir`, `magFactor`, `interval`** — exactly four draws per puff. Both impls MUST emit them in this order; reordering breaks the cross-impl scheduler snapshot.
+
+The `while` (not `if`) is intentional: if `dt` was large enough to skip multiple intervals, all of them fire in chronological order. In practice `dt ≈ 1/60` and `AMBIENT_GUST_INTERVAL_MIN = 5.0`, so the loop almost always runs zero or one iterations.
+
+### Impulse kernel
+
+```c
+void apply_ambient_gust(Sim* sim, double x, double signDir, double magFactor) {
+    double impulseMagnitude = MAX_CURSOR_SPEED * magFactor * IMPULSE_SCALE;
+    double radius           = GUST_RADIUS * AMBIENT_GUST_RADIUS_FACTOR;
+
+    for (Blade* b in sim->blades) {
+        double dxAbs = fabs(b->baseX - x);
+        if (dxAbs >= radius) continue;
+
+        double t      = 1.0 - dxAbs / radius;
+        double s      = clamp(t, 0.0, 1.0);
+        double smooth = s * s * (3.0 - 2.0 * s);
+
+        b->gustVelocity += impulseMagnitude * smooth * signDir;
+    }
+}
+```
+
+Same `s * s * (3 - 2s)` smoothstep as §8. The synthetic `impulseMagnitude` is parameterised by `magFactor` (a fraction of a saturated cursor sweep) rather than by `capped / MAX_CURSOR_SPEED`. With the defaults below a peak ambient puff delivers ≈ 30–60 % of a saturated cursor gust, over half the radius — a small localised breeze rather than a swipe.
+
+### Defaults & conformance
+
+Constants land in §11. Adding ambient gusts MUST NOT change the §12 static blade snapshot — the four pre-existing streams are untouched. A new snapshot SHOULD pin the first eight emitted puffs for `(seed = CANONICAL_TEST_SEED, monitorWidth = 1920.0)`: each entry is the tuple `(fireTime, x, signDir, magFactor)` and MUST match across both impls bit-for-bit (in the integer / discrete fields) and to ≤ 1 ULP in the doubles drawn from `prng_uniform`.
+
+---
+
 ## 9. Cut and regrowth state animation
 
 The mouse hook also delivers `WM_LBUTTONDOWN` events as `(clickX, clickY, eventTime)`.
@@ -603,6 +680,9 @@ typedef struct {
     double    globalTime;       // accumulates dt
     double    prevCursorX;
     double    prevCursorTime;   // -1 = uninitialized
+    Prng      ambientPrng;      // §8.1 — fifth independent stream
+    double    nextAmbientGustTime; // §8.1 — absolute fire time
+    double    monitorWidth;     // §8.1 — snapshotted at init
 } Sim;
 
 void tick(Sim* sim, double dt, const InputEvent* events, size_t numEvents) {
@@ -618,7 +698,24 @@ void tick(Sim* sim, double dt, const InputEvent* events, size_t numEvents) {
         }
     }
 
-    // 2. Per-blade update: gust decay + sway + cut anim + effective lean.
+    // 2. Ambient gust scheduler (§8.1). Runs BEFORE the per-blade update so
+    //    any ambient puffs that fire this tick contribute to the same
+    //    decay step the cursor impulses use.
+    while (sim->globalTime >= sim->nextAmbientGustTime) {
+        double x         = prng_uniform(&sim->ambientPrng, 0.0, sim->monitorWidth);
+        double signDir   = prng_uniform(&sim->ambientPrng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+        double magFactor = prng_uniform(&sim->ambientPrng,
+                                         AMBIENT_GUST_MAG_FACTOR_MIN,
+                                         AMBIENT_GUST_MAG_FACTOR_MAX);
+        apply_ambient_gust(sim, x, signDir, magFactor);
+
+        double interval  = prng_uniform(&sim->ambientPrng,
+                                         AMBIENT_GUST_INTERVAL_MIN,
+                                         AMBIENT_GUST_INTERVAL_MAX);
+        sim->nextAmbientGustTime += interval;
+    }
+
+    // 3. Per-blade update: gust decay + sway + cut anim + effective lean.
     for (size_t i = 0; i < sim->blades.count; i++) {
         Blade* b = &sim->blades.items[i];
         update_blade_dynamics(b, sim->globalTime, dt);   // §6
@@ -691,6 +788,12 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `MUSHROOM_PALETTE_SIZE` | 6 | colors | §4, §5 |
 | `MUSHROOM_PRNG_SALT` | `0xBADC0FFEE0FACE21` | uint64 | §5 |
 | `MUSHROOM_STEM_COLOR` | `0xFFF5F5DC` | uint32 ARGB | §4, §7 |
+| `AMBIENT_GUST_PRNG_SALT` | `0xB7EE2EE2B7EE2EE2` | uint64 | §8.1 |
+| `AMBIENT_GUST_INTERVAL_MIN` | 5.0 | sec | §8.1 |
+| `AMBIENT_GUST_INTERVAL_MAX` | 15.0 | sec | §8.1 |
+| `AMBIENT_GUST_MAG_FACTOR_MIN` | 0.3 | (unitless) | §8.1 |
+| `AMBIENT_GUST_MAG_FACTOR_MAX` | 0.6 | (unitless) | §8.1 |
+| `AMBIENT_GUST_RADIUS_FACTOR` | 0.5 | (unitless) | §8.1 |
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `MUSHROOM_STUMP_HEIGHT` | 4.0 | DIP | §7 |
