@@ -326,16 +326,27 @@ internal sealed class Sim
                 b.Thickness, argb);
         }
 
-        double tipX = b.BaseX + b.EffectiveLean;
-        double tipY = groundY - b.Height * b.CutHeight;
+        double L = b.Height * b.CutHeight;
+
+        // Chord preservation: blades have a fixed length L. As EffectiveLean
+        // grows, the tip arcs over (Y drops) rather than the blade stretching
+        // diagonally. Clamp to MAX_LEAN_FRACTION * L so the sqrt is always
+        // positive even under strong gust impulses.
+        double lean = b.EffectiveLean;
+        double maxLean = Constants.MAX_LEAN_FRACTION * L;
+        if (lean >  maxLean) lean =  maxLean;
+        if (lean < -maxLean) lean = -maxLean;
+
+        double dropFactor = Math.Sqrt(1.0 - (lean / L) * (lean / L));
+
+        double tipX = b.BaseX + lean;
+        double tipY = groundY - L * dropFactor;
 
         // Rooted-bend control point: directly above the base, at a fraction
-        // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
-        // quadratic Bezier a vertical tangent at the base (rooted) and a
-        // smooth curve toward the leaning tip.
+        // CTRL_OFFSET_FACTOR of the (current, foreshortened) blade height.
         return new Stroke(
             b.BaseX, groundY,
-            b.BaseX, groundY - b.Height * b.CutHeight * Constants.CTRL_OFFSET_FACTOR,
+            b.BaseX, groundY - L * Constants.CTRL_OFFSET_FACTOR * dropFactor,
             tipX, tipY,
             b.Thickness, argb);
     }

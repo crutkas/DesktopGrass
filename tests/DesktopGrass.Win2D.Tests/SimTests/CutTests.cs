@@ -177,7 +177,7 @@ public class CutTests
         Assert.Equal(100.0, stroke.BaseX);
         Assert.Equal(110.0, stroke.BaseY);
         Assert.Equal(105.0, stroke.TipX, 9);
-        Assert.Equal(80.0, stroke.TipY, 9);
+        Assert.Equal(110.0 - Math.Sqrt(30.0 * 30.0 - 5.0 * 5.0), stroke.TipY, 9);
         Assert.Equal(Constants.PALETTE[2], stroke.Argb);
     }
 }

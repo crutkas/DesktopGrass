@@ -43,9 +43,9 @@ public class StrokeTests
         var stroke = Sim.ComputeBladeStroke(b, groundY: 110.0);
         Assert.Equal(100.0, stroke.BaseX);
         Assert.Equal(110.0, stroke.BaseY);
-        // tipX = baseX + lean = 105; tipY = groundY - height*cutHeight = 80
+        // tipX = baseX + lean = 105; tipY = groundY - sqrt(length^2 - lean^2)
         Assert.Equal(105.0, stroke.TipX, 9);
-        Assert.Equal(80.0, stroke.TipY, 9);
+        Assert.Equal(110.0 - Math.Sqrt(30.0 * 30.0 - 5.0 * 5.0), stroke.TipY, 9);
         Assert.Equal(Constants.Palette[2], stroke.Argb);
         Assert.Equal(1.5, stroke.Thickness);
     }

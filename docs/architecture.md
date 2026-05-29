@@ -25,13 +25,13 @@ All coordinates are in **DIPs** (device-independent pixels, 1 DIP = 1/96 inch). 
 - **Window placement**: the per-monitor window spans the monitor's full width. Its bottom edge sits on the monitor's bottom edge. Its height is `stripHeight + headroom` DIP (see constants table). The window is the algorithm's render surface; everything below is computed in window-local coordinates.
 - **Ground line**: `groundY = windowHeight` (the bottom edge of the window in window-local coordinates). Blades anchor here.
 
-For clarity, the spec talks about a blade's **`height` above ground** as a positive scalar. The actual screen-space tip coordinate is:
+For clarity, the spec talks about a blade's **`height` above ground** as a positive scalar. The visible blade length is:
 
 ```
-tipY = groundY - height * cutHeight
+L = height * cutHeight
 ```
 
-That is, a tall uncut blade has a smaller `tipY` (higher on screen) than a short or cut blade.
+When a blade is perfectly vertical, its endpoint sits at `groundY - L`, so a tall uncut blade reaches higher on screen than a short or cut blade. Once lean is applied, §7 computes the rendered tip with chord preservation rather than keeping this Y coordinate fixed.
 
 The grass anchors to the bottom of the monitor's **work area** (`MONITORINFO.rcWork.bottom`), so it sits directly on top of the taskbar rather than being clipped behind it. Each implementation queries `GetMonitorInfo` per monitor and uses `rcWork` for the window position. (Side- or top-docked taskbars work the same way: the work area excludes whatever side the taskbar is on, and the grass strip lands on the bottom edge of what remains.)
 
@@ -241,16 +241,27 @@ Stroke compute_blade_stroke(const Blade* b, double groundY) {
         return s;
     }
 
-    double tipX = b->baseX + b->effectiveLean;
-    double tipY = groundY - b->height * b->cutHeight;
+    double L = b->height * b->cutHeight;
+
+    // Chord preservation: blades have a fixed length L. As effectiveLean
+    // grows, the tip arcs OVER (Y drops) so the blade's chord stays equal
+    // to L — rather than the blade stretching diagonally. Clamp to
+    // MAX_LEAN_FRACTION * L so the sqrt is always non-negative under
+    // strong gust impulses.
+    double lean = b->effectiveLean;
+    double maxLean = MAX_LEAN_FRACTION * L;
+    if (lean >  maxLean) lean =  maxLean;
+    if (lean < -maxLean) lean = -maxLean;
+
+    double dropFactor = sqrt(1.0 - (lean / L) * (lean / L));
+
+    double tipX = b->baseX + lean;
+    double tipY = groundY - L * dropFactor;
 
     // Rooted-bend control point: directly above the base, at a fraction
-    // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
-    // quadratic Bezier a vertical tangent at the base (rooted, like a
-    // blade emerging from the ground) and curves smoothly toward the
-    // leaning tip.
+    // CTRL_OFFSET_FACTOR of the (current, foreshortened) blade height.
     s.base    = (Point){ b->baseX, groundY };
-    s.control = (Point){ b->baseX, groundY - b->height * b->cutHeight * CTRL_OFFSET_FACTOR };
+    s.control = (Point){ b->baseX, groundY - L * CTRL_OFFSET_FACTOR * dropFactor };
     s.tip     = (Point){ tipX, tipY };
     return s;
 }
@@ -258,9 +269,13 @@ Stroke compute_blade_stroke(const Blade* b, double groundY) {
 
 The renderer draws each `Stroke` as a quadratic Bezier with rounded line caps. Anti-aliasing is enabled. Implementations MAY batch strokes by color for GPU efficiency; ordering within a batch doesn't affect correctness (blades don't overlap meaningfully at typical density).
 
-The rooted-bend control point gives the curve a vertical tangent at the base because `base->control` is purely vertical. The tip tangent direction is `(tipX - controlX, tipY - controlY) = (effectiveLean, -height * cutHeight * (1 - CTRL_OFFSET_FACTOR))`, so the curve naturally points up-and-toward-the-lean at the tip and the blade trails its tip instead of bulging evenly around the chord.
+Chord preservation matters because `effectiveLean` is the horizontal tip displacement: if the tip kept the fixed vertical position `groundY - L` while moving sideways, the painted base-to-tip chord would become longer than the blade and read visually as stretching. Instead, the tip moves on a circle of radius `L` around the base, so `lean / L = sin(θ)` and `dropFactor = sqrt(1 - (lean / L)^2) = cos(θ)`, where `θ` is the bend angle from vertical. At zero lean, `dropFactor` is `1`; at the maximum lean of `0.95 * L`, it is approximately `0.312`.
 
-`CTRL_OFFSET_FACTOR` now means the fraction of the visible blade height where the control point sits. The default remains `0.6`: 60% up the blade balances a tighter bend near the middle against a whippier curve with the control point nearer the tip.
+The rooted-bend control point gives the curve a vertical tangent at the base because `base->control` is purely vertical: both points have `x = baseX`, so the blade emerges rooted from the ground regardless of lean. The tip tangent direction is `(tip - control) = (lean, -L * (1 - CTRL_OFFSET_FACTOR) * dropFactor)`, which points up-and-toward-the-lean so the tip trails naturally instead of the blade bulging evenly around the chord.
+
+`CTRL_OFFSET_FACTOR` now means the fraction of the current, foreshortened blade height where the control point sits. The default remains `0.6`: 60% up the foreshortened height balances a tighter bend near the middle against a whippier curve with the control point nearer the tip.
+
+`MAX_LEAN_FRACTION` clamps `effectiveLean` before rendering because gust impulses can briefly exceed `L`, especially for short blades. The default `0.95` lets a blade lay down nearly horizontal while keeping it from folding completely flat and guarantees the square root never receives a negative input.
 
 ---
 
@@ -507,6 +522,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `CUT_STUMP_THRESHOLD` | 0.05 | (unitless) | §7 |
 | `STUMP_HEIGHT` | 2.0 | DIP | §7 |
 | `CTRL_OFFSET_FACTOR` | 0.6 | (unitless) | §7 |
+| `MAX_LEAN_FRACTION` | 0.95 | (unitless) | §7 |
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |
 | `CANONICAL_TEST_SEED` | `0x6B6173746F` | uint64 | §12 |
 

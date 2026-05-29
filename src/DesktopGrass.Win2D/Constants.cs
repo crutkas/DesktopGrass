@@ -53,6 +53,7 @@ internal static class Constants
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP
     public const double CTRL_OFFSET_FACTOR = 0.6;
+    public const double MAX_LEAN_FRACTION = 0.95;      // fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
 
     // Canonical seed for snapshot tests (§12)
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;

@@ -43,6 +43,8 @@ constexpr double CUT_DURATION_SEC      = 0.2;
 constexpr double CUT_STUMP_THRESHOLD   = 0.05;
 constexpr double STUMP_HEIGHT          = 2.0;
 constexpr double CTRL_OFFSET_FACTOR    = 0.6;
+// fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
+constexpr double MAX_LEAN_FRACTION     = 0.95;
 
 // Regrowth -------------------------------------------------------------------
 // After a blade's cut animation finishes, it waits `regrowDelay` seconds (a

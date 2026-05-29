@@ -249,15 +249,26 @@ Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
         return s;
     }
 
-    const double tipX = b.baseX + b.effectiveLean;
-    const double tipY = groundY - b.height * b.cutHeight;
+    const double L = b.height * b.cutHeight;
+
+    // Chord preservation: blades have a fixed length L. As effectiveLean
+    // grows, the tip arcs over (Y drops) rather than the blade stretching
+    // diagonally. Clamp to MAX_LEAN_FRACTION * L so the sqrt is always
+    // positive even under strong gust impulses.
+    double lean = b.effectiveLean;
+    const double maxLean = MAX_LEAN_FRACTION * L;
+    if (lean >  maxLean) lean =  maxLean;
+    if (lean < -maxLean) lean = -maxLean;
+
+    const double dropFactor = std::sqrt(1.0 - (lean / L) * (lean / L));
+
+    const double tipX = b.baseX + lean;
+    const double tipY = groundY - L * dropFactor;
 
     // Rooted-bend control point: directly above the base, at a fraction
-    // CTRL_OFFSET_FACTOR of the visible blade height. This gives the
-    // quadratic Bezier a vertical tangent at the base (blade comes out of
-    // the ground rooted) and a smooth curve toward the leaning tip.
+    // CTRL_OFFSET_FACTOR of the (current, foreshortened) blade height.
     s.base    = { b.baseX, groundY };
-    s.control = { b.baseX, groundY - b.height * b.cutHeight * CTRL_OFFSET_FACTOR };
+    s.control = { b.baseX, groundY - L * CTRL_OFFSET_FACTOR * dropFactor };
     s.tip     = { tipX, tipY };
     return s;
 }
