@@ -69,6 +69,7 @@ internal sealed class GrassWindow : IDisposable
             GroundY = _heightPx / _dpiScale,
             WindowHeight = _heightPx / _dpiScale,
         };
+        Sim.ResetAmbientGusts(seed, monitorWidthDip);
 
         CreateGraphics();
     }

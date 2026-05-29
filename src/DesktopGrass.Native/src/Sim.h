@@ -129,10 +129,15 @@ struct InputEvent {
 
 struct Sim {
     std::vector<Blade> blades;
-    double             globalTime      = 0.0;
-    double             prevCursorX     = 0.0;
-    double             prevCursorTime  = -1.0;
-    double             windowHeight    = STRIP_HEIGHT + HEADROOM;
+    double             globalTime          = 0.0;
+    double             prevCursorX         = 0.0;
+    double             prevCursorTime      = -1.0;
+    double             windowHeight        = STRIP_HEIGHT + HEADROOM;
+
+    // Ambient gust scheduler (§8.1). Initialized by sim_init / sim_regenerate.
+    Prng               ambientPrng         = { 0 };
+    double             nextAmbientGustTime = 0.0;
+    double             monitorWidth        = 0.0;
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -149,6 +154,17 @@ void sim_apply_move(Sim& sim, const InputEvent& e) noexcept;
 
 // Apply a click event. cutBand filtering uses sim.windowHeight as groundY.
 void sim_apply_click(Sim& sim, const InputEvent& e) noexcept;
+
+// Ambient gust application (§8.1). Same impulse kernel as cursor gusts but
+// uses GUST_RADIUS * AMBIENT_GUST_RADIUS_FACTOR and an impulse magnitude
+// parameterised by magFactor (a fraction of a saturated cursor sweep) instead
+// of the cursor-derived velocity. Exposed for unit tests.
+void sim_apply_ambient_gust(Sim& sim, double x, double signDir, double magFactor) noexcept;
+
+// Run the ambient gust scheduler one tick. Exposed for unit tests. Idempotent
+// on idle ticks (zero PRNG draws); fires zero or more puffs depending on how
+// many scheduled fire times sim.globalTime has crossed.
+void sim_tick_ambient_gusts(Sim& sim) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

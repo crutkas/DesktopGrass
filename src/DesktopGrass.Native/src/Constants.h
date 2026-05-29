@@ -101,6 +101,21 @@ constexpr int      MUSHROOM_PALETTE_SIZE       = 6;
 constexpr uint64_t MUSHROOM_PRNG_SALT          = 0xBADC0FFEE0FACE21ull;
 constexpr uint32_t MUSHROOM_STEM_COLOR         = 0xFFF5F5DCu; // beige/ivory
 
+// Ambient gusts (architecture.md §8.1). Small, randomly scheduled puffs of
+// wind that fire independently of cursor input. Implemented via a fifth
+// independent PRNG stream salted with AMBIENT_GUST_PRNG_SALT so adding
+// ambient gusts does NOT perturb the main / regrowth / flower / mushroom
+// streams — the §12 static blade snapshot is unchanged.
+//
+// Per-fire draw order (locked in §8.1): x, signDir, magFactor, interval.
+// Four draws per emitted puff, zero draws on idle ticks.
+constexpr uint64_t AMBIENT_GUST_PRNG_SALT       = 0xB7EE2EE2B7EE2EE2ull;
+constexpr double   AMBIENT_GUST_INTERVAL_MIN    = 5.0;   // sec
+constexpr double   AMBIENT_GUST_INTERVAL_MAX    = 15.0;  // sec
+constexpr double   AMBIENT_GUST_MAG_FACTOR_MIN  = 0.3;   // unitless, fraction of MAX_CURSOR_SPEED
+constexpr double   AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
+constexpr double   AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless, fraction of GUST_RADIUS
+
 constexpr uint32_t MUSHROOM_PALETTE[MUSHROOM_PALETTE_SIZE] = {
     0xFFD32F2Fu, // 0 red (amanita)
     0xFF8D6E63u, // 1 brown

@@ -97,6 +97,17 @@ internal static class Constants
         0xFF6D4C41, // 5 dark brown
     };
 
+    // Ambient gusts (§8.1). Fifth independent PRNG stream salted with
+    // AMBIENT_GUST_PRNG_SALT so the static §12 blade snapshot is
+    // untouched. Per-fire draw order is x, signDir, magFactor, interval —
+    // exactly four draws per emitted puff.
+    public const ulong  AMBIENT_GUST_PRNG_SALT       = 0xB7EE2EE2B7EE2EE2UL;
+    public const double AMBIENT_GUST_INTERVAL_MIN    = 5.0;   // sec
+    public const double AMBIENT_GUST_INTERVAL_MAX    = 15.0;  // sec
+    public const double AMBIENT_GUST_MAG_FACTOR_MIN  = 0.3;   // unitless
+    public const double AMBIENT_GUST_MAG_FACTOR_MAX  = 0.6;
+    public const double AMBIENT_GUST_RADIUS_FACTOR   = 0.5;   // unitless
+
     // Bezier rendering (§7)
     public const double CUT_STUMP_THRESHOLD = 0.05;
     public const double STUMP_HEIGHT = 2.0;            // DIP

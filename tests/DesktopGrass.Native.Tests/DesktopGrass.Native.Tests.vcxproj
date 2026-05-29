@@ -87,6 +87,7 @@
     <ClCompile Include="src\regrowth_tests.cpp" />
     <ClCompile Include="src\flower_tests.cpp" />
     <ClCompile Include="src\mushroom_tests.cpp" />
+    <ClCompile Include="src\ambient_gust_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 

@@ -280,6 +280,43 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
 }
 
 // ---------------------------------------------------------------------------
+// Ambient gusts (§8.1)
+// ---------------------------------------------------------------------------
+
+void sim_apply_ambient_gust(Sim& sim, double x, double signDir, double magFactor) noexcept {
+    const double impulseMagnitude = MAX_CURSOR_SPEED * magFactor * IMPULSE_SCALE;
+    const double radius           = GUST_RADIUS * AMBIENT_GUST_RADIUS_FACTOR;
+    if (signDir == 0.0 || impulseMagnitude == 0.0 || radius <= 0.0) return;
+
+    for (Blade& b : sim.blades) {
+        const double dxAbs = std::fabs(b.baseX - x);
+        if (dxAbs >= radius) continue;
+
+        const double tRaw   = 1.0 - dxAbs / radius;
+        const double s      = std::max(0.0, std::min(1.0, tRaw));
+        const double smooth = s * s * (3.0 - 2.0 * s);
+        b.gustVelocity += impulseMagnitude * smooth * signDir;
+    }
+}
+
+void sim_tick_ambient_gusts(Sim& sim) noexcept {
+    // Per-fire draw order is fixed (§8.1): x, signDir, magFactor, interval.
+    while (sim.globalTime >= sim.nextAmbientGustTime) {
+        const double x         = prng_uniform(sim.ambientPrng, 0.0, sim.monitorWidth);
+        const double signDir   = prng_uniform(sim.ambientPrng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+        const double magFactor = prng_uniform(sim.ambientPrng,
+                                              AMBIENT_GUST_MAG_FACTOR_MIN,
+                                              AMBIENT_GUST_MAG_FACTOR_MAX);
+        sim_apply_ambient_gust(sim, x, signDir, magFactor);
+
+        const double interval  = prng_uniform(sim.ambientPrng,
+                                              AMBIENT_GUST_INTERVAL_MIN,
+                                              AMBIENT_GUST_INTERVAL_MAX);
+        sim.nextAmbientGustTime += interval;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Stroke geometry. architecture.md §7.
 // ---------------------------------------------------------------------------
 
@@ -326,7 +363,18 @@ Stroke compute_blade_stroke(const Blade& b, double groundY) noexcept {
 Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     Sim s;
     s.windowHeight = STRIP_HEIGHT + HEADROOM;
+    s.monitorWidth = monitorWidth;
     generate_blades(seed, monitorWidth, density, s.blades);
+
+    // §8.1 ambient gust scheduler — fifth independent stream, salted off
+    // the same seed. The first interval is drawn immediately so the first
+    // puff never fires at t=0 and every subsequent fire consumes exactly
+    // 4 PRNG draws.
+    prng_init(s.ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
+    s.nextAmbientGustTime = s.globalTime
+                          + prng_uniform(s.ambientPrng,
+                                         AMBIENT_GUST_INTERVAL_MIN,
+                                         AMBIENT_GUST_INTERVAL_MAX);
     return s;
 }
 
@@ -334,7 +382,14 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.globalTime     = 0.0;
     sim.prevCursorX    = 0.0;
     sim.prevCursorTime = -1.0;
+    sim.monitorWidth   = monitorWidth;
     generate_blades(seed, monitorWidth, density, sim.blades);
+
+    prng_init(sim.ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
+    sim.nextAmbientGustTime = sim.globalTime
+                            + prng_uniform(sim.ambientPrng,
+                                           AMBIENT_GUST_INTERVAL_MIN,
+                                           AMBIENT_GUST_INTERVAL_MAX);
 }
 
 void sim_tick(Sim& sim, double dt,
@@ -349,6 +404,8 @@ void sim_tick(Sim& sim, double dt,
             case EventType::Click: sim_apply_click(sim, e); break;
         }
     }
+
+    sim_tick_ambient_gusts(sim);
 
     for (Blade& b : sim.blades) {
         update_blade_dynamics(b, sim.globalTime, dt);

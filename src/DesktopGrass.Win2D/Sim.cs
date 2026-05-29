@@ -123,6 +123,67 @@ internal sealed class Sim
     public double GroundY;        // y coordinate of the ground line in window-local space
     public double WindowHeight;   // for diagnostics
 
+    // Ambient gust scheduler (§8.1). Initialized by ResetAmbientGusts.
+    public Prng AmbientPrng;
+    public double NextAmbientGustTime;
+    public double MonitorWidth;
+
+    // (§8.1) Initialize / reset the ambient gust scheduler. Called by the
+    // window factory after constructing the Sim and assigning MonitorWidth.
+    // Public for unit tests.
+    public void ResetAmbientGusts(ulong seed, double monitorWidth)
+    {
+        AmbientPrng = Prng.Init(seed ^ Constants.AMBIENT_GUST_PRNG_SALT);
+        MonitorWidth = monitorWidth;
+        // First interval drawn immediately so the first puff never fires
+        // at t=0 and every subsequent fire is exactly 4 PRNG draws.
+        NextAmbientGustTime = GlobalTime
+                            + AmbientPrng.Uniform(Constants.AMBIENT_GUST_INTERVAL_MIN,
+                                                   Constants.AMBIENT_GUST_INTERVAL_MAX);
+    }
+
+    // (§8.1) Same impulse kernel as cursor gusts but with GUST_RADIUS *
+    // AMBIENT_GUST_RADIUS_FACTOR and an impulse magnitude parameterised by
+    // magFactor instead of the cursor-derived capped velocity.
+    public void ApplyAmbientGust(double x, double signDir, double magFactor)
+    {
+        double impulseMagnitude = Constants.MAX_CURSOR_SPEED * magFactor * Constants.IMPULSE_SCALE;
+        double radius           = Constants.GUST_RADIUS * Constants.AMBIENT_GUST_RADIUS_FACTOR;
+        if (signDir == 0.0 || impulseMagnitude == 0.0 || radius <= 0.0) return;
+
+        for (int i = 0; i < Blades.Length; i++)
+        {
+            ref Blade b = ref Blades[i];
+            double dxAbs = Math.Abs(b.BaseX - x);
+            if (dxAbs >= radius) continue;
+
+            double tRaw   = 1.0 - dxAbs / radius;
+            double s      = Math.Clamp(tRaw, 0.0, 1.0);
+            double smooth = s * s * (3.0 - 2.0 * s);
+            b.GustVelocity += impulseMagnitude * smooth * signDir;
+        }
+    }
+
+    // (§8.1) Run the ambient gust scheduler one tick. Fires zero or more
+    // puffs depending on how many scheduled fire times GlobalTime has
+    // crossed. Idempotent (zero PRNG draws) on idle ticks.
+    public void TickAmbientGusts()
+    {
+        // Per-fire draw order is fixed (§8.1): x, signDir, magFactor, interval.
+        while (GlobalTime >= NextAmbientGustTime)
+        {
+            double x         = AmbientPrng.Uniform(0.0, MonitorWidth);
+            double signDir   = AmbientPrng.Uniform(0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+            double magFactor = AmbientPrng.Uniform(Constants.AMBIENT_GUST_MAG_FACTOR_MIN,
+                                                    Constants.AMBIENT_GUST_MAG_FACTOR_MAX);
+            ApplyAmbientGust(x, signDir, magFactor);
+
+            double interval  = AmbientPrng.Uniform(Constants.AMBIENT_GUST_INTERVAL_MIN,
+                                                    Constants.AMBIENT_GUST_INTERVAL_MAX);
+            NextAmbientGustTime += interval;
+        }
+    }
+
     // §5 procedural generation.
     public static Blade[] GenerateBlades(ulong seed, double monitorWidth, double density)
     {
@@ -346,6 +407,11 @@ internal sealed class Sim
                 case EventType.Click: ApplyClick(e.X, e.Y, e.Time); break;
             }
         }
+
+        // §8.1 — fire any scheduled ambient gusts that the new GlobalTime
+        // has crossed. Runs BEFORE the per-blade update so puffs contribute
+        // to the same decay step as cursor impulses.
+        TickAmbientGusts();
 
         for (int i = 0; i < Blades.Length; i++)
         {
