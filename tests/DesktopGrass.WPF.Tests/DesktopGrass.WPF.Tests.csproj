@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DesktopGrass.WPF.Tests</RootNamespace>
+    <AssemblyName>DesktopGrass.WPF.Tests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!--
+    File-link the pure-logic source files from the app project instead of a
+    ProjectReference. The app project targets net10.0-windows and depends on
+    Windows desktop frameworks; we want tests to be plain net10.0 so they run
+    on any CI build agent.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\DesktopGrass.WPF\Constants.cs" Link="Shared\Constants.cs" />
+    <Compile Include="..\..\src\DesktopGrass.WPF\Sim.cs" Link="Shared\Sim.cs" />
+
+    <Compile Include="SimTests\PrngTests.cs" />
+    <Compile Include="SimTests\BladeGenTests.cs" />
+    <Compile Include="SimTests\SwayTests.cs" />
+    <Compile Include="SimTests\GustTests.cs" />
+    <Compile Include="SimTests\CutTests.cs" />
+    <Compile Include="SimTests\RegrowthTests.cs" />
+    <Compile Include="InternalsVisible.cs" />
+  </ItemGroup>
+
+</Project>

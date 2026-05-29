@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/DesktopGrass.Native/DesktopGrass.Native.vcxproj" />
     <Project Path="src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj" />
+    <Project Path="src/DesktopGrass.WPF/DesktopGrass.WPF.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj" />
     <Project Path="tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj" />
+    <Project Path="tests/DesktopGrass.WPF.Tests/DesktopGrass.WPF.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,6 +1,6 @@
 # DesktopGrass — Shared Algorithm Specification
 
-This document is the **single source of truth** for the grass simulation. The three v1 implementations — `DesktopGrass.Native` (Win32 + Direct2D, C++), `DesktopGrass.Win2D` (C# + Win2D), and `DesktopGrass.WinUI3` (packaged WinUI 3, C#) — each port the algorithms below into their own language. There is no shared library; the spec **is** the contract.
+This document is the **single source of truth** for the grass simulation. The four v1 implementations — `DesktopGrass.Native` (Win32 + Direct2D, C++), `DesktopGrass.Win2D` (C# + Win2D), `DesktopGrass.WinUI3` (packaged WinUI 3, C#), and `DesktopGrass.WPF` (vanilla .NET WPF, C#) — each port the algorithms below into their own language. There is no shared library; the spec **is** the contract.
 
 For the product goals, window model, input model, and project layout, see [`plan.md`](../plan.md). This document covers only the math/state machine that every implementation must reproduce.
 
@@ -10,9 +10,9 @@ For the product goals, window model, input model, and project layout, see [`plan
 
 DesktopGrass paints a strip of procedurally generated grass along the bottom of every monitor, on top of all windows, fully click-through. The strip sways gently on its own, reacts to cursor motion with localized gusts, and reacts to left-clicks by cutting blades.
 
-The v1 plan calls for **three independent implementations** of the same feature set, so they can be compared side-by-side on LoC, CPU/GPU cost, startup time, and binary size. To make that comparison honest, all three must produce **pixel-equivalent output** for a given `(seed, monitorWidth, density)` and an identical event stream. This spec fixes every constant, function, and ordering decision needed to make that true.
+The v1 plan calls for **four independent implementations** of the same feature set, so they can be compared side-by-side on LoC, CPU/GPU cost, startup time, and binary size. To make that comparison honest, all four must produce **pixel-equivalent output** for a given `(seed, monitorWidth, density)` and an identical event stream. This spec fixes every constant, function, and ordering decision needed to make that true.
 
-Pseudocode is given in a C-like form chosen to port cleanly to C++ (Native), C# (Win2D, WinUI 3), and any future Rust/Go port. Where a port idiom differs (e.g., `Math.Sin` vs `std::sin`), the spec uses the mathematical name (`sin`, `exp`, `sqrt`, `clamp`).
+Pseudocode is given in a C-like form chosen to port cleanly to C++ (Native), C# (Win2D, WinUI 3, WPF), and any future Rust/Go port. Where a port idiom differs (e.g., `Math.Sin` vs `std::sin`), the spec uses the mathematical name (`sin`, `exp`, `sqrt`, `clamp`).
 
 ---
 
@@ -532,7 +532,7 @@ The palette table from §4 (six ARGB values) is also part of this constants set.
 
 ## 12. Conformance
 
-Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests`, `DesktopGrass.Win2D.Tests`, and `DesktopGrass.WinUI3.Tests` can share a single snapshot fixture.
+Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests`, `DesktopGrass.Win2D.Tests`, `DesktopGrass.WinUI3.Tests`, and `DesktopGrass.WPF.Tests` can share a single snapshot fixture. WPF joins as the fourth conformant implementation.
 
 ### Canonical test seed
 
@@ -542,7 +542,7 @@ CANONICAL_TEST_SEED = 0x6B6173746F  // uint64
 
 Tests at minimum SHOULD assert:
 
-1. **PRNG snapshot.** With `prng_init(seed = CANONICAL_TEST_SEED)`, the first 16 outputs of `prng_next_u64` match a fixed snapshot array embedded in each test project. Identical across all three impls.
+1. **PRNG snapshot.** With `prng_init(seed = CANONICAL_TEST_SEED)`, the first 16 outputs of `prng_next_u64` match a fixed snapshot array embedded in each test project. Identical across all four impls.
 
 2. **Blade generation snapshot.** With `(seed = CANONICAL_TEST_SEED, monitorWidth = 1920.0, density = 1.0)`:
    - The blade count matches across impls.
@@ -558,4 +558,4 @@ Tests at minimum SHOULD assert:
 
 6. **Idempotence.** Clicking twice on the same blade within the 200 ms cut window does not change the trajectory of the first cut. Clicking on an already-cut blade is a no-op.
 
-When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to all three impls.
+When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to all four impls.

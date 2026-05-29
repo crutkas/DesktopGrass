@@ -97,6 +97,7 @@ These are file-level counts from the current checkout. Mixed-purpose files are a
 | Native | 39,936 B | 39,936 B exe-only; `out\Release` is 1,920,000 B including PDB | `vcpkg.json` has no runtime deps. Tests vendor single-header Catch2. Links Win32, D3D11, DXGI, D2D1, DComp, Shell32, Shcore. | Windows with Direct2D/DirectComposition/D3D11; MSVC runtime because Release uses `/MD`. |
 | Win2D-ish / Vortice | 152,576 B | 27,316,872 B framework-dependent `bin\Release\net8.0-windows10.0.19041.0` output, 15 files | `Vortice.Direct2D1`, `Vortice.Direct3D11`, `Vortice.DXGI`, `Vortice.DirectComposition` 3.6.2; SharpGen runtime DLLs; `Microsoft.Windows.SDK.NET.dll`; tests use xUnit. | .NET 8 WindowsDesktop/WinForms runtime; Windows 10 1809+ APIs. |
 | WinUI 3 | 272,384 B | 168,842,065 B self-contained `bin\Release\net8.0-windows10.0.19041.0\win-x64` output, 447 files | `Microsoft.WindowsAppSDK` 1.6.250108002, `Microsoft.Windows.SDK.BuildTools`, `Microsoft.Graphics.Win2D`, `H.NotifyIcon.WinUI`; output carries WinUI/XAML and .NET runtime payload. | Current project is `WindowsPackageType=None`, `SelfContained=true`, `WindowsAppSDKSelfContained=true`. A framework-dependent packaged variant would require the WinAppSDK runtime, 1.5+ class / 1.6 for this package line. |
+| WPF | (not measured) | (not measured) framework-dependent `bin\Release\net10.0-windows10.0.19041.0` output | No package references; uses WindowsDesktop WPF plus WindowsForms `NotifyIcon`; tests use xUnit. | .NET 10 WindowsDesktop/WPF runtime; Windows 10 1809+ APIs. |
 
 ## Build experience
 

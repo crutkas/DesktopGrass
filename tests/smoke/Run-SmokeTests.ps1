@@ -6,7 +6,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('Native','Win2D','WinUI3','All')]
+    [ValidateSet('Native','Win2D','WinUI3','WPF','All')]
     [string] $Target = 'All',
 
     [string] $Configuration = 'Release',
@@ -72,6 +72,10 @@ $Targets = [ordered]@{
         # sets the title to exactly "DesktopGrass.WinUI3.Window" at construction.
         ExePath    = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WinUI3') -ExeName 'DesktopGrass.WinUI3.exe' -Configuration $Configuration
         TitleMatch = '^DesktopGrass\.WinUI3\.Window$'
+    }
+    'WPF' = @{
+        ExePath    = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.WPF') -ExeName 'DesktopGrass.WPF.exe' -Configuration $Configuration
+        TitleMatch = '^DesktopGrass\.WPF\.Window$'
     }
 }
 
