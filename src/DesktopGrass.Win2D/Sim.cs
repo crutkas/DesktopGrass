@@ -188,13 +188,17 @@ internal sealed class Sim
         CurrentScene = s;
         Entities.Clear();
 
+        // Every scene transition starts from a clean blade-variant slate so
+        // that e.g. Desert→Winter doesn't leave cacti on screen. Desert then
+        // promotes selected slots back into cacti below.
+        for (int i = 0; i < Blades.Length; i++)
+        {
+            RestoreOriginalVariants(ref Blades[i]);
+        }
+
         switch (s)
         {
             case Scene.Grass:
-                for (int i = 0; i < Blades.Length; i++)
-                {
-                    RestoreOriginalVariants(ref Blades[i]);
-                }
                 break;
             case Scene.Desert:
                 GenerateCactiForDesert(this);

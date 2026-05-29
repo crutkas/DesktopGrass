@@ -434,11 +434,15 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
     sim.currentScene = s;
     sim.entities.clear();
 
+    // Every scene transition starts from a clean blade-variant slate so that
+    // e.g. Desert→Winter doesn't leave cacti on screen. Desert then promotes
+    // selected slots back into cacti below.
+    for (Blade& b : sim.blades) {
+        restore_original_variants(b);
+    }
+
     switch (s) {
     case Scene::Grass:
-        for (Blade& b : sim.blades) {
-            restore_original_variants(b);
-        }
         break;
     case Scene::Desert:
         generate_cacti_for_desert(sim);
