@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cmath>
+#include <algorithm>
 
 using namespace desktopgrass;
 using namespace desktopgrass::test;
@@ -85,6 +86,7 @@ TEST_CASE("First winter snowflake matches spec-derived PRNG snapshot", "[winter]
 
 TEST_CASE("Snowflake sway velocity wobbles from seed phase", "[winter][entities]") {
     Sim sim = MakeWinterTestSim();
+    sim.currentScene = Scene::Desert;
     Entity e{};
     e.kind = EntityKind::Snowflake;
     e.seed = 0;
@@ -101,6 +103,7 @@ TEST_CASE("Snowflake sway velocity wobbles from seed phase", "[winter][entities]
 
 TEST_CASE("Snowflakes are culled after lifetime", "[winter][entities]") {
     Sim sim = MakeWinterTestSim();
+    sim.currentScene = Scene::Desert;
     Entity e{};
     e.kind = EntityKind::Snowflake;
     e.lifetime = 1.0;
@@ -114,6 +117,7 @@ TEST_CASE("Snowflakes are culled after lifetime", "[winter][entities]") {
 
 TEST_CASE("Snowflakes are culled below ground line", "[winter][entities]") {
     Sim sim = MakeWinterTestSim();
+    sim.currentScene = Scene::Desert;
     Entity e{};
     e.kind = EntityKind::Snowflake;
     e.y = sim.windowHeight + 5.0;
@@ -159,7 +163,8 @@ TEST_CASE("Snowflakes do not emit in non-winter scenes", "[winter][entities][sce
     sim_set_scene(sim, Scene::Grass);
     sim.nextSnowflakeSpawnTime = 0.0;
     sim_tick(sim, 2.0, nullptr, 0);
-    REQUIRE(sim.entities.empty());
+    REQUIRE(std::none_of(sim.entities.begin(), sim.entities.end(),
+        [](const Entity& e) { return e.kind == EntityKind::Snowflake; }));
 
     sim_set_scene(sim, Scene::Desert);
     sim.entities.clear();

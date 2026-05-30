@@ -224,6 +224,7 @@ enum class EntityKind : uint8_t {
     Snowflake  = 2,
     Sheep      = 3,
     Cat        = 4,
+    Raindrop   = 5,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -411,6 +412,20 @@ constexpr double   SNOWFLAKE_SWAY_FREQUENCY        = 0.6;    // Hz
 constexpr double   SNOWFLAKE_LIFETIME_PADDING_SEC  = 2.0;
 constexpr uint32_t SNOWFLAKE_COLOR                 = 0xFFFFFFFFu;
 constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
+
+// Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
+// size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
+constexpr uint64_t RAINDROP_PRNG_SALT              = 0xD40F0A1DD40F0A1Dull;
+constexpr double   RAINDROP_EMIT_RATE_PER_1920DIP  = 6.0;    // drops/sec
+constexpr double   RAINDROP_LENGTH_MIN             = 4.0;    // DIP
+constexpr double   RAINDROP_LENGTH_MAX             = 7.0;
+constexpr double   RAINDROP_THICKNESS              = 0.9;    // DIP
+constexpr double   RAINDROP_FALL_SPEED_MIN         = 240.0;  // DIP/sec
+constexpr double   RAINDROP_FALL_SPEED_MAX         = 360.0;
+constexpr double   RAINDROP_DRIFT_MIN              = -8.0;   // DIP/sec
+constexpr double   RAINDROP_DRIFT_MAX              = 8.0;
+constexpr uint32_t RAINDROP_COLOR                  = 0x88B0C4D0u;
+constexpr double   RAINDROP_LIFETIME_PADDING_SEC   = 0.3;
 
 // Snow-tipped blade caps (§15)
 constexpr double   SNOW_TIP_RADIUS_FACTOR          = 1.25;

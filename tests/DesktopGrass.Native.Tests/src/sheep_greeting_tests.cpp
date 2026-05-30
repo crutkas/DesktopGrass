@@ -212,6 +212,7 @@ TEST_CASE("Greeting trigger consumes one PRNG draw per pair", "[sheep][greeting]
 
 TEST_CASE("Single sheep cannot enter Greeting", "[sheep][greeting]") {
     Sim sim = build_sheep_sim();
+    sim.currentScene = Scene::Desert;
     REQUIRE(sim.entities.size() >= 1);
     sim.entities.erase(sim.entities.begin() + 1, sim.entities.end());
     set_sheep(sim, 0, 500.0, 20.0);

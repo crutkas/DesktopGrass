@@ -368,6 +368,20 @@ internal static class Constants
     public const uint SNOWFLAKE_COLOR = 0xFFFFFFFFu;
     public const ulong SNOWFLAKE_PRNG_SALT = 0xC0FFEE1CECAFEBABul;
 
+    // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
+    // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
+    public const ulong RAINDROP_PRNG_SALT = 0xD40F0A1DD40F0A1Dul;
+    public const double RAINDROP_EMIT_RATE_PER_1920DIP = 6.0;
+    public const double RAINDROP_LENGTH_MIN = 4.0;
+    public const double RAINDROP_LENGTH_MAX = 7.0;
+    public const double RAINDROP_THICKNESS = 0.9;
+    public const double RAINDROP_FALL_SPEED_MIN = 240.0;
+    public const double RAINDROP_FALL_SPEED_MAX = 360.0;
+    public const double RAINDROP_DRIFT_MIN = -8.0;
+    public const double RAINDROP_DRIFT_MAX = 8.0;
+    public const uint RAINDROP_COLOR = 0x88B0C4D0u;
+    public const double RAINDROP_LIFETIME_PADDING_SEC = 0.3;
+
     // Snow-tipped blade caps (§15)
     public const double SNOW_TIP_RADIUS_FACTOR = 1.25;
     public const uint SNOW_TIP_COLOR = 0xFFFFFFFFu;

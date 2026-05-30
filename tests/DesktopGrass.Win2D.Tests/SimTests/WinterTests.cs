@@ -103,6 +103,7 @@ public class WinterTests
     public void SnowflakeSwayVelocityWobblesFromSeedPhase()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         sim.Entities.Add(new Entity
         {
             Kind = EntityKind.Snowflake,
@@ -123,6 +124,7 @@ public class WinterTests
     public void SnowflakesAreCulledAfterLifetime()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         sim.Entities.Add(new Entity
         {
             Kind = EntityKind.Snowflake,
@@ -139,6 +141,7 @@ public class WinterTests
     public void SnowflakesAreCulledBelowGroundLine()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         sim.Entities.Add(new Entity
         {
             Kind = EntityKind.Snowflake,
@@ -193,7 +196,7 @@ public class WinterTests
         sim.SetScene(Scene.Grass);
         sim.NextSnowflakeSpawnTime = 0.0;
         sim.Tick(2.0, System.ReadOnlySpan<InputEvent>.Empty);
-        Assert.Empty(sim.Entities);
+        Assert.DoesNotContain(sim.Entities, e => e.Kind == EntityKind.Snowflake);
 
         sim.SetScene(Scene.Desert);
         sim.Entities.Clear();

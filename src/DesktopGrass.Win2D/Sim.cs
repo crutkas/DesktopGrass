@@ -121,9 +121,9 @@ internal struct Blade
 }
 
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), and cats (§17) live in Sim.Entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5 }
 
 public struct Entity
 {
@@ -180,10 +180,9 @@ internal sealed class Sim
     // blades or perturb any PRNG stream.
     public Scene CurrentScene = Constants.SCENE_DEFAULT;
 
-    // Roaming entities (§13.2). Empty in the Grass scene; populated by the
-    // per-scene generators dispatched from SetScene (Desert: tumbleweeds,
-    // Winter: snowflakes). Pre-sized to MAX_ENTITIES_PER_MONITOR capacity
-    // at construction so the tick path never grows the list.
+    // Roaming entities (§13.2). Grass emits raindrops over time; Desert and
+    // Winter add their own scene entities via SetScene. Pre-sized to
+    // MAX_ENTITIES_PER_MONITOR capacity at construction so the tick path never grows the list.
     public List<Entity> Entities = new(Constants.MAX_ENTITIES_PER_MONITOR);
 
     // Per-scene entity-stream seed. Initially zero; set by ResetEntities().
@@ -195,6 +194,11 @@ internal sealed class Sim
     // §15 snowflake emitter (Winter scene only).
     public Prng SnowflakePrng;
     public double NextSnowflakeSpawnTime;
+
+    // §20 raindrop emitter (Grass scene only). Scene transitions preserve
+    // existing raindrops for a soft fade-out while the spawner is scene-gated.
+    public Prng RaindropPrng;
+    public double NextRaindropSpawnTime;
 
     // Critter subsystem (§13.3 / §16). Independent of Scene. CurrentCritter
     // drives which (if any) generator runs at the END of SetScene so critter
@@ -235,7 +239,9 @@ internal sealed class Sim
     public void SetScene(Scene s)
     {
         CurrentScene = s;
-        Entities.Clear();
+        // Soft-fade Grass rain: scene transitions remove hard scene entities but
+        // preserve finite-lifetime raindrops so they naturally fall out.
+        RemoveSceneTransitionEntities();
 
         // Every scene transition starts from a clean blade-variant slate so
         // that e.g. Desert→Winter doesn't leave cacti on screen. Desert then
@@ -248,6 +254,7 @@ internal sealed class Sim
         switch (s)
         {
             case Scene.Grass:
+                NextRaindropSpawnTime = GlobalTime;
                 break;
             case Scene.Desert:
                 GenerateCactiForDesert(this);
@@ -272,7 +279,7 @@ internal sealed class Sim
     {
         CurrentCritter = c;
         // Erase only critter entities — scene entities (tumbleweeds,
-        // snowflakes) are preserved across critter toggles.
+        // snowflakes, raindrops) are preserved across critter toggles.
         RemoveCritters();
         GenerateCrittersForKind(this);
     }
@@ -286,6 +293,9 @@ internal sealed class Sim
 
     private void RemoveCritters() =>
         Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat);
+
+    private void RemoveSceneTransitionEntities() =>
+        Entities.RemoveAll(e => e.Kind != EntityKind.Raindrop);
 
     private static void GenerateCrittersForKind(Sim sim)
     {
@@ -380,6 +390,8 @@ internal sealed class Sim
     {
         EntitySeed = seed;
         Entities.Clear();
+        RaindropPrng = Prng.Init(EntitySeed ^ Constants.RAINDROP_PRNG_SALT);
+        NextRaindropSpawnTime = GlobalTime;
     }
 
     private static void RestoreOriginalVariants(ref Blade b)
@@ -574,8 +586,8 @@ internal sealed class Sim
             Entities[i] = e;
         }
 
-        Entities.RemoveAll(e => e.Kind == EntityKind.Snowflake
-                             && (e.Age >= e.Lifetime || e.Y > groundY));
+        Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)
+                             || (e.Kind == EntityKind.Snowflake && e.Y > groundY));
 
         // §16 Sheep state machine. Walking moves horizontally and bounces off
         // the edges; Grazing/Idle/Sleeping/Greeting freeze position (the generic
@@ -828,6 +840,31 @@ internal sealed class Sim
                 e.Seed = SnowflakePrng.NextU32();
                 Entities.Add(e);
                 NextSnowflakeSpawnTime += SnowflakePrng.Exponential(lambda);
+            }
+        }
+
+        if (CurrentScene == Scene.Grass && MonitorWidth > 0.0)
+        {
+            double lambda = Constants.RAINDROP_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
+            while (GlobalTime >= NextRaindropSpawnTime && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+            {
+                Entity e = default;
+                e.Kind = EntityKind.Raindrop;
+                // Draw order: size, x, fallSpeed, vx, seed, then next-spawn exponential.
+                e.Size = RaindropPrng.Uniform(Constants.RAINDROP_LENGTH_MIN, Constants.RAINDROP_LENGTH_MAX);
+                e.X = RaindropPrng.Uniform(-10.0, MonitorWidth + 10.0);
+                double fallSpeed = RaindropPrng.Uniform(Constants.RAINDROP_FALL_SPEED_MIN,
+                                                        Constants.RAINDROP_FALL_SPEED_MAX);
+                e.Y = -e.Size - 2.0;
+                e.Vx = RaindropPrng.Uniform(Constants.RAINDROP_DRIFT_MIN, Constants.RAINDROP_DRIFT_MAX);
+                e.Vy = fallSpeed;
+                e.Rotation = 0.0;
+                e.RotationSpeed = 0.0;
+                e.Age = 0.0;
+                e.Lifetime = (groundY + e.Size) / fallSpeed + Constants.RAINDROP_LIFETIME_PADDING_SEC;
+                e.Seed = RaindropPrng.NextU32();
+                Entities.Add(e);
+                NextRaindropSpawnTime += RaindropPrng.Exponential(lambda);
             }
         }
     }

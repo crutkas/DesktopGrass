@@ -147,7 +147,7 @@ struct InputEvent {
 
 // ---------------------------------------------------------------------------
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), and cats (§17) live in sim.entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), and raindrops (§20) live in sim.entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on `kind`.
 // ---------------------------------------------------------------------------
 
@@ -190,10 +190,9 @@ struct Sim {
     // Current scene (§13). Default Grass; updated by sim_set_scene.
     Scene              currentScene        = SCENE_DEFAULT;
 
-    // Roaming entities (§13.2). Empty in the Grass scene; populated by the
-    // per-scene generators dispatched from sim_set_scene (Desert: tumbleweeds,
-    // Winter: snowflakes). Pre-reserved to MAX_ENTITIES_PER_MONITOR at init
-    // so the tick path never grows the vector.
+    // Roaming entities (§13.2). Grass emits raindrops over time; Desert and
+    // Winter add their own scene entities via sim_set_scene. Pre-reserved to
+    // MAX_ENTITIES_PER_MONITOR at init so the tick path never grows the vector.
     std::vector<Entity> entities;
 
     // Per-scene entity-stream seed. Set at sim_init; used by sim_set_scene
@@ -207,6 +206,11 @@ struct Sim {
     // §15 snowflake emitter (Winter scene only)
     Prng               snowflakePrng       = { 0 };
     double             nextSnowflakeSpawnTime = 0.0;
+
+    // §20 raindrop emitter (Grass scene only). Scene transitions preserve
+    // existing raindrops for a soft fade-out while the spawner is scene-gated.
+    Prng               raindropPrng        = { 0 };
+    double             nextRaindropSpawnTime = 0.0;
 
     // Critter subsystem (§16). Independent of currentScene. critterPrng is
     // seeded from entitySeed XOR CRITTER_PRNG_SALT at generation time.

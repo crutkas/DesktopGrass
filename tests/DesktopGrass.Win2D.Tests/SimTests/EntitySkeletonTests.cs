@@ -30,6 +30,9 @@ public class EntitySkeletonTests
         Assert.Equal(0, (int)EntityKind.None);
         Assert.Equal(1, (int)EntityKind.Tumbleweed);
         Assert.Equal(2, (int)EntityKind.Snowflake);
+        Assert.Equal(3, (int)EntityKind.Sheep);
+        Assert.Equal(4, (int)EntityKind.Cat);
+        Assert.Equal(5, (int)EntityKind.Raindrop);
         Assert.Equal(64, Constants.MAX_ENTITIES_PER_MONITOR);
     }
 
@@ -58,9 +61,10 @@ public class EntitySkeletonTests
     }
 
     [Fact]
-    public void TickEntitiesIsNoOpOnEmpty()
+    public void TickEntitiesIsNoOpOnEmptyOutsideGrass()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         ulong prngBefore = sim.AmbientPrng.State;
         int bladesBefore = sim.Blades.Length;
 
@@ -76,6 +80,7 @@ public class EntitySkeletonTests
     public void TickEntitiesAdvancesPopulatedEntity()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         sim.Entities.Add(new Entity
         {
             Kind          = EntityKind.Tumbleweed,
@@ -106,6 +111,7 @@ public class EntitySkeletonTests
     public void TickCallsTickEntitiesWiringCheck()
     {
         var sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         sim.Entities.Add(new Entity
         {
             Kind     = EntityKind.Snowflake,

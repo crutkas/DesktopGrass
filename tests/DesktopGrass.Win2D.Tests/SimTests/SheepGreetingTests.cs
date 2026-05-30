@@ -233,6 +233,7 @@ public class SheepGreetingTests
     public void SingleSheepCannotEnterGreeting()
     {
         Sim sim = BuildSim();
+        sim.CurrentScene = Scene.Desert;
         Assert.True(sim.Entities.Count >= 1);
         sim.Entities.RemoveRange(1, sim.Entities.Count - 1);
         SetSheep(sim, 0, 500.0, 20.0);

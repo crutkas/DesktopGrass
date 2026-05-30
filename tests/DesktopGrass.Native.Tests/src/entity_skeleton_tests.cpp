@@ -22,6 +22,9 @@ TEST_CASE("EntityKind has spec-locked discriminants", "[entities][enum]") {
     REQUIRE(static_cast<int>(EntityKind::None)       == 0);
     REQUIRE(static_cast<int>(EntityKind::Tumbleweed) == 1);
     REQUIRE(static_cast<int>(EntityKind::Snowflake)  == 2);
+    REQUIRE(static_cast<int>(EntityKind::Sheep)      == 3);
+    REQUIRE(static_cast<int>(EntityKind::Cat)        == 4);
+    REQUIRE(static_cast<int>(EntityKind::Raindrop)   == 5);
     REQUIRE(MAX_ENTITIES_PER_MONITOR == 64);
 }
 
@@ -46,8 +49,9 @@ TEST_CASE("sim_set_scene clears entities", "[entities][scene]") {
     REQUIRE(sim.entities.capacity() >= static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR));
 }
 
-TEST_CASE("sim_tick_entities is a no-op on empty", "[entities][tick]") {
+TEST_CASE("sim_tick_entities is a no-op on empty outside Grass", "[entities][tick]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
+    sim.currentScene = Scene::Desert;
     const auto bladesBefore = sim.blades.size();
     const auto prngBefore   = sim.ambientPrng.state;
 
@@ -61,6 +65,7 @@ TEST_CASE("sim_tick_entities is a no-op on empty", "[entities][tick]") {
 
 TEST_CASE("sim_tick_entities advances a populated entity", "[entities][tick]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
+    sim.currentScene = Scene::Desert;
     Entity e{};
     e.kind          = EntityKind::Tumbleweed;
     e.x             = 100.0;
@@ -89,6 +94,7 @@ TEST_CASE("sim_tick_entities advances a populated entity", "[entities][tick]") {
 
 TEST_CASE("sim_tick calls sim_tick_entities (wiring check)", "[entities][tick]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
+    sim.currentScene = Scene::Desert;
     Entity e{};
     e.kind = EntityKind::Snowflake;
     e.x = 0.0; e.y = 0.0;

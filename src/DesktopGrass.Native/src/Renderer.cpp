@@ -183,6 +183,11 @@ bool Renderer::CreateDeviceResources() {
                                             snowflakeBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    raindropBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RAINDROP_COLOR),
+                                            raindropBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     snowTipBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_TIP_COLOR),
                                             snowTipBrush_.ReleaseAndGetAddressOf());
@@ -327,6 +332,7 @@ void Renderer::DiscardDeviceResources() {
     cactusBrush_.Reset();
     tumbleweedBrush_.Reset();
     snowflakeBrush_.Reset();
+    raindropBrush_.Reset();
     snowTipBrush_.Reset();
     pineBrush_.Reset();
     birchBarkBrush_.Reset();
@@ -1092,6 +1098,18 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
         if (e.kind == EntityKind::Cat) {
             DrawCat(e, cursorPosition);
             DrawPetName(e, cursorPosition);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Raindrop) {
+            const float x1 = static_cast<float>(e.x);
+            const float y1 = static_cast<float>(e.y);
+            const float x2 = static_cast<float>(e.x - e.vx * 0.03);
+            const float y2 = static_cast<float>(e.y + e.size);
+            d2dContext_->DrawLine(D2D1::Point2F(x1, y1),
+                                  D2D1::Point2F(x2, y2),
+                                  raindropBrush_.Get(),
+                                  static_cast<float>(RAINDROP_THICKNESS));
             continue;
         }
 
