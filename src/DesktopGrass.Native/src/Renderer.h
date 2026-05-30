@@ -14,6 +14,9 @@
 #include <dxgi1_3.h>
 #include <d2d1_3.h>
 #include <dcomp.h>
+#include <dwrite.h>
+
+#include <unordered_map>
 
 #include "Sim.h"
 
@@ -66,6 +69,7 @@ private:
     void DrawGrass();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
+    void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
     HWND                                   hwnd_ = nullptr;
@@ -105,12 +109,17 @@ private:
     ComPtr<ID2D1SolidColorBrush>           catFaceBrush_;
     ComPtr<ID2D1SolidColorBrush>           catEarBrush_;
     ComPtr<ID2D1SolidColorBrush>           catInkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
+    ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
+    ComPtr<IDWriteFactory>                 dwriteFactory_;
+    ComPtr<IDWriteTextFormat>              petNameTextFormat_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;
     ComPtr<IDCompositionVisual>            dcompVisual_;
 
     Sim                                    sim_{};
+    std::unordered_map<uint64_t, double>   petNameLastHover_;
     bool                                   initialized_ = false;
 };
 

@@ -57,6 +57,14 @@ public class CritterTests
         Assert.Equal(Constants.SHEEP_COUNT_MIN, Constants.PET_COUNT_DEFAULT_SHEEP);
         Assert.Equal(Constants.CAT_COUNT_MIN, Constants.PET_COUNT_DEFAULT_CAT);
         Assert.Equal(6, Constants.PET_COUNT_MAX_PER_MONITOR);
+        Assert.Equal(new[] { "Bessie", "Wooly", "Clover", "Daisy", "Pippin", "Buttercup", "Mossy", "Hazel" }, Constants.SHEEP_NAME_POOL);
+        Assert.Equal(new[] { "Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno" }, Constants.CAT_NAME_POOL);
+        Assert.Equal(50.0, Constants.PET_NAME_HOVER_RADIUS);
+        Assert.Equal(1.5, Constants.PET_NAME_FADE_DURATION);
+        Assert.Equal(11.0, Constants.PET_NAME_FONT_SIZE);
+        Assert.Equal(-8.0, Constants.PET_NAME_OFFSET_Y);
+        Assert.Equal(0xFFFFFFFFu, Constants.PET_NAME_COLOR);
+        Assert.Equal(0xC0000000u, Constants.PET_NAME_SHADOW_COLOR);
         Assert.Equal(14.0, Constants.SHEEP_WALK_SPEED_MIN);
         Assert.Equal(26.0, Constants.SHEEP_WALK_SPEED_MAX);
         Assert.Equal(12.0, Constants.SHEEP_BODY_RADIUS);
@@ -121,6 +129,7 @@ public class CritterTests
             Assert.Equal(groundY - Constants.SHEEP_BODY_HEIGHT - Constants.SHEEP_LEG_LENGTH,
                          e.Y, 9);
             Assert.True(e.Lifetime < 0.0); // sheep don't expire
+            Assert.True(e.NameIndex < Constants.SHEEP_NAME_POOL.Length);
         }
     }
 
@@ -129,7 +138,7 @@ public class CritterTests
     {
         // Independent side stream walking the locked sequence:
         //   count
-        //   per-sheep: x, speed, dir-coin, seed, stateTimer
+        //   per-sheep: x, speed, dir-coin, seed, stateTimer, nameIndex
         var side = Prng.Init(Constants.CANONICAL_TEST_SEED ^ Constants.CRITTER_PRNG_SALT);
 
         var sim = BuildSim();
@@ -154,14 +163,39 @@ public class CritterTests
             uint expectedSeed = side.NextU32();
             double expectedTimer = side.Uniform(
                 Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            byte expectedNameIndex = (byte)side.Index((uint)Constants.SHEEP_NAME_POOL.Length);
 
             Assert.Equal(expectedX, e.X, 9);
             Assert.Equal(expectedSpeed * expectedDir, e.Vx, 9);
             Assert.Equal(expectedSeed, e.Seed);
             Assert.Equal(expectedTimer, e.StateTimer, 9);
+            Assert.Equal(expectedNameIndex, e.NameIndex);
             seen++;
         }
         Assert.Equal(expectedCount, seen);
+    }
+
+    [Fact]
+    public void CanonicalCritterNameIndicesAreStableAndSpeciesLocal()
+    {
+        var sim = BuildSim();
+        sim.SetCritter(CritterKind.Sheep);
+        byte[] expectedSheepNames = { 4, 7 };
+        var sheep = sim.Entities.Where(e => e.Kind == EntityKind.Sheep).ToArray();
+        Assert.Equal(expectedSheepNames.Length, sheep.Length);
+        for (int i = 0; i < sheep.Length; i++)
+        {
+            Assert.Equal(expectedSheepNames[i], sheep[i].NameIndex);
+            Assert.True(sheep[i].NameIndex < Constants.SHEEP_NAME_POOL.Length);
+            Assert.Equal(i == 0 ? "Pippin" : "Hazel", Constants.SHEEP_NAME_POOL[sheep[i].NameIndex]);
+        }
+
+        sim.SetCritter(CritterKind.Cat);
+        var cats = sim.Entities.Where(e => e.Kind == EntityKind.Cat).ToArray();
+        Assert.Single(cats);
+        Assert.Equal((byte)4, cats[0].NameIndex);
+        Assert.True(cats[0].NameIndex < Constants.CAT_NAME_POOL.Length);
+        Assert.Equal("Smokey", Constants.CAT_NAME_POOL[cats[0].NameIndex]);
     }
 
     [Fact]
@@ -215,11 +249,13 @@ public class CritterTests
             uint expectedSeed = side.NextU32();
             double expectedTimer = side.Uniform(
                 Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            byte expectedNameIndex = (byte)side.Index((uint)Constants.SHEEP_NAME_POOL.Length);
 
             Assert.Equal(expectedX, e.X, 9);
             Assert.Equal(expectedSpeed * expectedDir, e.Vx, 9);
             Assert.Equal(expectedSeed, e.Seed);
             Assert.Equal(expectedTimer, e.StateTimer, 9);
+            Assert.Equal(expectedNameIndex, e.NameIndex);
             seen++;
         }
         Assert.Equal(3, seen);

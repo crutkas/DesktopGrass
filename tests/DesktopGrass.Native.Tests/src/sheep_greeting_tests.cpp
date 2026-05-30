@@ -71,6 +71,7 @@ int advance_side_past_sheep_generation(Prng& side) {
         (void)prng_uniform(side, 0.0, 1.0);
         (void)prng_next_u32(side);
         (void)prng_uniform(side, SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX);
+        (void)prng_index(side, static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0])));
     }
     return expectedCount;
 }

@@ -20,7 +20,7 @@
 //     re-spawns sheep on the new scene.
 //   * Sheep PRNG draw order is bit-identical to a side-stream Prng for the
 //     locked sequence (count, then per-sheep: x, speed, dir-coin, seed,
-//     stateTimer).
+//     stateTimer, nameIndex).
 //   * Click within SHEEP_STARTLE_RADIUS pushes a sheep into Hopping, flips
 //     vx away from the cursor, and resets age.
 //   * Click outside SHEEP_STARTLE_RADIUS leaves sheep state untouched.
@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cwchar>
 
 using namespace desktopgrass;
 
@@ -67,6 +68,18 @@ TEST_CASE("Sheep constants are pinned to spec values", "[critter][constants]") {
     REQUIRE(PET_COUNT_DEFAULT_SHEEP == SHEEP_COUNT_MIN);
     REQUIRE(PET_COUNT_DEFAULT_CAT == CAT_COUNT_MIN);
     REQUIRE(PET_COUNT_MAX_PER_MONITOR == 6);
+    REQUIRE(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]) == 8);
+    REQUIRE(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]) == 8);
+    REQUIRE(std::wcscmp(SHEEP_NAME_POOL[0], L"Bessie") == 0);
+    REQUIRE(std::wcscmp(SHEEP_NAME_POOL[7], L"Hazel") == 0);
+    REQUIRE(std::wcscmp(CAT_NAME_POOL[0], L"Mittens") == 0);
+    REQUIRE(std::wcscmp(CAT_NAME_POOL[7], L"Juno") == 0);
+    REQUIRE(PET_NAME_HOVER_RADIUS == Approx(50.0));
+    REQUIRE(PET_NAME_FADE_DURATION == Approx(1.5));
+    REQUIRE(PET_NAME_FONT_SIZE == Approx(11.0));
+    REQUIRE(PET_NAME_OFFSET_Y == Approx(-8.0));
+    REQUIRE(PET_NAME_COLOR == 0xFFFFFFFFu);
+    REQUIRE(PET_NAME_SHADOW_COLOR == 0xC0000000u);
     REQUIRE(SHEEP_WALK_SPEED_MIN == Approx(14.0));
     REQUIRE(SHEEP_WALK_SPEED_MAX == Approx(26.0));
     REQUIRE(SHEEP_BODY_RADIUS    == Approx(12.0));
@@ -124,13 +137,14 @@ TEST_CASE("sim_set_critter(Sheep) produces deterministic flock", "[critter][gen]
         REQUIRE(e.x <= sim.monitorWidth - margin);
         REQUIRE(e.y == Approx(groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH));
         REQUIRE(e.lifetime < 0.0); // infinite — sheep don't expire
+        REQUIRE(e.nameIndex < sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]));
     }
 }
 
 TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
     // Independent side stream that walks the documented sequence:
     //   count
-    //   per-sheep: x, speed, dir-coin, seed, stateTimer
+    //   per-sheep: x, speed, dir-coin, seed, stateTimer, nameIndex
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
 
@@ -153,14 +167,45 @@ TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
         const double expectedDir = (dirCoin < 0.5) ? -1.0 : 1.0;
         const uint32_t expectedSeed = prng_next_u32(side);
         const double expectedTimer = prng_uniform(side, SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX);
+        const uint8_t expectedNameIndex = static_cast<uint8_t>(prng_index(side,
+            static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))));
 
         REQUIRE(e.x == Approx(expectedX));
         REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
         REQUIRE(e.seed == expectedSeed);
         REQUIRE(e.stateTimer == Approx(expectedTimer));
+        REQUIRE(e.nameIndex == expectedNameIndex);
         ++seen;
     }
     REQUIRE(seen == expectedCount);
+}
+
+TEST_CASE("canonical critter name indices are stable and species-local", "[critter][names]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+    const uint8_t expectedSheepNames[] = { 4, 7 };
+    int sheepSeen = 0;
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Sheep) continue;
+        REQUIRE(sheepSeen < static_cast<int>(sizeof(expectedSheepNames) / sizeof(expectedSheepNames[0])));
+        REQUIRE(e.nameIndex == expectedSheepNames[sheepSeen]);
+        REQUIRE(std::wcscmp(SHEEP_NAME_POOL[e.nameIndex], sheepSeen == 0 ? L"Pippin" : L"Hazel") == 0);
+        ++sheepSeen;
+    }
+    REQUIRE(sheepSeen == 2);
+
+    sim_set_critter(sim, CritterKind::Cat);
+    const uint8_t expectedCatNames[] = { 4 };
+    int catSeen = 0;
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Cat) continue;
+        REQUIRE(catSeen < static_cast<int>(sizeof(expectedCatNames) / sizeof(expectedCatNames[0])));
+        REQUIRE(e.nameIndex == expectedCatNames[catSeen]);
+        REQUIRE(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+        REQUIRE(std::wcscmp(CAT_NAME_POOL[e.nameIndex], L"Smokey") == 0);
+        ++catSeen;
+    }
+    REQUIRE(catSeen == 1);
 }
 
 TEST_CASE("sim_set_critter_count(0) preserves random sheep count draw", "[critter][count]") {
@@ -208,11 +253,14 @@ TEST_CASE("fixed sheep count override skips the count PRNG draw", "[critter][cou
         const double expectedDir = (dirCoin < 0.5) ? -1.0 : 1.0;
         const uint32_t expectedSeed = prng_next_u32(side);
         const double expectedTimer = prng_uniform(side, SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX);
+        const uint8_t expectedNameIndex = static_cast<uint8_t>(prng_index(side,
+            static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))));
 
         REQUIRE(e.x == Approx(expectedX));
         REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
         REQUIRE(e.seed == expectedSeed);
         REQUIRE(e.stateTimer == Approx(expectedTimer));
+        REQUIRE(e.nameIndex == expectedNameIndex);
         ++seen;
     }
     REQUIRE(seen == 3);

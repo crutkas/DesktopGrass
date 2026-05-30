@@ -1440,10 +1440,13 @@ generate_critters_sheep(sim):
         dirCoin    = critterPrng.uniform(0, 1)                            // <0.5 → -1, else +1
         seed       = critterPrng.next_u32()
         stateTimer = critterPrng.uniform(SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX)
+        nameIndex  = critterPrng.index(SHEEP_NAME_POOL.size)      // one draw after stateTimer
         state      = SHEEP_STATE_WALKING
 ```
 
-Both impls MUST follow this exact sequence per sheep for bit-identical critter PRNG state across implementations.
+If `critterCountOverride` is non-zero, `count = min(critterCountOverride, PET_COUNT_MAX_PER_MONITOR)` and the count draw above is skipped. Both impls MUST follow this exact sequence per sheep for bit-identical critter PRNG state across implementations.
+
+Per-pet name — assigned from `SHEEP_NAME_POOL = ["Bessie", "Wooly", "Clover", "Daisy", "Pippin", "Buttercup", "Mossy", "Hazel"]` at generation (one PRNG draw after `stateTimer`). Rendered as a tiny label above the pet when cursor is within `PET_NAME_HOVER_RADIUS=50` DIP; fades out over `PET_NAME_FADE_DURATION=1.5s` after cursor leaves.
 
 ### State machine (6 states)
 
@@ -1546,7 +1549,7 @@ Idle sheep within `SHEEP_CURIOUS_RADIUS = 80.0` DIP of the cursor notice it only
 
 All `SHEEP_*` and `CRITTER_*` constants are defined in Native `Constants.h` and Win2D `Constants.cs` with identical numeric values. The Critter tray menu is built parallel to the Scene tray menu.
 
-For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order, and the greeting trigger consumes exactly one additional Uniform draw per triggered pair in pair-iteration order. Both impls' test suites verify this in `critter_tests` and `sheep_greeting_tests`.
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer, nameIndex)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order, and the greeting trigger consumes exactly one additional Uniform draw per triggered pair in pair-iteration order. Both impls' test suites verify this in `critter_tests` and `sheep_greeting_tests`.
 
 ---
 
@@ -1635,10 +1638,13 @@ generate_critters_cat(sim):
         dirCoin    = critterPrng.uniform(0, 1)                            // <0.5 → -1, else +1
         seed       = critterPrng.next_u32()
         stateTimer = critterPrng.uniform(CAT_WALK_DURATION_MIN, CAT_WALK_DURATION_MAX)
+        nameIndex  = critterPrng.index(CAT_NAME_POOL.size)        // one draw after stateTimer
         state      = CAT_STATE_WALKING
 ```
 
-This matches the sheep draw sequence exactly with cat constants substituted. Species share the same `CRITTER_PRNG_SALT`; no per-species salt is introduced.
+If `critterCountOverride` is non-zero, `count = min(critterCountOverride, PET_COUNT_MAX_PER_MONITOR)` and the count draw above is skipped. This matches the sheep draw sequence exactly with cat constants substituted. Species share the same `CRITTER_PRNG_SALT`; no per-species salt is introduced.
+
+Per-pet name — assigned from `CAT_NAME_POOL = ["Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno"]` at generation (one PRNG draw after `stateTimer`). Rendered as a tiny label above the pet when cursor is within `PET_NAME_HOVER_RADIUS=50` DIP; fades out over `PET_NAME_FADE_DURATION=1.5s` after cursor leaves.
 
 ### Click pounce
 
@@ -1681,5 +1687,5 @@ Geometry is distinct from sheep: one long flattened body ellipse, smaller circul
 
 ### Defaults & conformance
 
-For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests`.
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer, nameIndex)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests`.
 

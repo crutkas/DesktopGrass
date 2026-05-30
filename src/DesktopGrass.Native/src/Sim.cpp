@@ -602,6 +602,8 @@ void generate_critters_sheep(Sim& sim) noexcept {
         e.stateTimer = prng_uniform(sim.critterPrng,
                                     SHEEP_WALK_DURATION_MIN,
                                     SHEEP_WALK_DURATION_MAX);
+        e.nameIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
+            static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))));
         sim.entities.push_back(e);
     }
 }
@@ -633,6 +635,8 @@ void generate_critters_cat(Sim& sim) noexcept {
         e.stateTimer = prng_uniform(sim.critterPrng,
                                     CAT_WALK_DURATION_MIN,
                                     CAT_WALK_DURATION_MAX);
+        e.nameIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
+            static_cast<uint32_t>(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]))));
         sim.entities.push_back(e);
     }
 }

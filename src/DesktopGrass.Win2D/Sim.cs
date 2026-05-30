@@ -143,6 +143,7 @@ public struct Entity
     // Values are ignored by tumbleweeds/snowflakes and inert by default.
     public byte   State;       // sheep/cat: see SHEEP_STATE_* constants
     public double StateTimer;  // sec remaining in current state
+    public byte   NameIndex;   // sheep/cat: index into species name pool
 }
 
 internal enum EventType { Move, Click }
@@ -338,6 +339,7 @@ internal sealed class Sim
             e.State = Constants.SHEEP_STATE_WALKING;
             e.StateTimer = sim.CritterPrng.Uniform(
                 Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            e.NameIndex = (byte)sim.CritterPrng.Index((uint)Constants.SHEEP_NAME_POOL.Length);
             sim.Entities.Add(e);
         }
     }
@@ -369,6 +371,7 @@ internal sealed class Sim
             e.State = Constants.CAT_STATE_WALKING;
             e.StateTimer = sim.CritterPrng.Uniform(
                 Constants.CAT_WALK_DURATION_MIN, Constants.CAT_WALK_DURATION_MAX);
+            e.NameIndex = (byte)sim.CritterPrng.Index((uint)Constants.CAT_NAME_POOL.Length);
             sim.Entities.Add(e);
         }
     }

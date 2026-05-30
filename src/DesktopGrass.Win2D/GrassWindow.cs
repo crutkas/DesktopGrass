@@ -9,6 +9,7 @@
 // graphics chain. Dispose is best-effort and tolerates partial setup.
 
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 using DesktopGrass.Win2D.Interop;
@@ -17,8 +18,11 @@ using Vortice.Direct2D1;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DirectComposition;
+using Vortice.DirectWrite;
 using Vortice.DXGI;
 using Vortice.Mathematics;
+using D2DFactoryType = Vortice.Direct2D1.FactoryType;
+using DWriteFactoryType = Vortice.DirectWrite.FactoryType;
 
 namespace DesktopGrass.Win2D;
 
@@ -63,7 +67,12 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _catFaceBrush;
     private ID2D1SolidColorBrush? _catEarBrush;
     private ID2D1SolidColorBrush? _catInkBrush;
+    private ID2D1SolidColorBrush? _petNameBrush;
+    private ID2D1SolidColorBrush? _petNameShadowBrush;
+    private IDWriteFactory? _dwriteFactory;
+    private IDWriteTextFormat? _petNameTextFormat;
     private ID2D1StrokeStyle? _strokeStyle;
+    private readonly Dictionary<ulong, double> _petNameLastHover = new();
 
     private const float SheepCuriousVerticalRadiusDip = 120.0f;
 
@@ -150,10 +159,15 @@ internal sealed class GrassWindow : IDisposable
         _swapChain = _dxgiFactory.CreateSwapChainForComposition(_d3dDevice, swapDesc);
 
         // ----- Direct2D device + context -----
-        _d2dFactory = D2D1.D2D1CreateFactory<ID2D1Factory1>(FactoryType.SingleThreaded);
+        _d2dFactory = D2D1.D2D1CreateFactory<ID2D1Factory1>(D2DFactoryType.SingleThreaded);
         _d2dDevice = _d2dFactory.CreateDevice(_dxgiDevice);
         _dc = _d2dDevice.CreateDeviceContext(DeviceContextOptions.None);
         _dc.AntialiasMode = AntialiasMode.PerPrimitive;
+
+        _dwriteFactory = DWrite.DWriteCreateFactory<IDWriteFactory>(DWriteFactoryType.Shared);
+        _petNameTextFormat = _dwriteFactory.CreateTextFormat("Segoe UI", (float)Constants.PET_NAME_FONT_SIZE);
+        _petNameTextFormat.TextAlignment = TextAlignment.Center;
+        _petNameTextFormat.ParagraphAlignment = ParagraphAlignment.Near;
 
         BindBackBuffer();
 
@@ -198,6 +212,8 @@ internal sealed class GrassWindow : IDisposable
         _catFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_FACE_COLOR));
         _catEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_EAR_COLOR));
         _catInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_INK_COLOR));
+        _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
+        _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -315,12 +331,14 @@ internal sealed class GrassWindow : IDisposable
             if (e.Kind == EntityKind.Sheep)
             {
                 DrawSheep(in e, cursorPosition);
+                DrawPetName(in e, cursorPosition);
                 continue;
             }
 
             if (e.Kind == EntityKind.Cat)
             {
                 DrawCat(in e, cursorPosition);
+                DrawPetName(in e, cursorPosition);
                 continue;
             }
 
@@ -677,6 +695,60 @@ internal sealed class GrassWindow : IDisposable
                          zSize, 1.0f - t);
             }
         }
+    }
+
+    private void DrawPetName(in Entity e, Vector2? cursorPosition)
+    {
+        if (_dc is null || _petNameTextFormat is null || _petNameBrush is null || _petNameShadowBrush is null)
+            return;
+        if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat) return;
+
+        string[] pool = e.Kind == EntityKind.Sheep ? Constants.SHEEP_NAME_POOL : Constants.CAT_NAME_POOL;
+        if (pool.Length == 0) return;
+
+        ulong key = ((ulong)e.Kind << 32) ^ e.Seed;
+        bool hovering = false;
+        if (cursorPosition.HasValue)
+        {
+            Vector2 cursor = cursorPosition.Value;
+            double dx = cursor.X - e.X;
+            double dy = cursor.Y - e.Y;
+            hovering = dx * dx + dy * dy <= Constants.PET_NAME_HOVER_RADIUS * Constants.PET_NAME_HOVER_RADIUS;
+        }
+
+        float opacity;
+        if (hovering)
+        {
+            _petNameLastHover[key] = Sim.GlobalTime;
+            opacity = 1.0f;
+        }
+        else
+        {
+            if (!_petNameLastHover.TryGetValue(key, out double lastHover)) return;
+            double elapsed = Sim.GlobalTime - lastHover;
+            if (elapsed >= Constants.PET_NAME_FADE_DURATION)
+            {
+                _petNameLastHover.Remove(key);
+                return;
+            }
+            opacity = (float)(1.0 - elapsed / Constants.PET_NAME_FADE_DURATION);
+        }
+
+        string name = pool[e.NameIndex % pool.Length];
+        float centerX = (float)e.X;
+        float top = (float)(e.Y - e.Size + Constants.PET_NAME_OFFSET_Y - Constants.PET_NAME_FONT_SIZE);
+        const float halfWidth = 60.0f;
+        float height = (float)(Constants.PET_NAME_FONT_SIZE + 4.0);
+        var rect = new Rect(centerX - halfWidth, top, centerX + halfWidth, top + height);
+        var shadowRect = new Rect(rect.Left + 1.0f, rect.Top + 1.0f,
+                                  rect.Right + 1.0f, rect.Bottom + 1.0f);
+
+        _petNameShadowBrush.Opacity = opacity;
+        _petNameBrush.Opacity = opacity;
+        _dc.DrawText(name, _petNameTextFormat, shadowRect, _petNameShadowBrush);
+        _dc.DrawText(name, _petNameTextFormat, rect, _petNameBrush);
+        _petNameShadowBrush.Opacity = 1.0f;
+        _petNameBrush.Opacity = 1.0f;
     }
 
     private void DrawFilledTriangle(Vector2 p0, Vector2 p1, Vector2 p2, ID2D1SolidColorBrush brush)
@@ -1047,6 +1119,10 @@ internal sealed class GrassWindow : IDisposable
         try { _catFaceBrush?.Dispose(); } catch { }
         try { _catEarBrush?.Dispose(); } catch { }
         try { _catInkBrush?.Dispose(); } catch { }
+        try { _petNameBrush?.Dispose(); } catch { }
+        try { _petNameShadowBrush?.Dispose(); } catch { }
+        try { _petNameTextFormat?.Dispose(); } catch { }
+        try { _dwriteFactory?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

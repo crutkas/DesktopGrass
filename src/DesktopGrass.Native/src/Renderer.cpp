@@ -5,11 +5,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cwchar>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dcomp.lib")
+#pragma comment(lib, "dwrite.lib")
 
 namespace desktopgrass {
 
@@ -103,6 +105,25 @@ bool Renderer::CreateDeviceResources() {
 
     d2dContext_->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
     d2dContext_->SetDpi(static_cast<float>(dpi_), static_cast<float>(dpi_));
+
+    dwriteFactory_.Reset();
+    hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
+                             __uuidof(IDWriteFactory),
+                             reinterpret_cast<IUnknown**>(dwriteFactory_.ReleaseAndGetAddressOf()));
+    if (FAILED(hr)) { LogHR("DWriteCreateFactory", hr); return false; }
+
+    petNameTextFormat_.Reset();
+    hr = dwriteFactory_->CreateTextFormat(
+        L"Segoe UI", nullptr,
+        DWRITE_FONT_WEIGHT_REGULAR,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        static_cast<FLOAT>(PET_NAME_FONT_SIZE),
+        L"",
+        petNameTextFormat_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateTextFormat", hr); return false; }
+    petNameTextFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    petNameTextFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 
     // DComp device tied to the same DXGI device.
     hr = DCompositionCreateDevice(dxgiDevice_.Get(),
@@ -232,6 +253,16 @@ bool Renderer::CreateDeviceResources() {
                                             catInkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    petNameBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_COLOR),
+                                            petNameBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    petNameShadowBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_SHADOW_COLOR),
+                                            petNameShadowBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -305,6 +336,10 @@ void Renderer::DiscardDeviceResources() {
     catFaceBrush_.Reset();
     catEarBrush_.Reset();
     catInkBrush_.Reset();
+    petNameBrush_.Reset();
+    petNameShadowBrush_.Reset();
+    petNameTextFormat_.Reset();
+    dwriteFactory_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -936,6 +971,61 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     }
 }
 
+void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
+    if (!petNameTextFormat_ || !petNameBrush_ || !petNameShadowBrush_) return;
+    if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat) return;
+
+    const wchar_t* const* pool = (e.kind == EntityKind::Sheep) ? SHEEP_NAME_POOL : CAT_NAME_POOL;
+    const std::size_t poolSize = (e.kind == EntityKind::Sheep)
+        ? (sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))
+        : (sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+    if (poolSize == 0) return;
+
+    const uint64_t key = (static_cast<uint64_t>(static_cast<uint8_t>(e.kind)) << 32)
+                       ^ static_cast<uint64_t>(e.seed);
+    bool hovering = false;
+    if (cursorPosition != nullptr) {
+        const double dx = static_cast<double>(cursorPosition->x) - e.x;
+        const double dy = static_cast<double>(cursorPosition->y) - e.y;
+        hovering = (dx * dx + dy * dy) <= (PET_NAME_HOVER_RADIUS * PET_NAME_HOVER_RADIUS);
+    }
+
+    float opacity = 0.0f;
+    if (hovering) {
+        petNameLastHover_[key] = sim_.globalTime;
+        opacity = 1.0f;
+    } else {
+        auto it = petNameLastHover_.find(key);
+        if (it == petNameLastHover_.end()) return;
+        const double elapsed = sim_.globalTime - it->second;
+        if (elapsed >= PET_NAME_FADE_DURATION) {
+            petNameLastHover_.erase(it);
+            return;
+        }
+        opacity = static_cast<float>(1.0 - (elapsed / PET_NAME_FADE_DURATION));
+    }
+
+    const wchar_t* name = pool[e.nameIndex % poolSize];
+    const UINT32 length = static_cast<UINT32>(std::wcslen(name));
+    const float centerX = static_cast<float>(e.x);
+    const float top = static_cast<float>(e.y - e.size + PET_NAME_OFFSET_Y - PET_NAME_FONT_SIZE);
+    const float halfWidth = 60.0f;
+    const float height = static_cast<float>(PET_NAME_FONT_SIZE + 4.0);
+    const D2D1_RECT_F rect = D2D1::RectF(centerX - halfWidth, top,
+                                        centerX + halfWidth, top + height);
+    const D2D1_RECT_F shadowRect = D2D1::RectF(rect.left + 1.0f, rect.top + 1.0f,
+                                              rect.right + 1.0f, rect.bottom + 1.0f);
+
+    petNameShadowBrush_->SetOpacity(opacity);
+    petNameBrush_->SetOpacity(opacity);
+    d2dContext_->DrawTextW(name, length, petNameTextFormat_.Get(), shadowRect,
+                           petNameShadowBrush_.Get());
+    d2dContext_->DrawTextW(name, length, petNameTextFormat_.Get(), rect,
+                           petNameBrush_.Get());
+    petNameShadowBrush_->SetOpacity(1.0f);
+    petNameBrush_->SetOpacity(1.0f);
+}
+
 void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
     if (sim_.entities.empty()) return;
 
@@ -966,6 +1056,7 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
 
         if (e.kind == EntityKind::Cat) {
             DrawCat(e, cursorPosition);
+            DrawPetName(e, cursorPosition);
             continue;
         }
 
@@ -1177,6 +1268,7 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
                     sheepBodyBrush_->SetOpacity(1.0f);
                 }
 
+                DrawPetName(e, cursorPosition);
                 continue;
             }
             continue;

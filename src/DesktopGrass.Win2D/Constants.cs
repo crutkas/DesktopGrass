@@ -214,6 +214,20 @@ internal static class Constants
     public const int        PET_COUNT_DEFAULT_SHEEP = 2;
     public const int        PET_COUNT_DEFAULT_CAT   = 1;
     public const int        PET_COUNT_MAX_PER_MONITOR = 6;
+    public static readonly string[] SHEEP_NAME_POOL =
+    {
+        "Bessie", "Wooly", "Clover", "Daisy", "Pippin", "Buttercup", "Mossy", "Hazel",
+    };
+    public static readonly string[] CAT_NAME_POOL =
+    {
+        "Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno",
+    };
+    public const double      PET_NAME_HOVER_RADIUS = 50.0;
+    public const double      PET_NAME_FADE_DURATION = 1.5;
+    public const double      PET_NAME_FONT_SIZE = 11.0;
+    public const double      PET_NAME_OFFSET_Y = -8.0;
+    public const uint        PET_NAME_COLOR = 0xFFFFFFFFu;
+    public const uint        PET_NAME_SHADOW_COLOR = 0xC0000000u;
 
     // Sheep (§16). Procedurally drawn pet that walks, grazes, idles, sleeps,
     // and hops along the bottom strip. Counts/speeds/sizes are sampled per

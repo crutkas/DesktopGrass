@@ -87,6 +87,7 @@ public class SheepGreetingTests
             _ = side.Uniform(0.0, 1.0);
             _ = side.NextU32();
             _ = side.Uniform(Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            _ = side.Index((uint)Constants.SHEEP_NAME_POOL.Length);
         }
         return expectedCount;
     }

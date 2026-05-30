@@ -241,6 +241,18 @@ constexpr int         PET_COUNT_OPTIONS[] = { 1, 2, 3, 4, 5, 6 };
 constexpr int         PET_COUNT_DEFAULT_SHEEP = 2;
 constexpr int         PET_COUNT_DEFAULT_CAT = 1;
 constexpr int         PET_COUNT_MAX_PER_MONITOR = 6;
+constexpr const wchar_t* SHEEP_NAME_POOL[] = {
+    L"Bessie", L"Wooly", L"Clover", L"Daisy", L"Pippin", L"Buttercup", L"Mossy", L"Hazel"
+};
+constexpr const wchar_t* CAT_NAME_POOL[] = {
+    L"Mittens", L"Whiskers", L"Shadow", L"Ginger", L"Smokey", L"Boots", L"Sage", L"Juno"
+};
+constexpr double      PET_NAME_HOVER_RADIUS = 50.0;
+constexpr double      PET_NAME_FADE_DURATION = 1.5;
+constexpr double      PET_NAME_FONT_SIZE = 11.0;
+constexpr double      PET_NAME_OFFSET_Y = -8.0;
+constexpr uint32_t    PET_NAME_COLOR = 0xFFFFFFFFu;
+constexpr uint32_t    PET_NAME_SHADOW_COLOR = 0xC0000000u;
 
 // Sheep (§16). Procedurally drawn pet that walks, grazes, and idles along
 // the bottom strip. Phase 2: state machine (Walking / Grazing / Idle) with
