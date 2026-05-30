@@ -3,6 +3,7 @@
 // for spec constants. Keep field names and values in lock-step with the spec.
 
 using System;
+using System.Numerics;
 
 namespace DesktopGrass.Win2D;
 
@@ -396,4 +397,84 @@ internal static class Constants
     public const double BIRCH_SNOW_CAP_FRACTION   = 0.18;
     public const uint   BIRCH_BARK_COLOR          = 0xFFEFEFE6u;
     public const uint   BIRCH_MARK_COLOR          = 0xFF2A2A28u;
+
+    // Day-night ambient tint (§19). Pure render overlay; no simulation state.
+    public readonly record struct DayTintPhase(float StartHour, byte R, byte G, byte B, byte Alpha);
+
+    public const bool DAYTINT_ENABLED_DEFAULT = true;
+    public const byte DAYTINT_MAX_ALPHA = 36;
+
+    public static readonly DayTintPhase[] DAYTINT_PHASES =
+    {
+        new( 0.0f,  40,  50,  90, 36), // Night (wraps from prev night)
+        new( 4.0f,  60,  70, 110, 32), // Predawn
+        new( 6.0f, 255, 180, 140, 28), // Sunrise
+        new( 8.0f, 255, 220, 160, 16), // Morning
+        new(10.0f, 255, 255, 255,  0), // Day - no tint
+        new(17.0f, 240, 170, 110, 22), // Late afternoon
+        new(19.0f, 220, 110,  90, 30), // Sunset
+        new(20.0f,  90,  80, 130, 28), // Dusk
+        new(22.0f,  40,  50,  90, 36), // Night
+    };
+
+    public static Vector4 ComputeDayTint(double hourFloat)
+    {
+        double hour = NormalizeDayTintHour(hourFloat);
+
+        int currentIndex = DAYTINT_PHASES.Length - 1;
+        for (int i = 0; i < DAYTINT_PHASES.Length; i++)
+        {
+            if (hour >= DAYTINT_PHASES[i].StartHour)
+            {
+                currentIndex = i;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        DayTintPhase current = DAYTINT_PHASES[currentIndex];
+        DayTintPhase next = DAYTINT_PHASES[(currentIndex + 1) % DAYTINT_PHASES.Length];
+
+        double currentStart = current.StartHour;
+        double nextStart = next.StartHour;
+        if (nextStart <= currentStart) nextStart += 24.0;
+
+        double hourForLerp = hour;
+        if (hourForLerp < currentStart) hourForLerp += 24.0;
+
+        double t = 0.0;
+        double span = nextStart - currentStart;
+        if (span > 0.0) t = (hourForLerp - currentStart) / span;
+        t = Math.Clamp(t, 0.0, 1.0);
+        if (span > 2.0) t = 0.0; // long Night/Day spans are plateaus; 1-2h bands blend.
+
+        byte r = LerpDayTintChannel(current.R, next.R, t);
+        byte g = LerpDayTintChannel(current.G, next.G, t);
+        byte b = LerpDayTintChannel(current.B, next.B, t);
+        byte alpha = LerpDayTintChannel(current.Alpha, next.Alpha, t);
+        if (alpha > DAYTINT_MAX_ALPHA) alpha = DAYTINT_MAX_ALPHA;
+
+        return new Vector4(
+            r / 255.0f,
+            g / 255.0f,
+            b / 255.0f,
+            alpha / 255.0f);
+    }
+
+    private static double NormalizeDayTintHour(double hourFloat)
+    {
+        double hour = hourFloat % 24.0;
+        if (hour < 0.0) hour += 24.0;
+        return hour;
+    }
+
+    private static byte LerpDayTintChannel(byte from, byte to, double t)
+    {
+        double value = from + (to - from) * t;
+        if (value <= 0.0) return 0;
+        if (value >= 255.0) return 255;
+        return (byte)value;
+    }
 }

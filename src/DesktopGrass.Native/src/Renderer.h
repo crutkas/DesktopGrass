@@ -68,6 +68,7 @@ private:
     void DiscardDeviceResources();
     void DrawGrass();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
+    void DrawDayTint();
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
@@ -111,6 +112,7 @@ private:
     ComPtr<ID2D1SolidColorBrush>           catInkBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
+    ComPtr<ID2D1SolidColorBrush>           dayTintBrush_;
     ComPtr<IDWriteFactory>                 dwriteFactory_;
     ComPtr<IDWriteTextFormat>              petNameTextFormat_;
 

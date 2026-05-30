@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 namespace desktopgrass {
@@ -441,5 +442,84 @@ constexpr int      BIRCH_BRANCH_COUNT              = 6;     // upward-angled bra
 constexpr double   BIRCH_SNOW_CAP_FRACTION         = 0.18;  // fraction of trunk height
 constexpr uint32_t BIRCH_BARK_COLOR                = 0xFFEFEFE6u; // off-white trunk
 constexpr uint32_t BIRCH_MARK_COLOR                = 0xFF2A2A28u; // dark bark stripes
+
+// Day-night ambient tint (§19). Pure render overlay; no simulation state.
+struct DayTintPhase {
+    float   startHour;
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t alpha;
+};
+
+constexpr bool    DAYTINT_ENABLED_DEFAULT = true;
+constexpr uint8_t DAYTINT_MAX_ALPHA       = 36;
+
+constexpr DayTintPhase DAYTINT_PHASES[] = {
+    {  0.0f,  40,  50,  90, 36 },  // Night (wraps from prev night)
+    {  4.0f,  60,  70, 110, 32 },  // Predawn
+    {  6.0f, 255, 180, 140, 28 },  // Sunrise
+    {  8.0f, 255, 220, 160, 16 },  // Morning
+    { 10.0f, 255, 255, 255,  0 },  // Day - no tint
+    { 17.0f, 240, 170, 110, 22 },  // Late afternoon
+    { 19.0f, 220, 110,  90, 30 },  // Sunset
+    { 20.0f,  90,  80, 130, 28 },  // Dusk
+    { 22.0f,  40,  50,  90, 36 },  // Night
+};
+constexpr int DAYTINT_PHASE_COUNT = static_cast<int>(sizeof(DAYTINT_PHASES) / sizeof(DAYTINT_PHASES[0]));
+
+inline double normalize_day_tint_hour(double hourFloat) noexcept {
+    double hour = std::fmod(hourFloat, 24.0);
+    if (hour < 0.0) hour += 24.0;
+    return hour;
+}
+
+inline uint8_t day_tint_lerp_channel(uint8_t from, uint8_t to, double t) noexcept {
+    const double value = static_cast<double>(from) +
+        (static_cast<double>(to) - static_cast<double>(from)) * t;
+    if (value <= 0.0) return 0;
+    if (value >= 255.0) return 255;
+    return static_cast<uint8_t>(value);
+}
+
+inline void compute_day_tint(double hourFloat,
+                             uint8_t& r,
+                             uint8_t& g,
+                             uint8_t& b,
+                             uint8_t& alpha) noexcept {
+    const double hour = normalize_day_tint_hour(hourFloat);
+
+    int currentIndex = DAYTINT_PHASE_COUNT - 1;
+    for (int i = 0; i < DAYTINT_PHASE_COUNT; ++i) {
+        if (hour >= static_cast<double>(DAYTINT_PHASES[i].startHour)) {
+            currentIndex = i;
+        } else {
+            break;
+        }
+    }
+
+    const DayTintPhase& current = DAYTINT_PHASES[currentIndex];
+    const DayTintPhase& next = DAYTINT_PHASES[(currentIndex + 1) % DAYTINT_PHASE_COUNT];
+
+    double currentStart = static_cast<double>(current.startHour);
+    double nextStart = static_cast<double>(next.startHour);
+    if (nextStart <= currentStart) nextStart += 24.0;
+
+    double hourForLerp = hour;
+    if (hourForLerp < currentStart) hourForLerp += 24.0;
+
+    double t = 0.0;
+    const double span = nextStart - currentStart;
+    if (span > 0.0) t = (hourForLerp - currentStart) / span;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    if (span > 2.0) t = 0.0; // long Night/Day spans are plateaus; 1-2h bands blend.
+
+    r = day_tint_lerp_channel(current.r, next.r, t);
+    g = day_tint_lerp_channel(current.g, next.g, t);
+    b = day_tint_lerp_channel(current.b, next.b, t);
+    alpha = day_tint_lerp_channel(current.alpha, next.alpha, t);
+    if (alpha > DAYTINT_MAX_ALPHA) alpha = DAYTINT_MAX_ALPHA;
+}
 
 } // namespace desktopgrass

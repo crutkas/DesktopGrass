@@ -263,6 +263,11 @@ bool Renderer::CreateDeviceResources() {
                                             petNameShadowBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    dayTintBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f),
+                                            dayTintBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -338,6 +343,7 @@ void Renderer::DiscardDeviceResources() {
     catInkBrush_.Reset();
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
+    dayTintBrush_.Reset();
     petNameTextFormat_.Reset();
     dwriteFactory_.Reset();
     d2dTarget_.Reset();
@@ -429,6 +435,34 @@ void Renderer::Tick(double dt,
     sim_tick(sim_, clamp_dt(dt), events, numEvents);
 }
 
+void Renderer::DrawDayTint() {
+    if (!DAYTINT_ENABLED_DEFAULT || !dayTintBrush_) return;
+
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    const double hourFloat = static_cast<double>(st.wHour) + static_cast<double>(st.wMinute) / 60.0;
+
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+    uint8_t a = 0;
+    compute_day_tint(hourFloat, r, g, b, a);
+    if (a == 0) return;
+
+    dayTintBrush_->SetColor(D2D1::ColorF(
+        static_cast<float>(r) / 255.0f,
+        static_cast<float>(g) / 255.0f,
+        static_cast<float>(b) / 255.0f,
+        static_cast<float>(a) / 255.0f));
+
+    const D2D1_RECT_F fullStrip = D2D1::RectF(
+        0.0f,
+        0.0f,
+        static_cast<float>(sim_.monitorWidth),
+        static_cast<float>(sim_.windowHeight));
+    d2dContext_->FillRectangle(fullStrip, dayTintBrush_.Get());
+}
+
 void Renderer::RenderFrame(double dt,
                            const InputEvent* events,
                            std::size_t numEvents)
@@ -448,6 +482,7 @@ void Renderer::RenderFrame(double dt,
 
     DrawGrass();
     DrawEntities(cursorForRender);
+    DrawDayTint();
 
     HRESULT hr = d2dContext_->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {

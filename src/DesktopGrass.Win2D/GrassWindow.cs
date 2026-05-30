@@ -69,6 +69,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _catInkBrush;
     private ID2D1SolidColorBrush? _petNameBrush;
     private ID2D1SolidColorBrush? _petNameShadowBrush;
+    private ID2D1SolidColorBrush? _dayTintBrush;
     private IDWriteFactory? _dwriteFactory;
     private IDWriteTextFormat? _petNameTextFormat;
     private ID2D1StrokeStyle? _strokeStyle;
@@ -214,6 +215,7 @@ internal sealed class GrassWindow : IDisposable
         _catInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_INK_COLOR));
         _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
         _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
+        _dayTintBrush = _dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0f));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -279,10 +281,25 @@ internal sealed class GrassWindow : IDisposable
             ? cursorDip
             : null;
         DrawEntities(groundY, cursorPosition);
+        ApplyDayTint();
 
         _dc.EndDraw();
         _swapChain.Present(0, PresentFlags.None);
         _dcompDevice?.Commit();
+    }
+
+    private void ApplyDayTint()
+    {
+        if (!Constants.DAYTINT_ENABLED_DEFAULT || _dc is null || _dayTintBrush is null) return;
+
+        DateTime now = DateTime.Now;
+        Vector4 tint = Constants.ComputeDayTint(now.Hour + now.Minute / 60.0);
+        if (tint.W <= 0.0f) return;
+
+        _dayTintBrush.Color = new Color4(tint.X, tint.Y, tint.Z, tint.W);
+        float widthDip = (float)(Sim.MonitorWidth > 0.0 ? Sim.MonitorWidth : _widthPx / _dpiScale);
+        float heightDip = (float)(Sim.WindowHeight > 0.0 ? Sim.WindowHeight : _heightPx / _dpiScale);
+        _dc.FillRectangle(new Vortice.RawRectF(0.0f, 0.0f, widthDip, heightDip), _dayTintBrush);
     }
 
     private bool TryGetCursorPositionDip(out Vector2 cursorPosition)
@@ -1121,6 +1138,7 @@ internal sealed class GrassWindow : IDisposable
         try { _catInkBrush?.Dispose(); } catch { }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
+        try { _dayTintBrush?.Dispose(); } catch { }
         try { _petNameTextFormat?.Dispose(); } catch { }
         try { _dwriteFactory?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }

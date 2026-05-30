@@ -1737,3 +1737,23 @@ Example: `1920x1080@0,0`. If a saved monitor key does not match any current moni
 
 The JSON field is named `cutTime`, but saved values are shifted relative to the sim time at save: `cutTime = originalCutTime - currentGlobalTime`. A cut made 20 seconds ago is saved as `-20.0`. Loading into a fresh sim with `globalTime = 0` applies that as `cutTime = -20.0`, preserving elapsed time and allowing regrowth to resume from the correct point without storing per-monitor global clocks.
 
+## 19. Day-night ambient tint
+
+DesktopGrass renders a passive, full-strip day-night ambient tint as the final draw of each frame, after blades, scene entities, and critters. It is render-only: no PRNG draws, no simulation state, and no entity behavior changes.
+
+| Phase | Hour key | RGB | Alpha |
+|---|---:|---|---:|
+| Night | 0.0 | (40, 50, 90) | 36 |
+| Predawn | 4.0 | (60, 70, 110) | 32 |
+| Sunrise | 6.0 | (255, 180, 140) | 28 |
+| Morning | 8.0 | (255, 220, 160) | 16 |
+| Day | 10.0 | (255, 255, 255) | 0 |
+| Late afternoon | 17.0 | (240, 170, 110) | 22 |
+| Sunset | 19.0 | (220, 110, 90) | 30 |
+| Dusk | 20.0 | (90, 80, 130) | 28 |
+| Night | 22.0 | (40, 50, 90) | 36 |
+
+`hourFloat = localHour + localMinute / 60.0`, using the same local clock source as critter sleep bias. Normalize into `[0, 24)`, find the bracketing hour keys (wrapping at 24), and linearly interpolate RGB and alpha with `t = (hourFloat - current.startHour) / (next.startHour - current.startHour)`, using wrap-aware span math. Bands longer than two hours are calm plateaus: Night 00-04 and Day 10-17 hold their start color/alpha, so noon is truly no-tint. `DAYTINT_MAX_ALPHA` is 36 and clamps the result so the effect remains subtle.
+
+Current builds keep the tint enabled by default (`DAYTINT_ENABLED_DEFAULT = true`) and do not add a tray toggle; therefore persistence remains schema version 1 with no `state.json` impact.
+

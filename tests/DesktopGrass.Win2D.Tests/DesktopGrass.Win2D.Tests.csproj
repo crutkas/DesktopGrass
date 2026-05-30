@@ -33,6 +33,7 @@
     <Compile Include="AutoStartTests.cs" />
     <Compile Include="ClickThroughSmokeTests.cs" />
     <Compile Include="PersistenceTests.cs" />
+    <Compile Include="DayTintTests.cs" />
     <Compile Include="SimTests\PrngTests.cs" />
     <Compile Include="SimTests\BladeGenTests.cs" />
     <Compile Include="SimTests\MushroomTests.cs" />
