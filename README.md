@@ -1,28 +1,66 @@
 # DesktopGrass
 
-A small, "just for fun" Windows app that draws procedurally generated grass along the bottom edge of every monitor, on top of all windows (including the taskbar).
+A small, "just for fun" Windows app that draws a procedurally generated patch of
+the outside world along the bottom edge of every monitor, on top of all windows
+(including the taskbar). Click-through — input passes through to whatever is
+underneath. The design philosophy is **passive and calm**: ambient touches only,
+no engagement loops, no toys.
 
-- Click-through — input passes through to whatever is underneath.
-- Sways gently on its own with a 6-second period.
+## What's in it
+
+**Grass scene** (default)
+- Procedurally generated grass strip that sways gently with a 6-second base period.
 - Cursor passing over the strip triggers gusts of wind that propagate outward.
 - Clicking near grass cuts blades (the click itself still hits whatever's underneath).
-- Cut blades regrow after 30–90 seconds, animating back over 2–4 seconds.
-- Blades bend chord-preservingly — they pivot from the root like a hinged stick, so the tip arcs over and drops as they lean (no stretching artifacts).
+  Cut blades regrow after 30-90 seconds, animating back over 2-4 seconds.
+- Blades bend chord-preservingly — they pivot from the root like a hinged stick,
+  so the tip arcs over and drops as they lean (no stretching artifacts).
 - Occasional flowers and mushrooms procedurally appear on independent PRNG streams.
-- Spans all monitors, anchored to the bottom of each screen's work area regardless of taskbar position.
+- Ambient gusts puff across the strip on their own schedule.
+- **Critters** — sheep, cats, and bunnies wander the strip. Each has a name
+  shown on hover, a state machine (walking / grazing / idle / sleeping / etc.),
+  time-of-day sleep biasing, and species-specific quirks: sheep greet each other,
+  cats pounce toward clicks, bunnies skitter away from them. Cats come in
+  6 coat variants. Pet count is configurable from the tray.
+- **Butterflies by day, fireflies by night** — ambient flyers above the strip.
+  Crossfade during dawn and dusk for a "magic hour" overlap.
+- **Light rain** weather with thin blue-grey raindrops.
+
+**Desert scene**
+- Shorter grass; cacti dominate; rolling tumbleweeds.
+
+**Winter scene**
+- -50% grass density; pines and birches with snow caps; falling snowflakes.
+
+**Always-on touches**
+- Subtle day-night ambient color tint keyed to the local hour (peak alpha 36/255).
+- App state (scene, cuts, pet counts, auto-start preference) persists across
+  sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
+- Optional "Start with Windows" toggle in the tray menu.
+- Spans all monitors, anchored to the bottom of each monitor's work area
+  regardless of taskbar position.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for a chronological list of everything that
+has shipped, and [`docs/architecture.md`](docs/architecture.md) for the shared
+algorithm contract.
 
 ## Two implementations
 
-The same feature set is implemented two ways, both sharing the same `Sim.cs` / `Constants.cs` numerical core so blade geometry stays bit-identical across renderers.
+The same feature set is implemented two ways, both sharing the same `Sim` /
+`Constants` numerical core so behavior stays bit-identical across renderers.
 
 | Project | Stack | Renderer |
 | --- | --- | --- |
 | [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | C++ / Win32 | Direct2D + DirectComposition |
 | [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | C# / .NET 10 | Vortice.Direct2D1 + DirectComposition (the "Win2D" name is historical — it uses Vortice, not `Microsoft.Graphics.Win2D`) |
 
-> **History:** the repo originally shipped four parallel implementations to compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the same overlay shape. The WinUI 3 and WPF impls were dropped after a head-to-head A/B because they were 3–10× heavier on working set than the Native and Win2D builds while offering no behavioral advantage for a transparent, click-through, topmost overlay. See [`docs/comparison.md`](docs/comparison.md) for the full evaluation.
-
-See [`docs/architecture.md`](docs/architecture.md) for the shared algorithm spec each impl implements.
+> **History:** the repo originally shipped four parallel implementations to
+> compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the
+> same overlay shape. The WinUI 3 and WPF impls were dropped after a head-to-head
+> A/B because they were 3-10× heavier on working set than the Native and Win2D
+> builds while offering no behavioral advantage for a transparent, click-through,
+> topmost overlay. See [`docs/comparison.md`](docs/comparison.md) for the full
+> evaluation.
 
 > Working on this with Copilot CLI on a different machine? See
 > [`docs/agent-context/README.md`](docs/agent-context/README.md) — that folder
@@ -42,9 +80,12 @@ dotnet build src\DesktopGrass.Win2D -c Release
 & "src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe"
 ```
 
-Right-click the tray icon to quit.
+Right-click the tray icon for scene selection, pet count overrides, "Start with
+Windows", and quit.
 
-The Native exe is built via MSBuild against `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj` (Release / x64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full build-from-scratch checklist.
+The Native exe is built via MSBuild against `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj`
+(Release / x64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full
+build-from-scratch checklist.
 
 ## Portability — running on another computer
 
@@ -62,18 +103,34 @@ dotnet publish src\DesktopGrass.Win2D -c Release -r win-x64 `
   -o publish\win2d-selfcontained
 ```
 
-Tip: For a drop-and-run experience on a friend's box, Native is the way — one 210 KB exe, no installer, no runtime. Win2D self-contained is the equivalent if you want the C# build.
+Tip: For a drop-and-run experience on a friend's box, Native is the way — one
+210 KB exe, no installer, no runtime. Win2D self-contained is the equivalent if
+you want the C# build.
 
 ## Tests
 
-- **Unit tests** — pure-logic suites (PRNG determinism, blade generation, sway, gust, cut, regrowth, stroke geometry, flowers, mushrooms) for each impl in [`tests/`](tests). The two impls share a Sim/Constants core so they assert against the same numerical contract.
-- **Smoke tests** — [`tests/smoke/Run-SmokeTests.ps1`](tests/smoke/Run-SmokeTests.ps1) launches each exe, asserts the click-through/topmost extended window styles, and verifies actual rendering via screenshot pixel-variance over the bottom strip.
+- **Unit tests** — pure-logic suites for each impl in [`tests/`](tests). They
+  cover PRNG determinism, blade generation, sway, gusts, cuts, regrowth, stroke
+  geometry, flowers, mushrooms, scenes, weather (rain, snow), critters (sheep,
+  cat, bunny), butterflies, fireflies, persistence, and click-through window
+  styles. The two impls share a `Sim` / `Constants` core so they assert against
+  the same numerical contract.
+- **Cross-impl PRNG identity** — every species and weather entity is covered by
+  a side-stream PRNG identity test that walks a parallel `Prng(seed XOR salt)`
+  and asserts the bit-identical draw order. This is the cornerstone invariant
+  that lets Native and Win2D stay in lockstep.
+- **Smoke tests** — [`tests/smoke/Run-SmokeTests.ps1`](tests/smoke/Run-SmokeTests.ps1)
+  launches each exe, asserts the click-through / topmost extended window styles,
+  and verifies actual rendering via screenshot pixel-variance over the bottom strip.
 
 Run everything:
 
 ```powershell
-# Unit tests (Win2D)
-dotnet test
+# Native unit tests
+& ".\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe" --reporter compact
+
+# Win2D unit tests
+dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release
 
 # Cross-impl smoke (2 targets)
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
@@ -83,18 +140,27 @@ pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
 
 Both implementations use:
 
-- The same xorshift64 PRNG seeded via SplitMix64
-- The same canonical test seed (`0x6B6173746F`)
-- The same blade-generation draw order (main / regrowth / flower / mushroom streams)
-- The same sway / gust / cut / regrowth / chord-preserving-bend / flower / mushroom math from `docs\architecture.md`
+- The same xorshift64 PRNG seeded via SplitMix64.
+- The same canonical test seed (`0x6B6173746F`).
+- The same per-feature PRNG salt for each independent stream (blades, regrowth,
+  flowers, mushrooms, tumbleweeds, snowflakes, ambient gusts, critters,
+  raindrops, butterflies, fireflies).
+- The same sway / gust / cut / regrowth / chord-bend / weather / critter math
+  from [`docs/architecture.md`](docs/architecture.md).
 
-The Native impl carries a canonical snapshot (`tests/DesktopGrass.Native.Tests/snapshot_data.h`) that the Win2D impl's tests cross-check against indirectly via the shared spec.
+The Native impl carries a canonical snapshot
+(`tests/DesktopGrass.Native.Tests/snapshot_data.h`) that the Win2D impl's tests
+cross-check against indirectly via the shared spec.
 
-## Future iterations (not v1)
+## Roadmap
 
-- More non-grass things — a small tree, occasional insects.
-- Weather (rain, snow) and ambient wind gusts.
-- Seasonal palettes / day-night color shift.
-- Settings UI (density, palette, pause/resume).
-- Auto-start on login.
-- GitHub Actions CI for build + tests + smoke.
+Possible next directions, in no particular order:
+
+- More critter species (deer, hedgehog, ducks crossing the strip).
+- Snow accumulation on grass during long Winter sessions.
+- Auto-rotation of scenes by date (cherry blossoms in spring, autumn leaves
+  in fall, holiday lights in December).
+- Multi-monitor smoke tests in CI.
+- A settings UI (currently held off — passive philosophy prefers tray-only
+  controls; revisit if the tray menu starts feeling cluttered).
+
