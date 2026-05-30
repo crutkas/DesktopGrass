@@ -70,8 +70,8 @@ public class PineTests
         Assert.Equal(0.0075, Constants.PINE_PROBABILITY);
         Assert.Equal(45.0, Constants.PINE_HEIGHT_MIN);
         Assert.Equal(90.0, Constants.PINE_HEIGHT_MAX);
-        Assert.Equal(16.0, Constants.PINE_WIDTH_MIN);
-        Assert.Equal(28.0, Constants.PINE_WIDTH_MAX);
+        Assert.Equal(28.0, Constants.PINE_WIDTH_MIN);
+        Assert.Equal(48.0, Constants.PINE_WIDTH_MAX);
         Assert.Equal(2, Constants.PINE_TIER_COUNT_MIN);
         Assert.Equal(4, Constants.PINE_TIER_COUNT_MAX);
         Assert.Equal(0.25, Constants.PINE_TIP_TAPER);

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "savedAt": "2026-05-30T17:09:07Z",
+  "scene": "Grass",
+  "critter": "None",
+  "critterCount": 0,
+  "autoStart": false,
+  "monitors": {
+  }
+}

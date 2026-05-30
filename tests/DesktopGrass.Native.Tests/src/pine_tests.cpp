@@ -59,8 +59,8 @@ TEST_CASE("Pine constants are pinned", "[pine][constants]") {
     REQUIRE(PINE_PROBABILITY == Approx(0.0075));
     REQUIRE(PINE_HEIGHT_MIN == Approx(45.0));
     REQUIRE(PINE_HEIGHT_MAX == Approx(90.0));
-    REQUIRE(PINE_WIDTH_MIN  == Approx(16.0));
-    REQUIRE(PINE_WIDTH_MAX  == Approx(28.0));
+    REQUIRE(PINE_WIDTH_MIN  == Approx(28.0));
+    REQUIRE(PINE_WIDTH_MAX  == Approx(48.0));
     REQUIRE(PINE_TIER_COUNT_MIN == 2);
     REQUIRE(PINE_TIER_COUNT_MAX == 4);
     REQUIRE(PINE_TIP_TAPER == Approx(0.25));

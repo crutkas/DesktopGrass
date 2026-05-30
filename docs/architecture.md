@@ -848,8 +848,8 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `PINE_PROBABILITY` | 0.0075 | (unitless) | §15.1 |
 | `PINE_HEIGHT_MIN` | 45.0 | DIP | §15.1 |
 | `PINE_HEIGHT_MAX` | 90.0 | DIP | §15.1 |
-| `PINE_WIDTH_MIN` | 16.0 | DIP | §15.1 |
-| `PINE_WIDTH_MAX` | 28.0 | DIP | §15.1 |
+| `PINE_WIDTH_MIN` | 28.0 | DIP | §15.1 |
+| `PINE_WIDTH_MAX` | 48.0 | DIP | §15.1 |
 | `PINE_TIER_COUNT_MIN` | 2 | (count) | §15.1 |
 | `PINE_TIER_COUNT_MAX` | 4 | (count) | §15.1 |
 | `PINE_TIP_TAPER` | 0.25 | (unitless) | §15.1 |

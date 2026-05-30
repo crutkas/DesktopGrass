@@ -405,8 +405,8 @@ internal static class Constants
     public const double PINE_PROBABILITY        = 0.0075;
     public const double PINE_HEIGHT_MIN         = 45.0;
     public const double PINE_HEIGHT_MAX         = 90.0;
-    public const double PINE_WIDTH_MIN          = 16.0;
-    public const double PINE_WIDTH_MAX          = 28.0;
+    public const double PINE_WIDTH_MIN          = 28.0;
+    public const double PINE_WIDTH_MAX          = 48.0;
     public const int    PINE_TIER_COUNT_MIN     = 2;
     public const int    PINE_TIER_COUNT_MAX     = 4;
     public const double PINE_TIP_TAPER          = 0.25;
