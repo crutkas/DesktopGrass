@@ -464,7 +464,7 @@ void Renderer::DrawGrass() {
             };
 
             if (b.treeVariant == 1) {
-                // ---- Birch: vertical trunk with bark marks + branch stubs ----
+                // ---- Birch: vertical trunk + short bark dashes + upward branch fan ----
                 const float totalH    = static_cast<float>(b.pineHeight * b.cutHeight);
                 const float trunkW    = static_cast<float>(b.pineWidth);
                 const float trunkTopY = gy - totalH;
@@ -475,43 +475,56 @@ void Renderer::DrawGrass() {
                     birchBarkBrush_.Get(),
                     trunkW);
 
-                // Dark horizontal bark marks distributed up the trunk.
-                const float markLen = trunkW * 0.85f;
+                // Short bark dashes — centered on trunk, varied lengths so the
+                // pattern reads as broken bark "eyes" instead of full ribs.
+                static const float kDashLenFrac[BIRCH_BARK_MARK_COUNT] = {
+                    0.50f, 0.30f, 0.45f, 0.25f, 0.40f
+                };
                 for (int m = 0; m < BIRCH_BARK_MARK_COUNT; ++m) {
-                    const float tM   = (m + 1.0f) / (BIRCH_BARK_MARK_COUNT + 1.0f);
-                    const float yM   = gy - totalH * tM;
+                    const float tM = (m + 1.0f) / (BIRCH_BARK_MARK_COUNT + 1.0f);
+                    const float yM = gy - totalH * tM;
+                    const float dashLen = trunkW * kDashLenFrac[m];
                     d2dContext_->DrawLine(
-                        D2D1::Point2F(baseX - markLen * 0.5f, yM),
-                        D2D1::Point2F(baseX + markLen * 0.5f, yM),
+                        D2D1::Point2F(baseX - dashLen * 0.5f, yM),
+                        D2D1::Point2F(baseX + dashLen * 0.5f, yM),
                         birchMarkBrush_.Get(),
-                        std::max(1.0f, trunkW * 0.30f));
+                        std::max(1.0f, trunkW * 0.22f));
                 }
 
-                // Short bare branch stubs near the top — alternating sides.
-                const float branchLen = trunkW * 2.2f;
-                for (int p = 0; p < BIRCH_BRANCH_PAIRS; ++p) {
-                    const float tB = 0.55f + p * 0.18f;
-                    const float yB = gy - totalH * tB;
-                    const float side = (p % 2 == 0) ? +1.0f : -1.0f;
+                // Branch fan — hand-tuned for deciduous tree silhouette.
+                // Each branch is angled UPWARD (never horizontal) and ends in
+                // a small white snow puff, so the shape never reads as a cross.
+                struct Branch { float trunkFrac; float angleDeg; float side; float lenMul; };
+                static const Branch kBranches[BIRCH_BRANCH_COUNT] = {
+                    {0.45f, 35.0f, +1.0f, 1.20f},
+                    {0.55f, 50.0f, -1.0f, 1.40f},
+                    {0.65f, 25.0f, +1.0f, 1.60f},
+                    {0.72f, 60.0f, -1.0f, 1.00f},
+                    {0.80f, 20.0f, +1.0f, 1.10f},
+                    {0.85f, 45.0f, -1.0f, 0.80f},
+                };
+                const float branchBaseLen = trunkW * 3.0f;
+                const float branchW = std::max(1.0f, trunkW * 0.35f);
+                const float snowR   = std::max(1.5f, trunkW * 0.65f);
+                for (const auto& br : kBranches) {
+                    const float sy   = gy - totalH * br.trunkFrac;
+                    const float blen = branchBaseLen * br.lenMul;
+                    const float ang  = br.angleDeg * 3.14159265f / 180.0f;
+                    const float ex   = baseX + br.side * blen * std::sin(ang);
+                    const float ey   = sy - blen * std::cos(ang);
                     d2dContext_->DrawLine(
-                        D2D1::Point2F(baseX, yB),
-                        D2D1::Point2F(baseX + side * branchLen, yB - branchLen * 0.5f),
-                        birchBarkBrush_.Get(),
-                        std::max(1.0f, trunkW * 0.45f));
-                    d2dContext_->DrawLine(
-                        D2D1::Point2F(baseX, yB - branchLen * 0.15f),
-                        D2D1::Point2F(baseX - side * branchLen * 0.8f, yB - branchLen * 0.55f),
-                        birchBarkBrush_.Get(),
-                        std::max(1.0f, trunkW * 0.45f));
+                        D2D1::Point2F(baseX, sy), D2D1::Point2F(ex, ey),
+                        birchBarkBrush_.Get(), branchW);
+                    d2dContext_->FillEllipse(
+                        D2D1::Ellipse(D2D1::Point2F(ex, ey), snowR, snowR),
+                        snowTipBrush_.Get());
                 }
 
-                // Small snow cap at the very top of the trunk.
-                const float capH = totalH * static_cast<float>(BIRCH_SNOW_CAP_FRACTION);
-                drawFilledTri(baseX,
-                              trunkTopY + capH,
-                              trunkTopY,
-                              trunkW * 1.1f,
-                              snowTipBrush_.Get());
+                // Small snow puff right at the top of the trunk.
+                const float capR = std::max(2.0f, trunkW * 0.9f);
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(baseX, trunkTopY), capR, capR * 0.6f),
+                    snowTipBrush_.Get());
                 continue;
             }
 

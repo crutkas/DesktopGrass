@@ -235,8 +235,9 @@ internal static class Constants
     public const double BIRCH_VARIANT_PROBABILITY = 0.30;
     public const double BIRCH_TRUNK_WIDTH_MIN     = 4.0;
     public const double BIRCH_TRUNK_WIDTH_MAX     = 7.0;
-    public const int    BIRCH_BARK_MARK_COUNT     = 4;
-    public const int    BIRCH_BRANCH_PAIRS        = 2;
+    public const int    BIRCH_BARK_MARK_COUNT     = 5;
+    public const double BIRCH_BARK_MARK_LENGTH_FRAC = 0.50;
+    public const int    BIRCH_BRANCH_COUNT        = 6;
     public const double BIRCH_SNOW_CAP_FRACTION   = 0.18;
     public const uint   BIRCH_BARK_COLOR          = 0xFFEFEFE6u;
     public const uint   BIRCH_MARK_COLOR          = 0xFF2A2A28u;

@@ -845,8 +845,9 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `BIRCH_VARIANT_PROBABILITY` | 0.30 | (unitless) | §15.1 |
 | `BIRCH_TRUNK_WIDTH_MIN` | 4.0 | DIP | §15.1 |
 | `BIRCH_TRUNK_WIDTH_MAX` | 7.0 | DIP | §15.1 |
-| `BIRCH_BARK_MARK_COUNT` | 4 | (count) | §15.1 |
-| `BIRCH_BRANCH_PAIRS` | 2 | (count) | §15.1 |
+| `BIRCH_BARK_MARK_COUNT` | 5 | (count) | §15.1 |
+| `BIRCH_BARK_MARK_LENGTH_FRAC` | 0.50 | (unitless) | §15.1 |
+| `BIRCH_BRANCH_COUNT` | 6 | (count) | §15.1 |
 | `BIRCH_SNOW_CAP_FRACTION` | 0.18 | (unitless) | §15.1 |
 | `BIRCH_BARK_COLOR` | `0xFFEFEFE6` | uint32 ARGB | §15.1 |
 | `BIRCH_MARK_COLOR` | `0xFF2A2A28` | uint32 ARGB | §15.1 |
@@ -1251,11 +1252,16 @@ the per-tree PRNG state without branching the stream.
 
 A bare-winter birch: vertical off-white trunk (`BIRCH_BARK_COLOR`) of width
 `pineWidth` ∈ [`BIRCH_TRUNK_WIDTH_MIN`, `BIRCH_TRUNK_WIDTH_MAX`), with
-`BIRCH_BARK_MARK_COUNT` dark horizontal stripes (`BIRCH_MARK_COLOR`)
-distributed evenly along the trunk, `BIRCH_BRANCH_PAIRS` pairs of short
-angled branch stubs near the upper third (alternating sides), and a small
-white triangular snow cap covering the top `BIRCH_SNOW_CAP_FRACTION` of the
-trunk height. Birches share the pine cut/regrow + stump behavior.
+`BIRCH_BARK_MARK_COUNT` short centered dark dashes (`BIRCH_MARK_COLOR`,
+max length `trunkW * BIRCH_BARK_MARK_LENGTH_FRAC`, individual lengths varied
+by a fixed pattern for a "broken" bark look) distributed along the trunk,
+and `BIRCH_BRANCH_COUNT` upward-angled branches arranged in a hand-tuned
+asymmetric fan (angles 20°–60° from vertical, alternating sides at varying
+heights and lengths) — each branch terminated with a small white snow puff
+ellipse. A small flattened snow puff sits at the trunk apex. The intentional
+asymmetry and upward angles break the cross/microphone-stand silhouette
+that strict horizontal pair-branches would produce. Birches share the pine
+cut/regrow + stump behavior.
 
 ### Rendering
 

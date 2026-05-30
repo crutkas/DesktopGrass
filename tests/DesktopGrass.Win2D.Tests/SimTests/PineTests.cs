@@ -87,8 +87,9 @@ public class PineTests
         Assert.Equal(0.30, Constants.BIRCH_VARIANT_PROBABILITY);
         Assert.Equal(4.0, Constants.BIRCH_TRUNK_WIDTH_MIN);
         Assert.Equal(7.0, Constants.BIRCH_TRUNK_WIDTH_MAX);
-        Assert.Equal(4, Constants.BIRCH_BARK_MARK_COUNT);
-        Assert.Equal(2, Constants.BIRCH_BRANCH_PAIRS);
+        Assert.Equal(5, Constants.BIRCH_BARK_MARK_COUNT);
+        Assert.Equal(0.50, Constants.BIRCH_BARK_MARK_LENGTH_FRAC);
+        Assert.Equal(6, Constants.BIRCH_BRANCH_COUNT);
         Assert.Equal(0.18, Constants.BIRCH_SNOW_CAP_FRACTION);
         Assert.Equal(0xFFEFEFE6u, Constants.BIRCH_BARK_COLOR);
         Assert.Equal(0xFF2A2A28u, Constants.BIRCH_MARK_COLOR);

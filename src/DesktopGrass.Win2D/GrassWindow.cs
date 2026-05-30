@@ -370,7 +370,7 @@ internal sealed class GrassWindow : IDisposable
 
             if (b.TreeVariant == 1)
             {
-                // ---- Birch: vertical trunk with bark marks + branch stubs ----
+                // ---- Birch: vertical trunk + short bark dashes + upward branch fan ----
                 float totalH = (float)(b.PineHeight * b.CutHeight);
                 float trunkW = (float)b.PineWidth;
                 float trunkTopY = gy - totalH;
@@ -379,38 +379,47 @@ internal sealed class GrassWindow : IDisposable
                               new Vector2(baseX, trunkTopY),
                               _birchBarkBrush!, trunkW, _strokeStyle);
 
-                float markLen = trunkW * 0.85f;
+                // Short bark dashes — centered, varied lengths, no full ribs.
+                float[] dashLenFrac = { 0.50f, 0.30f, 0.45f, 0.25f, 0.40f };
                 for (int m = 0; m < Constants.BIRCH_BARK_MARK_COUNT; m++)
                 {
                     float tM = (m + 1.0f) / (Constants.BIRCH_BARK_MARK_COUNT + 1.0f);
                     float yM = gy - totalH * tM;
-                    _dc.DrawLine(new Vector2(baseX - markLen * 0.5f, yM),
-                                 new Vector2(baseX + markLen * 0.5f, yM),
+                    float dashLen = trunkW * dashLenFrac[m];
+                    _dc.DrawLine(new Vector2(baseX - dashLen * 0.5f, yM),
+                                 new Vector2(baseX + dashLen * 0.5f, yM),
                                  _birchMarkBrush!,
-                                 Math.Max(1.0f, trunkW * 0.30f),
+                                 Math.Max(1.0f, trunkW * 0.22f),
                                  _strokeStyle);
                 }
 
-                float branchLen = trunkW * 2.2f;
-                for (int p = 0; p < Constants.BIRCH_BRANCH_PAIRS; p++)
+                // Branch fan — all angled UPWARD, with snow blob at each tip.
+                (float trunkFrac, float angleDeg, float side, float lenMul)[] branches = {
+                    (0.45f, 35.0f, +1.0f, 1.20f),
+                    (0.55f, 50.0f, -1.0f, 1.40f),
+                    (0.65f, 25.0f, +1.0f, 1.60f),
+                    (0.72f, 60.0f, -1.0f, 1.00f),
+                    (0.80f, 20.0f, +1.0f, 1.10f),
+                    (0.85f, 45.0f, -1.0f, 0.80f),
+                };
+                float branchBaseLen = trunkW * 3.0f;
+                float branchW = Math.Max(1.0f, trunkW * 0.35f);
+                float snowR = Math.Max(1.5f, trunkW * 0.65f);
+                foreach (var br in branches)
                 {
-                    float tB = 0.55f + p * 0.18f;
-                    float yB = gy - totalH * tB;
-                    float side = (p % 2 == 0) ? +1.0f : -1.0f;
-                    _dc.DrawLine(new Vector2(baseX, yB),
-                                 new Vector2(baseX + side * branchLen, yB - branchLen * 0.5f),
-                                 _birchBarkBrush!,
-                                 Math.Max(1.0f, trunkW * 0.45f),
-                                 _strokeStyle);
-                    _dc.DrawLine(new Vector2(baseX, yB - branchLen * 0.15f),
-                                 new Vector2(baseX - side * branchLen * 0.8f, yB - branchLen * 0.55f),
-                                 _birchBarkBrush!,
-                                 Math.Max(1.0f, trunkW * 0.45f),
-                                 _strokeStyle);
+                    float sy = gy - totalH * br.trunkFrac;
+                    float blen = branchBaseLen * br.lenMul;
+                    float ang = br.angleDeg * (float)Math.PI / 180.0f;
+                    float ex = baseX + br.side * blen * (float)Math.Sin(ang);
+                    float ey = sy - blen * (float)Math.Cos(ang);
+                    _dc.DrawLine(new Vector2(baseX, sy), new Vector2(ex, ey),
+                                 _birchBarkBrush!, branchW, _strokeStyle);
+                    _dc.FillEllipse(new Ellipse(new Vector2(ex, ey), snowR, snowR), _snowTipBrush!);
                 }
 
-                float capH = totalH * (float)Constants.BIRCH_SNOW_CAP_FRACTION;
-                DrawFilledPineTri(baseX, trunkTopY + capH, trunkTopY, trunkW * 1.1f, _snowTipBrush!);
+                // Small snow puff right at the top of the trunk.
+                float capR = Math.Max(2.0f, trunkW * 0.9f);
+                _dc.FillEllipse(new Ellipse(new Vector2(baseX, trunkTopY), capR, capR * 0.6f), _snowTipBrush!);
                 return;
             }
 
