@@ -224,6 +224,10 @@ struct Sim {
     Prng               snowflakePrng       = { 0 };
     double             nextSnowflakeSpawnTime = 0.0;
 
+    // §15.2 passive snow accumulation, persisted per monitor.
+    double             snowDepth           = 0.0;
+    uint64_t           snowPhaseSeed       = 0;
+
     // §20 raindrop emitter (Grass scene only). Scene transitions preserve
     // existing raindrops for a soft fade-out while the spawner is scene-gated.
     Prng               raindropPrng        = { 0 };
@@ -284,6 +288,11 @@ void sim_set_scene(Sim& sim, Scene s) noexcept;
 // tumbleweed off-edge respawn, snowflake culling. Currently a no-op when
 // sim.entities is empty (which is always until §14/§15 generators run).
 void sim_tick_entities(Sim& sim, double dt) noexcept;
+
+uint64_t snow_phase_seed_from_monitor(int width, int height, int left, int top) noexcept;
+void sim_set_snow_depth(Sim& sim, double depth) noexcept;
+double snow_top_y_at(const Sim& sim, double x) noexcept;
+double snow_tree_base_y_offset(const Sim& sim) noexcept;
 
 // Critter selection (§16-§18). Removes existing critter-kind entities
 // (preserving scene entities like tumbleweeds/snowflakes), then re-runs the

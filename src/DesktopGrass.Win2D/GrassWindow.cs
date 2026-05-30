@@ -72,6 +72,9 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _snowflakeBrush;
     private ID2D1SolidColorBrush? _raindropBrush;
     private ID2D1SolidColorBrush? _snowTipBrush;
+    private ID2D1SolidColorBrush? _snowLayerTopBrush;
+    private ID2D1SolidColorBrush? _snowLayerBottomBrush;
+    private ID2D1SolidColorBrush? _snowLayerHighlightBrush;
     private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1SolidColorBrush? _birchBarkBrush;
     private ID2D1SolidColorBrush? _birchMarkBrush;
@@ -130,6 +133,10 @@ internal sealed class GrassWindow : IDisposable
             Blades = Sim.GenerateBlades(seed, monitorWidthDip, Constants.DEFAULT_DENSITY),
             GroundY = _heightPx / _dpiScale,
             WindowHeight = _heightPx / _dpiScale,
+            SnowPhaseSeed = Sim.SnowPhaseSeedForMonitor(monitorBoundsPx.Width,
+                                                         monitorBoundsPx.Height,
+                                                         monitorBoundsPx.Left,
+                                                         monitorBoundsPx.Top),
         };
         Sim.ResetAmbientGusts(seed, monitorWidthDip);
         Sim.ResetEntities(seed);
@@ -228,6 +235,9 @@ internal sealed class GrassWindow : IDisposable
         _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
         _raindropBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RAINDROP_COLOR));
         _snowTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_TIP_COLOR));
+        _snowLayerTopBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_TOP));
+        _snowLayerBottomBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_BOTTOM));
+        _snowLayerHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_HIGHLIGHT));
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
         _birchBarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_BARK_COLOR));
         _birchMarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_MARK_COLOR));
@@ -332,7 +342,18 @@ internal sealed class GrassWindow : IDisposable
         for (int i = 0; i < Sim.Blades.Length; i++)
         {
             ref Blade b = ref Sim.Blades[i];
-            DrawBlade(in b, groundY);
+            DrawBlade(in b, groundY, treesOnly: false);
+        }
+
+        DrawSnowLayer(groundY);
+
+        if (Sim.CurrentScene == Scene.Winter)
+        {
+            for (int i = 0; i < Sim.Blades.Length; i++)
+            {
+                ref Blade b = ref Sim.Blades[i];
+                DrawBlade(in b, groundY, treesOnly: true);
+            }
         }
 
         Vector2? cursorPosition = TryGetCursorPositionDip(out Vector2 cursorDip)
@@ -375,6 +396,40 @@ internal sealed class GrassWindow : IDisposable
             (float)((pt.X - _monitorBoundsPx.Left) / _dpiScale),
             (float)((pt.Y - windowTopPx) / _dpiScale));
         return true;
+    }
+
+    private void DrawSnowLayer(float groundY)
+    {
+        if (Sim.CurrentScene != Scene.Winter || Sim.SnowDepth < Constants.SNOW_DEPTH_MIN_RENDER) return;
+        if (_dc is null || _snowLayerTopBrush is null || _snowLayerBottomBrush is null || _snowLayerHighlightBrush is null) return;
+
+        float widthDip = (float)(Sim.MonitorWidth > 0.0 ? Sim.MonitorWidth : _widthPx / _dpiScale);
+        if (widthDip <= 0.0f) return;
+
+        const float step = 2.0f;
+        var prevTop = new Vector2(0.0f, (float)Sim.SnowTopYAt(0.0));
+        for (float x = 0.0f; x <= widthDip + step; x += step)
+        {
+            float sampleX = Math.Min(x, widthDip);
+            float topY = (float)Sim.SnowTopYAt(sampleX);
+            float bandH = groundY - topY;
+            if (bandH > 0.0f)
+            {
+                float midY = topY + bandH * 0.45f;
+                _dc.DrawLine(new Vector2(sampleX, topY), new Vector2(sampleX, midY),
+                             _snowLayerTopBrush, step + 0.5f, _strokeStyle);
+                _dc.DrawLine(new Vector2(sampleX, midY), new Vector2(sampleX, groundY),
+                             _snowLayerBottomBrush, step + 0.5f, _strokeStyle);
+            }
+
+            var currentTop = new Vector2(sampleX, topY);
+            if (x > 0.0f)
+            {
+                _dc.DrawLine(prevTop, currentTop, _snowLayerHighlightBrush, 1.0f, _strokeStyle);
+            }
+            prevTop = currentTop;
+            if (sampleX >= widthDip) break;
+        }
     }
 
     private void DrawEntities(float groundY, Vector2? cursorPosition)
@@ -1171,8 +1226,17 @@ internal sealed class GrassWindow : IDisposable
         _dc!.DrawLine(new Vector2(ex, ey), new Vector2(ex, ey - h * 0.15f), _cactusBrush!, armWidth, _strokeStyle);
     }
 
-    private void DrawBlade(in Blade b, float groundY)
+    private void DrawBlade(in Blade b, float groundY, bool treesOnly = false)
     {
+        if (treesOnly)
+        {
+            if (!b.IsPine) return;
+        }
+        else if (b.IsPine)
+        {
+            return;
+        }
+
         if (b.IsCactus)
         {
             float baseX = (float)b.BaseX;
@@ -1207,7 +1271,7 @@ internal sealed class GrassWindow : IDisposable
         if (b.IsPine)
         {
             float baseX = (float)b.BaseX;
-            float gy = groundY;
+            float gy = groundY - (float)Sim.SnowTreeBaseYOffset;
 
             if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
             {
@@ -1431,6 +1495,9 @@ internal sealed class GrassWindow : IDisposable
         try { _snowflakeBrush?.Dispose(); } catch { }
         try { _raindropBrush?.Dispose(); } catch { }
         try { _snowTipBrush?.Dispose(); } catch { }
+        try { _snowLayerTopBrush?.Dispose(); } catch { }
+        try { _snowLayerBottomBrush?.Dispose(); } catch { }
+        try { _snowLayerHighlightBrush?.Dispose(); } catch { }
         try { _pineBrush?.Dispose(); } catch { }
         try { _birchBarkBrush?.Dispose(); } catch { }
         try { _birchMarkBrush?.Dispose(); } catch { }

@@ -211,6 +211,10 @@ internal sealed class Sim
     public Prng SnowflakePrng;
     public double NextSnowflakeSpawnTime;
 
+    // §15.2 passive snow accumulation, persisted per monitor.
+    public double SnowDepth;
+    public ulong SnowPhaseSeed;
+
     // §20 raindrop emitter (Grass scene only). Scene transitions preserve
     // existing raindrops for a soft fade-out while the spawner is scene-gated.
     public Prng RaindropPrng;
@@ -238,6 +242,71 @@ internal sealed class Sim
 
     public static double BirdFlybySampleInterval(ref Prng p) =>
         p.Exponential(Constants.BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
+
+    public static ulong SnowPhaseSeedForMonitor(int width, int height, int left, int top)
+    {
+        unchecked
+        {
+            ulong h = 1469598103934665603UL;
+            void Mix(int value)
+            {
+                ulong v = (ulong)(long)value;
+                for (int i = 0; i < 8; i++)
+                {
+                    h ^= v & 0xFFUL;
+                    h *= 1099511628211UL;
+                    v >>= 8;
+                }
+            }
+
+            Mix(width);
+            Mix(height);
+            Mix(left);
+            Mix(top);
+            return h == 0UL ? 1UL : h;
+        }
+    }
+
+    private static ulong SplitMix64(ulong z)
+    {
+        unchecked
+        {
+            z += 0x9E3779B97F4A7C15UL;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+            return z ^ (z >> 31);
+        }
+    }
+
+    public void SetSnowDepth(double depth)
+    {
+        if (!double.IsFinite(depth) || depth <= 0.0)
+        {
+            SnowDepth = 0.0;
+            return;
+        }
+        SnowDepth = Math.Min(depth, Constants.SNOW_DEPTH_MAX);
+    }
+
+    public double SnowTopYAt(double x)
+    {
+        if (SnowDepth <= 0.0) return WindowHeight;
+        ulong identity = SnowPhaseSeed != 0UL
+            ? SnowPhaseSeed
+            : SnowPhaseSeedForMonitor((int)Math.Round(MonitorWidth), (int)Math.Round(WindowHeight), 0, 0);
+        ulong phaseBits = SplitMix64(identity ^ Constants.SNOW_TOP_UNDULATION_PHASE_SALT);
+        double phase = (phaseBits >> 11) * (1.0 / 9007199254740992.0) * (2.0 * Math.PI);
+        double top = WindowHeight - SnowDepth
+                   + Math.Sin((x / Constants.SNOW_TOP_UNDULATION_WAVELENGTH) * (2.0 * Math.PI) + phase)
+                   * Constants.SNOW_TOP_UNDULATION_AMP;
+        return Math.Min(top, WindowHeight);
+    }
+
+    public double SnowTreeBaseYOffset => SnowDepth <= 0.0
+        ? 0.0
+        : Math.Clamp(SnowDepth - Constants.SNOW_TOP_UNDULATION_AMP,
+                     0.0,
+                     Constants.SNOW_DEPTH_MAX - Constants.SNOW_TOP_UNDULATION_AMP);
 
     internal static double SheepSleepProbForLocalHour(int hour)
     {
@@ -295,6 +364,10 @@ internal sealed class Sim
 
     public void SetScene(Scene s)
     {
+        if (s != Scene.Winter)
+        {
+            SnowDepth = 0.0;
+        }
         CurrentScene = s;
         // Soft-fade Grass rain: scene transitions remove hard scene entities but
         // preserve finite-lifetime raindrops so they naturally fall out.
@@ -975,6 +1048,10 @@ internal sealed class Sim
 
         Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)
                              || (e.Kind == EntityKind.Snowflake && e.Y > groundY)
+                             || (e.Kind == EntityKind.Snowflake
+                                 && CurrentScene == Scene.Winter
+                                 && SnowDepth > 0.0
+                                 && e.Y >= SnowTopYAt(e.X))
                              || (e.Kind == EntityKind.Bird
                                  && ((e.Vx >= 0.0 && e.X > MonitorWidth + 50.0)
                                   || (e.Vx < 0.0 && e.X < -50.0))));
@@ -1317,6 +1394,10 @@ internal sealed class Sim
     {
         AmbientPrng = Prng.Init(seed ^ Constants.AMBIENT_GUST_PRNG_SALT);
         MonitorWidth = monitorWidth;
+        if (SnowPhaseSeed == 0UL)
+        {
+            SnowPhaseSeed = SnowPhaseSeedForMonitor((int)Math.Round(monitorWidth), (int)Math.Round(WindowHeight), 0, 0);
+        }
         // First interval drawn immediately so the first puff never fires
         // at t=0 and every subsequent fire is exactly 4 PRNG draws.
         NextAmbientGustTime = GlobalTime
@@ -1727,6 +1808,15 @@ internal sealed class Sim
     public void Tick(double dt, ReadOnlySpan<InputEvent> events)
     {
         GlobalTime += dt;
+
+        if (CurrentScene == Scene.Winter)
+        {
+            SetSnowDepth(SnowDepth + Constants.SNOW_ACCUMULATION_RATE * Math.Max(0.0, dt));
+        }
+        else
+        {
+            SnowDepth = 0.0;
+        }
 
         for (int i = 0; i < events.Length; i++)
         {

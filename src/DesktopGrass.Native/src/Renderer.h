@@ -66,7 +66,8 @@ private:
     bool CreateDeviceResources();
     bool CreateSwapChainResources(int widthPx, int heightPx);
     void DiscardDeviceResources();
-    void DrawGrass();
+    void DrawGrass(bool treesOnly);
+    void DrawSnowLayer();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawDayTint();
     void DrawButterfly(const Entity& e, double hourFloat);
@@ -102,6 +103,9 @@ private:
     ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
     ComPtr<ID2D1SolidColorBrush>           raindropBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
+    ComPtr<ID2D1SolidColorBrush>           snowLayerTopBrush_;
+    ComPtr<ID2D1SolidColorBrush>           snowLayerBottomBrush_;
+    ComPtr<ID2D1SolidColorBrush>           snowLayerHighlightBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchBarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchMarkBrush_;

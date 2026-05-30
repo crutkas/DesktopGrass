@@ -393,6 +393,7 @@ void App::ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBo
             && monitor.height == height
             && monitor.left == monitorBounds.left
             && monitor.top == monitorBounds.top) {
+            sim_set_snow_depth(sim, currentScene_ == Scene::Winter ? monitor.snowDepth : 0.0);
             sim_apply_cuts(sim, monitor.cuts);
             return;
         }
@@ -401,7 +402,7 @@ void App::ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBo
 
 persistence::AppState App::BuildAppState() {
     persistence::AppState state;
-    state.version = 1;
+    state.version = 2;
     state.scene = currentScene_;
     state.critter = currentCritter_;
     state.critterCountOverride = currentCritterCount_;
@@ -415,7 +416,9 @@ persistence::AppState App::BuildAppState() {
         monitor.height = bounds.bottom - bounds.top;
         monitor.left = bounds.left;
         monitor.top = bounds.top;
-        monitor.cuts = sim_get_cuts(w->GetRenderer().GetSim());
+        const Sim& sim = w->GetRenderer().GetSim();
+        monitor.snowDepth = sim.snowDepth;
+        monitor.cuts = sim_get_cuts(sim);
         state.monitors.push_back(std::move(monitor));
     }
 

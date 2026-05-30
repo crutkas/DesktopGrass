@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -21,6 +22,7 @@ namespace desktopgrass::persistence {
 namespace {
 
 std::optional<std::wstring> g_stateFilePathForTest;
+constexpr int kCurrentVersion = 2;
 
 struct JsonValue {
     enum class Type { Null, Bool, Number, String, Array, Object };
@@ -273,6 +275,11 @@ std::optional<std::string> ReadString(const JsonValue& object, const std::string
     return value->stringValue;
 }
 
+double ClampSnowDepth(double depth) noexcept {
+    if (!std::isfinite(depth) || depth <= 0.0) return 0.0;
+    return std::min(depth, SNOW_DEPTH_MAX);
+}
+
 std::string JsonEscape(std::string_view text) {
     std::string out;
     for (char c : text) {
@@ -356,7 +363,7 @@ std::string Serialize(const AppState& state) {
     std::ostringstream out;
     out << std::setprecision(17);
     out << "{\n";
-    out << "  \"version\": 1,\n";
+    out << "  \"version\": " << kCurrentVersion << ",\n";
     out << "  \"savedAt\": \"" << CurrentUtcTimestamp() << "\",\n";
     out << "  \"scene\": \"" << SceneToString(state.scene) << "\",\n";
     out << "  \"critter\": \"" << CritterToString(state.critter) << "\",\n";
@@ -367,6 +374,7 @@ std::string Serialize(const AppState& state) {
     for (std::size_t i = 0; i < state.monitors.size(); ++i) {
         const MonitorState& monitor = state.monitors[i];
         out << "    \"" << JsonEscape(MonitorKey(monitor)) << "\": {\n";
+        out << "      \"snowDepth\": " << ClampSnowDepth(monitor.snowDepth) << ",\n";
         out << "      \"cuts\": [";
         if (!monitor.cuts.empty()) {
             out << "\n";
@@ -394,13 +402,13 @@ bool ParseAppState(const JsonValue& root, AppState& out) {
     if (root.type != JsonValue::Type::Object) return false;
 
     const int version = ReadInt(root, "version").value_or(0);
-    if (version != 1) {
+    if (version != 1 && version != kCurrentVersion) {
         OutputDebugStringA("DesktopGrass persistence: unsupported state.json version; starting fresh.\n");
         return false;
     }
 
     AppState parsed;
-    parsed.version = 1;
+    parsed.version = kCurrentVersion;
 
     auto sceneName = ReadString(root, "scene");
     if (!sceneName) sceneName = ReadString(root, "currentScene");
@@ -424,6 +432,10 @@ bool ParseAppState(const JsonValue& root, AppState& out) {
             MonitorState monitor;
             if (!TryParseMonitorKey(key, monitor)) {
                 continue;
+            }
+
+            if (version >= 2) {
+                monitor.snowDepth = ClampSnowDepth(ReadDouble(value, "snowDepth").value_or(0.0));
             }
 
             const JsonValue* cuts = FindMember(value, "cuts");

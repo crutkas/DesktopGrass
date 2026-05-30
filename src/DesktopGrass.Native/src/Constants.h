@@ -587,6 +587,17 @@ constexpr double   SNOWFLAKE_LIFETIME_PADDING_SEC  = 2.0;
 constexpr uint32_t SNOWFLAKE_COLOR                 = 0xFFFFFFFFu;
 constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
 
+// Snow accumulation (§15.2). Passive Winter-only layer on the strip baseline.
+constexpr double   SNOW_ACCUMULATION_RATE           = 0.012;  // DIP/sec
+constexpr double   SNOW_DEPTH_MAX                   = 30.0;   // DIP
+constexpr double   SNOW_DEPTH_MIN_RENDER            = 0.3;    // DIP
+constexpr uint32_t SNOW_LAYER_COLOR_TOP             = 0xFFFFFFFFu;
+constexpr uint32_t SNOW_LAYER_COLOR_BOTTOM          = 0xFFE8E8F0u;
+constexpr uint32_t SNOW_LAYER_HIGHLIGHT             = 0xFFFFFFFFu;
+constexpr double   SNOW_TOP_UNDULATION_AMP          = 2.5;    // DIP
+constexpr double   SNOW_TOP_UNDULATION_WAVELENGTH   = 90.0;   // DIP
+constexpr uint64_t SNOW_TOP_UNDULATION_PHASE_SALT   = 0x5E0A1ull;
+
 // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
 // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
 constexpr uint64_t RAINDROP_PRNG_SALT              = 0xD40F0A1DD40F0A1Dull;

@@ -92,6 +92,7 @@
     <ClCompile Include="src\entity_skeleton_tests.cpp" />
     <ClCompile Include="src\desert_tests.cpp" />
     <ClCompile Include="src\winter_tests.cpp" />
+    <ClCompile Include="src\snow_accumulation_tests.cpp" />
     <ClCompile Include="src\rain_tests.cpp" />
     <ClCompile Include="src\pine_tests.cpp" />
     <ClCompile Include="src\critter_tests.cpp" />

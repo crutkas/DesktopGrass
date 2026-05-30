@@ -1328,6 +1328,47 @@ if currentScene == Winter and !isMushroom and !isCactus and !isPine
 - Scene→Grass (or Scene→Desert) clears `isPine` on every slot.
 - Pine generation does NOT touch the §12 first-blade snapshot.
 
+## 15.2 Snow accumulation (Winter passive layer)
+
+Snow accumulation is Winter-only, always on, and ambient. Each monitor strip owns a single scalar `snowDepth` in DIP. It starts at `0` for fresh Winter sims, increases only while `currentScene == Winter`, and is clamped to `SNOW_DEPTH_MAX`. Switching to any non-Winter scene immediately resets the value to `0` (instant melt). Switching back to Winter starts from the loaded `state.json` value if the saved scene was Winter, otherwise `0`.
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `SNOW_ACCUMULATION_RATE` | `0.012` | DIP/sec; about `0.72` DIP/min |
+| `SNOW_DEPTH_MAX` | `30.0` | cap; reached in about 42 minutes |
+| `SNOW_DEPTH_MIN_RENDER` | `0.3` | render threshold to avoid startup flicker |
+| `SNOW_LAYER_COLOR_TOP` | `0xFFFFFFFF` | white upper band |
+| `SNOW_LAYER_COLOR_BOTTOM` | `0xFFE8E8F0` | pale blue-grey lower band |
+| `SNOW_LAYER_HIGHLIGHT` | `0xFFFFFFFF` | bright top-edge crest |
+| `SNOW_TOP_UNDULATION_AMP` | `2.5` | DIP sinusoidal top-edge amplitude |
+| `SNOW_TOP_UNDULATION_WAVELENGTH` | `90.0` | DIP top-edge wavelength |
+| `SNOW_TOP_UNDULATION_PHASE_SALT` | `0x5E0A1` | per-monitor phase salt |
+
+Tick model:
+
+```text
+if currentScene == Winter:
+    snowDepth = min(snowDepth + SNOW_ACCUMULATION_RATE * dt, SNOW_DEPTH_MAX)
+else:
+    snowDepth = 0
+```
+
+The rendered top edge is monitor-stable and sampled at DIP x-coordinate:
+
+```text
+phase = hash(monitorKey XOR SNOW_TOP_UNDULATION_PHASE_SALT) * 2π
+topYAt(x) = min(groundY,
+                groundY - snowDepth
+                + sin(x / SNOW_TOP_UNDULATION_WAVELENGTH * 2π + phase)
+                  * SNOW_TOP_UNDULATION_AMP)
+```
+
+Winter render layering is: normal grass blades and blade ornaments → accumulated snow layer → pines/birches → scene entities (including snowflakes). The snow layer fills from the wavy top edge to `groundY` with a white-to-pale-blue-grey vertical gradient and a bright crest highlight. It covers the lower portion of grass without clipping around individual blades; cut blades read as naturally buried. Pines and birches are rendered after the layer and their base Y is raised by `max(0, snowDepth - SNOW_TOP_UNDULATION_AMP)`, capped at the max-depth-derived offset, so trunks read as partially buried rather than floating.
+
+Snowflakes keep the existing PRNG spawn stream. In Winter, a snowflake despawns not only when it passes below `groundY`, but also when `flakeY >= topYAt(flakeX)` and `snowDepth > 0`; this makes flakes visually land on the accumulated layer without feeding per-flake counts back into accumulation.
+
+Persistence schema bumps to v2. v2 monitor entries add `snowDepth`; v1 files load cleanly with missing snow depth defaulting to `0`, and all saves write v2.
+
 ---
 
 ## 12. Conformance
@@ -2077,7 +2118,7 @@ DesktopGrass persists calm, invisible app state automatically. There is no user-
 
 ### File and schema
 
-State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Both implementations write human-readable JSON with `"version": 1` and a UTC `savedAt` timestamp. Writes are atomic: serialize to `state.json.tmp` in the same directory, then replace/rename it to `state.json` so a crash mid-write does not corrupt the previous state.
+State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Both implementations write human-readable JSON with `"version": 2` and a UTC `savedAt` timestamp. Writes are atomic: serialize to `state.json.tmp` in the same directory, then replace/rename it to `state.json` so a crash mid-write does not corrupt the previous state.
 
 Persisted fields:
 
@@ -2085,11 +2126,16 @@ Persisted fields:
 - `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`, `Bunny`).
 - `critterCount`: `0` for random, `1..6` for fixed per-monitor count.
 - `autoStart`: whether DesktopGrass should start with Windows; default `false`.
-- `monitors`: object keyed by monitor work-area key, each with a `cuts` array of `{ bladeIndex, cutTime }` records.
+- `monitors`: object keyed by monitor work-area key. Each v2 monitor has `snowDepth` plus a `cuts` array of `{ bladeIndex, cutTime }` records.
+
+### Schema versions
+
+- v1: `version: 1`, monitor entries contain only `cuts`.
+- v2: `version: 2`, monitor entries add Winter `snowDepth` in DIP. All saves write v2. Loading v1 is supported and treats missing `snowDepth` as `0` with no migration file write required.
 
 ### Load order
 
-On startup, load `state.json` before creating any `Sim`. Apply the loaded scene, critter, and critter count to every subsequently-created sim. After each sim has generated its blade set, find the matching monitor entry and apply its cuts. If the file is missing or malformed, start from defaults. If `version` is not `1`, log a warning and start fresh; never crash.
+On startup, load `state.json` before creating any `Sim`. Apply the loaded scene, critter, and critter count to every subsequently-created sim. After each sim has generated its blade set, find the matching monitor entry, apply `snowDepth` only when the loaded scene is Winter, then apply cuts. If the file is missing or malformed, start from defaults. If `version` is neither `1` nor `2`, log a warning and start fresh; never crash.
 
 ### Save triggers
 
@@ -2131,7 +2177,7 @@ DesktopGrass renders a passive, full-strip day-night ambient tint as the final d
 
 `hourFloat = localHour + localMinute / 60.0`, using the same local clock source as critter sleep bias. Normalize into `[0, 24)`, find the bracketing hour keys (wrapping at 24), and linearly interpolate RGB and alpha with `t = (hourFloat - current.startHour) / (next.startHour - current.startHour)`, using wrap-aware span math. Bands longer than two hours are calm plateaus: Night 00-04 and Day 10-17 hold their start color/alpha, so noon is truly no-tint. `DAYTINT_MAX_ALPHA` is 36 and clamps the result so the effect remains subtle.
 
-Current builds keep the tint enabled by default (`DAYTINT_ENABLED_DEFAULT = true`) and do not add a tray toggle; therefore persistence remains schema version 1 with no `state.json` impact.
+Current builds keep the tint enabled by default (`DAYTINT_ENABLED_DEFAULT = true`) and do not add a tray toggle; therefore day tint has no `state.json` impact.
 
 ## 20. Weather — Light rain
 

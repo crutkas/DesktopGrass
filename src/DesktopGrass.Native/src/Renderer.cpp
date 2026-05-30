@@ -201,6 +201,21 @@ bool Renderer::CreateDeviceResources() {
                                             snowTipBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    snowLayerTopBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_COLOR_TOP),
+                                            snowLayerTopBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    snowLayerBottomBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_COLOR_BOTTOM),
+                                            snowLayerBottomBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    snowLayerHighlightBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_HIGHLIGHT),
+                                            snowLayerHighlightBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     pineBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PINE_COLOR),
                                             pineBrush_.ReleaseAndGetAddressOf());
@@ -411,6 +426,9 @@ void Renderer::DiscardDeviceResources() {
     snowflakeBrush_.Reset();
     raindropBrush_.Reset();
     snowTipBrush_.Reset();
+    snowLayerTopBrush_.Reset();
+    snowLayerBottomBrush_.Reset();
+    snowLayerHighlightBrush_.Reset();
     pineBrush_.Reset();
     birchBarkBrush_.Reset();
     birchMarkBrush_.Reset();
@@ -575,7 +593,9 @@ void Renderer::RenderFrame(double dt,
         ? &cursorPosition
         : nullptr;
 
-    DrawGrass();
+    DrawGrass(false);
+    DrawSnowLayer();
+    DrawGrass(true);
     DrawEntities(cursorForRender);
     DrawDayTint();
 
@@ -609,7 +629,40 @@ void Renderer::RenderFrame(double dt,
     }
 }
 
-void Renderer::DrawGrass() {
+void Renderer::DrawSnowLayer() {
+    if (sim_.currentScene != Scene::Winter || sim_.snowDepth < SNOW_DEPTH_MIN_RENDER) return;
+    if (!snowLayerTopBrush_ || !snowLayerBottomBrush_ || !snowLayerHighlightBrush_) return;
+
+    const float groundY = static_cast<float>(sim_.windowHeight);
+    const double widthFallback = (dpi_ == 0) ? widthPx_ : static_cast<double>(widthPx_) * 96.0 / static_cast<double>(dpi_);
+    const float width = static_cast<float>(sim_.monitorWidth > 0.0 ? sim_.monitorWidth : widthFallback);
+    if (width <= 0.0f) return;
+
+    constexpr float kStep = 2.0f;
+    D2D1_POINT_2F prevTop = D2D1::Point2F(0.0f, static_cast<float>(snow_top_y_at(sim_, 0.0)));
+    for (float x = 0.0f; x <= width + kStep; x += kStep) {
+        const float sampleX = std::min(x, width);
+        const float topY = static_cast<float>(snow_top_y_at(sim_, sampleX));
+        const float bandH = groundY - topY;
+        if (bandH > 0.0f) {
+            const float midY = topY + bandH * 0.45f;
+            d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY), D2D1::Point2F(sampleX, midY),
+                                  snowLayerTopBrush_.Get(), kStep + 0.5f);
+            d2dContext_->DrawLine(D2D1::Point2F(sampleX, midY), D2D1::Point2F(sampleX, groundY),
+                                  snowLayerBottomBrush_.Get(), kStep + 0.5f);
+        }
+
+        const D2D1_POINT_2F currentTop = D2D1::Point2F(sampleX, topY);
+        if (x > 0.0f) {
+            d2dContext_->DrawLine(prevTop, currentTop, snowLayerHighlightBrush_.Get(), 1.0f);
+        }
+        prevTop = currentTop;
+        if (sampleX >= width) break;
+    }
+}
+
+void Renderer::DrawGrass(bool treesOnly) {
+    if (treesOnly && sim_.currentScene != Scene::Winter) return;
     const double groundY = sim_.windowHeight;
     const int sceneIdx = static_cast<int>(sim_.currentScene);
     ComPtr<ID2D1Factory> factoryGeneric;
@@ -642,6 +695,12 @@ void Renderer::DrawGrass() {
     };
 
     for (const Blade& b : sim_.blades) {
+        if (treesOnly) {
+            if (!b.isPine) continue;
+        } else if (b.isPine) {
+            continue;
+        }
+
         if (b.isCactus) {
             const float baseX = static_cast<float>(b.baseX);
             const float gy = static_cast<float>(groundY);
@@ -678,7 +737,7 @@ void Renderer::DrawGrass() {
         // both styles reduce to a short brown stump.
         if (b.isPine) {
             const float baseX = static_cast<float>(b.baseX);
-            const float gy    = static_cast<float>(groundY);
+            const float gy    = static_cast<float>(groundY - snow_tree_base_y_offset(sim_));
 
             if (b.cutHeight < CUT_STUMP_THRESHOLD) {
                 d2dContext_->DrawLine(

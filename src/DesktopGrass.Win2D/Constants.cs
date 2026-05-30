@@ -529,6 +529,17 @@ internal static class Constants
     public const uint SNOWFLAKE_COLOR = 0xFFFFFFFFu;
     public const ulong SNOWFLAKE_PRNG_SALT = 0xC0FFEE1CECAFEBABul;
 
+    // Snow accumulation (§15.2). Passive Winter-only layer on the strip baseline.
+    public const double SNOW_ACCUMULATION_RATE = 0.012;
+    public const double SNOW_DEPTH_MAX = 30.0;
+    public const double SNOW_DEPTH_MIN_RENDER = 0.3;
+    public const uint SNOW_LAYER_COLOR_TOP = 0xFFFFFFFFu;
+    public const uint SNOW_LAYER_COLOR_BOTTOM = 0xFFE8E8F0u;
+    public const uint SNOW_LAYER_HIGHLIGHT = 0xFFFFFFFFu;
+    public const double SNOW_TOP_UNDULATION_AMP = 2.5;
+    public const double SNOW_TOP_UNDULATION_WAVELENGTH = 90.0;
+    public const ulong SNOW_TOP_UNDULATION_PHASE_SALT = 0x5E0A1ul;
+
     // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
     // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
     public const ulong RAINDROP_PRNG_SALT = 0xD40F0A1DD40F0A1Dul;

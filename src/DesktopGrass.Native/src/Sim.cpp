@@ -78,6 +78,51 @@ uint32_t prng_index(Prng& p, uint32_t n) noexcept {
     return static_cast<uint32_t>(prng_next_unit(p) * static_cast<double>(n));
 }
 
+uint64_t snow_phase_seed_from_monitor(int width, int height, int left, int top) noexcept {
+    uint64_t h = 1469598103934665603ull;
+    auto mix = [&h](int value) noexcept {
+        uint64_t v = static_cast<uint64_t>(static_cast<int64_t>(value));
+        for (int i = 0; i < 8; ++i) {
+            h ^= (v & 0xFFull);
+            h *= 1099511628211ull;
+            v >>= 8;
+        }
+    };
+    mix(width);
+    mix(height);
+    mix(left);
+    mix(top);
+    return h == 0 ? 1ull : h;
+}
+
+void sim_set_snow_depth(Sim& sim, double depth) noexcept {
+    if (!std::isfinite(depth) || depth <= 0.0) {
+        sim.snowDepth = 0.0;
+        return;
+    }
+    sim.snowDepth = std::min(depth, SNOW_DEPTH_MAX);
+}
+
+double snow_top_y_at(const Sim& sim, double x) noexcept {
+    if (sim.snowDepth <= 0.0) return sim.windowHeight;
+    const uint64_t identity = sim.snowPhaseSeed != 0
+        ? sim.snowPhaseSeed
+        : snow_phase_seed_from_monitor(static_cast<int>(sim.monitorWidth + 0.5),
+                                       static_cast<int>(sim.windowHeight + 0.5), 0, 0);
+    const uint64_t phaseBits = splitmix64(identity ^ SNOW_TOP_UNDULATION_PHASE_SALT);
+    const double phase = static_cast<double>(phaseBits >> 11) * (1.0 / 9007199254740992.0) * TWO_PI;
+    const double top = sim.windowHeight - sim.snowDepth
+        + std::sin((x / SNOW_TOP_UNDULATION_WAVELENGTH) * TWO_PI + phase) * SNOW_TOP_UNDULATION_AMP;
+    return std::min(top, sim.windowHeight);
+}
+
+double snow_tree_base_y_offset(const Sim& sim) noexcept {
+    if (sim.snowDepth <= 0.0) return 0.0;
+    return std::clamp(sim.snowDepth - SNOW_TOP_UNDULATION_AMP,
+                      0.0,
+                      SNOW_DEPTH_MAX - SNOW_TOP_UNDULATION_AMP);
+}
+
 double sheep_sleep_prob_for_local_hour(int hour) noexcept {
     if (hour < 0 || hour > 23) return SHEEP_SLEEP_PROB_DEFAULT;
     if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
@@ -982,6 +1027,9 @@ void enter_bunny_rest_state(Sim& sim, Entity& e) noexcept {
 } // anonymous
 
 void sim_set_scene(Sim& sim, Scene s) noexcept {
+    if (s != Scene::Winter) {
+        sim.snowDepth = 0.0;
+    }
     sim.currentScene = s;
     // Soft-fade Grass rain: scene transitions remove hard scene entities but
     // preserve finite-lifetime raindrops so they naturally fall out.
@@ -1168,6 +1216,10 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             [groundY, &sim](const Entity& e) {
                 return (e.lifetime > 0.0 && e.age >= e.lifetime)
                     || (e.kind == EntityKind::Snowflake && e.y > groundY)
+                    || (e.kind == EntityKind::Snowflake
+                        && sim.currentScene == Scene::Winter
+                        && sim.snowDepth > 0.0
+                        && e.y >= snow_top_y_at(sim, e.x))
                     || (e.kind == EntityKind::Bird
                         && ((e.vx >= 0.0 && e.x > sim.monitorWidth + 50.0)
                          || (e.vx < 0.0 && e.x < -50.0)));
@@ -1495,6 +1547,9 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     s.windowHeight = STRIP_HEIGHT + HEADROOM;
     s.monitorWidth = monitorWidth;
     s.entitySeed   = seed;
+    s.snowDepth    = 0.0;
+    s.snowPhaseSeed = snow_phase_seed_from_monitor(static_cast<int>(monitorWidth + 0.5),
+                                                    static_cast<int>(s.windowHeight + 0.5), 0, 0);
     s.entities.reserve(MAX_ENTITIES_PER_MONITOR);
     generate_blades(seed, monitorWidth, density, s.blades);
 
@@ -1521,6 +1576,9 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.prevCursorTime = -1.0;
     sim.monitorWidth   = monitorWidth;
     sim.entitySeed     = seed;
+    sim.snowDepth      = 0.0;
+    sim.snowPhaseSeed  = snow_phase_seed_from_monitor(static_cast<int>(monitorWidth + 0.5),
+                                                       static_cast<int>(sim.windowHeight + 0.5), 0, 0);
     sim.entities.clear();
     if (sim.entities.capacity() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
         sim.entities.reserve(MAX_ENTITIES_PER_MONITOR);
@@ -1543,6 +1601,12 @@ void sim_tick(Sim& sim, double dt,
               const InputEvent* events, std::size_t numEvents) noexcept
 {
     sim.globalTime += dt;
+
+    if (sim.currentScene == Scene::Winter) {
+        sim_set_snow_depth(sim, sim.snowDepth + SNOW_ACCUMULATION_RATE * std::max(0.0, dt));
+    } else {
+        sim.snowDepth = 0.0;
+    }
 
     for (std::size_t i = 0; i < numEvents; ++i) {
         const InputEvent& e = events[i];

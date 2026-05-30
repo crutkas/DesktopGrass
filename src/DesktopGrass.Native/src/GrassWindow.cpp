@@ -79,6 +79,8 @@ bool GrassWindow::Create(HINSTANCE hInst,
         return false;
     }
 
+    renderer_.GetSim().snowPhaseSeed = snow_phase_seed_from_monitor(
+        monitorW, monitorH, monitorBounds.left, monitorBounds.top);
     renderer_.SetWindowOriginScreen(screenBounds_.left, screenBounds_.top);
     return true;
 }

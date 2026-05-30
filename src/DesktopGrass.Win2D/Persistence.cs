@@ -13,7 +13,8 @@ public sealed record MonitorState(
     [property: JsonPropertyName("height")] int Height,
     [property: JsonPropertyName("left")] int Left,
     [property: JsonPropertyName("top")] int Top,
-    [property: JsonPropertyName("cuts")] List<CutRecord> Cuts);
+    [property: JsonPropertyName("cuts")] List<CutRecord> Cuts,
+    [property: JsonPropertyName("snowDepth")] double SnowDepth = 0.0);
 
 public sealed record AppState(
     [property: JsonPropertyName("version")] int Version,
@@ -25,7 +26,7 @@ public sealed record AppState(
 
 public static class Persistence
 {
-    private const int CurrentVersion = 1;
+    private const int CurrentVersion = 2;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -60,7 +61,7 @@ public static class Persistence
                 return null;
             }
 
-            if (dto.Version != CurrentVersion)
+            if (dto.Version is not (1 or CurrentVersion))
             {
                 Trace.WriteLine($"DesktopGrass persistence: unsupported state.json version {dto.Version}; starting fresh.");
                 return null;
@@ -76,7 +77,8 @@ public static class Persistence
                         continue;
                     }
 
-                    monitors.Add(new MonitorState(width, height, left, top, monitorDto?.Cuts ?? []));
+                    double snowDepth = dto.Version >= 2 ? ClampSnowDepth(monitorDto?.SnowDepth ?? 0.0) : 0.0;
+                    monitors.Add(new MonitorState(width, height, left, top, monitorDto?.Cuts ?? [], snowDepth));
                 }
             }
 
@@ -122,7 +124,7 @@ public static class Persistence
             AutoStart = state.AutoStart,
             Monitors = state.Monitors.ToDictionary(
                 monitor => MonitorKey(monitor.Width, monitor.Height, monitor.Left, monitor.Top),
-                monitor => new MonitorDto { Cuts = monitor.Cuts })
+                monitor => new MonitorDto { SnowDepth = ClampSnowDepth(monitor.SnowDepth), Cuts = monitor.Cuts })
         };
 
         string json = JsonSerializer.Serialize(dto, Options) + Environment.NewLine;
@@ -130,6 +132,10 @@ public static class Persistence
         File.WriteAllText(tempPath, json);
         File.Move(tempPath, path, overwrite: true);
     }
+
+    private static double ClampSnowDepth(double depth) => double.IsFinite(depth)
+        ? Math.Clamp(depth, 0.0, Constants.SNOW_DEPTH_MAX)
+        : 0.0;
 
     public static string MonitorKey(int width, int height, int left, int top) => $"{width}x{height}@{left},{top}";
 
@@ -179,6 +185,9 @@ public static class Persistence
 
     private sealed class MonitorDto
     {
+        [JsonPropertyName("snowDepth")]
+        public double SnowDepth { get; set; }
+
         [JsonPropertyName("cuts")]
         public List<CutRecord> Cuts { get; set; } = [];
     }

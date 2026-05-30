@@ -75,7 +75,7 @@ public sealed class AutoStartTests : IDisposable
     [Fact]
     public void PersistedTrueReconcilesRegistryOnStartup()
     {
-        var state = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: true, []);
+        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: true, []);
 
         AutoStart.ReconcileWithState(state.AutoStart);
 
@@ -85,7 +85,7 @@ public sealed class AutoStartTests : IDisposable
     [Fact]
     public void PersistedFalseReconcilesRegistryOnStartup()
     {
-        var state = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false, []);
+        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false, []);
         AutoStart.SetEnabled(true);
 
         AutoStart.ReconcileWithState(state.AutoStart);

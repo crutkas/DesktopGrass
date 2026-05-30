@@ -64,7 +64,7 @@ persistence::AppState make_state_with_cuts() {
 }
 
 void assert_state_equal(const persistence::AppState& expected, const persistence::AppState& actual) {
-    REQUIRE(actual.version == 1);
+    REQUIRE(actual.version == 2);
     REQUIRE(actual.scene == expected.scene);
     REQUIRE(actual.critter == expected.critter);
     REQUIRE(actual.critterCountOverride == expected.critterCountOverride);
@@ -78,6 +78,7 @@ void assert_state_equal(const persistence::AppState& expected, const persistence
         REQUIRE(a.height == e.height);
         REQUIRE(a.left == e.left);
         REQUIRE(a.top == e.top);
+        REQUIRE(a.snowDepth == Approx(e.snowDepth).margin(1e-9));
         REQUIRE(a.cuts.size() == e.cuts.size());
         for (std::size_t j = 0; j < e.cuts.size(); ++j) {
             REQUIRE(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);

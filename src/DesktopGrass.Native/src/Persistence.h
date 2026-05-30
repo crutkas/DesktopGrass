@@ -17,11 +17,12 @@ struct MonitorState {
     int height = 0;
     int left = 0;
     int top = 0;
+    double snowDepth = 0.0;
     std::vector<CutRecord> cuts;
 };
 
 struct AppState {
-    int version = 1;
+    int version = 2;
     Scene scene = Scene::Grass;
     CritterKind critter = CritterKind::None;
     int critterCountOverride = 0;

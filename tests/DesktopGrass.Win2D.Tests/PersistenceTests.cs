@@ -3,6 +3,7 @@ using Xunit;
 
 namespace DesktopGrass.Win2D.Tests;
 
+[Collection("Persistence state")]
 public sealed class PersistenceTests
 {
     private static string UseStatePath(string name)
@@ -34,12 +35,12 @@ public sealed class PersistenceTests
                 cuts));
         }
 
-        return new AppState(1, Scene.Winter, CritterKind.Cat, 4, AutoStart: true, monitors);
+        return new AppState(2, Scene.Winter, CritterKind.Cat, 4, AutoStart: true, monitors);
     }
 
     private static void AssertStateEqual(AppState expected, AppState actual)
     {
-        Assert.Equal(1, actual.Version);
+        Assert.Equal(2, actual.Version);
         Assert.Equal(expected.Scene, actual.Scene);
         Assert.Equal(expected.Critter, actual.Critter);
         Assert.Equal(expected.CritterCountOverride, actual.CritterCountOverride);
@@ -54,6 +55,7 @@ public sealed class PersistenceTests
             Assert.Equal(e.Height, a.Height);
             Assert.Equal(e.Left, a.Left);
             Assert.Equal(e.Top, a.Top);
+            Assert.Equal(e.SnowDepth, a.SnowDepth, 9);
             Assert.Equal(e.Cuts.Count, a.Cuts.Count);
             for (int j = 0; j < e.Cuts.Count; j++)
             {
@@ -82,7 +84,7 @@ public sealed class PersistenceTests
     public void RoundTripEmptyState()
     {
         UseStatePath(nameof(RoundTripEmptyState));
-        var expected = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false, []);
+        var expected = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false, []);
 
         Persistence.Save(expected);
         AppState? actual = Persistence.Load();
@@ -135,7 +137,7 @@ public sealed class PersistenceTests
     {
         string path = UseStatePath(nameof(AtomicWriteLeavesFinalFileAndRemovesTmp));
 
-        Persistence.Save(new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false, []));
+        Persistence.Save(new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false, []));
 
         Assert.True(File.Exists(path));
         Assert.False(File.Exists(path + ".tmp"));
@@ -145,7 +147,7 @@ public sealed class PersistenceTests
     public void MonitorKeyFormatRoundTrips()
     {
         string path = UseStatePath(nameof(MonitorKeyFormatRoundTrips));
-        var state = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false,
+        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
         [
             new MonitorState(1920, 1080, 0, 0, [])
         ]);
@@ -178,7 +180,7 @@ public sealed class PersistenceTests
         Assert.Single(cuts);
         Assert.Equal(-20.0, cuts[0].CutTime, 9);
 
-        var state = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false,
+        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
         [
             new MonitorState(1920, 1080, 0, 0, cuts)
         ]);
@@ -205,7 +207,7 @@ public sealed class PersistenceTests
     public void UnmatchedMonitorCutsAreSkipped()
     {
         UseStatePath(nameof(UnmatchedMonitorCutsAreSkipped));
-        var state = new AppState(1, Scene.Grass, CritterKind.None, 0, AutoStart: false,
+        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
         [
             new MonitorState(9999, 9999, 99, 99, [new CutRecord(0, -20.0)])
         ]);
