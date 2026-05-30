@@ -42,6 +42,7 @@ public:
     HWND      GetHwnd()  const { return hwnd_; }
     Renderer& GetRenderer()     { return renderer_; }
     const RECT& GetScreenBounds() const { return screenBounds_; }
+    const RECT& GetMonitorBounds() const { return monitorBounds_; }
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -50,6 +51,7 @@ private:
     HWND       hwnd_ = nullptr;
     Renderer   renderer_;
     RECT       screenBounds_{}; // window screen-rect (left, top, right, bottom)
+    RECT       monitorBounds_{}; // monitor work-area rect used for persistence keys
     UINT       dpi_   = 96;
     uint64_t   seed_  = 0;
     double     density_ = 1.0;

@@ -405,6 +405,84 @@ void advance_cut(Blade& b, double globalTime) noexcept {
     }
 }
 
+std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim) {
+    std::vector<persistence::CutRecord> cuts;
+    cuts.reserve(sim.blades.size());
+
+    for (std::size_t i = 0; i < sim.blades.size(); ++i) {
+        const Blade& b = sim.blades[i];
+        const bool hasCutState = b.cutAnimStart >= 0.0
+                              || b.regrowStart >= 0.0
+                              || b.cutHeight < 1.0;
+        if (!hasCutState) continue;
+
+        double originalCutTime = sim.globalTime;
+        if (b.cutAnimStart >= 0.0) {
+            originalCutTime = b.cutAnimStart;
+        } else if (b.regrowStart >= 0.0) {
+            originalCutTime = b.regrowStart - b.regrowDelay - CUT_DURATION_SEC;
+        }
+
+        const double totalRegrowTime = CUT_DURATION_SEC
+                                     + std::max(0.0, b.regrowDelay)
+                                     + std::max(0.0, b.regrowDuration);
+        if (sim.globalTime - originalCutTime >= totalRegrowTime && b.regrowDuration > 0.0) {
+            continue;
+        }
+
+        cuts.push_back(persistence::CutRecord{
+            static_cast<int>(i),
+            originalCutTime - sim.globalTime
+        });
+    }
+
+    return cuts;
+}
+
+void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) noexcept {
+    for (const persistence::CutRecord& cut : cuts) {
+        if (cut.bladeIndex < 0) continue;
+        const std::size_t index = static_cast<std::size_t>(cut.bladeIndex);
+        if (index >= sim.blades.size()) continue;
+
+        Blade& b = sim.blades[index];
+        const double cutTime = cut.cutTime <= 0.0 ? sim.globalTime + cut.cutTime : cut.cutTime;
+        const double age = std::max(0.0, sim.globalTime - cutTime);
+
+        b.cutInitialHeight = 1.0;
+        if (age < CUT_DURATION_SEC) {
+            const double t = age / CUT_DURATION_SEC;
+            b.cutAnimStart = cutTime;
+            b.cutHeight = 1.0 - t;
+            b.regrowStart = -1.0;
+            continue;
+        }
+
+        b.cutAnimStart = -1.0;
+        b.cutHeight = 0.0;
+        if (b.regrowDelay <= 0.0 || b.regrowDuration <= 0.0) {
+            b.regrowStart = -1.0;
+            continue;
+        }
+
+        const double regrowStart = cutTime + CUT_DURATION_SEC + b.regrowDelay;
+        const double regrowElapsed = sim.globalTime - regrowStart;
+        if (regrowElapsed < 0.0) {
+            b.regrowStart = regrowStart;
+            continue;
+        }
+
+        if (regrowElapsed >= b.regrowDuration) {
+            b.cutHeight = 1.0;
+            b.regrowStart = -1.0;
+            continue;
+        }
+
+        b.cutHeight = regrowElapsed / b.regrowDuration;
+        b.regrowStart = regrowStart;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Move / click event handlers
 // ---------------------------------------------------------------------------

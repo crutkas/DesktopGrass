@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdio>
 #include <string>
+#include <utility>
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "Shcore.lib")
@@ -69,6 +70,15 @@ bool App::Initialize(HINSTANCE hInst) {
 
     QueryPerformanceFrequency(&qpcFreq_);
     QueryPerformanceCounter(&qpcLast_);
+
+    hasPersistedState_ = persistence::LoadAppState(persistedState_);
+    if (hasPersistedState_) {
+        currentScene_ = persistedState_.scene;
+        currentCritter_ = persistedState_.critter;
+        currentCritterCount_ = persistedState_.critterCountOverride;
+        autoStart_ = persistedState_.autoStart;
+    }
+    lastPersistenceSaveMs_ = GetTickCount64();
 
     if (!GrassWindow::RegisterWindowClass(hInst_)) return false;
     if (!CreateMessageWindow())                    return false;
@@ -189,6 +199,7 @@ void App::SetScene(Scene s) {
         sim_set_scene(w->GetRenderer().GetSim(), s);
     }
     UpdateSceneMenuCheck();
+    SaveCurrentState();
 }
 
 void App::UpdateCritterMenuCheck() {
@@ -219,14 +230,22 @@ void App::SetCritter(CritterKind c) {
         sim_set_critter(w->GetRenderer().GetSim(), c);
     }
     UpdateCritterMenuCheck();
+    SaveCurrentState();
 }
 
 void App::SetCritterCount(int n) {
-    currentCritterCount_ = n > 0 ? n : 0;
+    const int sanitized = n > 0 ? std::min(n, PET_COUNT_MAX_PER_MONITOR) : 0;
+    if (sanitized == currentCritterCount_) {
+        UpdatePetCountMenuCheck();
+        return;
+    }
+
+    currentCritterCount_ = sanitized;
     for (auto& w : windows_) {
         sim_set_critter_count(w->GetRenderer().GetSim(), currentCritterCount_);
     }
     UpdatePetCountMenuCheck();
+    SaveCurrentState();
 }
 
 void App::RemoveTrayIcon() {
@@ -251,6 +270,7 @@ bool App::EnumerateMonitorsAndCreateWindows() {
         // patterns differ across monitors but remain deterministic.
         const uint64_t mseed = seed_ ^ ((static_cast<uint64_t>(i) + 1) * 0x9E3779B97F4A7C15ull);
         if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, DEFAULT_DENSITY)) {
+            ApplyPersistedStateToWindow(*w, ctx.bounds[i]);
             w->Show();
             windows_.push_back(std::move(w));
         } else {
@@ -265,6 +285,7 @@ void App::DestroyAllGrassWindows() {
 }
 
 void App::OnDisplayChanged() {
+    SaveCurrentState();
     EnumerateMonitorsAndCreateWindows();
 }
 
@@ -328,6 +349,57 @@ void App::RenderAllWindows(double dt) {
     }
 }
 
+void App::ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds) {
+    Sim& sim = window.GetRenderer().GetSim();
+    sim_set_scene(sim, currentScene_);
+    sim_set_critter_count(sim, currentCritterCount_);
+    sim_set_critter(sim, currentCritter_);
+
+    if (!hasPersistedState_) return;
+
+    const int width = monitorBounds.right - monitorBounds.left;
+    const int height = monitorBounds.bottom - monitorBounds.top;
+    for (const persistence::MonitorState& monitor : persistedState_.monitors) {
+        if (monitor.width == width
+            && monitor.height == height
+            && monitor.left == monitorBounds.left
+            && monitor.top == monitorBounds.top) {
+            sim_apply_cuts(sim, monitor.cuts);
+            return;
+        }
+    }
+}
+
+persistence::AppState App::BuildAppState() {
+    persistence::AppState state;
+    state.version = 1;
+    state.scene = currentScene_;
+    state.critter = currentCritter_;
+    state.critterCountOverride = currentCritterCount_;
+    state.autoStart = autoStart_;
+
+    state.monitors.reserve(windows_.size());
+    for (const auto& w : windows_) {
+        const RECT& bounds = w->GetMonitorBounds();
+        persistence::MonitorState monitor;
+        monitor.width = bounds.right - bounds.left;
+        monitor.height = bounds.bottom - bounds.top;
+        monitor.left = bounds.left;
+        monitor.top = bounds.top;
+        monitor.cuts = sim_get_cuts(w->GetRenderer().GetSim());
+        state.monitors.push_back(std::move(monitor));
+    }
+
+    return state;
+}
+
+void App::SaveCurrentState() {
+    persistedState_ = BuildAppState();
+    hasPersistedState_ = true;
+    persistence::SaveAppState(persistedState_);
+    lastPersistenceSaveMs_ = GetTickCount64();
+}
+
 int App::Run() {
     MSG msg{};
     constexpr double kTargetFrameSec = 1.0 / 60.0;
@@ -353,12 +425,17 @@ int App::Run() {
 
         RenderAllWindows(dt);
 
+        if (GetTickCount64() - lastPersistenceSaveMs_ >= 60000ull) {
+            SaveCurrentState();
+        }
+
         // Yield to the OS / wait for either input or a frame interval.
         const DWORD waitMs = static_cast<DWORD>(kTargetFrameSec * 1000.0);
         MsgWaitForMultipleObjectsEx(0, nullptr, waitMs, QS_ALLINPUT,
                                     MWMO_INPUTAVAILABLE);
     }
 
+    SaveCurrentState();
     return static_cast<int>(msg.wParam);
 }
 

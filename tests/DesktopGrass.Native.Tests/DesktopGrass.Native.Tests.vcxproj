@@ -96,11 +96,14 @@
     <ClCompile Include="src\critter_tests.cpp" />
     <ClCompile Include="src\sheep_greeting_tests.cpp" />
     <ClCompile Include="src\cat_tests.cpp" />
+    <ClCompile Include="src\persistence_tests.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\Persistence.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 
   <ItemGroup>
     <ClInclude Include="src\snapshot_data.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\Persistence.h" />
     <ClInclude Include="third_party\catch2\catch.hpp" />
   </ItemGroup>
 

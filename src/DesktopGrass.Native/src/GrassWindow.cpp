@@ -43,6 +43,7 @@ bool GrassWindow::Create(HINSTANCE hInst,
     dpi_     = dpi == 0 ? 96 : dpi;
     seed_    = seed;
     density_ = density;
+    monitorBounds_ = monitorBounds;
 
     // Compute window dims in pixels: full monitor width × (STRIP_HEIGHT +
     // HEADROOM) DIP. Bottom-aligned to the monitor.

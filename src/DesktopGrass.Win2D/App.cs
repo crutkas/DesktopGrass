@@ -5,8 +5,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 using DesktopGrass.Win2D.Interop;
 
@@ -51,6 +53,10 @@ internal sealed class App : IDisposable
     private Scene _currentScene = Constants.SCENE_DEFAULT;
     private CritterKind _currentCritter = Constants.CRITTER_DEFAULT;
     private int _currentCritterCount;
+    private bool _autoStart;
+    private AppState? _persistedState;
+    private DateTimeOffset _lastPersistenceSave = DateTimeOffset.UtcNow;
+    private bool _shutdownSaved;
     private Win32.WndProc? _wndProcDelegate; // keep alive for class lifetime
     private ushort _classAtom;
     private long _qpcFreq;
@@ -62,6 +68,8 @@ internal sealed class App : IDisposable
         // Per-Monitor V2 DPI awareness. Best-effort; if manifest already
         // declared it this is a no-op.
         Win32.SetProcessDpiAwarenessContext(Win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+        LoadPersistedState();
 
         RegisterWindowClass();
         CreatePerMonitorWindows();
@@ -177,10 +185,12 @@ internal sealed class App : IDisposable
                 ^ ((ulong)bounds.Left * 0xA0761D6478BD642FUL)
                 ^ ((ulong)bounds.Top * 0xE7037ED1A0B428DBUL));
 
+            var monitorBounds = new Rectangle(bounds.Left, bounds.Top, widthPx, bounds.Height);
             var grass = new GrassWindow(
                 hwnd, widthPx, heightPx, perMonScale,
-                new Rectangle(bounds.Left, bounds.Top, widthPx, bounds.Height),
+                monitorBounds,
                 seed, monitorWidthDip);
+            ApplyPersistedStateToWindow(grass, monitorBounds);
 
             // Show without activating. Use NOACTIVATE-friendly path.
             Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST,
@@ -188,6 +198,68 @@ internal sealed class App : IDisposable
                 Win32.SWP_NOACTIVATE | Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_SHOWWINDOW);
 
             _windows.Add(grass);
+        }
+    }
+
+    private void LoadPersistedState()
+    {
+        _persistedState = Persistence.Load();
+        if (_persistedState is null) return;
+
+        _currentScene = _persistedState.Scene;
+        _currentCritter = _persistedState.Critter;
+        _currentCritterCount = Math.Clamp(_persistedState.CritterCountOverride, 0, Constants.PET_COUNT_MAX_PER_MONITOR);
+        _autoStart = _persistedState.AutoStart;
+        _lastPersistenceSave = DateTimeOffset.UtcNow;
+    }
+
+    private void ApplyPersistedStateToWindow(GrassWindow window, Rectangle monitorBounds)
+    {
+        window.SetScene(_currentScene);
+        window.SetCritterCount(_currentCritterCount);
+        window.SetCritter(_currentCritter);
+
+        if (_persistedState is null) return;
+
+        MonitorState? monitor = _persistedState.Monitors.Find(m =>
+            m.Width == monitorBounds.Width
+            && m.Height == monitorBounds.Height
+            && m.Left == monitorBounds.Left
+            && m.Top == monitorBounds.Top);
+        if (monitor is not null)
+        {
+            window.Sim.ApplyCuts(monitor.Cuts);
+        }
+    }
+
+    private AppState BuildAppState()
+    {
+        var monitors = new List<MonitorState>(_windows.Count);
+        foreach (var window in _windows)
+        {
+            Rectangle bounds = window.MonitorBoundsPx;
+            monitors.Add(new MonitorState(
+                bounds.Width,
+                bounds.Height,
+                bounds.Left,
+                bounds.Top,
+                window.Sim.GetCuts()));
+        }
+
+        return new AppState(1, _currentScene, _currentCritter, _currentCritterCount, _autoStart, monitors);
+    }
+
+    private void SaveCurrentState()
+    {
+        try
+        {
+            _persistedState = BuildAppState();
+            Persistence.Save(_persistedState);
+            _lastPersistenceSave = DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            Trace.WriteLine($"DesktopGrass persistence: unable to save state.json. {ex.Message}");
         }
     }
 
@@ -293,6 +365,7 @@ internal sealed class App : IDisposable
                 {
                     _currentScene = s;
                     foreach (var w in _windows) w.SetScene(s);
+                    SaveCurrentState();
                 }
             }
 
@@ -304,14 +377,25 @@ internal sealed class App : IDisposable
                 {
                     _currentCritter = c;
                     foreach (var w in _windows) w.SetCritter(c);
+                    SaveCurrentState();
                 }
             }
 
             int pendingCritterCount = Win32App.ConsumePendingCritterCountChange();
             if (pendingCritterCount >= 0)
             {
-                _currentCritterCount = pendingCritterCount;
-                foreach (var w in _windows) w.SetCritterCount(pendingCritterCount);
+                pendingCritterCount = Math.Clamp(pendingCritterCount, 0, Constants.PET_COUNT_MAX_PER_MONITOR);
+                if (pendingCritterCount != _currentCritterCount)
+                {
+                    _currentCritterCount = pendingCritterCount;
+                    foreach (var w in _windows) w.SetCritterCount(pendingCritterCount);
+                    SaveCurrentState();
+                }
+            }
+
+            if (DateTimeOffset.UtcNow - _lastPersistenceSave >= TimeSpan.FromSeconds(60))
+            {
+                SaveCurrentState();
             }
 
             foreach (var win in _windows)
@@ -324,6 +408,12 @@ internal sealed class App : IDisposable
 
     private void Shutdown()
     {
+        if (!_shutdownSaved)
+        {
+            SaveCurrentState();
+            _shutdownSaved = true;
+        }
+
         _hook?.Dispose();
         _tray?.Dispose();
         foreach (var w in _windows)

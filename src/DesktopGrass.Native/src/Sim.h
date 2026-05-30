@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "Constants.h"
+#include "Persistence.h"
 
 namespace desktopgrass {
 
@@ -293,6 +294,12 @@ void generate_pines_for_winter(Sim& sim) noexcept;
 // Per-blade dynamics helper (visible for tests).
 void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept;
 void advance_cut(Blade& b, double globalTime) noexcept;
+
+// Persistence helpers. GetCuts stores cut timestamps shifted relative to the
+// current sim time (for example, -20 means the blade was cut 20 seconds ago)
+// so a fresh sim can resume regrowth after restart.
+std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim);
+void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) noexcept;
 
 // dt clamp helper. Required at the renderer boundary so a long pause does not
 // produce visible artifacts. See architecture.md §10.

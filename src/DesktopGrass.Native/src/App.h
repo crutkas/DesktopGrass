@@ -14,6 +14,7 @@
 
 #include "GrassWindow.h"
 #include "MouseHook.h"
+#include "Persistence.h"
 
 namespace desktopgrass {
 
@@ -55,6 +56,9 @@ private:
     void OnDisplayChanged();
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
+    void ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds);
+    persistence::AppState BuildAppState();
+    void SaveCurrentState();
     void UpdateSceneMenuCheck();
     void UpdateCritterMenuCheck();
     void UpdatePetCountMenuCheck();
@@ -77,6 +81,10 @@ private:
     Scene                                       currentScene_ = SCENE_DEFAULT;
     CritterKind                                 currentCritter_ = CRITTER_DEFAULT;
     int                                         currentCritterCount_ = 0;
+    bool                                        autoStart_ = false;
+    bool                                        hasPersistedState_ = false;
+    persistence::AppState                       persistedState_{};
+    ULONGLONG                                   lastPersistenceSaveMs_ = 0;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     bool                                        quitRequested_ = false;

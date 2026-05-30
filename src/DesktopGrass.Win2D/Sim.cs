@@ -1139,6 +1139,87 @@ internal sealed class Sim
         }
     }
 
+    public List<CutRecord> GetCuts()
+    {
+        var cuts = new List<CutRecord>();
+        for (int i = 0; i < Blades.Length; i++)
+        {
+            ref readonly Blade b = ref Blades[i];
+            bool hasCutState = b.CutAnimStart >= 0.0 || b.RegrowStart >= 0.0 || b.CutHeight < 1.0;
+            if (!hasCutState) continue;
+
+            double originalCutTime = GlobalTime;
+            if (b.CutAnimStart >= 0.0)
+            {
+                originalCutTime = b.CutAnimStart;
+            }
+            else if (b.RegrowStart >= 0.0)
+            {
+                originalCutTime = b.RegrowStart - b.RegrowDelay - Constants.CUT_DURATION_SEC;
+            }
+
+            double totalRegrowTime = Constants.CUT_DURATION_SEC
+                                   + Math.Max(0.0, b.RegrowDelay)
+                                   + Math.Max(0.0, b.RegrowDuration);
+            if (GlobalTime - originalCutTime >= totalRegrowTime && b.RegrowDuration > 0.0)
+            {
+                continue;
+            }
+
+            cuts.Add(new CutRecord(i, originalCutTime - GlobalTime));
+        }
+
+        return cuts;
+    }
+
+    public void ApplyCuts(IReadOnlyList<CutRecord> cuts)
+    {
+        foreach (CutRecord cut in cuts)
+        {
+            if (cut.BladeIndex < 0 || cut.BladeIndex >= Blades.Length) continue;
+
+            ref Blade b = ref Blades[cut.BladeIndex];
+            double cutTime = cut.CutTime <= 0.0 ? GlobalTime + cut.CutTime : cut.CutTime;
+            double age = Math.Max(0.0, GlobalTime - cutTime);
+
+            b.CutInitialHeight = 1.0;
+            if (age < Constants.CUT_DURATION_SEC)
+            {
+                double t = age / Constants.CUT_DURATION_SEC;
+                b.CutAnimStart = cutTime;
+                b.CutHeight = 1.0 - t;
+                b.RegrowStart = -1.0;
+                continue;
+            }
+
+            b.CutAnimStart = -1.0;
+            b.CutHeight = 0.0;
+            if (b.RegrowDelay <= 0.0 || b.RegrowDuration <= 0.0)
+            {
+                b.RegrowStart = -1.0;
+                continue;
+            }
+
+            double regrowStart = cutTime + Constants.CUT_DURATION_SEC + b.RegrowDelay;
+            double regrowElapsed = GlobalTime - regrowStart;
+            if (regrowElapsed < 0.0)
+            {
+                b.RegrowStart = regrowStart;
+                continue;
+            }
+
+            if (regrowElapsed >= b.RegrowDuration)
+            {
+                b.CutHeight = 1.0;
+                b.RegrowStart = -1.0;
+                continue;
+            }
+
+            b.CutHeight = regrowElapsed / b.RegrowDuration;
+            b.RegrowStart = regrowStart;
+        }
+    }
+
     // §10 single per-frame entry point.
     public void Tick(double dt, ReadOnlySpan<InputEvent> events)
     {

@@ -946,7 +946,7 @@ The active scene shows a radio-style mark (`MFS_CHECKED` / `MF_BYCOMMAND` in Win
 - The Desert and Winter blade palette tables in §11 are bit-identical between impls.
 - `sim_init` sets `currentScene = Grass`.
 - `set_scene` updates the field and is a no-op on the §5 generation streams: the §12 first-blade snapshot stays unchanged regardless of scene.
-- Scene state is **not** persisted across launches in v1; every cold start begins on `Grass`.
+- Scene state is persisted across launches as part of app state (§18); missing or incompatible state still falls back to `Grass`.
 
 ### Defaults
 
@@ -1688,4 +1688,44 @@ Geometry is distinct from sheep: one long flattened body ellipse, smaller circul
 ### Defaults & conformance
 
 For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer, nameIndex)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests`.
+
+---
+
+## 18. Persistence
+
+DesktopGrass persists calm, invisible app state automatically. There is no user-facing save UI.
+
+### File and schema
+
+State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Both implementations write human-readable JSON with `"version": 1` and a UTC `savedAt` timestamp. Writes are atomic: serialize to `state.json.tmp` in the same directory, then replace/rename it to `state.json` so a crash mid-write does not corrupt the previous state.
+
+Persisted fields:
+
+- `scene`: current `Scene` enum name (`Grass`, `Desert`, `Winter`).
+- `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`).
+- `critterCount`: `0` for random, `1..6` for fixed per-monitor count.
+- `autoStart`: bool placeholder for the upcoming startup feature; default `false`.
+- `monitors`: object keyed by monitor work-area key, each with a `cuts` array of `{ bladeIndex, cutTime }` records.
+
+### Load order
+
+On startup, load `state.json` before creating any `Sim`. Apply the loaded scene, critter, and critter count to every subsequently-created sim. After each sim has generated its blade set, find the matching monitor entry and apply its cuts. If the file is missing or malformed, start from defaults. If `version` is not `1`, log a warning and start fresh; never crash.
+
+### Save triggers
+
+Startup does not save by itself. Save immediately after a scene, critter, or critter-count change is applied; save every 60 seconds while running; and save once more on the quit/exit path.
+
+### Monitor matching
+
+Monitor keys use the work-area rect from monitor enumeration:
+
+```text
+{width}x{height}@{left},{top}
+```
+
+Example: `1920x1080@0,0`. If a saved monitor key does not match any current monitor (for example, a monitor was unplugged), skip that monitor's cuts silently.
+
+### Cut time strategy
+
+The JSON field is named `cutTime`, but saved values are shifted relative to the sim time at save: `cutTime = originalCutTime - currentGlobalTime`. A cut made 20 seconds ago is saved as `-20.0`. Loading into a fresh sim with `globalTime = 0` applies that as `cutTime = -20.0`, preserving elapsed time and allowing regrowth to resume from the correct point without storing per-monitor global clocks.
 
