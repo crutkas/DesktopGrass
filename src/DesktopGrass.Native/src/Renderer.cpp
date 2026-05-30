@@ -317,6 +317,27 @@ bool Renderer::CreateDeviceResources() {
                                             bunnyNoseBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    hedgehogBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_BODY_COLOR),
+                                            hedgehogBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    hedgehogSpikeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_SPIKE_COLOR),
+                                            hedgehogSpikeBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    hedgehogSpikeTipBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_SPIKE_TIP_COLOR),
+                                            hedgehogSpikeTipBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    hedgehogNoseBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_NOSE_COLOR),
+                                            hedgehogNoseBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    hedgehogEyeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_EYE_COLOR),
+                                            hedgehogEyeBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     butterflyBodyBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUTTERFLY_BODY_COLOR),
                                             butterflyBodyBrush_.ReleaseAndGetAddressOf());
@@ -1368,9 +1389,141 @@ void Renderer::DrawBunny(const Entity& e) {
     }
 }
 
+void Renderer::DrawHedgehog(const Entity& e) {
+    if (!hedgehogBodyBrush_ || !hedgehogSpikeBrush_ || !hedgehogSpikeTipBrush_
+        || !hedgehogNoseBrush_ || !hedgehogEyeBrush_ || !d2dFactory_) return;
+
+    auto fillTriangle = [&](D2D1_POINT_2F a, D2D1_POINT_2F b, D2D1_POINT_2F c,
+                            ID2D1SolidColorBrush* brush) {
+        ComPtr<ID2D1PathGeometry> geometry;
+        if (FAILED(d2dFactory_->CreatePathGeometry(geometry.ReleaseAndGetAddressOf()))) return;
+        ComPtr<ID2D1GeometrySink> sink;
+        if (FAILED(geometry->Open(sink.ReleaseAndGetAddressOf()))) return;
+        sink->BeginFigure(a, D2D1_FIGURE_BEGIN_FILLED);
+        sink->AddLine(b);
+        sink->AddLine(c);
+        sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+        if (SUCCEEDED(sink->Close())) {
+            d2dContext_->FillGeometry(geometry.Get(), brush);
+        }
+    };
+
+    auto drawSpike = [&](float cx, float cy, float radiusX, float radiusY, float angle,
+                         bool mirrorX, float spikeLength, float spikeWidth) {
+        const float localUx = std::cos(angle);
+        const float localUy = std::sin(angle);
+        const float denom = std::sqrt((localUx * localUx) / (radiusX * radiusX)
+                                    + (localUy * localUy) / (radiusY * radiusY));
+        const float edgeRadius = denom > 0.0f ? 1.0f / denom : radiusX;
+        const float mirror = mirrorX ? ((e.vx >= 0.0) ? 1.0f : -1.0f) : 1.0f;
+        const float ux = mirror * localUx;
+        const float uy = localUy;
+        const D2D1_POINT_2F base = D2D1::Point2F(cx + ux * edgeRadius, cy + uy * edgeRadius);
+        const D2D1_POINT_2F tip  = D2D1::Point2F(base.x + ux * spikeLength, base.y + uy * spikeLength);
+        const float px = -uy;
+        const float py = ux;
+        const float half = spikeWidth * 0.5f;
+        fillTriangle(tip,
+                     D2D1::Point2F(base.x + px * half, base.y + py * half),
+                     D2D1::Point2F(base.x - px * half, base.y - py * half),
+                     hedgehogSpikeBrush_.Get());
+        d2dContext_->DrawLine(base, tip, hedgehogSpikeTipBrush_.Get(), 0.45f);
+    };
+
+    const bool isSleeping = e.state == HEDGEHOG_STATE_SLEEPING;
+    const bool isCurled = e.state == HEDGEHOG_STATE_CURLED;
+    const bool isBall = isSleeping || isCurled;
+    const float cx = static_cast<float>(e.x);
+    float cy = static_cast<float>(e.y);
+
+    if (isBall) {
+        const float ballR = static_cast<float>(HEDGEHOG_BODY_RADIUS * 0.85);
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), ballR, ballR),
+                                  hedgehogBodyBrush_.Get());
+        const int ballSpikeCount = HEDGEHOG_SPIKE_COUNT * 3 / 2;
+        for (int i = 0; i < ballSpikeCount; ++i) {
+            const float angle = static_cast<float>(2.0 * 3.14159265358979323846 * i / ballSpikeCount);
+            drawSpike(cx, cy, ballR, ballR, angle, false,
+                      static_cast<float>(HEDGEHOG_SPIKE_LENGTH),
+                      static_cast<float>(HEDGEHOG_SPIKE_WIDTH));
+        }
+
+        if (isSleeping) {
+            for (int zi = 0; zi < 2; ++zi) {
+                const float t = static_cast<float>(std::fmod(e.age / HEDGEHOG_ZZZ_CYCLE_SEC + 0.5 * zi, 1.0));
+                const float zSize = static_cast<float>(HEDGEHOG_ZZZ_SIZE_START
+                    + t * (HEDGEHOG_ZZZ_SIZE_END - HEDGEHOG_ZZZ_SIZE_START));
+                const float zX = cx + t * 2.4f;
+                const float zY = cy - ballR - 3.0f - t * static_cast<float>(HEDGEHOG_ZZZ_RISE);
+                const float alpha = 1.0f - t;
+                hedgehogSpikeTipBrush_->SetOpacity(alpha);
+                d2dContext_->DrawLine(D2D1::Point2F(zX, zY), D2D1::Point2F(zX + zSize, zY), hedgehogSpikeTipBrush_.Get(), 0.75f);
+                d2dContext_->DrawLine(D2D1::Point2F(zX + zSize, zY), D2D1::Point2F(zX, zY + zSize), hedgehogSpikeTipBrush_.Get(), 0.75f);
+                d2dContext_->DrawLine(D2D1::Point2F(zX, zY + zSize), D2D1::Point2F(zX + zSize, zY + zSize), hedgehogSpikeTipBrush_.Get(), 0.75f);
+            }
+            hedgehogSpikeTipBrush_->SetOpacity(1.0f);
+        }
+        return;
+    }
+
+    if (e.state == HEDGEHOG_STATE_WALKING) {
+        cy += static_cast<float>(HEDGEHOG_WADDLE_AMP * std::sin(e.age * HEDGEHOG_WADDLE_FREQ));
+    } else if (e.state == HEDGEHOG_STATE_IDLE) {
+        cy -= 1.0f;
+    }
+
+    const float facing = e.vx >= 0.0 ? 1.0f : -1.0f;
+    const float br = static_cast<float>(HEDGEHOG_BODY_RADIUS);
+    const float bh = static_cast<float>(HEDGEHOG_BODY_HEIGHT);
+    const float headR = static_cast<float>(HEDGEHOG_HEAD_RADIUS);
+
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh),
+                              hedgehogBodyBrush_.Get());
+
+    for (int i = 0; i < HEDGEHOG_SPIKE_COUNT; ++i) {
+        const double t = HEDGEHOG_SPIKE_COUNT > 1
+            ? static_cast<double>(i) / static_cast<double>(HEDGEHOG_SPIKE_COUNT - 1)
+            : 0.0;
+        const float degrees = static_cast<float>(HEDGEHOG_SPIKE_ARC_START_DEG
+            + t * (HEDGEHOG_SPIKE_ARC_END_DEG - HEDGEHOG_SPIKE_ARC_START_DEG));
+        const float angle = degrees * static_cast<float>(3.14159265358979323846 / 180.0);
+        drawSpike(cx, cy, br, bh, angle, true,
+                  static_cast<float>(HEDGEHOG_SPIKE_LENGTH),
+                  static_cast<float>(HEDGEHOG_SPIKE_WIDTH));
+    }
+
+    const float legTopY = cy + bh * 0.72f;
+    const float legBottomY = cy + bh + static_cast<float>(HEDGEHOG_LEG_LENGTH);
+    for (int i = 0; i < 4; ++i) {
+        const float offset = -br * 0.48f + static_cast<float>(i) * br * 0.32f;
+        d2dContext_->DrawLine(D2D1::Point2F(cx + offset, legTopY),
+                              D2D1::Point2F(cx + offset, legBottomY),
+                              hedgehogSpikeBrush_.Get(), 1.0f);
+    }
+
+    const float snuffleOffset = e.state == HEDGEHOG_STATE_SNUFFLING
+        ? static_cast<float>(HEDGEHOG_SNUFFLE_HEAD_AMP * std::sin(e.age * HEDGEHOG_SNUFFLE_HEAD_FREQ))
+        : 0.0f;
+    const float headCx = cx + facing * (br * 0.78f) + snuffleOffset;
+    const float headCy = cy + bh * 0.22f;
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), headR, headR),
+                              hedgehogBodyBrush_.Get());
+
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx + facing * headR * 0.82f,
+                                                          headCy + headR * 0.12f),
+                                            static_cast<float>(HEDGEHOG_NOSE_RADIUS),
+                                            static_cast<float>(HEDGEHOG_NOSE_RADIUS)),
+                              hedgehogNoseBrush_.Get());
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx + facing * headR * 0.30f,
+                                                          headCy - headR * 0.35f),
+                                            0.75f, 0.75f),
+                              hedgehogEyeBrush_.Get());
+}
+
 void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     if (!petNameTextFormat_ || !petNameBrush_ || !petNameShadowBrush_) return;
-    if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat && e.kind != EntityKind::Bunny) return;
+    if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat
+        && e.kind != EntityKind::Bunny && e.kind != EntityKind::Hedgehog) return;
 
     const wchar_t* const* pool = SHEEP_NAME_POOL;
     std::size_t poolSize = sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]);
@@ -1380,6 +1533,9 @@ void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition)
     } else if (e.kind == EntityKind::Bunny) {
         pool = BUNNY_NAME_POOL;
         poolSize = sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]);
+    } else if (e.kind == EntityKind::Hedgehog) {
+        pool = HEDGEHOG_NAME_POOL;
+        poolSize = sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]);
     }
     if (poolSize == 0) return;
 
@@ -1465,6 +1621,12 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
 
         if (e.kind == EntityKind::Bunny) {
             DrawBunny(e);
+            DrawPetName(e, cursorPosition);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Hedgehog) {
+            DrawHedgehog(e);
             DrawPetName(e, cursorPosition);
             continue;
         }

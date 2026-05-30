@@ -123,7 +123,7 @@ internal struct Blade
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
 // snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), birds (§17.8), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10 }
 
 public struct Entity
 {
@@ -141,9 +141,11 @@ public struct Entity
     // Critter state machine (§16, §17). Sheep and Cat share state bytes;
     // Cat reuses Hopping semantically as Pouncing.
     // Values are ignored by tumbleweeds/snowflakes and inert by default.
-    public byte   State;       // sheep/cat: see SHEEP_STATE_* constants
+    public byte   State;       // critters: see species STATE constants
     public double StateTimer;  // sec remaining in current state
-    public byte   NameIndex;   // sheep/cat: index into species name pool
+    public byte   PreviousState; // hedgehog: pre-curl state
+    public double PreviousStateTimer; // hedgehog: remaining pre-curl time
+    public byte   NameIndex;   // critters: index into species name pool
     public byte   CoatVariantIndex; // cat: index into CAT_COAT_PALETTES
 
     // Ambient flyers (§17.6-§17.8). Ignored by grounded pets.
@@ -340,6 +342,14 @@ internal sealed class Sim
             : Constants.BUNNY_SLEEP_PROB_NIGHT;
     }
 
+    internal static double HedgehogSleepProbForLocalHour(int hour)
+    {
+        if (hour < 0 || hour > 23) return Constants.HEDGEHOG_SLEEP_PROB_DAY;
+        return HourInHalfOpenRange(hour, 6, 18)
+            ? Constants.HEDGEHOG_SLEEP_PROB_DAY
+            : Constants.HEDGEHOG_SLEEP_PROB_NIGHT;
+    }
+
     internal static double BunnyHopYOffset(double age, bool startled)
     {
         double height = startled ? Constants.BUNNY_STARTLE_HOP_HEIGHT : Constants.BUNNY_HOP_HEIGHT;
@@ -360,6 +370,21 @@ internal sealed class Sim
         return activeT < Constants.BUNNY_GRAZE_PROBABILITY / activeWeight
             ? Constants.BUNNY_STATE_GRAZING
             : Constants.BUNNY_STATE_IDLE;
+    }
+
+    internal static byte HedgehogChooseRestState(ref Prng p, int hour)
+    {
+        double sleepProb = HedgehogSleepProbForLocalHour(hour);
+        double r = p.Uniform(0.0, 1.0);
+        if (r < sleepProb) return Constants.HEDGEHOG_STATE_SLEEPING;
+
+        double activeWeight = Constants.HEDGEHOG_SNUFFLE_PROBABILITY + Constants.HEDGEHOG_IDLE_PROBABILITY;
+        double activeT = activeWeight > 0.0 && sleepProb < 1.0
+            ? (r - sleepProb) / (1.0 - sleepProb)
+            : 0.0;
+        return activeT < Constants.HEDGEHOG_SNUFFLE_PROBABILITY / activeWeight
+            ? Constants.HEDGEHOG_STATE_SNUFFLING
+            : Constants.HEDGEHOG_STATE_IDLE;
     }
 
     public void SetScene(Scene s)
@@ -425,6 +450,7 @@ internal sealed class Sim
         Entities.RemoveAll(e => e.Kind == EntityKind.Sheep
                              || e.Kind == EntityKind.Cat
                              || e.Kind == EntityKind.Bunny
+                             || e.Kind == EntityKind.Hedgehog
                              || e.Kind == EntityKind.Butterfly
                              || e.Kind == EntityKind.Firefly);
 
@@ -682,6 +708,42 @@ internal sealed class Sim
         }
     }
 
+    private static void GenerateCrittersHedgehog(Sim sim)
+    {
+        int count = sim.CritterPrng.Uniform(0.0, 1.0) < Constants.HEDGEHOG_COUNT_PROBABILITY ? 1 : 0;
+
+        double groundY = sim.WindowHeight;
+        for (int i = 0; i < count
+             && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Hedgehog;
+            e.Size = Constants.HEDGEHOG_BODY_RADIUS;
+            double margin = e.Size + 8.0;
+            double usableWidth = Math.Max(0.0, sim.MonitorWidth - 2.0 * margin);
+            double xFrac = sim.CritterPrng.Uniform(0.0, 1.0);
+            e.X = margin + xFrac * usableWidth;
+            ulong vxSign = sim.CritterPrng.NextU64() & 1UL;
+            double dir = vxSign != 0UL ? 1.0 : -1.0;
+            double speed = sim.CritterPrng.Uniform(
+                Constants.HEDGEHOG_WALK_SPEED_MIN, Constants.HEDGEHOG_WALK_SPEED_MAX);
+            e.Vx = dir * speed;
+            e.Vy = 0.0;
+            e.Rotation = 0.0;
+            e.RotationSpeed = speed;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = (uint)(i + 1);
+            e.State = Constants.HEDGEHOG_STATE_WALKING;
+            e.StateTimer = Constants.HEDGEHOG_WALK_DURATION_MIN;
+            e.PreviousState = Constants.HEDGEHOG_STATE_WALKING;
+            e.PreviousStateTimer = 0.0;
+            e.NameIndex = (byte)sim.CritterPrng.Index((uint)Constants.HEDGEHOG_NAME_POOL.Length);
+            e.Y = groundY - Constants.HEDGEHOG_BODY_HEIGHT - Constants.HEDGEHOG_LEG_LENGTH;
+            sim.Entities.Add(e);
+        }
+    }
+
     private static void GenerateButterflies(Sim sim)
     {
         if (sim.MonitorWidth <= 0.0) return;
@@ -756,6 +818,7 @@ internal sealed class Sim
         GenerateCrittersSheep(sim, allowOverride: false);
         GenerateCrittersCat(sim, allowOverride: false);
         GenerateCrittersBunny(sim, allowOverride: false);
+        GenerateCrittersHedgehog(sim);
     }
 
     public void ResetEntities(ulong seed)
@@ -966,6 +1029,20 @@ internal sealed class Sim
         }
         e.Age = 0.0;
     }
+
+    private double HedgehogDurationForState(byte state) => state switch
+    {
+        Constants.HEDGEHOG_STATE_SNUFFLING => CritterPrng.Uniform(Constants.HEDGEHOG_SNUFFLE_DURATION_MIN,
+                                                                   Constants.HEDGEHOG_SNUFFLE_DURATION_MAX),
+        Constants.HEDGEHOG_STATE_IDLE => CritterPrng.Uniform(Constants.HEDGEHOG_IDLE_DURATION_MIN,
+                                                             Constants.HEDGEHOG_IDLE_DURATION_MAX),
+        Constants.HEDGEHOG_STATE_SLEEPING => CritterPrng.Uniform(Constants.HEDGEHOG_SLEEP_DURATION_MIN,
+                                                                 Constants.HEDGEHOG_SLEEP_DURATION_MAX),
+        Constants.HEDGEHOG_STATE_CURLED => CritterPrng.Uniform(Constants.HEDGEHOG_CURL_DURATION_MIN,
+                                                               Constants.HEDGEHOG_CURL_DURATION_MAX),
+        _ => CritterPrng.Uniform(Constants.HEDGEHOG_WALK_DURATION_MIN,
+                                 Constants.HEDGEHOG_WALK_DURATION_MAX),
+    };
 
     // §13.2 — generic roaming-entity tick. Integrates position + rotation,
     // ages each entity. Per-kind logic (tumbleweed respawn, snowflake sway
@@ -1335,6 +1412,66 @@ internal sealed class Sim
             Entities[i] = e;
         }
 
+        // §17.9 Hedgehog state machine. Walking waddles slowly; every other state is stationary.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Hedgehog) continue;
+
+            if (e.State != Constants.HEDGEHOG_STATE_WALKING)
+            {
+                e.X -= e.Vx * dt;
+            }
+
+            double margin = e.Size + 2.0;
+            if (e.X < margin)
+            {
+                e.X = margin;
+                e.Vx = Math.Abs(e.Vx);
+            }
+            else if (e.X > MonitorWidth - margin)
+            {
+                e.X = MonitorWidth - margin;
+                e.Vx = -Math.Abs(e.Vx);
+            }
+
+            e.StateTimer -= dt;
+            if (e.StateTimer <= 0.0)
+            {
+                byte oldState = e.State;
+                if (oldState == Constants.HEDGEHOG_STATE_WALKING)
+                {
+                    byte next = HedgehogChooseRestState(ref CritterPrng, DateTime.Now.Hour);
+                    e.State = next;
+                    e.StateTimer = HedgehogDurationForState(next);
+                }
+                else if (oldState == Constants.HEDGEHOG_STATE_CURLED)
+                {
+                    byte resume = e.PreviousState;
+                    if (resume == Constants.HEDGEHOG_STATE_SLEEPING
+                        || resume > Constants.HEDGEHOG_STATE_CURLED
+                        || resume == Constants.HEDGEHOG_STATE_CURLED)
+                    {
+                        resume = Constants.HEDGEHOG_STATE_WALKING;
+                    }
+                    e.State = resume;
+                    e.StateTimer = e.PreviousStateTimer > 0.0
+                        ? e.PreviousStateTimer
+                        : HedgehogDurationForState(resume);
+                    e.PreviousState = Constants.HEDGEHOG_STATE_WALKING;
+                    e.PreviousStateTimer = 0.0;
+                }
+                else
+                {
+                    e.State = Constants.HEDGEHOG_STATE_WALKING;
+                    e.StateTimer = HedgehogDurationForState(Constants.HEDGEHOG_STATE_WALKING);
+                }
+                e.Age = 0.0;
+            }
+
+            Entities[i] = e;
+        }
+
         if (CurrentScene == Scene.Winter)
         {
             double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
@@ -1668,6 +1805,26 @@ internal sealed class Sim
             e.Vx = awayDir * baseSpeed * Constants.BUNNY_STARTLE_BOOST;
             e.State = Constants.BUNNY_STATE_STARTLED;
             e.StateTimer = Constants.BUNNY_STARTLE_DURATION;
+            e.Age = 0.0;
+            Entities[i] = e;
+        }
+
+        // §17.9 Hedgehog startle: passive defense curls without flipping vx.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Hedgehog || e.State == Constants.HEDGEHOG_STATE_CURLED) continue;
+            double dxClick = e.X - clickX;
+            double dyClick = e.Y - clickY;
+            if (dxClick * dxClick + dyClick * dyClick > Constants.HEDGEHOG_STARTLE_RADIUS * Constants.HEDGEHOG_STARTLE_RADIUS) continue;
+
+            e.PreviousState = e.State == Constants.HEDGEHOG_STATE_SLEEPING
+                ? Constants.HEDGEHOG_STATE_WALKING
+                : e.State;
+            e.PreviousStateTimer = e.State == Constants.HEDGEHOG_STATE_SLEEPING ? 0.0 : e.StateTimer;
+            e.State = Constants.HEDGEHOG_STATE_CURLED;
+            e.StateTimer = CritterPrng.Uniform(Constants.HEDGEHOG_CURL_DURATION_MIN,
+                                               Constants.HEDGEHOG_CURL_DURATION_MAX);
             e.Age = 0.0;
             Entities[i] = e;
         }

@@ -92,6 +92,11 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _bunnyTailBrush;
     private ID2D1SolidColorBrush? _bunnyEyeBrush;
     private ID2D1SolidColorBrush? _bunnyNoseBrush;
+    private ID2D1SolidColorBrush? _hedgehogBodyBrush;
+    private ID2D1SolidColorBrush? _hedgehogSpikeBrush;
+    private ID2D1SolidColorBrush? _hedgehogSpikeTipBrush;
+    private ID2D1SolidColorBrush? _hedgehogNoseBrush;
+    private ID2D1SolidColorBrush? _hedgehogEyeBrush;
     private ID2D1SolidColorBrush? _butterflyBodyBrush;
     private ID2D1SolidColorBrush[]? _butterflyWingBrushes;
     private ID2D1SolidColorBrush[]? _butterflyAccentBrushes;
@@ -268,6 +273,12 @@ internal sealed class GrassWindow : IDisposable
         _bunnyTailBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_TAIL_COLOR));
         _bunnyEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_EYE_COLOR));
         _bunnyNoseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_NOSE_COLOR));
+
+        _hedgehogBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_BODY_COLOR));
+        _hedgehogSpikeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_SPIKE_COLOR));
+        _hedgehogSpikeTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_SPIKE_TIP_COLOR));
+        _hedgehogNoseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_NOSE_COLOR));
+        _hedgehogEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_EYE_COLOR));
 
         _butterflyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUTTERFLY_BODY_COLOR));
         _butterflyWingBrushes = new ID2D1SolidColorBrush[Constants.BUTTERFLY_COLOR_COUNT];
@@ -481,6 +492,13 @@ internal sealed class GrassWindow : IDisposable
             if (e.Kind == EntityKind.Bunny)
             {
                 DrawBunny(in e);
+                DrawPetName(in e, cursorPosition);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Hedgehog)
+            {
+                DrawHedgehog(in e);
                 DrawPetName(in e, cursorPosition);
                 continue;
             }
@@ -1063,16 +1081,136 @@ internal sealed class GrassWindow : IDisposable
         }
     }
 
+    private void DrawHedgehog(in Entity e)
+    {
+        if (_hedgehogBodyBrush is null || _hedgehogSpikeBrush is null || _hedgehogSpikeTipBrush is null
+            || _hedgehogNoseBrush is null || _hedgehogEyeBrush is null) return;
+
+        float mirrorFacing = e.Vx >= 0.0 ? 1.0f : -1.0f;
+        void DrawSpike(float cx, float cy, float radiusX, float radiusY, float angle,
+                       bool mirrorX, float spikeLength, float spikeWidth)
+        {
+            float localUx = MathF.Cos(angle);
+            float localUy = MathF.Sin(angle);
+            float denom = MathF.Sqrt((localUx * localUx) / (radiusX * radiusX)
+                                   + (localUy * localUy) / (radiusY * radiusY));
+            float edgeRadius = denom > 0.0f ? 1.0f / denom : radiusX;
+            float mirror = mirrorX ? mirrorFacing : 1.0f;
+            float ux = mirror * localUx;
+            float uy = localUy;
+            var basePoint = new Vector2(cx + ux * edgeRadius, cy + uy * edgeRadius);
+            var tip = new Vector2(basePoint.X + ux * spikeLength, basePoint.Y + uy * spikeLength);
+            float px = -uy;
+            float py = ux;
+            float half = spikeWidth * 0.5f;
+            DrawFilledTriangle(tip,
+                               new Vector2(basePoint.X + px * half, basePoint.Y + py * half),
+                               new Vector2(basePoint.X - px * half, basePoint.Y - py * half),
+                               _hedgehogSpikeBrush);
+            _dc!.DrawLine(basePoint, tip, _hedgehogSpikeTipBrush, 0.45f, _strokeStyle);
+        }
+
+        bool isSleeping = e.State == Constants.HEDGEHOG_STATE_SLEEPING;
+        bool isCurled = e.State == Constants.HEDGEHOG_STATE_CURLED;
+        bool isBall = isSleeping || isCurled;
+        float cx = (float)e.X;
+        float cy = (float)e.Y;
+
+        if (isBall)
+        {
+            float ballR = (float)(Constants.HEDGEHOG_BODY_RADIUS * 0.85);
+            _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), ballR, ballR), _hedgehogBodyBrush);
+            int ballSpikeCount = Constants.HEDGEHOG_SPIKE_COUNT * 3 / 2;
+            for (int i = 0; i < ballSpikeCount; i++)
+            {
+                float angle = (float)(Math.PI * 2.0 * i / ballSpikeCount);
+                DrawSpike(cx, cy, ballR, ballR, angle, false,
+                          (float)Constants.HEDGEHOG_SPIKE_LENGTH,
+                          (float)Constants.HEDGEHOG_SPIKE_WIDTH);
+            }
+
+            if (isSleeping)
+            {
+                for (int zi = 0; zi < 2; zi++)
+                {
+                    float t = (float)(((e.Age / Constants.HEDGEHOG_ZZZ_CYCLE_SEC) + 0.5 * zi) % 1.0);
+                    if (t < 0.0f) t += 1.0f;
+                    float zSize = (float)(Constants.HEDGEHOG_ZZZ_SIZE_START
+                                          + t * (Constants.HEDGEHOG_ZZZ_SIZE_END - Constants.HEDGEHOG_ZZZ_SIZE_START));
+                    float zX = cx + t * 2.4f;
+                    float zY = cy - ballR - 3.0f - t * (float)Constants.HEDGEHOG_ZZZ_RISE;
+                    _hedgehogSpikeTipBrush.Opacity = 1.0f - t;
+                    _dc.DrawLine(new Vector2(zX, zY), new Vector2(zX + zSize, zY), _hedgehogSpikeTipBrush, 0.75f, _strokeStyle);
+                    _dc.DrawLine(new Vector2(zX + zSize, zY), new Vector2(zX, zY + zSize), _hedgehogSpikeTipBrush, 0.75f, _strokeStyle);
+                    _dc.DrawLine(new Vector2(zX, zY + zSize), new Vector2(zX + zSize, zY + zSize), _hedgehogSpikeTipBrush, 0.75f, _strokeStyle);
+                }
+                _hedgehogSpikeTipBrush.Opacity = 1.0f;
+            }
+            return;
+        }
+
+        if (e.State == Constants.HEDGEHOG_STATE_WALKING)
+        {
+            cy += (float)(Constants.HEDGEHOG_WADDLE_AMP * Math.Sin(e.Age * Constants.HEDGEHOG_WADDLE_FREQ));
+        }
+        else if (e.State == Constants.HEDGEHOG_STATE_IDLE)
+        {
+            cy -= 1.0f;
+        }
+
+        float facing = e.Vx >= 0.0 ? 1.0f : -1.0f;
+        float br = (float)Constants.HEDGEHOG_BODY_RADIUS;
+        float bh = (float)Constants.HEDGEHOG_BODY_HEIGHT;
+        float headR = (float)Constants.HEDGEHOG_HEAD_RADIUS;
+
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _hedgehogBodyBrush);
+        for (int i = 0; i < Constants.HEDGEHOG_SPIKE_COUNT; i++)
+        {
+            double t = Constants.HEDGEHOG_SPIKE_COUNT > 1
+                ? i / (double)(Constants.HEDGEHOG_SPIKE_COUNT - 1)
+                : 0.0;
+            float degrees = (float)(Constants.HEDGEHOG_SPIKE_ARC_START_DEG
+                                    + t * (Constants.HEDGEHOG_SPIKE_ARC_END_DEG - Constants.HEDGEHOG_SPIKE_ARC_START_DEG));
+            float angle = degrees * (float)(Math.PI / 180.0);
+            DrawSpike(cx, cy, br, bh, angle, true,
+                      (float)Constants.HEDGEHOG_SPIKE_LENGTH,
+                      (float)Constants.HEDGEHOG_SPIKE_WIDTH);
+        }
+
+        float legTopY = cy + bh * 0.72f;
+        float legBottomY = cy + bh + (float)Constants.HEDGEHOG_LEG_LENGTH;
+        for (int i = 0; i < 4; i++)
+        {
+            float offset = -br * 0.48f + i * br * 0.32f;
+            _dc.DrawLine(new Vector2(cx + offset, legTopY), new Vector2(cx + offset, legBottomY),
+                         _hedgehogSpikeBrush, 1.0f, _strokeStyle);
+        }
+
+        float snuffleOffset = e.State == Constants.HEDGEHOG_STATE_SNUFFLING
+            ? (float)(Constants.HEDGEHOG_SNUFFLE_HEAD_AMP * Math.Sin(e.Age * Constants.HEDGEHOG_SNUFFLE_HEAD_FREQ))
+            : 0.0f;
+        float headCx = cx + facing * (br * 0.78f) + snuffleOffset;
+        float headCy = cy + bh * 0.22f;
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR), _hedgehogBodyBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * headR * 0.82f, headCy + headR * 0.12f),
+                                    (float)Constants.HEDGEHOG_NOSE_RADIUS,
+                                    (float)Constants.HEDGEHOG_NOSE_RADIUS), _hedgehogNoseBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * headR * 0.30f, headCy - headR * 0.35f),
+                                    0.75f, 0.75f), _hedgehogEyeBrush);
+    }
+
     private void DrawPetName(in Entity e, Vector2? cursorPosition)
     {
         if (_dc is null || _petNameTextFormat is null || _petNameBrush is null || _petNameShadowBrush is null)
             return;
-        if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat && e.Kind != EntityKind.Bunny) return;
+        if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat
+            && e.Kind != EntityKind.Bunny && e.Kind != EntityKind.Hedgehog) return;
 
         string[] pool = e.Kind switch
         {
             EntityKind.Cat => Constants.CAT_NAME_POOL,
             EntityKind.Bunny => Constants.BUNNY_NAME_POOL,
+            EntityKind.Hedgehog => Constants.HEDGEHOG_NAME_POOL,
             _ => Constants.SHEEP_NAME_POOL,
         };
         if (pool.Length == 0) return;
@@ -1518,6 +1656,11 @@ internal sealed class GrassWindow : IDisposable
         try { _bunnyTailBrush?.Dispose(); } catch { }
         try { _bunnyEyeBrush?.Dispose(); } catch { }
         try { _bunnyNoseBrush?.Dispose(); } catch { }
+        try { _hedgehogBodyBrush?.Dispose(); } catch { }
+        try { _hedgehogSpikeBrush?.Dispose(); } catch { }
+        try { _hedgehogSpikeTipBrush?.Dispose(); } catch { }
+        try { _hedgehogNoseBrush?.Dispose(); } catch { }
+        try { _hedgehogEyeBrush?.Dispose(); } catch { }
         try { _butterflyBodyBrush?.Dispose(); } catch { }
         if (_butterflyWingBrushes is not null)
         {

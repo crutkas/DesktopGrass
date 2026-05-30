@@ -75,6 +75,7 @@ private:
     void DrawBird(const Entity& e);
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawBunny(const Entity& e);
+    void DrawHedgehog(const Entity& e);
     void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
@@ -129,6 +130,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           bunnyTailBrush_;
     ComPtr<ID2D1SolidColorBrush>           bunnyEyeBrush_;
     ComPtr<ID2D1SolidColorBrush>           bunnyNoseBrush_;
+    ComPtr<ID2D1SolidColorBrush>           hedgehogBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           hedgehogSpikeBrush_;
+    ComPtr<ID2D1SolidColorBrush>           hedgehogSpikeTipBrush_;
+    ComPtr<ID2D1SolidColorBrush>           hedgehogNoseBrush_;
+    ComPtr<ID2D1SolidColorBrush>           hedgehogEyeBrush_;
     ComPtr<ID2D1SolidColorBrush>           butterflyBodyBrush_;
     ComPtr<ID2D1SolidColorBrush>           butterflyWingBrushes_[BUTTERFLY_COLOR_COUNT];
     ComPtr<ID2D1SolidColorBrush>           butterflyAccentBrushes_[BUTTERFLY_COLOR_COUNT];

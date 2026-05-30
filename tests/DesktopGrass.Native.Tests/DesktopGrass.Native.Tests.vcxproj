@@ -100,6 +100,7 @@
     <ClCompile Include="src\cat_tests.cpp" />
     <ClCompile Include="src\cat_coat_tests.cpp" />
     <ClCompile Include="src\bunny_tests.cpp" />
+    <ClCompile Include="src\hedgehog_tests.cpp" />
     <ClCompile Include="src\butterfly_tests.cpp" />
     <ClCompile Include="src\firefly_tests.cpp" />
     <ClCompile Include="src\bird_flyby_tests.cpp" />

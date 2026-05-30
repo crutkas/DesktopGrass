@@ -152,6 +152,13 @@ double bunny_sleep_prob_for_local_hour(int hour) noexcept {
         : BUNNY_SLEEP_PROB_NIGHT;
 }
 
+double hedgehog_sleep_prob_for_local_hour(int hour) noexcept {
+    if (hour < 0 || hour > 23) return HEDGEHOG_SLEEP_PROB_DAY;
+    return hour_in_half_open_range(hour, 6, 18)
+        ? HEDGEHOG_SLEEP_PROB_DAY
+        : HEDGEHOG_SLEEP_PROB_NIGHT;
+}
+
 double bunny_hop_y_offset(double age, bool startled) noexcept {
     const double height = startled ? BUNNY_STARTLE_HOP_HEIGHT : BUNNY_HOP_HEIGHT;
     double t = age / BUNNY_HOP_DURATION;
@@ -172,6 +179,20 @@ uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept {
     return activeT < (BUNNY_GRAZE_PROBABILITY / activeWeight)
         ? BUNNY_STATE_GRAZING
         : BUNNY_STATE_IDLE;
+}
+
+uint8_t hedgehog_choose_rest_state(Prng& p, int hour) noexcept {
+    const double sleepProb = hedgehog_sleep_prob_for_local_hour(hour);
+    const double r = prng_uniform(p, 0.0, 1.0);
+    if (r < sleepProb) return HEDGEHOG_STATE_SLEEPING;
+
+    const double activeWeight = HEDGEHOG_SNUFFLE_PROBABILITY + HEDGEHOG_IDLE_PROBABILITY;
+    const double activeT = (activeWeight > 0.0 && sleepProb < 1.0)
+        ? (r - sleepProb) / (1.0 - sleepProb)
+        : 0.0;
+    return activeT < (HEDGEHOG_SNUFFLE_PROBABILITY / activeWeight)
+        ? HEDGEHOG_STATE_SNUFFLING
+        : HEDGEHOG_STATE_IDLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -671,6 +692,19 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
         ent.stateTimer = BUNNY_STARTLE_DURATION;
         ent.age        = 0.0;
     }
+
+    // Hedgehog startle (§17.9). Passive defense: stop, curl, keep vx direction.
+    for (Entity& ent : sim.entities) {
+        if (ent.kind != EntityKind::Hedgehog || ent.state == HEDGEHOG_STATE_CURLED) continue;
+        const double dxClick = ent.x - e.x;
+        const double dyClick = ent.y - e.y;
+        if ((dxClick * dxClick + dyClick * dyClick) > (HEDGEHOG_STARTLE_RADIUS * HEDGEHOG_STARTLE_RADIUS)) continue;
+        ent.previousState = ent.state == HEDGEHOG_STATE_SLEEPING ? HEDGEHOG_STATE_WALKING : ent.state;
+        ent.previousStateTimer = ent.state == HEDGEHOG_STATE_SLEEPING ? 0.0 : ent.stateTimer;
+        ent.state = HEDGEHOG_STATE_CURLED;
+        ent.stateTimer = prng_uniform(sim.critterPrng, HEDGEHOG_CURL_DURATION_MIN, HEDGEHOG_CURL_DURATION_MAX);
+        ent.age = 0.0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -773,6 +807,7 @@ void remove_critters(Sim& sim) noexcept {
                 return e.kind == EntityKind::Sheep
                     || e.kind == EntityKind::Cat
                     || e.kind == EntityKind::Bunny
+                    || e.kind == EntityKind::Hedgehog
                     || e.kind == EntityKind::Butterfly
                     || e.kind == EntityKind::Firefly;
             }),
@@ -895,6 +930,42 @@ void generate_critters_bunny(Sim& sim, bool allowOverride) noexcept {
     }
 }
 
+void generate_critters_hedgehog(Sim& sim) noexcept {
+    const int count = prng_uniform(sim.critterPrng, 0.0, 1.0) < HEDGEHOG_COUNT_PROBABILITY ? 1 : 0;
+
+    const double groundY = sim.windowHeight;
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Hedgehog;
+        e.size = HEDGEHOG_BODY_RADIUS;
+        const double margin = e.size + 8.0;
+        const double usableWidth = std::max(0.0, sim.monitorWidth - 2.0 * margin);
+        const double xFrac = prng_uniform(sim.critterPrng, 0.0, 1.0);
+        e.x = margin + xFrac * usableWidth;
+        const uint64_t vxSign = prng_next_u64(sim.critterPrng) & 1ull;
+        const double dir = (vxSign != 0ull) ? 1.0 : -1.0;
+        const double speed = prng_uniform(sim.critterPrng,
+                                          HEDGEHOG_WALK_SPEED_MIN,
+                                          HEDGEHOG_WALK_SPEED_MAX);
+        e.vx = dir * speed;
+        e.vy = 0.0;
+        e.rotation = 0.0;
+        e.rotationSpeed = speed;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = static_cast<uint32_t>(i + 1);
+        e.state = HEDGEHOG_STATE_WALKING;
+        e.stateTimer = HEDGEHOG_WALK_DURATION_MIN;
+        e.previousState = HEDGEHOG_STATE_WALKING;
+        e.previousStateTimer = 0.0;
+        e.nameIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
+            static_cast<uint32_t>(sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]))));
+        e.y = groundY - HEDGEHOG_BODY_HEIGHT - HEDGEHOG_LEG_LENGTH;
+        sim.entities.push_back(e);
+    }
+}
+
 void generate_butterflies(Sim& sim) noexcept {
     if (sim.monitorWidth <= 0.0) return;
 
@@ -968,6 +1039,7 @@ void generate_grass_critters_all(Sim& sim) noexcept {
     generate_critters_sheep(sim, false);
     generate_critters_cat(sim, false);
     generate_critters_bunny(sim, false);
+    generate_critters_hedgehog(sim);
 }
 
 void generate_critters_for_kind(Sim& sim) noexcept {
@@ -1022,6 +1094,22 @@ void enter_bunny_rest_state(Sim& sim, Entity& e) noexcept {
                                     BUNNY_SLEEP_DURATION_MAX);
     }
     e.age = 0.0;
+}
+
+double hedgehog_duration_for_state(Sim& sim, uint8_t state) noexcept {
+    switch (state) {
+    case HEDGEHOG_STATE_SNUFFLING:
+        return prng_uniform(sim.critterPrng, HEDGEHOG_SNUFFLE_DURATION_MIN, HEDGEHOG_SNUFFLE_DURATION_MAX);
+    case HEDGEHOG_STATE_IDLE:
+        return prng_uniform(sim.critterPrng, HEDGEHOG_IDLE_DURATION_MIN, HEDGEHOG_IDLE_DURATION_MAX);
+    case HEDGEHOG_STATE_SLEEPING:
+        return prng_uniform(sim.critterPrng, HEDGEHOG_SLEEP_DURATION_MIN, HEDGEHOG_SLEEP_DURATION_MAX);
+    case HEDGEHOG_STATE_CURLED:
+        return prng_uniform(sim.critterPrng, HEDGEHOG_CURL_DURATION_MIN, HEDGEHOG_CURL_DURATION_MAX);
+    case HEDGEHOG_STATE_WALKING:
+    default:
+        return prng_uniform(sim.critterPrng, HEDGEHOG_WALK_DURATION_MIN, HEDGEHOG_WALK_DURATION_MAX);
+    }
 }
 
 } // anonymous
@@ -1443,6 +1531,49 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             } else {
                 start_bunny_hopping(sim, e, true);
             }
+        }
+    }
+
+    // Hedgehog (§17.9). Very slow walking; snuffling/idle/sleep/curled are stationary.
+    for (Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Hedgehog) continue;
+
+        if (e.state != HEDGEHOG_STATE_WALKING) {
+            e.x -= e.vx * dt;
+        }
+
+        const double margin = e.size + 2.0;
+        if (e.x < margin) {
+            e.x  = margin;
+            e.vx = std::abs(e.vx);
+        } else if (e.x > sim.monitorWidth - margin) {
+            e.x  = sim.monitorWidth - margin;
+            e.vx = -std::abs(e.vx);
+        }
+
+        e.stateTimer -= dt;
+        if (e.stateTimer <= 0.0) {
+            const uint8_t oldState = e.state;
+            if (oldState == HEDGEHOG_STATE_WALKING) {
+                const uint8_t next = hedgehog_choose_rest_state(sim.critterPrng, current_local_hour());
+                e.state = next;
+                e.stateTimer = hedgehog_duration_for_state(sim, next);
+            } else if (oldState == HEDGEHOG_STATE_CURLED) {
+                uint8_t resume = e.previousState;
+                if (resume == HEDGEHOG_STATE_SLEEPING || resume > HEDGEHOG_STATE_CURLED || resume == HEDGEHOG_STATE_CURLED) {
+                    resume = HEDGEHOG_STATE_WALKING;
+                }
+                e.state = resume;
+                e.stateTimer = e.previousStateTimer > 0.0
+                    ? e.previousStateTimer
+                    : hedgehog_duration_for_state(sim, resume);
+                e.previousState = HEDGEHOG_STATE_WALKING;
+                e.previousStateTimer = 0.0;
+            } else {
+                e.state = HEDGEHOG_STATE_WALKING;
+                e.stateTimer = hedgehog_duration_for_state(sim, HEDGEHOG_STATE_WALKING);
+            }
+            e.age = 0.0;
         }
     }
 

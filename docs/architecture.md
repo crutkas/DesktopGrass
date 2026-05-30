@@ -994,6 +994,10 @@ enum EntityKind : uint8_t {
     EntityCat        = 4,
     EntityRaindrop   = 5,
     EntityBunny      = 6,
+    EntityButterfly  = 7,
+    EntityFirefly    = 8,
+    EntityBird       = 9,
+    EntityHedgehog   = 10,
 };
 
 struct Entity {
@@ -1044,7 +1048,7 @@ The emitter and respawn paths are the only places entities are added/removed dur
 
 ### Cross-impl conformance for entities
 
-- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Raindrop=5, Bunny=6}` match exactly.
+- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Raindrop=5, Bunny=6, Butterfly=7, Firefly=8, Bird=9, Hedgehog=10}` match exactly.
 - Entity-stream PRNG salts (`TUMBLEWEED_PRNG_SALT`, `SNOWFLAKE_PRNG_SALT`, `RAINDROP_PRNG_SALT`, `CACTUS_PRNG_SALT`) are global constants — both impls draw entity parameters from streams seeded `seed XOR salt`.
 - A new conformance test class (`entity_tests.cpp` / `EntityTests.cs`) asserts the first tumbleweed for `CANONICAL_TEST_SEED + Desert + monitorWidth=1920` matches a pinned (`x`, `y`, `vx`, `size`) snapshot derivable from the spec, and the first snowflake at `t = 0.5s` (after exactly one tick at 0.5s) matches a pinned snapshot.
 - Blade conformance (§12) is unchanged: `sim.blades` for any seed is bit-identical regardless of `currentScene`.
@@ -1405,7 +1409,7 @@ When any test in this list fails on a single impl, that impl has diverged from t
 
 ## 13.3 Critter subsystem (Grass-scene ambient critters)
 
-Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), and Bunny (§17.5) share the same `CRITTER_PRNG_SALT`; Butterflies (§17.6) and Fireflies (§17.7) are always-on Grass ambient flyers with independent species PRNG salts. Desert and Winter currently generate zero critters/flyers. The default Grass ambient set contains `2–3` sheep, `1–2` cats, `1–2` bunnies, `2–4` butterflies, and `3–6` fireflies.
+Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), Bunny (§17.5), and Hedgehog (§17.9) share the same `CRITTER_PRNG_SALT`; Butterflies (§17.6), Fireflies (§17.7), and Birds (§17.8) are always-on/ambient Grass flyers with independent species PRNG salts. Desert and Winter currently generate zero critters/flyers. The default Grass ambient set contains `2–3` sheep, `1–2` cats, `1–2` bunnies, `0–1` hedgehogs with 55% presence probability, `2–4` butterflies, and `3–6` fireflies.
 
 ### Enum and salt
 
@@ -1416,7 +1420,7 @@ constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, and `EntityKind::Firefly = 8`; existing discriminants MUST NOT be renumbered. Bunny introduces no new PRNG salt; butterflies and fireflies use independent salts documented in their sections.
+Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, `EntityKind::Firefly = 8`, `EntityKind::Bird = 9`, and `EntityKind::Hedgehog = 10`; existing discriminants MUST NOT be renumbered. Bunny and Hedgehog introduce no new PRNG salt; butterflies, fireflies, and birds use independent salts documented in their sections.
 
 ### Sim state
 
@@ -1432,14 +1436,14 @@ Sim:
 `generate_critters_for_kind(sim)` is called by `sim_set_scene` as its **last** step (after biome generators) and by `sim_set_critter(sim, c)` after removing only critter entities from `sim.entities`. The dispatcher reseeds `critterPrng = Prng(entitySeed XOR CRITTER_PRNG_SALT)`. If `currentScene != Grass`, it returns without generating critters. In Grass it dispatches:
 
 ```
-None  → generate_critters_sheep(sim); generate_critters_cat(sim); generate_critters_bunny(sim)
+None  → generate_critters_sheep(sim); generate_critters_cat(sim); generate_critters_bunny(sim); generate_critters_hedgehog(sim)
 Sheep → generate_critters_sheep(sim)        // legacy single-species selector, §16
 Cat   → generate_critters_cat(sim)          // legacy single-species selector, §17
-Bunny → generate all three in sheep → cat → bunny order
+Bunny → generate all four in sheep → cat → bunny → hedgehog order
 then always append generate_butterflies(sim); generate_fireflies(sim)
 ```
 
-The ambient all-species path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero. Butterflies and fireflies ignore tray critter selection and use independent side streams seeded from `entitySeed XOR BUTTERFLY_PRNG_SALT` and `entitySeed XOR FIREFLY_PRNG_SALT`.
+The ambient all-species path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero. Hedgehog is ambient-only (no tray toggle) and shares the critter stream. Butterflies and fireflies ignore tray critter selection and use independent side streams seeded from `entitySeed XOR BUTTERFLY_PRNG_SALT` and `entitySeed XOR FIREFLY_PRNG_SALT`.
 
 ### Ordering invariant
 
@@ -1450,14 +1454,14 @@ Inside `sim_set_scene`:
 3. Run the scene generator (tumbleweeds, snowflakes, etc.).
 4. **Run `generate_critters_for_kind(sim)` LAST.**
 
-Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass entity order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), bunny count + bunny entities, then butterfly count + butterfly entities and firefly count + firefly entities from their independent salts.
+Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass entity order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), bunny count + bunny entities, hedgehog count-probability + hedgehog entity (if present), then butterfly count + butterfly entities and firefly count + firefly entities from their independent salts.
 
 ### `sim_set_critter` semantics
 
 ```
 sim_set_critter(sim, c):
     sim.currentCritter = c
-    remove every entity e where e.kind is a critter/flyer species (Sheep, Cat, Bunny, Butterfly, or Firefly)
+    remove every entity e where e.kind is a critter/flyer species (Sheep, Cat, Bunny, Hedgehog, Butterfly, or Firefly)
     generate_critters_for_kind(sim)
 ```
 
@@ -1465,11 +1469,11 @@ Scene entities (tumbleweeds, snowflakes, raindrops) are NEVER removed by `sim_se
 
 ### Tray menu
 
-The current tray menu retains the legacy **None**, **Sheep**, and **Cat** controls and the **Pet count** picker for existing workflows. Bunny, Butterflies, and Fireflies add no tray items or user-facing settings; they are part of the default Grass ambient set.
+The current tray menu retains the legacy **None**, **Sheep**, and **Cat** controls and the **Pet count** picker for existing workflows. Bunny, Hedgehog, Butterflies, Fireflies, and Birds add no tray items or user-facing settings; they are part of the default Grass ambient set.
 
 ### Cross-impl conformance
 
-Given identical `(seed, monitorWidth, scene, CritterKind)`, both impls MUST produce the same critter/flyer entities with the same per-entity field values. Sheep/Cat/Bunny are drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in documented species order (§16, §17, §17.5). Butterflies and fireflies are appended after bunnies and are verified against their own salted side streams (§17.6, §17.7).
+Given identical `(seed, monitorWidth, scene, CritterKind)`, both impls MUST produce the same critter/flyer entities with the same per-entity field values. Sheep/Cat/Bunny/Hedgehog are drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in documented species order (§16, §17, §17.5, §17.9). Butterflies and fireflies are appended after hedgehogs and are verified against their own salted side streams (§17.6, §17.7).
 
 ---
 
@@ -2109,6 +2113,106 @@ Birds despawn individually after crossing the opposite off-screen boundary (`x >
 ### Render order and interaction
 
 Birds render in the sky layer after critters, weather, butterflies, and fireflies, and before the day-night tint. The renderer draws a tiny filled body ellipse plus two wing strokes/triangles scaled by `wingScale`, with alpha fading over the first/last `8%` of the visible cross distance. Birds are not included in cut detection or any critter interaction path.
+
+---
+
+## 17.9 Hedgehog
+
+Slow, solitary Grass-scene woodland critter. Hedgehog is passive defense by design: it does not greet, pounce, chase, flee, or interact with other critters. When startled by a click, it curls into a spiky ball and waits.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `HEDGEHOG_COUNT_MIN/MAX` | `0 / 1` | solitary; sometimes absent |
+| `HEDGEHOG_COUNT_PROBABILITY` | `0.55` | count `1` iff count-probability draw is below this |
+| `HEDGEHOG_WALK_SPEED_MIN/MAX` | `4.0 / 8.0` | DIP/sec, slowest critter |
+| `HEDGEHOG_BODY_RADIUS` / `HEIGHT` | `9.0 / 5.5` | compact, low body ellipse |
+| `HEDGEHOG_HEAD_RADIUS` | `3.6` | tiny head |
+| `HEDGEHOG_NOSE_RADIUS` | `0.8` | black nose dot |
+| `HEDGEHOG_LEG_LENGTH` | `2.5` | short stubby legs |
+| `HEDGEHOG_SPIKE_COUNT` | `14` | normal pose partial-arc spikes |
+| `HEDGEHOG_SPIKE_LENGTH` / `WIDTH` | `3.0 / 1.4` | DIP triangle geometry |
+| `HEDGEHOG_SPIKE_ARC_START_DEG/END_DEG` | `-20 / 200` | cover top/back/bottom, leave face clear |
+| `HEDGEHOG_BODY_COLOR` | `0xFF5C4633` | warm brown body/face |
+| `HEDGEHOG_SPIKE_COLOR` | `0xFF3A2A1F` | darker brown spikes |
+| `HEDGEHOG_SPIKE_TIP_COLOR` | `0xFF1E150E` | darkest spike tips/ZZZ ink |
+| `HEDGEHOG_NOSE_COLOR` | `0xFF1A1208` | black nose |
+| `HEDGEHOG_EYE_COLOR` | `0xFF1A1208` | black eye |
+| `HEDGEHOG_WALK_DURATION_MIN/MAX` | `6.0 / 12.0` | sec |
+| `HEDGEHOG_SNUFFLE_DURATION_MIN/MAX` | `3.0 / 6.0` | sec |
+| `HEDGEHOG_IDLE_DURATION_MIN/MAX` | `1.5 / 3.0` | sec |
+| `HEDGEHOG_SLEEP_DURATION_MIN/MAX` | `10.0 / 25.0` | sec, long naps |
+| `HEDGEHOG_CURL_DURATION_MIN/MAX` | `3.0 / 5.5` | sec defensive curl |
+| `HEDGEHOG_SNUFFLE_PROBABILITY` | `0.55` | non-sleep active weight |
+| `HEDGEHOG_IDLE_PROBABILITY` | `0.30` | non-sleep active weight |
+| `HEDGEHOG_SLEEP_PROB_DAY/NIGHT` | `0.50 / 0.05` | nocturnal sleep bias; day is `[06,18)` |
+| `HEDGEHOG_STARTLE_RADIUS` | `70.0` | DIP click radius |
+| `HEDGEHOG_SNUFFLE_HEAD_FREQ` / `AMP` | `5.0 / 0.7` | rad/sec and DIP x-offset |
+| `HEDGEHOG_WADDLE_FREQ` / `AMP` | `4.0 / 0.8` | rad/sec and DIP vertical bob |
+| `HEDGEHOG_ZZZ_*` | sheep `ZZZ` scaled by `0.5` rise, `0.6` size | tiny sleep puffs |
+| `HEDGEHOG_NAME_POOL` | `Bristle, Quill, Mossy, Truffle, Prickles, Snuffles, Pinecone, Hazel, Bramble, Pip, Sage, Burdock` | woodland names |
+
+### State machine
+
+```cpp
+HEDGEHOG_STATE_WALKING   = 0   // slow waddle, moves horizontally
+HEDGEHOG_STATE_SNUFFLING = 1   // stationary, head x-offset sweeps left/right
+HEDGEHOG_STATE_IDLE      = 2   // stationary, body shifted up 1 DIP (alert pose)
+HEDGEHOG_STATE_SLEEPING  = 3   // curled ball form, no face/legs, small ZZZ puffs
+HEDGEHOG_STATE_CURLED    = 4   // defensive ball after startle, no ZZZ puffs
+
+Walking expires → choose Snuffling / Idle / Sleeping using local-hour sleep probability
+Snuffling / Idle / Sleeping expire → Walking
+Click within startle radius → Curled
+Curled expires → previous non-sleep state; if startled from Sleeping, return to Walking
+```
+
+`e.age` is reset on every state transition. Walking uses `y_offset = HEDGEHOG_WADDLE_AMP * sin(age * HEDGEHOG_WADDLE_FREQ)`. Snuffling uses `head_x_offset = HEDGEHOG_SNUFFLE_HEAD_AMP * sin(age * HEDGEHOG_SNUFFLE_HEAD_FREQ)`. All non-Walking hedgehog states undo the generic `vx * dt` integration so the critter stays planted.
+
+### Time-of-day sleep bias
+
+Hedgehogs are nocturnal. `hedgehog_sleep_prob_for_local_hour(hour)` returns `HEDGEHOG_SLEEP_PROB_DAY = 0.50` for `06:00 ≤ hour < 18:00` and `HEDGEHOG_SLEEP_PROB_NIGHT = 0.05` otherwise. On Walking expiry, sleep is an absolute probability; if the hedgehog does not sleep, Snuffling vs Idle is selected from the active weights `0.55 / 0.30`.
+
+### Generation (PRNG draw order — LOCKED)
+
+Hedgehogs are Grass-only and generated **after bunnies** on the shared `CRITTER_PRNG_SALT` stream:
+
+```text
+hasHedgehog = critterPrng.uniform(0, 1) < HEDGEHOG_COUNT_PROBABILITY
+if hasHedgehog:
+    xFrac    = critterPrng.uniform(0, 1)
+    vxSign   = critterPrng.next_u64() & 1
+    speed    = critterPrng.uniform(HEDGEHOG_WALK_SPEED_MIN, HEDGEHOG_WALK_SPEED_MAX)
+    nameIndex = critterPrng.index(HEDGEHOG_NAME_POOL.size)
+```
+
+This appends one unconditional count-probability draw plus four per-entity draws if present. It does not reorder sheep, cat, or bunny draws. Butterflies, fireflies, and birds remain on independent PRNG streams.
+
+### Startle behavior
+
+```text
+sim_apply_click after Bunny startle:
+  for each Hedgehog not already Curled:
+    if distance(click, hedgehog center) > HEDGEHOG_STARTLE_RADIUS: skip
+    previousState = (Sleeping ? Walking : currentState)
+    previousStateTimer = (Sleeping ? 0 : currentTimer)
+    state = Curled
+    stateTimer = uniform(HEDGEHOG_CURL_DURATION_MIN, HEDGEHOG_CURL_DURATION_MAX)
+    age = 0
+```
+
+`vx` is deliberately not flipped or boosted. The hedgehog curls in place, waits, and resumes calmly after the curl duration.
+
+### Render order
+
+Normal pose renders body ellipse first, then 14 triangular spikes along the partial arc, then tiny head/nose/eye and four stubby legs. Facing mirrors the head/nose/eye and local spike arc horizontally based on `vx` sign.
+
+Sleeping/Curled render a tight ball: filled circle radius `HEDGEHOG_BODY_RADIUS * 0.85`, with `HEDGEHOG_SPIKE_COUNT * 1.5 = 21` spikes around the full 360°. Sleeping adds tiny ZZZ puffs above the ball; Curled does not. No head, eyes, nose, or legs are visible in ball form.
+
+### Defaults & conformance
+
+Native `hedgehog_tests.cpp` and Win2D `HedgehogTests.cs` pin constants, 55% count distribution, scene gating, speed/name ranges, sheep→cat→bunny→hedgehog PRNG identity, edge bounce, curl startle/uncurl behavior, sleep wake, transition probabilities, nocturnal sleep bias, and absence of active interaction states.
 
 ---
 

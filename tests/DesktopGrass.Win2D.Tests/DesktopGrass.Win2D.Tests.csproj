@@ -53,6 +53,7 @@
     <Compile Include="SimTests\SheepGreetingTests.cs" />
     <Compile Include="SimTests\CatTests.cs" />
     <Compile Include="SimTests\BunnyTests.cs" />
+    <Compile Include="SimTests\HedgehogTests.cs" />
     <Compile Include="SimTests\ButterflyTests.cs" />
     <Compile Include="SimTests\FireflyTests.cs" />
     <Compile Include="SimTests\BirdFlybyTests.cs" />

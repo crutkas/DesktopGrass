@@ -169,6 +169,8 @@ struct Entity {
     // Values are ignored by tumbleweeds/snowflakes and inert by default.
     uint8_t    state         = 0;     // critters: see species STATE constants
     double     stateTimer    = 0.0;   // sec remaining in current state
+    uint8_t    previousState = 0;     // hedgehog: pre-curl state
+    double     previousStateTimer = 0.0; // hedgehog: remaining pre-curl time
     uint8_t    nameIndex     = 0;     // critters: index into species name pool
     uint8_t    coatVariantIndex = 0;  // cat: index into CAT_COAT_PALETTES
 
@@ -306,8 +308,10 @@ void sim_set_critter_count(Sim& sim, int n) noexcept;
 double sheep_sleep_prob_for_local_hour(int hour) noexcept;
 double cat_sleep_prob_for_local_hour(int hour) noexcept;
 double bunny_sleep_prob_for_local_hour(int hour) noexcept;
+double hedgehog_sleep_prob_for_local_hour(int hour) noexcept;
 double bunny_hop_y_offset(double age, bool startled) noexcept;
 uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept;
+uint8_t hedgehog_choose_rest_state(Prng& p, int hour) noexcept;
 bool bird_flyby_is_day_hour(int hour) noexcept;
 double bird_flyby_sample_interval(Prng& p) noexcept;
 void sim_spawn_bird_flyby(Sim& sim) noexcept;

@@ -230,6 +230,7 @@ enum class EntityKind : uint8_t {
     Butterfly  = 7,
     Firefly    = 8,
     Bird       = 9,
+    Hedgehog   = 10,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -257,6 +258,10 @@ constexpr const wchar_t* CAT_NAME_POOL[] = {
 constexpr const wchar_t* BUNNY_NAME_POOL[] = {
     L"Clover", L"Hazel", L"Thumper", L"Mochi", L"Pip", L"Acorn",
     L"Biscuit", L"Willow", L"Pepper", L"Hopper", L"Juniper", L"Snowdrop"
+};
+constexpr const wchar_t* HEDGEHOG_NAME_POOL[] = {
+    L"Bristle", L"Quill", L"Mossy", L"Truffle", L"Prickles", L"Snuffles",
+    L"Pinecone", L"Hazel", L"Bramble", L"Pip", L"Sage", L"Burdock"
 };
 constexpr double      PET_NAME_HOVER_RADIUS = 50.0;
 constexpr double      PET_NAME_FADE_DURATION = 1.5;
@@ -487,8 +492,60 @@ constexpr double   BUNNY_ZZZ_CYCLE_SEC      = SHEEP_ZZZ_CYCLE_SEC;
 constexpr double   BUNNY_ZZZ_RISE           = SHEEP_ZZZ_RISE * 0.7;
 constexpr double   BUNNY_ZZZ_SIZE_START     = SHEEP_ZZZ_SIZE_START * 0.7;
 constexpr double   BUNNY_ZZZ_SIZE_END       = SHEEP_ZZZ_SIZE_END * 0.7;
+// Hedgehog (§17.9). Grass-only, solitary nocturnal critter. Generated after
+// bunnies from the shared critter PRNG; passive defense curls into a ball.
+constexpr int      HEDGEHOG_COUNT_MIN             = 0;
+constexpr int      HEDGEHOG_COUNT_MAX             = 1;
+constexpr double   HEDGEHOG_COUNT_PROBABILITY     = 0.55;
+constexpr double   HEDGEHOG_WALK_SPEED_MIN        = 4.0;
+constexpr double   HEDGEHOG_WALK_SPEED_MAX        = 8.0;
+constexpr double   HEDGEHOG_BODY_RADIUS           = 9.0;
+constexpr double   HEDGEHOG_BODY_HEIGHT           = 5.5;
+constexpr double   HEDGEHOG_HEAD_RADIUS           = 3.6;
+constexpr double   HEDGEHOG_NOSE_RADIUS           = 0.8;
+constexpr double   HEDGEHOG_LEG_LENGTH            = 2.5;
+constexpr int      HEDGEHOG_SPIKE_COUNT           = 14;
+constexpr double   HEDGEHOG_SPIKE_LENGTH          = 3.0;
+constexpr double   HEDGEHOG_SPIKE_WIDTH           = 1.4;
+constexpr double   HEDGEHOG_SPIKE_ARC_START_DEG   = -20.0;
+constexpr double   HEDGEHOG_SPIKE_ARC_END_DEG     = 200.0;
+constexpr uint32_t HEDGEHOG_BODY_COLOR            = 0xFF5C4633u;
+constexpr uint32_t HEDGEHOG_SPIKE_COLOR           = 0xFF3A2A1Fu;
+constexpr uint32_t HEDGEHOG_SPIKE_TIP_COLOR       = 0xFF1E150Eu;
+constexpr uint32_t HEDGEHOG_NOSE_COLOR            = 0xFF1A1208u;
+constexpr uint32_t HEDGEHOG_EYE_COLOR             = 0xFF1A1208u;
 
+constexpr uint8_t  HEDGEHOG_STATE_WALKING         = 0;
+constexpr uint8_t  HEDGEHOG_STATE_SNUFFLING       = 1;
+constexpr uint8_t  HEDGEHOG_STATE_IDLE            = 2;
+constexpr uint8_t  HEDGEHOG_STATE_SLEEPING        = 3;
+constexpr uint8_t  HEDGEHOG_STATE_CURLED          = 4;
+
+constexpr double   HEDGEHOG_WALK_DURATION_MIN     = 6.0;
+constexpr double   HEDGEHOG_WALK_DURATION_MAX     = 12.0;
+constexpr double   HEDGEHOG_SNUFFLE_DURATION_MIN  = 3.0;
+constexpr double   HEDGEHOG_SNUFFLE_DURATION_MAX  = 6.0;
+constexpr double   HEDGEHOG_IDLE_DURATION_MIN     = 1.5;
+constexpr double   HEDGEHOG_IDLE_DURATION_MAX     = 3.0;
+constexpr double   HEDGEHOG_SLEEP_DURATION_MIN    = 10.0;
+constexpr double   HEDGEHOG_SLEEP_DURATION_MAX    = 25.0;
+constexpr double   HEDGEHOG_CURL_DURATION_MIN     = 3.0;
+constexpr double   HEDGEHOG_CURL_DURATION_MAX     = 5.5;
+constexpr double   HEDGEHOG_SNUFFLE_PROBABILITY   = 0.55;
+constexpr double   HEDGEHOG_IDLE_PROBABILITY      = 0.30;
+constexpr double   HEDGEHOG_SLEEP_PROB_DAY        = 0.50;
+constexpr double   HEDGEHOG_SLEEP_PROB_NIGHT      = 0.05;
+constexpr double   HEDGEHOG_STARTLE_RADIUS        = 70.0;
+constexpr double   HEDGEHOG_SNUFFLE_HEAD_FREQ     = 5.0;
+constexpr double   HEDGEHOG_SNUFFLE_HEAD_AMP      = 0.7;
+constexpr double   HEDGEHOG_WADDLE_FREQ           = 4.0;
+constexpr double   HEDGEHOG_WADDLE_AMP            = 0.8;
+constexpr double   HEDGEHOG_ZZZ_CYCLE_SEC         = SHEEP_ZZZ_CYCLE_SEC;
+constexpr double   HEDGEHOG_ZZZ_RISE              = SHEEP_ZZZ_RISE * 0.5;
+constexpr double   HEDGEHOG_ZZZ_SIZE_START        = SHEEP_ZZZ_SIZE_START * 0.6;
+constexpr double   HEDGEHOG_ZZZ_SIZE_END          = SHEEP_ZZZ_SIZE_END * 0.6;
 // Butterflies (§17.6). Grass-only, passive daytime ambient flyers.
+
 constexpr int      BUTTERFLY_COUNT_MIN          = 2;
 constexpr int      BUTTERFLY_COUNT_MAX          = 4;
 constexpr double   BUTTERFLY_SPEED_MIN          = 18.0;

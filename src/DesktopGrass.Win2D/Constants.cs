@@ -227,6 +227,11 @@ internal static class Constants
         "Clover", "Hazel", "Thumper", "Mochi", "Pip", "Acorn",
         "Biscuit", "Willow", "Pepper", "Hopper", "Juniper", "Snowdrop",
     };
+    public static readonly string[] HEDGEHOG_NAME_POOL =
+    {
+        "Bristle", "Quill", "Mossy", "Truffle", "Prickles", "Snuffles",
+        "Pinecone", "Hazel", "Bramble", "Pip", "Sage", "Burdock",
+    };
     public const double      PET_NAME_HOVER_RADIUS = 50.0;
     public const double      PET_NAME_FADE_DURATION = 1.5;
     public const double      PET_NAME_FONT_SIZE = 11.0;
@@ -432,8 +437,60 @@ internal static class Constants
     public const double BUNNY_ZZZ_RISE           = SHEEP_ZZZ_RISE * 0.7;
     public const double BUNNY_ZZZ_SIZE_START     = SHEEP_ZZZ_SIZE_START * 0.7;
     public const double BUNNY_ZZZ_SIZE_END       = SHEEP_ZZZ_SIZE_END * 0.7;
+    // Hedgehog (§17.9). Grass-only, solitary nocturnal critter. Generated after
+    // bunnies from the shared critter PRNG; passive defense curls into a ball.
+    public const int    HEDGEHOG_COUNT_MIN             = 0;
+    public const int    HEDGEHOG_COUNT_MAX             = 1;
+    public const double HEDGEHOG_COUNT_PROBABILITY     = 0.55;
+    public const double HEDGEHOG_WALK_SPEED_MIN        = 4.0;
+    public const double HEDGEHOG_WALK_SPEED_MAX        = 8.0;
+    public const double HEDGEHOG_BODY_RADIUS           = 9.0;
+    public const double HEDGEHOG_BODY_HEIGHT           = 5.5;
+    public const double HEDGEHOG_HEAD_RADIUS           = 3.6;
+    public const double HEDGEHOG_NOSE_RADIUS           = 0.8;
+    public const double HEDGEHOG_LEG_LENGTH            = 2.5;
+    public const int    HEDGEHOG_SPIKE_COUNT           = 14;
+    public const double HEDGEHOG_SPIKE_LENGTH          = 3.0;
+    public const double HEDGEHOG_SPIKE_WIDTH           = 1.4;
+    public const double HEDGEHOG_SPIKE_ARC_START_DEG   = -20.0;
+    public const double HEDGEHOG_SPIKE_ARC_END_DEG     = 200.0;
+    public const uint   HEDGEHOG_BODY_COLOR            = 0xFF5C4633u;
+    public const uint   HEDGEHOG_SPIKE_COLOR           = 0xFF3A2A1Fu;
+    public const uint   HEDGEHOG_SPIKE_TIP_COLOR       = 0xFF1E150Eu;
+    public const uint   HEDGEHOG_NOSE_COLOR            = 0xFF1A1208u;
+    public const uint   HEDGEHOG_EYE_COLOR             = 0xFF1A1208u;
 
+    public const byte   HEDGEHOG_STATE_WALKING         = 0;
+    public const byte   HEDGEHOG_STATE_SNUFFLING       = 1;
+    public const byte   HEDGEHOG_STATE_IDLE            = 2;
+    public const byte   HEDGEHOG_STATE_SLEEPING        = 3;
+    public const byte   HEDGEHOG_STATE_CURLED          = 4;
+
+    public const double HEDGEHOG_WALK_DURATION_MIN     = 6.0;
+    public const double HEDGEHOG_WALK_DURATION_MAX     = 12.0;
+    public const double HEDGEHOG_SNUFFLE_DURATION_MIN  = 3.0;
+    public const double HEDGEHOG_SNUFFLE_DURATION_MAX  = 6.0;
+    public const double HEDGEHOG_IDLE_DURATION_MIN     = 1.5;
+    public const double HEDGEHOG_IDLE_DURATION_MAX     = 3.0;
+    public const double HEDGEHOG_SLEEP_DURATION_MIN    = 10.0;
+    public const double HEDGEHOG_SLEEP_DURATION_MAX    = 25.0;
+    public const double HEDGEHOG_CURL_DURATION_MIN     = 3.0;
+    public const double HEDGEHOG_CURL_DURATION_MAX     = 5.5;
+    public const double HEDGEHOG_SNUFFLE_PROBABILITY   = 0.55;
+    public const double HEDGEHOG_IDLE_PROBABILITY      = 0.30;
+    public const double HEDGEHOG_SLEEP_PROB_DAY        = 0.50;
+    public const double HEDGEHOG_SLEEP_PROB_NIGHT      = 0.05;
+    public const double HEDGEHOG_STARTLE_RADIUS        = 70.0;
+    public const double HEDGEHOG_SNUFFLE_HEAD_FREQ     = 5.0;
+    public const double HEDGEHOG_SNUFFLE_HEAD_AMP      = 0.7;
+    public const double HEDGEHOG_WADDLE_FREQ           = 4.0;
+    public const double HEDGEHOG_WADDLE_AMP            = 0.8;
+    public const double HEDGEHOG_ZZZ_CYCLE_SEC         = SHEEP_ZZZ_CYCLE_SEC;
+    public const double HEDGEHOG_ZZZ_RISE              = SHEEP_ZZZ_RISE * 0.5;
+    public const double HEDGEHOG_ZZZ_SIZE_START        = SHEEP_ZZZ_SIZE_START * 0.6;
+    public const double HEDGEHOG_ZZZ_SIZE_END          = SHEEP_ZZZ_SIZE_END * 0.6;
     // Butterflies (§17.6). Grass-only, passive daytime ambient flyers.
+
     public const int    BUTTERFLY_COUNT_MIN          = 2;
     public const int    BUTTERFLY_COUNT_MAX          = 4;
     public const double BUTTERFLY_SPEED_MIN          = 18.0;
