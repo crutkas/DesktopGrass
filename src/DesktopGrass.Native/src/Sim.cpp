@@ -89,6 +89,17 @@ double sheep_sleep_prob_for_local_hour(int hour) noexcept {
     return SHEEP_SLEEP_PROB_DEFAULT;
 }
 
+double cat_sleep_prob_for_local_hour(int hour) noexcept {
+    if (hour < 0 || hour > 23) return CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
+    if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
+        return CAT_SLEEP_FROM_IDLE_PROB_MORNING;
+    }
+    if (hour_in_half_open_range(hour, SHEEP_NIGHT_START_HOUR, SHEEP_NIGHT_END_HOUR)) {
+        return CAT_SLEEP_FROM_IDLE_PROB_NIGHT;
+    }
+    return CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
+}
+
 // ---------------------------------------------------------------------------
 // Blade generation. Field-draw order MUST be (height, thickness, hue,
 // swayPhaseOffset, stiffness) — see architecture.md §5.
@@ -478,6 +489,19 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
         ent.stateTimer = SHEEP_HOP_DURATION;
         ent.age        = 0.0;
     }
+
+    // Cat pounce (§17). Passive and click-only: a nearby cat pounces TOWARD
+    // the click, reusing the sheep Hopping state byte as Pouncing.
+    for (Entity& ent : sim.entities) {
+        if (ent.kind != EntityKind::Cat) continue;
+        const double dxClick = e.x - ent.x;
+        if (std::fabs(dxClick) >= CAT_POUNCE_RADIUS) continue;
+        const double towardDir = dxClick >= 0.0 ? 1.0 : -1.0;
+        ent.vx = towardDir * CAT_POUNCE_SPEED;
+        ent.state      = CAT_STATE_POUNCING;
+        ent.stateTimer = CAT_POUNCE_DURATION;
+        ent.age        = 0.0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -565,11 +589,48 @@ void generate_critters_sheep(Sim& sim) noexcept {
     }
 }
 
+void generate_critters_cat(Sim& sim) noexcept {
+    const double countDraw = prng_uniform(sim.critterPrng,
+        static_cast<double>(CAT_COUNT_MIN),
+        static_cast<double>(CAT_COUNT_MAX + 1));
+    int count = static_cast<int>(std::floor(countDraw));
+    if (count < CAT_COUNT_MIN) count = CAT_COUNT_MIN;
+    if (count > CAT_COUNT_MAX) count = CAT_COUNT_MAX;
+
+    const double groundY = sim.windowHeight;
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Cat;
+        e.size = CAT_BODY_RADIUS;
+        const double margin = e.size + 8.0;
+        e.x = prng_uniform(sim.critterPrng, margin, sim.monitorWidth - margin);
+        e.y = groundY - CAT_BODY_HEIGHT - CAT_LEG_LENGTH;
+        const double speed = prng_uniform(sim.critterPrng,
+                                          CAT_WALK_SPEED_MIN,
+                                          CAT_WALK_SPEED_MAX);
+        const double dir = prng_uniform(sim.critterPrng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+        e.vx = dir * speed;
+        e.vy = 0.0;
+        e.rotation = 0.0;
+        e.rotationSpeed = 0.0;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = prng_next_u32(sim.critterPrng);
+        e.state = CAT_STATE_WALKING;
+        e.stateTimer = prng_uniform(sim.critterPrng,
+                                    CAT_WALK_DURATION_MIN,
+                                    CAT_WALK_DURATION_MAX);
+        sim.entities.push_back(e);
+    }
+}
+
 void generate_critters_for_kind(Sim& sim) noexcept {
     prng_init(sim.critterPrng, sim.entitySeed ^ CRITTER_PRNG_SALT);
     switch (sim.currentCritter) {
     case CritterKind::None:                                  break;
     case CritterKind::Sheep: generate_critters_sheep(sim);   break;
+    case CritterKind::Cat:   generate_critters_cat(sim);     break;
     }
 }
 
@@ -615,7 +676,9 @@ void sim_set_critter(Sim& sim, CritterKind c) noexcept {
     // are preserved across critter toggles.
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) { return e.kind == EntityKind::Sheep; }),
+            [](const Entity& e) {
+                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat;
+            }),
         sim.entities.end());
     generate_critters_for_kind(sim);
 }
@@ -782,6 +845,69 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             a.age = 0.0;
             b.age = 0.0;
             break;
+        }
+    }
+
+    // Cat (§17). Cats are passive: no proximity chase and no greeting loop.
+    // Idle/Sleep freeze in place; click pounce uses Hopping as Pouncing.
+    for (Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Cat) continue;
+
+        const bool frozen = (e.state == CAT_STATE_IDLE)
+                         || (e.state == CAT_STATE_SLEEPING);
+        if (frozen) {
+            e.x -= e.vx * dt;
+        }
+
+        const double margin = e.size + 2.0;
+        if (e.x < margin) {
+            e.x  = margin;
+            e.vx = std::abs(e.vx);
+        } else if (e.x > sim.monitorWidth - margin) {
+            e.x  = sim.monitorWidth - margin;
+            e.vx = -std::abs(e.vx);
+        }
+
+        e.stateTimer -= dt;
+        if (e.stateTimer <= 0.0) {
+            if (e.state == CAT_STATE_WALKING) {
+                const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
+                if (r < CAT_IDLE_PROBABILITY) {
+                    e.state = CAT_STATE_IDLE;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                CAT_IDLE_DURATION_MIN,
+                                                CAT_IDLE_DURATION_MAX);
+                } else if (r < CAT_IDLE_PROBABILITY + CAT_SLEEP_PROBABILITY) {
+                    e.state = CAT_STATE_SLEEPING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                CAT_SLEEP_DURATION_MIN,
+                                                CAT_SLEEP_DURATION_MAX);
+                } else {
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                CAT_WALK_DURATION_MIN,
+                                                CAT_WALK_DURATION_MAX);
+                }
+            } else if (e.state == CAT_STATE_IDLE) {
+                const double sleepProb = cat_sleep_prob_for_local_hour(current_local_hour());
+                const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
+                if (r < sleepProb) {
+                    e.state = CAT_STATE_SLEEPING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                CAT_SLEEP_DURATION_MIN,
+                                                CAT_SLEEP_DURATION_MAX);
+                } else {
+                    e.state = CAT_STATE_WALKING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                CAT_WALK_DURATION_MIN,
+                                                CAT_WALK_DURATION_MAX);
+                }
+            } else {
+                e.state = CAT_STATE_WALKING;
+                e.stateTimer = prng_uniform(sim.critterPrng,
+                                            CAT_WALK_DURATION_MIN,
+                                            CAT_WALK_DURATION_MAX);
+            }
+            e.age = 0.0;
         }
     }
 

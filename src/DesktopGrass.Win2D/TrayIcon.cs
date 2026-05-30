@@ -75,12 +75,13 @@ internal sealed class TrayIcon : IDisposable
         sceneMenu.DropDownItems.AddRange(sceneItems);
         menu.Items.Add(sceneMenu);
 
-        // Critter submenu (§13.3 / §16). Independent of Scene — pick a
-        // pet to wander on top of whatever biome is active.
+        // Critter submenu (§13.3 / §16 / §17). Independent of Scene — pick
+        // a pet to wander on top of whatever biome is active.
         var critterMenu = new ToolStripMenuItem("Critter");
         var critterNoneItem  = new ToolStripMenuItem("None")  { Tag = CritterKind.None,  CheckOnClick = false };
         var critterSheepItem = new ToolStripMenuItem("Sheep") { Tag = CritterKind.Sheep, CheckOnClick = false };
-        var critterItems = new[] { critterNoneItem, critterSheepItem };
+        var critterCatItem   = new ToolStripMenuItem("Cat")   { Tag = CritterKind.Cat,   CheckOnClick = false };
+        var critterItems = new[] { critterNoneItem, critterSheepItem, critterCatItem };
 
         void SelectCritter(CritterKind c)
         {
@@ -90,6 +91,7 @@ internal sealed class TrayIcon : IDisposable
         }
         critterNoneItem.Click  += (_, _) => SelectCritter(CritterKind.None);
         critterSheepItem.Click += (_, _) => SelectCritter(CritterKind.Sheep);
+        critterCatItem.Click   += (_, _) => SelectCritter(CritterKind.Cat);
         SelectCritter(_initialCritter);
 
         critterMenu.DropDownItems.AddRange(critterItems);

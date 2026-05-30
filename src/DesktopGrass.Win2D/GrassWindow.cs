@@ -58,6 +58,11 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _sheepFaceBrush;
     private ID2D1SolidColorBrush? _sheepEarBrush;
     private ID2D1SolidColorBrush? _sheepInkBrush;
+    private ID2D1SolidColorBrush? _catBodyBrush;
+    private ID2D1SolidColorBrush? _catLegBrush;
+    private ID2D1SolidColorBrush? _catFaceBrush;
+    private ID2D1SolidColorBrush? _catEarBrush;
+    private ID2D1SolidColorBrush? _catInkBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     private const float SheepCuriousVerticalRadiusDip = 120.0f;
@@ -187,6 +192,11 @@ internal sealed class GrassWindow : IDisposable
         _sheepFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_FACE_COLOR));
         _sheepEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_EAR_COLOR));
         _sheepInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_INK_COLOR));
+        _catBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_BODY_COLOR));
+        _catLegBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_LEG_COLOR));
+        _catFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_FACE_COLOR));
+        _catEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_EAR_COLOR));
+        _catInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_INK_COLOR));
 
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
@@ -304,6 +314,12 @@ internal sealed class GrassWindow : IDisposable
             if (e.Kind == EntityKind.Sheep)
             {
                 DrawSheep(in e, cursorPosition);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Cat)
+            {
+                DrawCat(in e, cursorPosition);
                 continue;
             }
 
@@ -494,6 +510,233 @@ internal sealed class GrassWindow : IDisposable
             }
             _sheepBodyBrush!.Opacity = 1.0f;
         }
+    }
+
+    private void DrawCat(in Entity e, Vector2? cursorPosition)
+    {
+        const float twoPi = (float)(Math.PI * 2.0);
+        float cx = (float)e.X;
+        float br = (float)Constants.CAT_BODY_RADIUS;
+        float bh = (float)Constants.CAT_BODY_HEIGHT;
+        float legLen = (float)Constants.CAT_LEG_LENGTH;
+        float headR = (float)Constants.CAT_HEAD_RADIUS;
+        float facing = (e.Vx >= 0.0) ? 1.0f : -1.0f;
+
+        bool isWalking = e.State == Constants.CAT_STATE_WALKING;
+        bool isIdle = e.State == Constants.CAT_STATE_IDLE;
+        bool isSleeping = e.State == Constants.CAT_STATE_SLEEPING;
+        bool isPouncing = e.State == Constants.CAT_STATE_POUNCING;
+
+        float pounceOffsetY = 0.0f;
+        if (isPouncing)
+        {
+            float t = Math.Max(0.0f, Math.Min(1.0f, (float)(e.Age / Constants.CAT_POUNCE_DURATION)));
+            pounceOffsetY = -4.0f * (float)Constants.CAT_POUNCE_HEIGHT * t * (1.0f - t);
+        }
+        float sleepOffsetY = isSleeping ? legLen : 0.0f;
+        float cy = (float)e.Y + pounceOffsetY + sleepOffsetY;
+
+        float walkPhase = (float)(e.Age * (twoPi / Constants.CAT_WALK_PERIOD));
+        float legAmp = isWalking ? (float)Constants.CAT_LEG_CYCLE_AMP : 0.0f;
+        float headBob = isWalking
+            ? (float)(Math.Sin(walkPhase * 2.0f) * Constants.CAT_HEAD_BOB_AMP)
+            : 0.0f;
+        float tailSway = (isWalking || isIdle)
+            ? (float)(Math.Sin(e.Age * Constants.CAT_TAIL_SWAY_FREQ) * Constants.CAT_TAIL_SWAY_AMP)
+            : 0.0f;
+
+        float tailBaseX = cx - facing * br * 0.92f;
+        float tailBaseY = cy - bh * 0.10f;
+        if (isSleeping)
+        {
+            DrawCubicBezier(new Vector2(tailBaseX, tailBaseY + bh * 0.15f),
+                            new Vector2(cx - facing * br * 0.55f, cy + bh * 0.95f),
+                            new Vector2(cx + facing * br * 0.10f, cy + bh * 0.95f),
+                            new Vector2(cx + facing * br * 0.72f, cy + bh * 0.45f),
+                            _catLegBrush!, (float)Constants.CAT_TAIL_THICKNESS);
+        }
+        else
+        {
+            float tailLen = (float)Constants.CAT_TAIL_LENGTH;
+            float tipX = tailBaseX - facing * tailLen * (0.78f + 0.08f * (float)Math.Sin(tailSway));
+            float tipY = tailBaseY - tailLen * (0.42f + 0.18f * (float)Math.Cos(tailSway));
+            DrawCubicBezier(new Vector2(tailBaseX, tailBaseY),
+                            new Vector2(tailBaseX - facing * tailLen * 0.18f, tailBaseY - tailLen * 0.08f),
+                            new Vector2(tailBaseX - facing * tailLen * 0.60f, tailBaseY - tailLen * (0.70f + 0.20f * (float)Math.Sin(tailSway))),
+                            new Vector2(tipX, tipY),
+                            _catLegBrush!, (float)Constants.CAT_TAIL_THICKNESS);
+        }
+
+        if (!isSleeping)
+        {
+            float legY0 = cy + bh * 0.35f;
+            float[] legXs = { -br * 0.58f, -br * 0.20f, br * 0.20f, br * 0.58f };
+            float swingA = (float)Math.Sin(walkPhase) * legAmp;
+            float swingB = (float)Math.Sin(walkPhase + Math.PI) * legAmp;
+            float[] legSwings = { swingA, swingB, swingA, swingB };
+            for (int li = 0; li < 4; li++)
+            {
+                float lx = cx + legXs[li];
+                float ly1 = cy + bh + legLen + legSwings[li];
+                _dc!.DrawLine(new Vector2(lx, legY0), new Vector2(lx, ly1), _catLegBrush!, 1.2f, _strokeStyle);
+            }
+        }
+
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _catBodyBrush!);
+
+        float headDirX = facing;
+        float headDx = facing * br * 0.82f;
+        float headDy = -bh * 0.78f + headBob;
+        if (isIdle)
+        {
+            float stripTop = (float)(Sim.GroundY - Constants.STRIP_HEIGHT);
+            Vector2 cursor = cursorPosition.GetValueOrDefault();
+            bool curious = cursorPosition.HasValue
+                && Math.Abs(cursor.Y - stripTop) <= SheepCuriousVerticalRadiusDip
+                && Math.Abs(cursor.X - cx) <= (float)Constants.CAT_CURIOUS_RADIUS;
+            if (curious)
+            {
+                float cursorDx = cursor.X - cx;
+                float maxHeadDx = (float)(Constants.CAT_CURIOUS_HEAD_TURN_MAX * Constants.CAT_HEAD_RADIUS);
+                headDirX = cursorDx >= 0.0f ? 1.0f : -1.0f;
+                headDx = facing * br * 0.55f + Math.Clamp(cursorDx, -maxHeadDx, maxHeadDx);
+            }
+            else
+            {
+                float sweep = (float)Math.Sin(e.Age * Constants.CAT_TAIL_SWAY_FREQ * 0.7);
+                headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+                headDx = facing * br * 0.60f + sweep * headR * 0.70f;
+            }
+            headDy = -bh * 0.82f;
+        }
+        else if (isSleeping)
+        {
+            headDx = facing * br * 0.62f;
+            headDy = -bh * 0.20f;
+        }
+
+        float headCx = cx + headDx;
+        float headCy = cy + headDy;
+        _dc!.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR), _catFaceBrush!);
+
+        float earBaseY = headCy - headR * 0.62f;
+        float earH = (float)Constants.CAT_EAR_HEIGHT;
+        DrawFilledTriangle(new Vector2(headCx - headR * 0.60f, earBaseY),
+                           new Vector2(headCx - headR * 0.18f, earBaseY),
+                           new Vector2(headCx - headR * 0.47f - headDirX * 0.65f, earBaseY - earH),
+                           _catEarBrush!);
+        DrawFilledTriangle(new Vector2(headCx + headR * 0.18f, earBaseY),
+                           new Vector2(headCx + headR * 0.60f, earBaseY),
+                           new Vector2(headCx + headR * 0.47f + headDirX * 0.65f, earBaseY - earH),
+                           _catEarBrush!);
+
+        if (isSleeping)
+        {
+            float eyeY = headCy - headR * 0.05f;
+            float[] eyeOffsets = { -headR * 0.25f, headR * 0.32f };
+            foreach (float ex in eyeOffsets)
+            {
+                float x0 = headCx + ex - 1.1f;
+                float x1 = headCx + ex + 1.1f;
+                DrawCubicBezier(new Vector2(x0, eyeY),
+                                new Vector2(x0 + 0.45f, eyeY + 0.8f),
+                                new Vector2(x1 - 0.45f, eyeY + 0.8f),
+                                new Vector2(x1, eyeY),
+                                _catInkBrush!, 0.9f);
+            }
+        }
+        else
+        {
+            float eyeR = headR * 0.16f;
+            _dc!.FillEllipse(new Ellipse(new Vector2(headCx + headDirX * headR * 0.22f,
+                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), _catInkBrush!);
+            _dc!.FillEllipse(new Ellipse(new Vector2(headCx - headDirX * headR * 0.18f,
+                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), _catInkBrush!);
+        }
+
+        float noseTipX = headCx + headDirX * headR * 0.63f;
+        float noseTipY = headCy + headR * 0.12f;
+        DrawFilledTriangle(new Vector2(noseTipX, noseTipY),
+                           new Vector2(noseTipX - headDirX * 1.5f, noseTipY - 1.1f),
+                           new Vector2(noseTipX - headDirX * 1.5f, noseTipY + 1.1f),
+                           _catInkBrush!);
+
+        if (isSleeping)
+        {
+            float zBaseX = headCx + headDirX * headR * 0.55f;
+            float zBaseY = headCy - headR * 1.25f;
+            for (int zi = 0; zi < 2; zi++)
+            {
+                float t = (float)(((e.Age / Constants.SHEEP_ZZZ_CYCLE_SEC) + 0.5 * zi) % 1.0);
+                if (t < 0.0f) t += 1.0f;
+                float zSize = (float)(Constants.SHEEP_ZZZ_SIZE_START * 0.65
+                                      + t * (Constants.SHEEP_ZZZ_SIZE_END * 0.70 - Constants.SHEEP_ZZZ_SIZE_START * 0.65));
+                DrawCatZ(zBaseX + t * 3.0f * headDirX,
+                         zBaseY - t * (float)(Constants.SHEEP_ZZZ_RISE * 0.75),
+                         zSize, 1.0f - t);
+            }
+        }
+    }
+
+    private void DrawFilledTriangle(Vector2 p0, Vector2 p1, Vector2 p2, ID2D1SolidColorBrush brush)
+    {
+        float minY = MathF.Floor(Math.Min(p0.Y, Math.Min(p1.Y, p2.Y)));
+        float maxY = MathF.Ceiling(Math.Max(p0.Y, Math.Max(p1.Y, p2.Y)));
+        const float step = 0.5f;
+        for (float y = minY; y <= maxY; y += step)
+        {
+            int count = 0;
+            float minX = float.PositiveInfinity;
+            float maxX = float.NegativeInfinity;
+
+            void AddEdge(Vector2 a, Vector2 b)
+            {
+                if (Math.Abs(a.Y - b.Y) < 0.0001f) return;
+                float edgeMinY = Math.Min(a.Y, b.Y);
+                float edgeMaxY = Math.Max(a.Y, b.Y);
+                if (y < edgeMinY || y > edgeMaxY) return;
+                float t = (y - a.Y) / (b.Y - a.Y);
+                float x = a.X + t * (b.X - a.X);
+                minX = Math.Min(minX, x);
+                maxX = Math.Max(maxX, x);
+                count++;
+            }
+
+            AddEdge(p0, p1);
+            AddEdge(p1, p2);
+            AddEdge(p2, p0);
+            if (count >= 2 && maxX >= minX)
+            {
+                _dc!.DrawLine(new Vector2(minX, y), new Vector2(maxX, y), brush, step * 1.5f, _strokeStyle);
+            }
+        }
+    }
+
+    private void DrawCubicBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3,
+                                 ID2D1SolidColorBrush brush, float thickness)
+    {
+        const int segments = 8;
+        Vector2 prev = p0;
+        for (int i = 1; i <= segments; i++)
+        {
+            float t = i / (float)segments;
+            float u = 1.0f - t;
+            Vector2 p = u * u * u * p0
+                      + 3.0f * u * u * t * p1
+                      + 3.0f * u * t * t * p2
+                      + t * t * t * p3;
+            _dc!.DrawLine(prev, p, brush, thickness, _strokeStyle);
+            prev = p;
+        }
+    }
+
+    private void DrawCatZ(float zX, float zY, float zSize, float alpha)
+    {
+        _catInkBrush!.Opacity = alpha;
+        _dc!.DrawLine(new Vector2(zX, zY), new Vector2(zX + zSize, zY), _catInkBrush!, 0.9f, _strokeStyle);
+        _dc!.DrawLine(new Vector2(zX + zSize, zY), new Vector2(zX, zY + zSize), _catInkBrush!, 0.9f, _strokeStyle);
+        _dc!.DrawLine(new Vector2(zX, zY + zSize), new Vector2(zX + zSize, zY + zSize), _catInkBrush!, 0.9f, _strokeStyle);
+        _catInkBrush!.Opacity = 1.0f;
     }
 
     private void DrawFilledPineTri(float cx, float baseY, float topY, float halfW, ID2D1SolidColorBrush brush)
@@ -798,6 +1041,11 @@ internal sealed class GrassWindow : IDisposable
         try { _sheepFaceBrush?.Dispose(); } catch { }
         try { _sheepEarBrush?.Dispose(); } catch { }
         try { _sheepInkBrush?.Dispose(); } catch { }
+        try { _catBodyBrush?.Dispose(); } catch { }
+        try { _catLegBrush?.Dispose(); } catch { }
+        try { _catFaceBrush?.Dispose(); } catch { }
+        try { _catEarBrush?.Dispose(); } catch { }
+        try { _catInkBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

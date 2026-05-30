@@ -95,6 +95,7 @@
     <ClCompile Include="src\pine_tests.cpp" />
     <ClCompile Include="src\critter_tests.cpp" />
     <ClCompile Include="src\sheep_greeting_tests.cpp" />
+    <ClCompile Include="src\cat_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 

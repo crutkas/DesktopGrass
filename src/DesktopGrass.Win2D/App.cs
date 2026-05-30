@@ -25,7 +25,7 @@ internal static class Win32App
     public static int ConsumePendingSceneChange() =>
         System.Threading.Interlocked.Exchange(ref s_pendingScene, -1);
 
-    // -1 = no pending change; 0..1 = pending CritterKind to apply.
+    // -1 = no pending change; 0..2 = pending CritterKind to apply.
     private static int s_pendingCritter = -1;
     public static void RequestCritterChange(CritterKind c) =>
         System.Threading.Interlocked.Exchange(ref s_pendingCritter, (int)c);

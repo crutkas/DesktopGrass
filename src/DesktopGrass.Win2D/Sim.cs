@@ -121,9 +121,9 @@ internal struct Blade
 }
 
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), and sheep (§16) live in Sim.Entities. The struct
-// fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3 }
+// snowflakes (Winter §15), sheep (§16), and cats (§17) live in Sim.Entities.
+// The struct fields are shared across kinds; per-kind tick logic branches on Kind.
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4 }
 
 public struct Entity
 {
@@ -138,10 +138,10 @@ public struct Entity
     public double Age;
     public double Lifetime;   // <= 0 means infinite (respawn-in-place)
     public uint   Seed;
-    // Critter state machine (§16). Only meaningful for EntityKind.Sheep
-    // and future critters; ignored by tumbleweeds/snowflakes. Default
-    // values are inert so existing scene-entity tests are unaffected.
-    public byte   State;       // sheep: see SHEEP_STATE_* constants
+    // Critter state machine (§16, §17). Sheep and Cat share state bytes;
+    // Cat reuses Hopping semantically as Pouncing.
+    // Values are ignored by tumbleweeds/snowflakes and inert by default.
+    public byte   State;       // sheep/cat: see SHEEP_STATE_* constants
     public double StateTimer;  // sec remaining in current state
 }
 
@@ -217,6 +217,18 @@ internal sealed class Sim
         return Constants.SHEEP_SLEEP_PROB_DEFAULT;
     }
 
+    internal static double CatSleepProbForLocalHour(int hour)
+    {
+        if (hour < 0 || hour > 23) return Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
+        if (HourInHalfOpenRange(hour, Constants.SHEEP_MORNING_START_HOUR,
+                                Constants.SHEEP_MORNING_END_HOUR))
+            return Constants.CAT_SLEEP_FROM_IDLE_PROB_MORNING;
+        if (HourInHalfOpenRange(hour, Constants.SHEEP_NIGHT_START_HOUR,
+                                Constants.SHEEP_NIGHT_END_HOUR))
+            return Constants.CAT_SLEEP_FROM_IDLE_PROB_NIGHT;
+        return Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
+    }
+
     public void SetScene(Scene s)
     {
         CurrentScene = s;
@@ -258,7 +270,7 @@ internal sealed class Sim
         CurrentCritter = c;
         // Erase only critter entities — scene entities (tumbleweeds,
         // snowflakes) are preserved across critter toggles.
-        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep);
+        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat);
         GenerateCrittersForKind(this);
     }
 
@@ -269,6 +281,7 @@ internal sealed class Sim
         {
             case CritterKind.None:                                break;
             case CritterKind.Sheep: GenerateCrittersSheep(sim);   break;
+            case CritterKind.Cat:   GenerateCrittersCat(sim);     break;
         }
     }
 
@@ -303,6 +316,41 @@ internal sealed class Sim
             e.State = Constants.SHEEP_STATE_WALKING;
             e.StateTimer = sim.CritterPrng.Uniform(
                 Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            sim.Entities.Add(e);
+        }
+    }
+
+    private static void GenerateCrittersCat(Sim sim)
+    {
+        double countDraw = sim.CritterPrng.Uniform(
+            Constants.CAT_COUNT_MIN, Constants.CAT_COUNT_MAX + 1);
+        int count = (int)Math.Floor(countDraw);
+        if (count < Constants.CAT_COUNT_MIN) count = Constants.CAT_COUNT_MIN;
+        if (count > Constants.CAT_COUNT_MAX) count = Constants.CAT_COUNT_MAX;
+
+        double groundY = sim.WindowHeight;
+        for (int i = 0; i < count
+             && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Cat;
+            e.Size = Constants.CAT_BODY_RADIUS;
+            double margin = e.Size + 8.0;
+            e.X = sim.CritterPrng.Uniform(margin, sim.MonitorWidth - margin);
+            e.Y = groundY - Constants.CAT_BODY_HEIGHT - Constants.CAT_LEG_LENGTH;
+            double speed = sim.CritterPrng.Uniform(
+                Constants.CAT_WALK_SPEED_MIN, Constants.CAT_WALK_SPEED_MAX);
+            double dir = sim.CritterPrng.Uniform(0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+            e.Vx = dir * speed;
+            e.Vy = 0.0;
+            e.Rotation = 0.0;
+            e.RotationSpeed = 0.0;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = sim.CritterPrng.NextU32();
+            e.State = Constants.CAT_STATE_WALKING;
+            e.StateTimer = sim.CritterPrng.Uniform(
+                Constants.CAT_WALK_DURATION_MIN, Constants.CAT_WALK_DURATION_MAX);
             sim.Entities.Add(e);
         }
     }
@@ -654,6 +702,90 @@ internal sealed class Sim
             }
         }
 
+        // §17 Cat state machine. Cats never join the sheep greeting loop.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Cat) continue;
+
+            bool frozen = e.State == Constants.CAT_STATE_IDLE
+                       || e.State == Constants.CAT_STATE_SLEEPING;
+            if (frozen)
+            {
+                e.X -= e.Vx * dt;
+            }
+
+            double margin = e.Size + 2.0;
+            if (e.X < margin)
+            {
+                e.X  = margin;
+                e.Vx = Math.Abs(e.Vx);
+            }
+            else if (e.X > MonitorWidth - margin)
+            {
+                e.X  = MonitorWidth - margin;
+                e.Vx = -Math.Abs(e.Vx);
+            }
+
+            e.StateTimer -= dt;
+            if (e.StateTimer <= 0.0)
+            {
+                if (e.State == Constants.CAT_STATE_WALKING)
+                {
+                    double r = CritterPrng.Uniform(0.0, 1.0);
+                    if (r < Constants.CAT_IDLE_PROBABILITY)
+                    {
+                        e.State = Constants.CAT_STATE_IDLE;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.CAT_IDLE_DURATION_MIN,
+                            Constants.CAT_IDLE_DURATION_MAX);
+                    }
+                    else if (r < Constants.CAT_IDLE_PROBABILITY + Constants.CAT_SLEEP_PROBABILITY)
+                    {
+                        e.State = Constants.CAT_STATE_SLEEPING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.CAT_SLEEP_DURATION_MIN,
+                            Constants.CAT_SLEEP_DURATION_MAX);
+                    }
+                    else
+                    {
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.CAT_WALK_DURATION_MIN,
+                            Constants.CAT_WALK_DURATION_MAX);
+                    }
+                }
+                else if (e.State == Constants.CAT_STATE_IDLE)
+                {
+                    double sleepProb = CatSleepProbForLocalHour(DateTime.Now.Hour);
+                    double r = CritterPrng.Uniform(0.0, 1.0);
+                    if (r < sleepProb)
+                    {
+                        e.State = Constants.CAT_STATE_SLEEPING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.CAT_SLEEP_DURATION_MIN,
+                            Constants.CAT_SLEEP_DURATION_MAX);
+                    }
+                    else
+                    {
+                        e.State = Constants.CAT_STATE_WALKING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.CAT_WALK_DURATION_MIN,
+                            Constants.CAT_WALK_DURATION_MAX);
+                    }
+                }
+                else
+                {
+                    e.State = Constants.CAT_STATE_WALKING;
+                    e.StateTimer = CritterPrng.Uniform(
+                        Constants.CAT_WALK_DURATION_MIN,
+                        Constants.CAT_WALK_DURATION_MAX);
+                }
+                e.Age = 0.0;
+            }
+
+            Entities[i] = e;
+        }
+
         if (CurrentScene == Scene.Winter)
         {
             double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
@@ -915,6 +1047,23 @@ internal sealed class Sim
             e.State        = Constants.SHEEP_STATE_HOPPING;
             e.StateTimer   = Constants.SHEEP_HOP_DURATION;
             e.Age          = 0.0;
+            Entities[i] = e;
+        }
+
+        // §17 Cat pounce: click-only and TOWARD the click. The sheep Hopping
+        // byte is reused semantically as Pouncing.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Cat) continue;
+            double dxClick = clickX - e.X;
+            if (Math.Abs(dxClick) >= Constants.CAT_POUNCE_RADIUS) continue;
+
+            double towardDir = dxClick >= 0.0 ? 1.0 : -1.0;
+            e.Vx = towardDir * Constants.CAT_POUNCE_SPEED;
+            e.State = Constants.CAT_STATE_POUNCING;
+            e.StateTimer = Constants.CAT_POUNCE_DURATION;
+            e.Age = 0.0;
             Entities[i] = e;
         }
     }

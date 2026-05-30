@@ -10,7 +10,7 @@ public enum Scene { Grass = 0, Desert = 1, Winter = 2 }
 
 // Critter (§13.3). Independent of Scene — the user can pick a critter for
 // any biome via the tray submenu. Cross-impl-locked discriminants.
-public enum CritterKind : byte { None = 0, Sheep = 1 }
+public enum CritterKind : byte { None = 0, Sheep = 1, Cat = 2 }
 
 internal static class Constants
 {
@@ -207,7 +207,7 @@ internal static class Constants
     // Critter subsystem (§13.3). Independent of Scene. User picks a critter
     // via the tray submenu and it's drawn on top of whatever biome is active.
     // CritterKind discriminants are cross-impl-locked with Native.
-    public const int        CRITTER_COUNT      = 2;
+    public const int        CRITTER_COUNT      = 3;
     public const CritterKind CRITTER_DEFAULT   = CritterKind.None;
     public const ulong      CRITTER_PRNG_SALT  = 0x5C8EE05C8EE05C8Eul;
 
@@ -284,6 +284,58 @@ internal static class Constants
     public const double SHEEP_ZZZ_RISE       = 11.0;
     public const double SHEEP_ZZZ_SIZE_START = 2.0;
     public const double SHEEP_ZZZ_SIZE_END   = 4.0;
+
+    // Cat (§17). Calm tabby critter that reuses the sheep state byte values but
+    // only uses Walking, Idle, Sleeping, and Hopping (semantically Pouncing).
+    public const int    CAT_COUNT_MIN      = 1;
+    public const int    CAT_COUNT_MAX      = 2;
+    public const double CAT_WALK_SPEED_MIN = 10.0;
+    public const double CAT_WALK_SPEED_MAX = 22.0;
+    public const double CAT_POUNCE_SPEED   = 60.0;
+
+    public const double CAT_BODY_RADIUS    = 11.0;
+    public const double CAT_BODY_HEIGHT    = 7.0;
+    public const double CAT_HEAD_RADIUS    = 4.5;
+    public const double CAT_LEG_LENGTH     = 5.0;
+    public const double CAT_TAIL_LENGTH    = 13.0;
+    public const double CAT_TAIL_THICKNESS = 1.6;
+    public const double CAT_EAR_HEIGHT     = 4.5;
+
+    public const uint   CAT_BODY_COLOR     = 0xFF6B6259u;
+    public const uint   CAT_LEG_COLOR      = 0xFF3D3733u;
+    public const uint   CAT_FACE_COLOR     = 0xFF6B6259u;
+    public const uint   CAT_EAR_COLOR      = 0xFF3D3733u;
+    public const uint   CAT_INK_COLOR      = 0xFF1A1614u;
+
+    public const double CAT_WALK_PERIOD    = 0.50;
+    public const double CAT_LEG_CYCLE_AMP  = 1.6;
+    public const double CAT_HEAD_BOB_AMP   = 0.4;
+    public const double CAT_TAIL_SWAY_FREQ = 1.2;
+    public const double CAT_TAIL_SWAY_AMP  = 0.35;
+
+    public const byte   CAT_STATE_WALKING  = SHEEP_STATE_WALKING;   // 0
+    public const byte   CAT_STATE_IDLE     = SHEEP_STATE_IDLE;      // 2, sit-and-watch
+    public const byte   CAT_STATE_SLEEPING = SHEEP_STATE_SLEEPING;  // 3
+    public const byte   CAT_STATE_POUNCING = SHEEP_STATE_HOPPING;   // 4, semantic alias
+
+    public const double CAT_WALK_DURATION_MIN  = 6.0;
+    public const double CAT_WALK_DURATION_MAX  = 10.0;
+    public const double CAT_IDLE_DURATION_MIN  = 4.0;
+    public const double CAT_IDLE_DURATION_MAX  = 8.0;
+    public const double CAT_SLEEP_DURATION_MIN = 20.0;
+    public const double CAT_SLEEP_DURATION_MAX = 40.0;
+    public const double CAT_POUNCE_DURATION    = 0.45;
+
+    public const double CAT_IDLE_PROBABILITY   = 0.65;
+    public const double CAT_SLEEP_PROBABILITY  = 0.30;
+    public const double CAT_SLEEP_FROM_IDLE_PROB_DEFAULT = 0.50;
+    public const double CAT_SLEEP_FROM_IDLE_PROB_MORNING = 0.20;
+    public const double CAT_SLEEP_FROM_IDLE_PROB_NIGHT   = 0.85;
+
+    public const double CAT_POUNCE_RADIUS      = 80.0;
+    public const double CAT_POUNCE_HEIGHT      = 9.0;
+    public const double CAT_CURIOUS_RADIUS     = 100.0;
+    public const double CAT_CURIOUS_HEAD_TURN_MAX = 0.7;
 
     // Snowflakes (§15)
     public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;

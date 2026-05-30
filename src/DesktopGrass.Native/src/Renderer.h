@@ -65,6 +65,7 @@ private:
     void DiscardDeviceResources();
     void DrawGrass();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
+    void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
     HWND                                   hwnd_ = nullptr;
@@ -99,6 +100,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           sheepFaceBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepEarBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepInkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           catBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           catLegBrush_;
+    ComPtr<ID2D1SolidColorBrush>           catFaceBrush_;
+    ComPtr<ID2D1SolidColorBrush>           catEarBrush_;
+    ComPtr<ID2D1SolidColorBrush>           catInkBrush_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;

@@ -145,9 +145,9 @@ struct InputEvent {
 };
 
 // ---------------------------------------------------------------------------
-// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14) and
-// snowflakes (Winter §15) live in sim.entities. The struct fields are
-// shared across kinds; per-kind tick logic branches on `kind`.
+// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
+// snowflakes (Winter §15), sheep (§16), and cats (§17) live in sim.entities.
+// The struct fields are shared across kinds; per-kind tick logic branches on `kind`.
 // ---------------------------------------------------------------------------
 
 struct Entity {
@@ -162,10 +162,10 @@ struct Entity {
     double     age           = 0.0;
     double     lifetime      = -1.0;  // <= 0 means infinite (respawn-in-place)
     uint32_t   seed          = 0;
-    // Critter state machine (§16). Only meaningful for EntityKind::Sheep
-    // and future critters; ignored by tumbleweeds/snowflakes. Default
-    // values are inert so existing scene-entity tests remain unaffected.
-    uint8_t    state         = 0;     // sheep: see SHEEP_STATE_* constants
+    // Critter state machine (§16, §17). Sheep and Cat share state bytes;
+    // Cat reuses Hopping semantically as Pouncing.
+    // Values are ignored by tumbleweeds/snowflakes and inert by default.
+    uint8_t    state         = 0;     // sheep/cat: see SHEEP_STATE_* constants
     double     stateTimer    = 0.0;   // sec remaining in current state
 };
 
@@ -261,6 +261,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept;
 void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 
 double sheep_sleep_prob_for_local_hour(int hour) noexcept;
+double cat_sleep_prob_for_local_hour(int hour) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

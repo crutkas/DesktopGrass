@@ -27,6 +27,7 @@ public:
     static constexpr int   kMenuSceneWinter   = 1012;
     static constexpr int   kMenuCritterNone   = 1020;
     static constexpr int   kMenuCritterSheep  = 1021;
+    static constexpr int   kMenuCritterCat    = 1022;
 
     App() = default;
     ~App();

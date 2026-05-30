@@ -1344,17 +1344,18 @@ When any test in this list fails on a single impl, that impl has diverged from t
 
 ## 13.3 Critter subsystem (orthogonal to Scene)
 
-Critters are user-pickable pets that wander on top of the bottom strip *independent of which biome is active*. The user toggles a critter from a dedicated tray submenu and it persists across scene changes — selecting **Winter** does not clear the sheep, and selecting **Sheep** does not clear the snowflakes.
+Critters are user-pickable pets that wander on top of the bottom strip *independent of which biome is active*. The user toggles a critter from a dedicated tray submenu and it persists across scene changes — selecting **Winter** does not clear the active critter, selecting **Sheep** does not clear snowflakes, and selecting **Cat** proves the framework is species-pluggable.
 
 ### Enum and salt
 
 ```
-enum CritterKind { None = 0, Sheep = 1 }
+enum CritterKind { None = 0, Sheep = 1, Cat = 2 }
+constexpr int         CRITTER_COUNT = 3
 constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `CritterKind::Sheep` and any future critter map onto a corresponding `EntityKind` value that is appended after the existing `{None, Tumbleweed, Snowflake}` set (Sheep = 3). The `EntityKind` discriminants for existing kinds MUST NOT be renumbered.
+Discriminants are cross-impl-locked. `CritterKind::Sheep` maps to `EntityKind::Sheep = 3`; `CritterKind::Cat` maps to `EntityKind::Cat = 4`. The `EntityKind` discriminants for existing kinds MUST NOT be renumbered.
 
 ### Sim state
 
@@ -1371,6 +1372,7 @@ Sim:
 ```
 None  → no-op
 Sheep → generate_critters_sheep(sim)        // §16
+Cat   → generate_critters_cat(sim)          // §17
 ```
 
 ### Ordering invariant
@@ -1389,7 +1391,7 @@ Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, 
 ```
 sim_set_critter(sim, c):
     sim.currentCritter = c
-    remove every entity e with e.kind matching the previously-selected critter
+    remove every entity e where e.kind is a critter species (Sheep or Cat)
     generate_critters_for_kind(sim)
 ```
 
@@ -1397,11 +1399,11 @@ Scene entities (tumbleweeds, snowflakes) are NEVER removed by `sim_set_critter`.
 
 ### Tray menu
 
-A `Critter` submenu (radio-style) under the tray icon offers **None** and **Sheep**. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` on each window's Sim.
+A `Critter` submenu (radio-style) under the tray icon offers **None**, **Sheep**, and **Cat**. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` on each window's Sim.
 
 ### Cross-impl conformance
 
-Given identical `(seed, monitorWidth, CritterKind)`, both impls MUST produce the same number of critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the species-specific draw order (§16 for sheep).
+Given identical `(seed, monitorWidth, CritterKind)`, both impls MUST produce the same number of critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the species-specific draw order (§16 for sheep, §17 for cat).
 
 ---
 
@@ -1542,4 +1544,139 @@ Idle sheep within `SHEEP_CURIOUS_RADIUS = 80.0` DIP of the cursor notice it only
 All `SHEEP_*` and `CRITTER_*` constants are defined in Native `Constants.h` and Win2D `Constants.cs` with identical numeric values. The Critter tray menu is built parallel to the Scene tray menu.
 
 For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order, and the greeting trigger consumes exactly one additional Uniform draw per triggered pair in pair-iteration order. Both impls' test suites verify this in `critter_tests` and `sheep_greeting_tests`.
+
+---
+
+## 17. Cat
+
+Procedural calm tabby cat. Cat exists to prove the Critter framework is species-pluggable while preserving the passive desktop philosophy: cats mostly walk, sit, or sleep. They never chase cursor proximity; pounce is click-only.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `CAT_COUNT_MIN` | `1` | solitary |
+| `CAT_COUNT_MAX` | `2` | max per monitor |
+| `CAT_WALK_SPEED_MIN` | `10.0` | DIP/sec |
+| `CAT_WALK_SPEED_MAX` | `22.0` | DIP/sec |
+| `CAT_POUNCE_SPEED` | `60.0` | click-only pounce |
+| `CAT_BODY_RADIUS` | `11.0` | leaner than sheep |
+| `CAT_BODY_HEIGHT` | `7.0` | flatter body |
+| `CAT_HEAD_RADIUS` | `4.5` | smaller head |
+| `CAT_LEG_LENGTH` | `5.0` | slightly shorter legs |
+| `CAT_TAIL_LENGTH` | `13.0` | long curved tail |
+| `CAT_TAIL_THICKNESS` | `1.6` | DIP line width |
+| `CAT_EAR_HEIGHT` | `4.5` | triangle ears |
+| `CAT_BODY_COLOR` / `CAT_FACE_COLOR` | `0xFF6B6259` | muted warm gray |
+| `CAT_LEG_COLOR` / `CAT_EAR_COLOR` | `0xFF3D3733` | darker gray |
+| `CAT_INK_COLOR` | `0xFF1A1614` | eyes/nose |
+| `CAT_WALK_PERIOD` | `0.50` | seconds |
+| `CAT_LEG_CYCLE_AMP` | `1.6` | restrained gait |
+| `CAT_HEAD_BOB_AMP` | `0.4` | subtle bob |
+| `CAT_TAIL_SWAY_FREQ` | `1.2` | rad/sec |
+| `CAT_TAIL_SWAY_AMP` | `0.35` | rad |
+| `CAT_WALK_DURATION_MIN/MAX` | `6.0 / 10.0` | shorter walks |
+| `CAT_IDLE_DURATION_MIN/MAX` | `4.0 / 8.0` | sits and watches |
+| `CAT_SLEEP_DURATION_MIN/MAX` | `20.0 / 40.0` | long naps |
+| `CAT_POUNCE_DURATION` | `0.45` | one arc |
+| `CAT_IDLE_PROBABILITY` | `0.65` | Walking expiry |
+| `CAT_SLEEP_PROBABILITY` | `0.30` | Walking expiry |
+| `CAT_SLEEP_FROM_IDLE_PROB_MORNING` | `0.20` | 06:00-10:00 |
+| `CAT_SLEEP_FROM_IDLE_PROB_DEFAULT` | `0.50` | 10:00-22:00 |
+| `CAT_SLEEP_FROM_IDLE_PROB_NIGHT` | `0.85` | 22:00-06:00 |
+| `CAT_POUNCE_RADIUS` | `80.0` | click x-distance |
+| `CAT_POUNCE_HEIGHT` | `9.0` | parabolic rise |
+| `CAT_CURIOUS_RADIUS` | `100.0` | render-only idle head turn |
+| `CAT_CURIOUS_HEAD_TURN_MAX` | `0.7` | radians |
+
+### State machine (reuses sheep state bytes)
+
+Cat adds no new state bytes. It aliases the shared `SHEEP_STATE_*` byte values:
+
+```
+CAT_STATE_WALKING  = SHEEP_STATE_WALKING   // 0, moves horizontally
+CAT_STATE_IDLE     = SHEEP_STATE_IDLE      // 2, sit-and-watch (no grazing)
+CAT_STATE_SLEEPING = SHEEP_STATE_SLEEPING  // 3, long nap
+CAT_STATE_POUNCING = SHEEP_STATE_HOPPING   // 4, click-only pounce
+```
+
+Cats do **not** use `SHEEP_STATE_GRAZING = 1` or `SHEEP_STATE_GREETING = 5`.
+
+**Transition graph:**
+
+```
+Walking expires → r = critterPrng.uniform(0,1):
+  r < 0.65                    → Idle     (duration uniform[4, 8]s)
+  0.65 ≤ r < 0.95             → Sleeping (duration uniform[20, 40]s)
+  r ≥ 0.95                    → Walking  (duration uniform[6, 10]s)
+
+Idle expires → r = critterPrng.uniform(0,1), sleepProb = cat_sleep_prob_for_local_hour(localHour):
+  r < sleepProb               → Sleeping (duration uniform[20, 40]s)
+  r ≥ sleepProb               → Walking  (duration uniform[6, 10]s)
+
+Sleeping / Pouncing expire     → Walking  (duration uniform[6, 10]s)
+Click within radius            → Pouncing (duration 0.45s, vx toward click)
+```
+
+The same freeze-undo and edge-bounce rules as sheep apply, except only `{Idle, Sleeping}` are frozen. Pouncing continues horizontal motion and uses a renderer-side parabolic Y offset. `e.age` resets on every transition.
+
+### Generation (PRNG draw order — LOCKED)
+
+```
+generate_critters_cat(sim):
+    count = floor(critterPrng.uniform(CAT_COUNT_MIN, CAT_COUNT_MAX + 1))
+    clamp count to [CAT_COUNT_MIN, CAT_COUNT_MAX]
+    for i in 0..count-1 (subject to MAX_ENTITIES_PER_MONITOR):
+        x          = critterPrng.uniform(margin, monitorWidth - margin)   // margin = body_radius + 8
+        speed      = critterPrng.uniform(CAT_WALK_SPEED_MIN, CAT_WALK_SPEED_MAX)
+        dirCoin    = critterPrng.uniform(0, 1)                            // <0.5 → -1, else +1
+        seed       = critterPrng.next_u32()
+        stateTimer = critterPrng.uniform(CAT_WALK_DURATION_MIN, CAT_WALK_DURATION_MAX)
+        state      = CAT_STATE_WALKING
+```
+
+This matches the sheep draw sequence exactly with cat constants substituted. Species share the same `CRITTER_PRNG_SALT`; no per-species salt is introduced.
+
+### Click pounce
+
+```
+sim_apply_click after the sheep startle loop:
+  for each entity e with e.kind == Cat:
+    dx = clickX - e.x
+    if abs(dx) >= CAT_POUNCE_RADIUS: skip
+    towardDir = sign(dx)      // Cat moves TOWARD click; sheep moves AWAY
+    e.vx = towardDir * CAT_POUNCE_SPEED
+    e.state = CAT_STATE_POUNCING
+    e.stateTimer = CAT_POUNCE_DURATION
+    e.age = 0.0
+```
+
+This is click-only. There is no cursor-proximity pounce/chase check.
+
+### Render rules per state
+
+```
+pounceOffsetY = isPouncing ? -4*CAT_POUNCE_HEIGHT*t*(1-t) : 0  where t = age/POUNCE_DURATION ∈ [0,1]
+sleepOffsetY  = isSleeping ? CAT_LEG_LENGTH                 : 0
+cy = e.y + pounceOffsetY + sleepOffsetY
+
+WALKING  : 4 thin legs with smaller CAT_LEG_CYCLE_AMP, subtle head bob, slow tail sway
+IDLE     : frozen; head turns toward nearby cursor using CAT_CURIOUS_RADIUS (render-only)
+SLEEPING : body drops to ground, legs hidden, tail wraps around body, closed curved eyes, two smaller Z glyphs
+POUNCING : parabolic Y offset, horizontal motion toward click
+```
+
+Geometry is distinct from sheep: one long flattened body ellipse, smaller circular head on the top-front, tall triangle ears, visible ink eyes/nose on a light face, four thin legs, and a long curved tail. Native and Win2D use vector primitives only.
+
+### Differences from Sheep
+
+* No grazing state.
+* No greeting — cats do not greet cats or sheep.
+* Longer sleeps and higher Idle→Sleep probabilities, especially at night (`0.85`).
+* Click pounce moves **toward** the click; sheep startle moves **away**.
+* Passive by design: no proximity-triggered chase or pounce.
+
+### Defaults & conformance
+
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests`.
 

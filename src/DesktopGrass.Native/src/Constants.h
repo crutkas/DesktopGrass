@@ -222,6 +222,7 @@ enum class EntityKind : uint8_t {
     Tumbleweed = 1,
     Snowflake  = 2,
     Sheep      = 3,
+    Cat        = 4,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -231,8 +232,9 @@ constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 enum class CritterKind : uint8_t {
     None  = 0,
     Sheep = 1,
+    Cat   = 2,
 };
-constexpr int         CRITTER_COUNT   = 2;
+constexpr int         CRITTER_COUNT   = 3;
 constexpr CritterKind CRITTER_DEFAULT = CritterKind::None;
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8Eull;
 
@@ -328,6 +330,58 @@ constexpr double   SHEEP_ZZZ_CYCLE_SEC     = 1.8;       // one Z lifespan
 constexpr double   SHEEP_ZZZ_RISE          = 11.0;      // DIP rise over one cycle
 constexpr double   SHEEP_ZZZ_SIZE_START    = 2.0;       // DIP starting Z side
 constexpr double   SHEEP_ZZZ_SIZE_END      = 4.0;       // DIP ending Z side
+
+// Cat (§17). Calm tabby critter that reuses the sheep state byte values but
+// only uses Walking, Idle, Sleeping, and Hopping (semantically Pouncing).
+constexpr int      CAT_COUNT_MIN      = 1;
+constexpr int      CAT_COUNT_MAX      = 2;
+constexpr double   CAT_WALK_SPEED_MIN = 10.0;
+constexpr double   CAT_WALK_SPEED_MAX = 22.0;
+constexpr double   CAT_POUNCE_SPEED   = 60.0;
+
+constexpr double   CAT_BODY_RADIUS    = 11.0;
+constexpr double   CAT_BODY_HEIGHT    = 7.0;
+constexpr double   CAT_HEAD_RADIUS    = 4.5;
+constexpr double   CAT_LEG_LENGTH     = 5.0;
+constexpr double   CAT_TAIL_LENGTH    = 13.0;
+constexpr double   CAT_TAIL_THICKNESS = 1.6;
+constexpr double   CAT_EAR_HEIGHT     = 4.5;
+
+constexpr uint32_t CAT_BODY_COLOR     = 0xFF6B6259u;
+constexpr uint32_t CAT_LEG_COLOR      = 0xFF3D3733u;
+constexpr uint32_t CAT_FACE_COLOR     = 0xFF6B6259u;
+constexpr uint32_t CAT_EAR_COLOR      = 0xFF3D3733u;
+constexpr uint32_t CAT_INK_COLOR      = 0xFF1A1614u;
+
+constexpr double   CAT_WALK_PERIOD    = 0.50;
+constexpr double   CAT_LEG_CYCLE_AMP  = 1.6;
+constexpr double   CAT_HEAD_BOB_AMP   = 0.4;
+constexpr double   CAT_TAIL_SWAY_FREQ = 1.2;
+constexpr double   CAT_TAIL_SWAY_AMP  = 0.35;
+
+constexpr uint8_t  CAT_STATE_WALKING  = SHEEP_STATE_WALKING;   // 0
+constexpr uint8_t  CAT_STATE_IDLE     = SHEEP_STATE_IDLE;      // 2, sit-and-watch
+constexpr uint8_t  CAT_STATE_SLEEPING = SHEEP_STATE_SLEEPING;  // 3
+constexpr uint8_t  CAT_STATE_POUNCING = SHEEP_STATE_HOPPING;   // 4, semantic alias
+
+constexpr double   CAT_WALK_DURATION_MIN  = 6.0;
+constexpr double   CAT_WALK_DURATION_MAX  = 10.0;
+constexpr double   CAT_IDLE_DURATION_MIN  = 4.0;
+constexpr double   CAT_IDLE_DURATION_MAX  = 8.0;
+constexpr double   CAT_SLEEP_DURATION_MIN = 20.0;
+constexpr double   CAT_SLEEP_DURATION_MAX = 40.0;
+constexpr double   CAT_POUNCE_DURATION    = 0.45;
+
+constexpr double   CAT_IDLE_PROBABILITY   = 0.65;
+constexpr double   CAT_SLEEP_PROBABILITY  = 0.30;
+constexpr double   CAT_SLEEP_FROM_IDLE_PROB_DEFAULT = 0.50;
+constexpr double   CAT_SLEEP_FROM_IDLE_PROB_MORNING = 0.20;
+constexpr double   CAT_SLEEP_FROM_IDLE_PROB_NIGHT   = 0.85;
+
+constexpr double   CAT_POUNCE_RADIUS      = 80.0;
+constexpr double   CAT_POUNCE_HEIGHT      = 9.0;
+constexpr double   CAT_CURIOUS_RADIUS     = 100.0;
+constexpr double   CAT_CURIOUS_HEAD_TURN_MAX = 0.7;
 
 // Snowflakes (§15)
 constexpr double   SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;    // flakes/sec

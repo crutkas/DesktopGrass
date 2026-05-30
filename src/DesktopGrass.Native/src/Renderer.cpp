@@ -207,6 +207,31 @@ bool Renderer::CreateDeviceResources() {
                                             sheepInkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    catBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_BODY_COLOR),
+                                            catBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    catLegBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_LEG_COLOR),
+                                            catLegBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    catFaceBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_FACE_COLOR),
+                                            catFaceBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    catEarBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_EAR_COLOR),
+                                            catEarBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    catInkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_INK_COLOR),
+                                            catInkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -275,6 +300,11 @@ void Renderer::DiscardDeviceResources() {
     sheepFaceBrush_.Reset();
     sheepEarBrush_.Reset();
     sheepInkBrush_.Reset();
+    catBodyBrush_.Reset();
+    catLegBrush_.Reset();
+    catFaceBrush_.Reset();
+    catEarBrush_.Reset();
+    catInkBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -701,6 +731,211 @@ void Renderer::DrawGrass() {
     }
 }
 
+void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
+    if (!catBodyBrush_ || !catLegBrush_ || !catFaceBrush_ || !catEarBrush_ || !catInkBrush_) return;
+
+    constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
+    const float cx = static_cast<float>(e.x);
+    const float br = static_cast<float>(CAT_BODY_RADIUS);
+    const float bh = static_cast<float>(CAT_BODY_HEIGHT);
+    const float legLen = static_cast<float>(CAT_LEG_LENGTH);
+    const float headR = static_cast<float>(CAT_HEAD_RADIUS);
+    const float facing = (e.vx >= 0.0) ? 1.0f : -1.0f;
+
+    const bool isWalking = (e.state == CAT_STATE_WALKING);
+    const bool isIdle = (e.state == CAT_STATE_IDLE);
+    const bool isSleeping = (e.state == CAT_STATE_SLEEPING);
+    const bool isPouncing = (e.state == CAT_STATE_POUNCING);
+
+    float pounceOffsetY = 0.0f;
+    if (isPouncing) {
+        const float t = std::max(0.0f,
+            std::min(1.0f, static_cast<float>(e.age / CAT_POUNCE_DURATION)));
+        pounceOffsetY = -4.0f * static_cast<float>(CAT_POUNCE_HEIGHT) * t * (1.0f - t);
+    }
+    const float sleepOffsetY = isSleeping ? legLen : 0.0f;
+    const float cy = static_cast<float>(e.y) + pounceOffsetY + sleepOffsetY;
+
+    const float walkPhase = static_cast<float>(e.age * (TWO_PI_LOCAL / CAT_WALK_PERIOD));
+    const float legAmp = isWalking ? static_cast<float>(CAT_LEG_CYCLE_AMP) : 0.0f;
+    const float headBob = isWalking
+        ? std::sin(walkPhase * 2.0f) * static_cast<float>(CAT_HEAD_BOB_AMP)
+        : 0.0f;
+    const float tailSway = (isWalking || isIdle)
+        ? std::sin(static_cast<float>(e.age * CAT_TAIL_SWAY_FREQ)) * static_cast<float>(CAT_TAIL_SWAY_AMP)
+        : 0.0f;
+
+    auto fillTriangle = [&](D2D1_POINT_2F a, D2D1_POINT_2F b, D2D1_POINT_2F c,
+                            ID2D1SolidColorBrush* brush) {
+        ComPtr<ID2D1PathGeometry> path;
+        if (FAILED(d2dFactory_->CreatePathGeometry(&path))) return;
+        ComPtr<ID2D1GeometrySink> sink;
+        if (FAILED(path->Open(&sink))) return;
+        sink->BeginFigure(a, D2D1_FIGURE_BEGIN_FILLED);
+        sink->AddLine(b);
+        sink->AddLine(c);
+        sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+        if (FAILED(sink->Close())) return;
+        d2dContext_->FillGeometry(path.Get(), brush);
+    };
+
+    auto drawBezier = [&](D2D1_POINT_2F p0, D2D1_POINT_2F c1, D2D1_POINT_2F c2,
+                          D2D1_POINT_2F p1, ID2D1SolidColorBrush* brush, float thickness) {
+        ComPtr<ID2D1PathGeometry> path;
+        if (FAILED(d2dFactory_->CreatePathGeometry(&path))) return;
+        ComPtr<ID2D1GeometrySink> sink;
+        if (FAILED(path->Open(&sink))) return;
+        sink->BeginFigure(p0, D2D1_FIGURE_BEGIN_HOLLOW);
+        D2D1_BEZIER_SEGMENT seg{};
+        seg.point1 = c1;
+        seg.point2 = c2;
+        seg.point3 = p1;
+        sink->AddBezier(seg);
+        sink->EndFigure(D2D1_FIGURE_END_OPEN);
+        if (FAILED(sink->Close())) return;
+        d2dContext_->DrawGeometry(path.Get(), brush, thickness);
+    };
+
+    auto drawZ = [&](float zX, float zY, float zSize, float alpha) {
+        catInkBrush_->SetOpacity(alpha);
+        d2dContext_->DrawLine(D2D1::Point2F(zX, zY),
+                              D2D1::Point2F(zX + zSize, zY),
+                              catInkBrush_.Get(), 0.9f);
+        d2dContext_->DrawLine(D2D1::Point2F(zX + zSize, zY),
+                              D2D1::Point2F(zX, zY + zSize),
+                              catInkBrush_.Get(), 0.9f);
+        d2dContext_->DrawLine(D2D1::Point2F(zX, zY + zSize),
+                              D2D1::Point2F(zX + zSize, zY + zSize),
+                              catInkBrush_.Get(), 0.9f);
+        catInkBrush_->SetOpacity(1.0f);
+    };
+
+    const float tailBaseX = cx - facing * br * 0.92f;
+    const float tailBaseY = cy - bh * 0.10f;
+    if (isSleeping) {
+        drawBezier(
+            D2D1::Point2F(tailBaseX, tailBaseY + bh * 0.15f),
+            D2D1::Point2F(cx - facing * br * 0.55f, cy + bh * 0.95f),
+            D2D1::Point2F(cx + facing * br * 0.10f, cy + bh * 0.95f),
+            D2D1::Point2F(cx + facing * br * 0.72f, cy + bh * 0.45f),
+            catLegBrush_.Get(), static_cast<float>(CAT_TAIL_THICKNESS));
+    } else {
+        const float tailLen = static_cast<float>(CAT_TAIL_LENGTH);
+        const float tipX = tailBaseX - facing * tailLen * (0.78f + 0.08f * std::sin(tailSway));
+        const float tipY = tailBaseY - tailLen * (0.42f + 0.18f * std::cos(tailSway));
+        drawBezier(
+            D2D1::Point2F(tailBaseX, tailBaseY),
+            D2D1::Point2F(tailBaseX - facing * tailLen * 0.18f, tailBaseY - tailLen * 0.08f),
+            D2D1::Point2F(tailBaseX - facing * tailLen * 0.60f, tailBaseY - tailLen * (0.70f + 0.20f * std::sin(tailSway))),
+            D2D1::Point2F(tipX, tipY),
+            catLegBrush_.Get(), static_cast<float>(CAT_TAIL_THICKNESS));
+    }
+
+    if (!isSleeping) {
+        const float legY0 = cy + bh * 0.35f;
+        const float legXs[4] = { -br * 0.58f, -br * 0.20f, br * 0.20f, br * 0.58f };
+        const float swingA = std::sin(walkPhase) * legAmp;
+        const float swingB = std::sin(walkPhase + 3.14159265f) * legAmp;
+        const float legSwings[4] = { swingA, swingB, swingA, swingB };
+        for (int li = 0; li < 4; ++li) {
+            const float lx = cx + legXs[li];
+            const float ly1 = cy + bh + legLen + legSwings[li];
+            d2dContext_->DrawLine(D2D1::Point2F(lx, legY0),
+                                  D2D1::Point2F(lx, ly1),
+                                  catLegBrush_.Get(), 1.2f);
+        }
+    }
+
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh),
+                             catBodyBrush_.Get());
+
+    float headDirX = facing;
+    float headDx = facing * br * 0.82f;
+    float headDy = -bh * 0.78f + headBob;
+    if (isIdle) {
+        const float stripTop = static_cast<float>(sim_.windowHeight - STRIP_HEIGHT);
+        const bool curious = cursorPosition != nullptr
+            && std::fabs(cursorPosition->y - stripTop) <= SHEEP_CURIOUS_VERTICAL_RADIUS_DIP
+            && std::fabs(cursorPosition->x - cx) <= static_cast<float>(CAT_CURIOUS_RADIUS);
+        if (curious) {
+            const float cursorDx = cursorPosition->x - cx;
+            const float maxHeadDx = static_cast<float>(CAT_CURIOUS_HEAD_TURN_MAX * CAT_HEAD_RADIUS);
+            headDirX = cursorDx >= 0.0f ? 1.0f : -1.0f;
+            headDx = facing * br * 0.55f + std::clamp(cursorDx, -maxHeadDx, maxHeadDx);
+        } else {
+            const float sweep = std::sin(static_cast<float>(e.age * CAT_TAIL_SWAY_FREQ * 0.7));
+            headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+            headDx = facing * br * 0.60f + sweep * headR * 0.70f;
+        }
+        headDy = -bh * 0.82f;
+    } else if (isSleeping) {
+        headDx = facing * br * 0.62f;
+        headDy = -bh * 0.20f;
+    }
+
+    const float headCx = cx + headDx;
+    const float headCy = cy + headDy;
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), headR, headR),
+                             catFaceBrush_.Get());
+
+    const float earBaseY = headCy - headR * 0.62f;
+    const float earH = static_cast<float>(CAT_EAR_HEIGHT);
+    fillTriangle(
+        D2D1::Point2F(headCx - headR * 0.60f, earBaseY),
+        D2D1::Point2F(headCx - headR * 0.18f, earBaseY),
+        D2D1::Point2F(headCx - headR * 0.47f - headDirX * 0.65f, earBaseY - earH),
+        catEarBrush_.Get());
+    fillTriangle(
+        D2D1::Point2F(headCx + headR * 0.18f, earBaseY),
+        D2D1::Point2F(headCx + headR * 0.60f, earBaseY),
+        D2D1::Point2F(headCx + headR * 0.47f + headDirX * 0.65f, earBaseY - earH),
+        catEarBrush_.Get());
+
+    if (isSleeping) {
+        const float eyeY = headCy - headR * 0.05f;
+        for (float ex : { -headR * 0.25f, headR * 0.32f }) {
+            const float x0 = headCx + ex - 1.1f;
+            const float x1 = headCx + ex + 1.1f;
+            drawBezier(D2D1::Point2F(x0, eyeY),
+                       D2D1::Point2F(x0 + 0.45f, eyeY + 0.8f),
+                       D2D1::Point2F(x1 - 0.45f, eyeY + 0.8f),
+                       D2D1::Point2F(x1, eyeY),
+                       catInkBrush_.Get(), 0.9f);
+        }
+    } else {
+        const float eyeR = headR * 0.16f;
+        d2dContext_->FillEllipse(
+            D2D1::Ellipse(D2D1::Point2F(headCx + headDirX * headR * 0.22f,
+                                        headCy - headR * 0.18f), eyeR, eyeR * 0.75f),
+            catInkBrush_.Get());
+        d2dContext_->FillEllipse(
+            D2D1::Ellipse(D2D1::Point2F(headCx - headDirX * headR * 0.18f,
+                                        headCy - headR * 0.18f), eyeR, eyeR * 0.75f),
+            catInkBrush_.Get());
+    }
+
+    const float noseTipX = headCx + headDirX * headR * 0.63f;
+    const float noseTipY = headCy + headR * 0.12f;
+    fillTriangle(
+        D2D1::Point2F(noseTipX, noseTipY),
+        D2D1::Point2F(noseTipX - headDirX * 1.5f, noseTipY - 1.1f),
+        D2D1::Point2F(noseTipX - headDirX * 1.5f, noseTipY + 1.1f),
+        catInkBrush_.Get());
+
+    if (isSleeping) {
+        const float zBaseX = headCx + headDirX * headR * 0.55f;
+        const float zBaseY = headCy - headR * 1.25f;
+        for (int zi = 0; zi < 2; ++zi) {
+            const float phaseOffset = 0.5f * static_cast<float>(zi);
+            const float t = static_cast<float>(std::fmod(e.age / SHEEP_ZZZ_CYCLE_SEC + phaseOffset, 1.0));
+            const float zSize = static_cast<float>((SHEEP_ZZZ_SIZE_START * 0.65) +
+                t * ((SHEEP_ZZZ_SIZE_END * 0.70) - (SHEEP_ZZZ_SIZE_START * 0.65)));
+            drawZ(zBaseX + t * 3.0f * headDirX, zBaseY - t * static_cast<float>(SHEEP_ZZZ_RISE * 0.75),
+                  zSize, 1.0f - t);
+        }
+    }
+}
+
 void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
     if (sim_.entities.empty()) return;
 
@@ -726,6 +961,11 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
                 d2dContext_->DrawLine(p0, p1, tumbleweedBrush_.Get(), 1.0f);
                 d2dContext_->DrawLine(p1, p2, tumbleweedBrush_.Get(), 1.0f);
             }
+            continue;
+        }
+
+        if (e.kind == EntityKind::Cat) {
+            DrawCat(e, cursorPosition);
             continue;
         }
 
