@@ -123,7 +123,7 @@ internal struct Blade
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
 // snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8 }
 
 public struct Entity
 {
@@ -145,6 +145,15 @@ public struct Entity
     public double StateTimer;  // sec remaining in current state
     public byte   NameIndex;   // sheep/cat: index into species name pool
     public byte   CoatVariantIndex; // cat: index into CAT_COAT_PALETTES
+
+    // Ambient flyers (§17.6-§17.7). Ignored by grounded pets.
+    public double BaseSpeed;
+    public double AltitudeAnchor;
+    public double PhaseY;
+    public double PhaseX;
+    public double BlinkPeriod;
+    public double BlinkPhase;
+    public byte   ColorVariant;
 }
 
 internal enum EventType { Move, Click }
@@ -323,7 +332,11 @@ internal sealed class Sim
     }
 
     private void RemoveCritters() =>
-        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat || e.Kind == EntityKind.Bunny);
+        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep
+                             || e.Kind == EntityKind.Cat
+                             || e.Kind == EntityKind.Bunny
+                             || e.Kind == EntityKind.Butterfly
+                             || e.Kind == EntityKind.Firefly);
 
     private void RemoveSceneTransitionEntities() =>
         Entities.RemoveAll(e => e.Kind != EntityKind.Raindrop);
@@ -348,6 +361,18 @@ internal sealed class Sim
                 GenerateGrassCrittersAll(sim);
                 break;
         }
+
+        GenerateButterflies(sim);
+        GenerateFireflies(sim);
+    }
+
+    private static int ResolveCountFromPrng(ref Prng prng, int minCount, int maxCount)
+    {
+        double countDraw = prng.Uniform(minCount, maxCount + 1);
+        int count = (int)Math.Floor(countDraw);
+        if (count < minCount) count = minCount;
+        if (count > maxCount) count = maxCount;
+        return count;
     }
 
     private static int ResolveCritterCount(Sim sim, int minCount, int maxCount, bool allowOverride)
@@ -357,11 +382,37 @@ internal sealed class Sim
             return Math.Min(sim.CritterCountOverride, Constants.PET_COUNT_MAX_PER_MONITOR);
         }
 
-        double countDraw = sim.CritterPrng.Uniform(minCount, maxCount + 1);
-        int count = (int)Math.Floor(countDraw);
-        if (count < minCount) count = minCount;
-        if (count > maxCount) count = maxCount;
-        return count;
+        return ResolveCountFromPrng(ref sim.CritterPrng, minCount, maxCount);
+    }
+
+    private static double FlyerGrassTopY(Sim sim) => sim.WindowHeight - Constants.BLADE_HEIGHT_MAX;
+
+    private static double ButterflyVelocity(in Entity e)
+    {
+        double dir = e.Vx >= 0.0 ? 1.0 : -1.0;
+        return e.BaseSpeed * dir * (1.0 + Constants.BUTTERFLY_MEANDER_AMP_X
+            * Math.Sin(e.Age * Constants.BUTTERFLY_MEANDER_FREQ_X + e.PhaseX));
+    }
+
+    private static double FireflyVelocity(in Entity e)
+    {
+        double dir = e.Vx >= 0.0 ? 1.0 : -1.0;
+        return e.BaseSpeed * dir * (1.0 + Constants.FIREFLY_DRIFT_AMP_X
+            * Math.Sin(e.Age * Constants.FIREFLY_DRIFT_FREQ_X + e.PhaseX));
+    }
+
+    private static void UpdateButterflyPosition(ref Entity e, Sim sim)
+    {
+        e.Vx = ButterflyVelocity(in e);
+        e.Y = FlyerGrassTopY(sim) - e.AltitudeAnchor
+            + Constants.BUTTERFLY_MEANDER_AMP_Y * Math.Sin(e.Age * Constants.BUTTERFLY_MEANDER_FREQ_Y + e.PhaseY);
+    }
+
+    private static void UpdateFireflyPosition(ref Entity e, Sim sim)
+    {
+        e.Vx = FireflyVelocity(in e);
+        e.Y = FlyerGrassTopY(sim) - e.AltitudeAnchor
+            + Constants.FIREFLY_DRIFT_AMP_Y * Math.Sin(e.Age * Constants.FIREFLY_DRIFT_FREQ_Y + e.PhaseY);
     }
 
     private static void GenerateCrittersSheep(Sim sim, bool allowOverride)
@@ -459,6 +510,75 @@ internal sealed class Sim
             e.StateTimer = Constants.BUNNY_HOP_DURATION;
             e.NameIndex = (byte)sim.CritterPrng.Index((uint)Constants.BUNNY_NAME_POOL.Length);
             e.Y = groundY - Constants.BUNNY_BODY_HEIGHT - Constants.BUNNY_LEG_LENGTH;
+            sim.Entities.Add(e);
+        }
+    }
+
+    private static void GenerateButterflies(Sim sim)
+    {
+        if (sim.MonitorWidth <= 0.0) return;
+
+        var butterflyPrng = Prng.Init(sim.EntitySeed ^ Constants.BUTTERFLY_PRNG_SALT);
+        int count = ResolveCountFromPrng(ref butterflyPrng, Constants.BUTTERFLY_COUNT_MIN, Constants.BUTTERFLY_COUNT_MAX);
+
+        for (int i = 0; i < count && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Butterfly;
+            e.Size = Constants.BUTTERFLY_WING_RADIUS;
+            double xFrac = butterflyPrng.Uniform(0.0, 1.0);
+            double yFrac = butterflyPrng.Uniform(0.0, 1.0);
+            ulong vxSign = butterflyPrng.NextU64() & 1UL;
+            double dir = vxSign != 0UL ? 1.0 : -1.0;
+            e.BaseSpeed = butterflyPrng.Uniform(Constants.BUTTERFLY_SPEED_MIN, Constants.BUTTERFLY_SPEED_MAX);
+            e.RotationSpeed = e.BaseSpeed;
+            e.ColorVariant = (byte)butterflyPrng.Index((uint)Constants.BUTTERFLY_COLOR_COUNT);
+            e.PhaseY = butterflyPrng.Uniform(0.0, 2.0 * Math.PI);
+            e.PhaseX = butterflyPrng.Uniform(0.0, 2.0 * Math.PI);
+            e.AltitudeAnchor = Constants.BUTTERFLY_ALTITUDE_MIN
+                + yFrac * (Constants.BUTTERFLY_ALTITUDE_MAX - Constants.BUTTERFLY_ALTITUDE_MIN);
+            e.X = xFrac * sim.MonitorWidth;
+            e.Vx = dir * e.BaseSpeed;
+            e.Vy = 0.0;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = (uint)(i + 1);
+            UpdateButterflyPosition(ref e, sim);
+            sim.Entities.Add(e);
+        }
+    }
+
+    private static void GenerateFireflies(Sim sim)
+    {
+        if (sim.MonitorWidth <= 0.0) return;
+
+        var fireflyPrng = Prng.Init(sim.EntitySeed ^ Constants.FIREFLY_PRNG_SALT);
+        int count = ResolveCountFromPrng(ref fireflyPrng, Constants.FIREFLY_COUNT_MIN, Constants.FIREFLY_COUNT_MAX);
+
+        for (int i = 0; i < count && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Firefly;
+            e.Size = Constants.FIREFLY_BODY_RADIUS;
+            double xFrac = fireflyPrng.Uniform(0.0, 1.0);
+            double yFrac = fireflyPrng.Uniform(0.0, 1.0);
+            ulong vxSign = fireflyPrng.NextU64() & 1UL;
+            double dir = vxSign != 0UL ? 1.0 : -1.0;
+            e.BaseSpeed = fireflyPrng.Uniform(Constants.FIREFLY_DRIFT_SPEED_MIN, Constants.FIREFLY_DRIFT_SPEED_MAX);
+            e.RotationSpeed = e.BaseSpeed;
+            e.BlinkPeriod = fireflyPrng.Uniform(Constants.FIREFLY_BLINK_PERIOD_MIN, Constants.FIREFLY_BLINK_PERIOD_MAX);
+            e.BlinkPhase = fireflyPrng.Uniform(0.0, 1.0);
+            e.PhaseY = fireflyPrng.Uniform(0.0, 2.0 * Math.PI);
+            e.PhaseX = fireflyPrng.Uniform(0.0, 2.0 * Math.PI);
+            e.AltitudeAnchor = Constants.FIREFLY_ALTITUDE_MIN
+                + yFrac * (Constants.FIREFLY_ALTITUDE_MAX - Constants.FIREFLY_ALTITUDE_MIN);
+            e.X = xFrac * sim.MonitorWidth;
+            e.Vx = dir * e.BaseSpeed;
+            e.Vy = 0.0;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = (uint)(i + 1);
+            UpdateFireflyPosition(ref e, sim);
             sim.Entities.Add(e);
         }
     }
@@ -716,6 +836,39 @@ internal sealed class Sim
             e.Vx = Constants.SNOWFLAKE_SWAY_AMPLITUDE * Constants.SNOWFLAKE_SWAY_FREQUENCY * twoPi
                  * Math.Cos(e.Age * twoPi * Constants.SNOWFLAKE_SWAY_FREQUENCY + phase);
             Entities[i] = e;
+        }
+
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind == EntityKind.Butterfly)
+            {
+                double margin = Constants.BUTTERFLY_WING_OFFSET + Constants.BUTTERFLY_WING_RADIUS;
+                if (e.X > MonitorWidth + margin)
+                {
+                    e.X = -margin;
+                }
+                else if (e.X < -margin)
+                {
+                    e.X = MonitorWidth + margin;
+                }
+                UpdateButterflyPosition(ref e, this);
+                Entities[i] = e;
+            }
+            else if (e.Kind == EntityKind.Firefly)
+            {
+                double margin = Constants.FIREFLY_GLOW_RADIUS;
+                if (e.X > MonitorWidth + margin)
+                {
+                    e.X = -margin;
+                }
+                else if (e.X < -margin)
+                {
+                    e.X = MonitorWidth + margin;
+                }
+                UpdateFireflyPosition(ref e, this);
+                Entities[i] = e;
+            }
         }
 
         Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)

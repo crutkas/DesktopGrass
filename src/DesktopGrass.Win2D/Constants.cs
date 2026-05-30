@@ -433,6 +433,65 @@ internal static class Constants
     public const double BUNNY_ZZZ_SIZE_START     = SHEEP_ZZZ_SIZE_START * 0.7;
     public const double BUNNY_ZZZ_SIZE_END       = SHEEP_ZZZ_SIZE_END * 0.7;
 
+    // Butterflies (§17.6). Grass-only, passive daytime ambient flyers.
+    public const int    BUTTERFLY_COUNT_MIN          = 2;
+    public const int    BUTTERFLY_COUNT_MAX          = 4;
+    public const double BUTTERFLY_SPEED_MIN          = 18.0;
+    public const double BUTTERFLY_SPEED_MAX          = 32.0;
+    public const double BUTTERFLY_BODY_LENGTH        = 2.4;
+    public const double BUTTERFLY_WING_RADIUS        = 3.5;
+    public const double BUTTERFLY_WING_OFFSET        = 2.2;
+    public const double BUTTERFLY_FLUTTER_FREQ       = 16.0;
+    public const double BUTTERFLY_FLUTTER_MIN_SCALE  = 0.20;
+    public const double BUTTERFLY_MEANDER_FREQ_Y     = 0.8;
+    public const double BUTTERFLY_MEANDER_AMP_Y      = 16.0;
+    public const double BUTTERFLY_MEANDER_FREQ_X     = 0.5;
+    public const double BUTTERFLY_MEANDER_AMP_X      = 0.4;
+    public const double BUTTERFLY_ALTITUDE_MIN       = 18.0;
+    public const double BUTTERFLY_ALTITUDE_MAX       = 70.0;
+    public const uint   BUTTERFLY_BODY_COLOR         = 0xFF2A2018u;
+    public const int    BUTTERFLY_COLOR_COUNT        = 5;
+    public const int    BUTTERFLY_HOUR_START         = 6;
+    public const int    BUTTERFLY_HOUR_END           = 19;
+    public const int    BUTTERFLY_FADE_DURATION_HOUR = 1;
+    public const ulong  BUTTERFLY_PRNG_SALT          = 0xB07DEF1E0001ul;
+
+    public readonly record struct ButterflyPalette(uint WingColor, uint AccentColor);
+    public static readonly ButterflyPalette[] BUTTERFLY_PALETTES =
+    {
+        new(0xFFFF9A2Eu, 0xFF1A130Cu), // 0 Monarch: orange + black tips
+        new(0xFFFFD34Du, 0xFF1A130Cu), // 1 Swallowtail: yellow + black
+        new(0xFFFFF8E8u, 0xFF3A3A3Au), // 2 Cabbage: white + dark dots
+        new(0xFF63C7FFu, 0xFF1B4D99u), // 3 Morpho: sky blue + deeper blue
+        new(0xFFFFA6C8u, 0xFFFF6EA8u), // 4 Pink: soft pink + rose
+    };
+
+    // Fireflies (§17.7). Grass-only, passive nighttime ambient flyers.
+    public const int    FIREFLY_COUNT_MIN            = 3;
+    public const int    FIREFLY_COUNT_MAX            = 6;
+    public const double FIREFLY_DRIFT_SPEED_MIN      = 4.0;
+    public const double FIREFLY_DRIFT_SPEED_MAX      = 10.0;
+    public const double FIREFLY_BODY_RADIUS          = 1.2;
+    public const double FIREFLY_GLOW_RADIUS          = 5.0;
+    public const double FIREFLY_BLINK_PERIOD_MIN     = 1.4;
+    public const double FIREFLY_BLINK_PERIOD_MAX     = 2.6;
+    public const double FIREFLY_BLINK_DUTY           = 0.55;
+    public const double FIREFLY_BLINK_FADE           = 0.30;
+    public const double FIREFLY_DRIFT_FREQ_X         = 0.4;
+    public const double FIREFLY_DRIFT_FREQ_Y         = 0.6;
+    public const double FIREFLY_DRIFT_AMP_X          = 0.6;
+    public const double FIREFLY_DRIFT_AMP_Y          = 8.0;
+    public const double FIREFLY_ALTITUDE_MIN         = 8.0;
+    public const double FIREFLY_ALTITUDE_MAX         = 55.0;
+    public const uint   FIREFLY_BODY_COLOR           = 0xFFFFEE88u;
+    public const uint   FIREFLY_GLOW_COLOR_RGB       = 0xEEDD66u;
+    public const int    FIREFLY_GLOW_ALPHA_MAX       = 110;
+    public const int    FIREFLY_BODY_ALPHA_MAX       = 255;
+    public const int    FIREFLY_NIGHT_START_HOUR     = 20;
+    public const int    FIREFLY_NIGHT_END_HOUR       = 6;
+    public const int    FIREFLY_FADE_DURATION_HOUR   = 1;
+    public const ulong  FIREFLY_PRNG_SALT            = 0xF13EF1E7777ul;
+
     // Snowflakes (§15)
     public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;
     public const double SNOWFLAKE_FALL_SPEED_MIN = 20.0;
@@ -559,6 +618,80 @@ internal static class Constants
         double hour = hourFloat % 24.0;
         if (hour < 0.0) hour += 24.0;
         return hour;
+    }
+
+    private static double AmbientClamp01(double value)
+    {
+        if (value <= 0.0) return 0.0;
+        if (value >= 1.0) return 1.0;
+        return value;
+    }
+
+    private static double AmbientSmoothstep01(double value)
+    {
+        double t = AmbientClamp01(value);
+        return t * t * (3.0 - 2.0 * t);
+    }
+
+    public static double ButterflyFade(double hourFloat)
+    {
+        double hour = NormalizeDayTintHour(hourFloat);
+        double fadeStart = BUTTERFLY_HOUR_START - BUTTERFLY_FADE_DURATION_HOUR;
+        double start = BUTTERFLY_HOUR_START;
+        double end = BUTTERFLY_HOUR_END;
+        double fadeEnd = BUTTERFLY_HOUR_END + BUTTERFLY_FADE_DURATION_HOUR;
+
+        if (hour >= fadeStart && hour < start) return AmbientClamp01((hour - fadeStart) / BUTTERFLY_FADE_DURATION_HOUR);
+        if (hour >= start && hour < end) return 1.0;
+        if (hour >= end && hour < fadeEnd) return AmbientClamp01((fadeEnd - hour) / BUTTERFLY_FADE_DURATION_HOUR);
+        return 0.0;
+    }
+
+    public static double FireflyFade(double hourFloat)
+    {
+        double hour = NormalizeDayTintHour(hourFloat);
+        double nightStart = FIREFLY_NIGHT_START_HOUR;
+        double nightEnd = FIREFLY_NIGHT_END_HOUR;
+        double fadeInStart = nightStart - FIREFLY_FADE_DURATION_HOUR;
+        double fadeOutEnd = nightEnd + FIREFLY_FADE_DURATION_HOUR;
+
+        if (hour >= nightStart || hour < nightEnd) return 1.0;
+        if (hour >= fadeInStart && hour < nightStart) return AmbientClamp01((hour - fadeInStart) / FIREFLY_FADE_DURATION_HOUR);
+        if (hour >= nightEnd && hour < fadeOutEnd) return AmbientClamp01((fadeOutEnd - hour) / FIREFLY_FADE_DURATION_HOUR);
+        return 0.0;
+    }
+
+    public static double ButterflyWingScale(double timeSeconds, double phaseY)
+    {
+        double raw = Math.Cos(timeSeconds * BUTTERFLY_FLUTTER_FREQ + phaseY);
+        if (raw < BUTTERFLY_FLUTTER_MIN_SCALE) return BUTTERFLY_FLUTTER_MIN_SCALE;
+        if (raw > 1.0) return 1.0;
+        return raw;
+    }
+
+    public static double FireflyBlinkBrightness(double timeSeconds, double blinkPeriod, double blinkPhase)
+    {
+        if (blinkPeriod <= 0.0) return 0.0;
+        double cycleT = (timeSeconds / blinkPeriod + blinkPhase) % 1.0;
+        if (cycleT < 0.0) cycleT += 1.0;
+
+        if (cycleT >= FIREFLY_BLINK_DUTY) return 0.0;
+
+        double fadeFrac = AmbientClamp01(FIREFLY_BLINK_FADE / blinkPeriod);
+        double brightness = 1.0;
+        if (fadeFrac > 0.0)
+        {
+            if (cycleT < fadeFrac)
+            {
+                brightness = AmbientSmoothstep01(cycleT / fadeFrac);
+            }
+            else if (cycleT > FIREFLY_BLINK_DUTY - fadeFrac)
+            {
+                brightness = AmbientSmoothstep01((FIREFLY_BLINK_DUTY - cycleT) / fadeFrac);
+            }
+        }
+
+        return AmbientClamp01(brightness);
     }
 
     private static byte LerpDayTintChannel(byte from, byte to, double t)

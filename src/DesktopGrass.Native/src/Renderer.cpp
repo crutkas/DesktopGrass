@@ -34,6 +34,14 @@ void LogHR(const char* tag, HRESULT hr) {
 
 constexpr float SHEEP_CURIOUS_VERTICAL_RADIUS_DIP = 120.0f;
 
+double CurrentLocalHourFractional() noexcept {
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    return static_cast<double>(st.wHour)
+         + static_cast<double>(st.wMinute) / 60.0
+         + static_cast<double>(st.wSecond) / 3600.0;
+}
+
 } // anonymous
 
 Renderer::~Renderer() {
@@ -294,6 +302,34 @@ bool Renderer::CreateDeviceResources() {
                                             bunnyNoseBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    butterflyBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUTTERFLY_BODY_COLOR),
+                                            butterflyBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    for (int i = 0; i < BUTTERFLY_COLOR_COUNT; ++i) {
+        butterflyWingBrushes_[i].Reset();
+        butterflyAccentBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUTTERFLY_PALETTES[i].wingColor),
+                                                butterflyWingBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUTTERFLY_PALETTES[i].accentColor),
+                                                butterflyAccentBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+
+    fireflyBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(FIREFLY_BODY_COLOR),
+                                            fireflyBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    fireflyGlowBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(D2D1::ColorF(
+        static_cast<float>((FIREFLY_GLOW_COLOR_RGB >> 16) & 0xFF) / 255.0f,
+        static_cast<float>((FIREFLY_GLOW_COLOR_RGB >>  8) & 0xFF) / 255.0f,
+        static_cast<float>( FIREFLY_GLOW_COLOR_RGB        & 0xFF) / 255.0f,
+        1.0f),
+        fireflyGlowBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     petNameBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_COLOR),
                                             petNameBrush_.ReleaseAndGetAddressOf());
@@ -392,6 +428,11 @@ void Renderer::DiscardDeviceResources() {
     bunnyTailBrush_.Reset();
     bunnyEyeBrush_.Reset();
     bunnyNoseBrush_.Reset();
+    butterflyBodyBrush_.Reset();
+    for (auto& b : butterflyWingBrushes_) b.Reset();
+    for (auto& b : butterflyAccentBrushes_) b.Reset();
+    fireflyBodyBrush_.Reset();
+    fireflyGlowBrush_.Reset();
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
     dayTintBrush_.Reset();
@@ -489,9 +530,7 @@ void Renderer::Tick(double dt,
 void Renderer::DrawDayTint() {
     if (!DAYTINT_ENABLED_DEFAULT || !dayTintBrush_) return;
 
-    SYSTEMTIME st{};
-    GetLocalTime(&st);
-    const double hourFloat = static_cast<double>(st.wHour) + static_cast<double>(st.wMinute) / 60.0;
+    const double hourFloat = CurrentLocalHourFractional();
 
     uint8_t r = 0;
     uint8_t g = 0;
@@ -850,6 +889,73 @@ void Renderer::DrawGrass() {
             d2dContext_->FillEllipse(cap, snowTipBrush_.Get());
         }
     }
+}
+
+void Renderer::DrawButterfly(const Entity& e, double hourFloat) {
+    const double fade = butterfly_fade(hourFloat);
+    if (fade <= 0.0 || !butterflyBodyBrush_) return;
+
+    uint8_t idx = e.colorVariant;
+    if (idx >= BUTTERFLY_COLOR_COUNT) idx = 0;
+    ID2D1SolidColorBrush* wingBrush = butterflyWingBrushes_[idx].Get();
+    ID2D1SolidColorBrush* accentBrush = butterflyAccentBrushes_[idx].Get();
+    if (!wingBrush || !accentBrush) return;
+
+    const float opacity = static_cast<float>(fade);
+    wingBrush->SetOpacity(opacity);
+    accentBrush->SetOpacity(opacity);
+    butterflyBodyBrush_->SetOpacity(opacity);
+
+    const float cx = static_cast<float>(e.x);
+    const float cy = static_cast<float>(e.y);
+    const float wingScale = static_cast<float>(butterfly_wing_scale(e.age, e.phaseY));
+    const float wingRx = static_cast<float>(BUTTERFLY_WING_RADIUS) * wingScale;
+    const float wingRy = static_cast<float>(BUTTERFLY_WING_RADIUS) * 0.78f;
+    const float wingOffset = static_cast<float>(BUTTERFLY_WING_OFFSET);
+
+    const D2D1_POINT_2F left = D2D1::Point2F(cx - wingOffset, cy);
+    const D2D1_POINT_2F right = D2D1::Point2F(cx + wingOffset, cy);
+    d2dContext_->FillEllipse(D2D1::Ellipse(left, wingRx, wingRy), wingBrush);
+    d2dContext_->FillEllipse(D2D1::Ellipse(right, wingRx, wingRy), wingBrush);
+
+    const float accentR = std::max(0.6f, wingRy * 0.22f);
+    d2dContext_->FillEllipse(
+        D2D1::Ellipse(D2D1::Point2F(left.x - wingRx * 0.35f, left.y - wingRy * 0.25f), accentR, accentR),
+        accentBrush);
+    d2dContext_->FillEllipse(
+        D2D1::Ellipse(D2D1::Point2F(right.x + wingRx * 0.35f, right.y - wingRy * 0.25f), accentR, accentR),
+        accentBrush);
+
+    d2dContext_->FillEllipse(
+        D2D1::Ellipse(D2D1::Point2F(cx, cy), 0.3f, static_cast<float>(BUTTERFLY_BODY_LENGTH * 0.5)),
+        butterflyBodyBrush_.Get());
+
+    wingBrush->SetOpacity(1.0f);
+    accentBrush->SetOpacity(1.0f);
+    butterflyBodyBrush_->SetOpacity(1.0f);
+}
+
+void Renderer::DrawFirefly(const Entity& e, double hourFloat) {
+    const double fade = firefly_fade(hourFloat);
+    if (fade <= 0.0 || !fireflyBodyBrush_ || !fireflyGlowBrush_) return;
+
+    const double brightness = firefly_blink_brightness(e.age, e.blinkPeriod, e.blinkPhase) * fade;
+    if (brightness <= 0.0) return;
+
+    const float cx = static_cast<float>(e.x);
+    const float cy = static_cast<float>(e.y);
+    const float glowR = static_cast<float>(FIREFLY_GLOW_RADIUS * brightness);
+    const float bodyR = static_cast<float>(FIREFLY_BODY_RADIUS);
+
+    if (glowR > 0.0f) {
+        fireflyGlowBrush_->SetOpacity(static_cast<float>((FIREFLY_GLOW_ALPHA_MAX / 255.0) * brightness));
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), glowR, glowR), fireflyGlowBrush_.Get());
+    }
+
+    fireflyBodyBrush_->SetOpacity(static_cast<float>((FIREFLY_BODY_ALPHA_MAX / 255.0) * brightness));
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), bodyR, bodyR), fireflyBodyBrush_.Get());
+    fireflyGlowBrush_->SetOpacity(1.0f);
+    fireflyBodyBrush_->SetOpacity(1.0f);
 }
 
 void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
@@ -1237,6 +1343,7 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
     if (sim_.entities.empty()) return;
 
     constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
+    const double hourFloat = CurrentLocalHourFractional();
 
     for (const Entity& e : sim_.entities) {
         if (e.kind == EntityKind::Tumbleweed) {
@@ -1270,6 +1377,16 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
         if (e.kind == EntityKind::Bunny) {
             DrawBunny(e);
             DrawPetName(e, cursorPosition);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Butterfly) {
+            DrawButterfly(e, hourFloat);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Firefly) {
+            DrawFirefly(e, hourFloat);
             continue;
         }
 

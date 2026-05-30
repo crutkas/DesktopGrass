@@ -89,6 +89,11 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _bunnyTailBrush;
     private ID2D1SolidColorBrush? _bunnyEyeBrush;
     private ID2D1SolidColorBrush? _bunnyNoseBrush;
+    private ID2D1SolidColorBrush? _butterflyBodyBrush;
+    private ID2D1SolidColorBrush[]? _butterflyWingBrushes;
+    private ID2D1SolidColorBrush[]? _butterflyAccentBrushes;
+    private ID2D1SolidColorBrush? _fireflyBodyBrush;
+    private ID2D1SolidColorBrush? _fireflyGlowBrush;
     private ID2D1SolidColorBrush? _petNameBrush;
     private ID2D1SolidColorBrush? _petNameShadowBrush;
     private ID2D1SolidColorBrush? _dayTintBrush;
@@ -253,6 +258,17 @@ internal sealed class GrassWindow : IDisposable
         _bunnyEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_EYE_COLOR));
         _bunnyNoseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_NOSE_COLOR));
 
+        _butterflyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUTTERFLY_BODY_COLOR));
+        _butterflyWingBrushes = new ID2D1SolidColorBrush[Constants.BUTTERFLY_COLOR_COUNT];
+        _butterflyAccentBrushes = new ID2D1SolidColorBrush[Constants.BUTTERFLY_COLOR_COUNT];
+        for (int i = 0; i < Constants.BUTTERFLY_COLOR_COUNT; i++)
+        {
+            _butterflyWingBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUTTERFLY_PALETTES[i].WingColor));
+            _butterflyAccentBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUTTERFLY_PALETTES[i].AccentColor));
+        }
+        _fireflyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FIREFLY_BODY_COLOR));
+        _fireflyGlowBrush = _dc.CreateSolidColorBrush(RgbToColor4(Constants.FIREFLY_GLOW_COLOR_RGB));
+
         _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
         _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
         _dayTintBrush = _dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0f));
@@ -328,12 +344,17 @@ internal sealed class GrassWindow : IDisposable
         _dcompDevice?.Commit();
     }
 
+    private static double CurrentLocalHourFractional()
+    {
+        DateTime now = DateTime.Now;
+        return now.Hour + now.Minute / 60.0 + now.Second / 3600.0;
+    }
+
     private void ApplyDayTint()
     {
         if (!Constants.DAYTINT_ENABLED_DEFAULT || _dc is null || _dayTintBrush is null) return;
 
-        DateTime now = DateTime.Now;
-        Vector4 tint = Constants.ComputeDayTint(now.Hour + now.Minute / 60.0);
+        Vector4 tint = Constants.ComputeDayTint(CurrentLocalHourFractional());
         if (tint.W <= 0.0f) return;
 
         _dayTintBrush.Color = new Color4(tint.X, tint.Y, tint.Z, tint.W);
@@ -358,6 +379,7 @@ internal sealed class GrassWindow : IDisposable
     {
         if (Sim.Entities.Count == 0) return;
 
+        double hourFloat = CurrentLocalHourFractional();
         foreach (Entity e in Sim.Entities)
         {
             if (e.Kind == EntityKind.Tumbleweed)
@@ -406,6 +428,18 @@ internal sealed class GrassWindow : IDisposable
                 continue;
             }
 
+            if (e.Kind == EntityKind.Butterfly)
+            {
+                DrawButterfly(in e, hourFloat);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Firefly)
+            {
+                DrawFirefly(in e, hourFloat);
+                continue;
+            }
+
             if (e.Kind == EntityKind.Raindrop)
             {
                 float x1 = (float)e.X;
@@ -422,6 +456,65 @@ internal sealed class GrassWindow : IDisposable
             var flake = new Ellipse(new Vector2((float)e.X, (float)e.Y), r, r);
             _dc!.FillEllipse(flake, _snowflakeBrush!);
         }
+    }
+
+    private void DrawButterfly(in Entity e, double hourFloat)
+    {
+        double fade = Constants.ButterflyFade(hourFloat);
+        if (fade <= 0.0 || _butterflyBodyBrush is null || _butterflyWingBrushes is null || _butterflyAccentBrushes is null) return;
+
+        int idx = e.ColorVariant;
+        if ((uint)idx >= (uint)Constants.BUTTERFLY_COLOR_COUNT) idx = 0;
+        var wingBrush = _butterflyWingBrushes[idx];
+        var accentBrush = _butterflyAccentBrushes[idx];
+        float opacity = (float)fade;
+        wingBrush.Opacity = opacity;
+        accentBrush.Opacity = opacity;
+        _butterflyBodyBrush.Opacity = opacity;
+
+        float cx = (float)e.X;
+        float cy = (float)e.Y;
+        float wingScale = (float)Constants.ButterflyWingScale(e.Age, e.PhaseY);
+        float wingRx = (float)Constants.BUTTERFLY_WING_RADIUS * wingScale;
+        float wingRy = (float)Constants.BUTTERFLY_WING_RADIUS * 0.78f;
+        float wingOffset = (float)Constants.BUTTERFLY_WING_OFFSET;
+
+        var left = new Vector2(cx - wingOffset, cy);
+        var right = new Vector2(cx + wingOffset, cy);
+        _dc!.FillEllipse(new Ellipse(left, wingRx, wingRy), wingBrush);
+        _dc.FillEllipse(new Ellipse(right, wingRx, wingRy), wingBrush);
+
+        float accentR = Math.Max(0.6f, wingRy * 0.22f);
+        _dc.FillEllipse(new Ellipse(new Vector2(left.X - wingRx * 0.35f, left.Y - wingRy * 0.25f), accentR, accentR), accentBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(right.X + wingRx * 0.35f, right.Y - wingRy * 0.25f), accentR, accentR), accentBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(cx, cy), 0.3f, (float)(Constants.BUTTERFLY_BODY_LENGTH * 0.5)), _butterflyBodyBrush);
+
+        wingBrush.Opacity = 1.0f;
+        accentBrush.Opacity = 1.0f;
+        _butterflyBodyBrush.Opacity = 1.0f;
+    }
+
+    private void DrawFirefly(in Entity e, double hourFloat)
+    {
+        double fade = Constants.FireflyFade(hourFloat);
+        if (fade <= 0.0 || _fireflyBodyBrush is null || _fireflyGlowBrush is null) return;
+
+        double brightness = Constants.FireflyBlinkBrightness(e.Age, e.BlinkPeriod, e.BlinkPhase) * fade;
+        if (brightness <= 0.0) return;
+
+        float cx = (float)e.X;
+        float cy = (float)e.Y;
+        float glowR = (float)(Constants.FIREFLY_GLOW_RADIUS * brightness);
+        if (glowR > 0.0f)
+        {
+            _fireflyGlowBrush.Opacity = (float)((Constants.FIREFLY_GLOW_ALPHA_MAX / 255.0) * brightness);
+            _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), glowR, glowR), _fireflyGlowBrush);
+        }
+
+        _fireflyBodyBrush.Opacity = (float)((Constants.FIREFLY_BODY_ALPHA_MAX / 255.0) * brightness);
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), (float)Constants.FIREFLY_BODY_RADIUS, (float)Constants.FIREFLY_BODY_RADIUS), _fireflyBodyBrush);
+        _fireflyGlowBrush.Opacity = 1.0f;
+        _fireflyBodyBrush.Opacity = 1.0f;
     }
 
     private void DrawSheep(in Entity e, Vector2? cursorPosition)
@@ -1264,6 +1357,14 @@ internal sealed class GrassWindow : IDisposable
         return new Color4(r, g, bl, a);
     }
 
+    private static Color4 RgbToColor4(uint rgb)
+    {
+        float r = ((rgb >> 16) & 0xFF) / 255f;
+        float g = ((rgb >> 8) & 0xFF) / 255f;
+        float bl = (rgb & 0xFF) / 255f;
+        return new Color4(r, g, bl, 1.0f);
+    }
+
     public void Dispose()
     {
         try { _strokeStyle?.Dispose(); } catch { }
@@ -1318,6 +1419,23 @@ internal sealed class GrassWindow : IDisposable
         try { _bunnyTailBrush?.Dispose(); } catch { }
         try { _bunnyEyeBrush?.Dispose(); } catch { }
         try { _bunnyNoseBrush?.Dispose(); } catch { }
+        try { _butterflyBodyBrush?.Dispose(); } catch { }
+        if (_butterflyWingBrushes is not null)
+        {
+            foreach (var br in _butterflyWingBrushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
+        if (_butterflyAccentBrushes is not null)
+        {
+            foreach (var br in _butterflyAccentBrushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
+        try { _fireflyBodyBrush?.Dispose(); } catch { }
+        try { _fireflyGlowBrush?.Dispose(); } catch { }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
         try { _dayTintBrush?.Dispose(); } catch { }

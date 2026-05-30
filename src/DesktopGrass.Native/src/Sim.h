@@ -147,7 +147,8 @@ struct InputEvent {
 
 // ---------------------------------------------------------------------------
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), and raindrops (§20) live in sim.entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§17.5),
+// butterflies (§17.6), fireflies (§17.7), and raindrops (§20) live in sim.entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on `kind`.
 // ---------------------------------------------------------------------------
 
@@ -170,6 +171,15 @@ struct Entity {
     double     stateTimer    = 0.0;   // sec remaining in current state
     uint8_t    nameIndex     = 0;     // critters: index into species name pool
     uint8_t    coatVariantIndex = 0;  // cat: index into CAT_COAT_PALETTES
+
+    // Ambient flyers (§17.6-§17.7). These fields are ignored by grounded pets.
+    double     baseSpeed      = 0.0;
+    double     altitudeAnchor = 0.0;
+    double     phaseY         = 0.0;
+    double     phaseX         = 0.0;
+    double     blinkPeriod    = 0.0;
+    double     blinkPhase     = 0.0;
+    uint8_t    colorVariant   = 0;
 };
 
 // ---------------------------------------------------------------------------

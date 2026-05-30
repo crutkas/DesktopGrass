@@ -48,6 +48,8 @@ public class CritterTests
         Assert.Equal(3, (int)CritterKind.Bunny);
         Assert.Equal(3, (int)EntityKind.Sheep);
         Assert.Equal(6, (int)EntityKind.Bunny);
+        Assert.Equal(7, (int)EntityKind.Butterfly);
+        Assert.Equal(8, (int)EntityKind.Firefly);
         Assert.Equal(CritterKind.None, Constants.CRITTER_DEFAULT);
     }
 

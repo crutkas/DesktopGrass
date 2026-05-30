@@ -60,6 +60,8 @@ TEST_CASE("CritterKind has spec-locked discriminants", "[critter][enum]") {
     REQUIRE(static_cast<int>(CritterKind::Bunny) == 3);
     REQUIRE(static_cast<int>(EntityKind::Sheep)  == 3);
     REQUIRE(static_cast<int>(EntityKind::Bunny)  == 6);
+    REQUIRE(static_cast<int>(EntityKind::Butterfly) == 7);
+    REQUIRE(static_cast<int>(EntityKind::Firefly) == 8);
     REQUIRE(CRITTER_DEFAULT == CritterKind::None);
 }
 

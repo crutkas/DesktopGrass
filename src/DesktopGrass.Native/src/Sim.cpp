@@ -671,12 +671,8 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 
 namespace {
 
-int resolve_critter_count(Sim& sim, int minCount, int maxCount, bool allowOverride) noexcept {
-    if (allowOverride && sim.critterCountOverride > 0) {
-        return std::min(sim.critterCountOverride, PET_COUNT_MAX_PER_MONITOR);
-    }
-
-    const double countDraw = prng_uniform(sim.critterPrng,
+int resolve_count_from_prng(Prng& prng, int minCount, int maxCount) noexcept {
+    const double countDraw = prng_uniform(prng,
         static_cast<double>(minCount),
         static_cast<double>(maxCount + 1));
     int count = static_cast<int>(std::floor(countDraw));
@@ -685,11 +681,50 @@ int resolve_critter_count(Sim& sim, int minCount, int maxCount, bool allowOverri
     return count;
 }
 
+int resolve_critter_count(Sim& sim, int minCount, int maxCount, bool allowOverride) noexcept {
+    if (allowOverride && sim.critterCountOverride > 0) {
+        return std::min(sim.critterCountOverride, PET_COUNT_MAX_PER_MONITOR);
+    }
+    return resolve_count_from_prng(sim.critterPrng, minCount, maxCount);
+}
+
+double flyer_grass_top_y(const Sim& sim) noexcept {
+    return sim.windowHeight - BLADE_HEIGHT_MAX;
+}
+
+double butterfly_velocity(const Entity& e) noexcept {
+    const double dir = e.vx >= 0.0 ? 1.0 : -1.0;
+    return e.baseSpeed * dir * (1.0 + BUTTERFLY_MEANDER_AMP_X
+        * std::sin(e.age * BUTTERFLY_MEANDER_FREQ_X + e.phaseX));
+}
+
+double firefly_velocity(const Entity& e) noexcept {
+    const double dir = e.vx >= 0.0 ? 1.0 : -1.0;
+    return e.baseSpeed * dir * (1.0 + FIREFLY_DRIFT_AMP_X
+        * std::sin(e.age * FIREFLY_DRIFT_FREQ_X + e.phaseX));
+}
+
+void update_butterfly_position(Entity& e, const Sim& sim) noexcept {
+    e.vx = butterfly_velocity(e);
+    e.y = flyer_grass_top_y(sim) - e.altitudeAnchor
+        + BUTTERFLY_MEANDER_AMP_Y * std::sin(e.age * BUTTERFLY_MEANDER_FREQ_Y + e.phaseY);
+}
+
+void update_firefly_position(Entity& e, const Sim& sim) noexcept {
+    e.vx = firefly_velocity(e);
+    e.y = flyer_grass_top_y(sim) - e.altitudeAnchor
+        + FIREFLY_DRIFT_AMP_Y * std::sin(e.age * FIREFLY_DRIFT_FREQ_Y + e.phaseY);
+}
+
 void remove_critters(Sim& sim) noexcept {
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
             [](const Entity& e) {
-                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat || e.kind == EntityKind::Bunny;
+                return e.kind == EntityKind::Sheep
+                    || e.kind == EntityKind::Cat
+                    || e.kind == EntityKind::Bunny
+                    || e.kind == EntityKind::Butterfly
+                    || e.kind == EntityKind::Firefly;
             }),
         sim.entities.end());
 }
@@ -810,6 +845,75 @@ void generate_critters_bunny(Sim& sim, bool allowOverride) noexcept {
     }
 }
 
+void generate_butterflies(Sim& sim) noexcept {
+    if (sim.monitorWidth <= 0.0) return;
+
+    Prng butterflyPrng;
+    prng_init(butterflyPrng, sim.entitySeed ^ BUTTERFLY_PRNG_SALT);
+    const int count = resolve_count_from_prng(butterflyPrng, BUTTERFLY_COUNT_MIN, BUTTERFLY_COUNT_MAX);
+
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Butterfly;
+        e.size = BUTTERFLY_WING_RADIUS;
+        const double xFrac = prng_uniform(butterflyPrng, 0.0, 1.0);
+        const double yFrac = prng_uniform(butterflyPrng, 0.0, 1.0);
+        const uint64_t vxSign = prng_next_u64(butterflyPrng) & 1ull;
+        const double dir = (vxSign != 0ull) ? 1.0 : -1.0;
+        e.baseSpeed = prng_uniform(butterflyPrng, BUTTERFLY_SPEED_MIN, BUTTERFLY_SPEED_MAX);
+        e.rotationSpeed = e.baseSpeed;
+        e.colorVariant = static_cast<uint8_t>(prng_index(butterflyPrng, static_cast<uint32_t>(BUTTERFLY_COLOR_COUNT)));
+        e.phaseY = prng_uniform(butterflyPrng, 0.0, TWO_PI);
+        e.phaseX = prng_uniform(butterflyPrng, 0.0, TWO_PI);
+        e.altitudeAnchor = BUTTERFLY_ALTITUDE_MIN
+            + yFrac * (BUTTERFLY_ALTITUDE_MAX - BUTTERFLY_ALTITUDE_MIN);
+        e.x = xFrac * sim.monitorWidth;
+        e.vx = dir * e.baseSpeed;
+        e.vy = 0.0;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = static_cast<uint32_t>(i + 1);
+        update_butterfly_position(e, sim);
+        sim.entities.push_back(e);
+    }
+}
+
+void generate_fireflies(Sim& sim) noexcept {
+    if (sim.monitorWidth <= 0.0) return;
+
+    Prng fireflyPrng;
+    prng_init(fireflyPrng, sim.entitySeed ^ FIREFLY_PRNG_SALT);
+    const int count = resolve_count_from_prng(fireflyPrng, FIREFLY_COUNT_MIN, FIREFLY_COUNT_MAX);
+
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Firefly;
+        e.size = FIREFLY_BODY_RADIUS;
+        const double xFrac = prng_uniform(fireflyPrng, 0.0, 1.0);
+        const double yFrac = prng_uniform(fireflyPrng, 0.0, 1.0);
+        const uint64_t vxSign = prng_next_u64(fireflyPrng) & 1ull;
+        const double dir = (vxSign != 0ull) ? 1.0 : -1.0;
+        e.baseSpeed = prng_uniform(fireflyPrng, FIREFLY_DRIFT_SPEED_MIN, FIREFLY_DRIFT_SPEED_MAX);
+        e.rotationSpeed = e.baseSpeed;
+        e.blinkPeriod = prng_uniform(fireflyPrng, FIREFLY_BLINK_PERIOD_MIN, FIREFLY_BLINK_PERIOD_MAX);
+        e.blinkPhase = prng_uniform(fireflyPrng, 0.0, 1.0);
+        e.phaseY = prng_uniform(fireflyPrng, 0.0, TWO_PI);
+        e.phaseX = prng_uniform(fireflyPrng, 0.0, TWO_PI);
+        e.altitudeAnchor = FIREFLY_ALTITUDE_MIN
+            + yFrac * (FIREFLY_ALTITUDE_MAX - FIREFLY_ALTITUDE_MIN);
+        e.x = xFrac * sim.monitorWidth;
+        e.vx = dir * e.baseSpeed;
+        e.vy = 0.0;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = static_cast<uint32_t>(i + 1);
+        update_firefly_position(e, sim);
+        sim.entities.push_back(e);
+    }
+}
+
 void generate_grass_critters_all(Sim& sim) noexcept {
     generate_critters_sheep(sim, false);
     generate_critters_cat(sim, false);
@@ -826,6 +930,9 @@ void generate_critters_for_kind(Sim& sim) noexcept {
     case CritterKind::Cat:   generate_critters_cat(sim, true);      break;
     case CritterKind::Bunny: generate_grass_critters_all(sim);      break;
     }
+
+    generate_butterflies(sim);
+    generate_fireflies(sim);
 }
 
 void restore_bunny_base_speed(Entity& e) noexcept {
@@ -953,6 +1060,26 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         const double phase = static_cast<double>(e.seed) / 4294967295.0 * TWO_PI;
         e.vx = SNOWFLAKE_SWAY_AMPLITUDE * SNOWFLAKE_SWAY_FREQUENCY * TWO_PI
              * std::cos(e.age * TWO_PI * SNOWFLAKE_SWAY_FREQUENCY + phase);
+    }
+
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Butterfly) {
+            const double margin = BUTTERFLY_WING_OFFSET + BUTTERFLY_WING_RADIUS;
+            if (e.x > sim.monitorWidth + margin) {
+                e.x = -margin;
+            } else if (e.x < -margin) {
+                e.x = sim.monitorWidth + margin;
+            }
+            update_butterfly_position(e, sim);
+        } else if (e.kind == EntityKind::Firefly) {
+            const double margin = FIREFLY_GLOW_RADIUS;
+            if (e.x > sim.monitorWidth + margin) {
+                e.x = -margin;
+            } else if (e.x < -margin) {
+                e.x = sim.monitorWidth + margin;
+            }
+            update_firefly_position(e, sim);
+        }
     }
 
     sim.entities.erase(

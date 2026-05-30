@@ -34,6 +34,8 @@ public class EntitySkeletonTests
         Assert.Equal(4, (int)EntityKind.Cat);
         Assert.Equal(5, (int)EntityKind.Raindrop);
         Assert.Equal(6, (int)EntityKind.Bunny);
+        Assert.Equal(7, (int)EntityKind.Butterfly);
+        Assert.Equal(8, (int)EntityKind.Firefly);
         Assert.Equal(64, Constants.MAX_ENTITIES_PER_MONITOR);
     }
 

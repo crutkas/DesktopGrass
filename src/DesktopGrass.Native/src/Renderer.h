@@ -69,6 +69,8 @@ private:
     void DrawGrass();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawDayTint();
+    void DrawButterfly(const Entity& e, double hourFloat);
+    void DrawFirefly(const Entity& e, double hourFloat);
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawBunny(const Entity& e);
     void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
@@ -122,6 +124,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           bunnyTailBrush_;
     ComPtr<ID2D1SolidColorBrush>           bunnyEyeBrush_;
     ComPtr<ID2D1SolidColorBrush>           bunnyNoseBrush_;
+    ComPtr<ID2D1SolidColorBrush>           butterflyBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           butterflyWingBrushes_[BUTTERFLY_COLOR_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           butterflyAccentBrushes_[BUTTERFLY_COLOR_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           fireflyBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           fireflyGlowBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
     ComPtr<ID2D1SolidColorBrush>           dayTintBrush_;

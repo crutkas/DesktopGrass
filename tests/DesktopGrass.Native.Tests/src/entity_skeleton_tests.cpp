@@ -26,6 +26,8 @@ TEST_CASE("EntityKind has spec-locked discriminants", "[entities][enum]") {
     REQUIRE(static_cast<int>(EntityKind::Cat)        == 4);
     REQUIRE(static_cast<int>(EntityKind::Raindrop)   == 5);
     REQUIRE(static_cast<int>(EntityKind::Bunny)      == 6);
+    REQUIRE(static_cast<int>(EntityKind::Butterfly)  == 7);
+    REQUIRE(static_cast<int>(EntityKind::Firefly)    == 8);
     REQUIRE(MAX_ENTITIES_PER_MONITOR == 64);
 }
 

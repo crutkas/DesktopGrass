@@ -1364,7 +1364,7 @@ When any test in this list fails on a single impl, that impl has diverged from t
 
 ## 13.3 Critter subsystem (Grass-scene ambient critters)
 
-Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), and Bunny (§17.5) share the same `CRITTER_PRNG_SALT`; Desert and Winter currently generate zero critters. The default Grass ambient set contains all three species: `2–3` sheep, `1–2` cats, and `1–2` bunnies.
+Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), and Bunny (§17.5) share the same `CRITTER_PRNG_SALT`; Butterflies (§17.6) and Fireflies (§17.7) are always-on Grass ambient flyers with independent species PRNG salts. Desert and Winter currently generate zero critters/flyers. The default Grass ambient set contains `2–3` sheep, `1–2` cats, `1–2` bunnies, `2–4` butterflies, and `3–6` fireflies.
 
 ### Enum and salt
 
@@ -1375,7 +1375,7 @@ constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, and `EntityKind::Bunny = 6`; existing discriminants MUST NOT be renumbered. Bunny introduces no new PRNG salt.
+Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, and `EntityKind::Firefly = 8`; existing discriminants MUST NOT be renumbered. Bunny introduces no new PRNG salt; butterflies and fireflies use independent salts documented in their sections.
 
 ### Sim state
 
@@ -1395,9 +1395,10 @@ None  → generate_critters_sheep(sim); generate_critters_cat(sim); generate_cri
 Sheep → generate_critters_sheep(sim)        // legacy single-species selector, §16
 Cat   → generate_critters_cat(sim)          // legacy single-species selector, §17
 Bunny → generate all three in sheep → cat → bunny order
+then always append generate_butterflies(sim); generate_fireflies(sim)
 ```
 
-The ambient all-species path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero.
+The ambient all-species path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero. Butterflies and fireflies ignore tray critter selection and use independent side streams seeded from `entitySeed XOR BUTTERFLY_PRNG_SALT` and `entitySeed XOR FIREFLY_PRNG_SALT`.
 
 ### Ordering invariant
 
@@ -1408,26 +1409,26 @@ Inside `sim_set_scene`:
 3. Run the scene generator (tumbleweeds, snowflakes, etc.).
 4. **Run `generate_critters_for_kind(sim)` LAST.**
 
-Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass draw order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), then bunny count + bunny entities.
+Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass entity order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), bunny count + bunny entities, then butterfly count + butterfly entities and firefly count + firefly entities from their independent salts.
 
 ### `sim_set_critter` semantics
 
 ```
 sim_set_critter(sim, c):
     sim.currentCritter = c
-    remove every entity e where e.kind is a critter species (Sheep, Cat, or Bunny)
+    remove every entity e where e.kind is a critter/flyer species (Sheep, Cat, Bunny, Butterfly, or Firefly)
     generate_critters_for_kind(sim)
 ```
 
-Scene entities (tumbleweeds, snowflakes, raindrops) are NEVER removed by `sim_set_critter`. Scene transitions remove critters and then regenerate them only if the new scene is Grass.
+Scene entities (tumbleweeds, snowflakes, raindrops) are NEVER removed by `sim_set_critter`. Scene transitions remove critters/flyers and then regenerate them only if the new scene is Grass.
 
 ### Tray menu
 
-The current tray menu retains the legacy **None**, **Sheep**, and **Cat** controls and the **Pet count** picker for existing workflows. Bunny adds no tray item or user-facing setting; it is part of the default Grass ambient set.
+The current tray menu retains the legacy **None**, **Sheep**, and **Cat** controls and the **Pet count** picker for existing workflows. Bunny, Butterflies, and Fireflies add no tray items or user-facing settings; they are part of the default Grass ambient set.
 
 ### Cross-impl conformance
 
-Given identical `(seed, monitorWidth, scene, CritterKind)`, both impls MUST produce the same critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the documented species draw order (§16 for sheep, §17 for cat, §17.5 for bunny). Side-stream tests must walk the full all-species stream before asserting bunny fields.
+Given identical `(seed, monitorWidth, scene, CritterKind)`, both impls MUST produce the same critter/flyer entities with the same per-entity field values. Sheep/Cat/Bunny are drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in documented species order (§16, §17, §17.5). Butterflies and fireflies are appended after bunnies and are verified against their own salted side streams (§17.6, §17.7).
 
 ---
 
@@ -1845,6 +1846,158 @@ Facing mirrors horizontally from `vx` sign: head, ears, eye, and nose are on the
 ### Scene gating and conformance
 
 Bunnies are Grass-only. `generate_critters_for_kind` returns without bunnies in Desert and Winter. Native `bunny_tests.cpp` and Win2D `BunnyTests.cs` pin constants, scene gating, count/speed/name ranges, side-stream PRNG identity after sheep+cat draws, edge bounce, startle behavior, wake-from-sleep, hop arc bounds, transition probabilities, and day/night sleep bias.
+
+---
+
+## 17.6 Butterflies
+
+Tiny daytime ambient butterflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `BUTTERFLY_COUNT_MIN/MAX` | `2 / 4` | Grass ambient count |
+| `BUTTERFLY_SPEED_MIN/MAX` | `18.0 / 32.0` | DIP/sec horizontal cruise |
+| `BUTTERFLY_BODY_LENGTH` | `2.4` | dark vertical ellipse height |
+| `BUTTERFLY_WING_RADIUS` | `3.5` | each wing oval radius |
+| `BUTTERFLY_WING_OFFSET` | `2.2` | wing center X offset from body |
+| `BUTTERFLY_FLUTTER_FREQ` | `16.0` | rad/sec |
+| `BUTTERFLY_FLUTTER_MIN_SCALE` | `0.20` | folded wing X-scale clamp |
+| `BUTTERFLY_MEANDER_FREQ_Y / AMP_Y` | `0.8 / 16.0` | vertical wander |
+| `BUTTERFLY_MEANDER_FREQ_X / AMP_X` | `0.5 / 0.4` | speed multiplier, 0.6x..1.4x |
+| `BUTTERFLY_ALTITUDE_MIN/MAX` | `18.0 / 70.0` | DIP above tallest grass top (`groundY - BLADE_HEIGHT_MAX`) |
+| `BUTTERFLY_BODY_COLOR` | `0xFF2A2018` | dark brown |
+| `BUTTERFLY_COLOR_COUNT` | `5` | monarch, swallowtail, cabbage, morpho, pink |
+| `BUTTERFLY_HOUR_START/END` | `6 / 19` | full visibility window `[6,19)` |
+| `BUTTERFLY_FADE_DURATION_HOUR` | `1` | dawn/dusk fades |
+| `BUTTERFLY_PRNG_SALT` | `0xB07DEF1E0001` | independent butterfly stream |
+
+Palette is `{wingColor, accentColor}` for variants: Monarch orange+black, Swallowtail yellow+black, Cabbage white+dark dots, Morpho sky-blue+deep blue, Pink soft pink+rose.
+
+### Generation (PRNG draw order — LOCKED)
+
+Butterflies are appended after bunnies in the Grass entity generation pipeline and use `butterflyPrng = Prng(entitySeed XOR BUTTERFLY_PRNG_SALT)`. Draw count with `floor(uniform(BUTTERFLY_COUNT_MIN, BUTTERFLY_COUNT_MAX + 1))`, clamped. Per butterfly:
+
+```
+xFrac       = uniform(0, 1)
+yFrac       = uniform(0, 1) -> altitudeAnchor in [ALTITUDE_MIN, ALTITUDE_MAX)
+vxSign      = next_u64() & 1       // 0 left, 1 right
+baseSpeed   = uniform(SPEED_MIN, SPEED_MAX)
+colorVariant = index(BUTTERFLY_COLOR_COUNT)
+phaseY      = uniform(0, 2π)
+phaseX      = uniform(0, 2π)
+```
+
+Initial `x = xFrac * monitorWidth`; `vx` is initialized from the motion formula at `age = 0`. `baseSpeed`, `altitudeAnchor`, `phaseY`, `phaseX`, and `colorVariant` are stored on the entity for tests/rendering.
+
+### Motion model
+
+No state machine. Every tick:
+
+```
+vx = baseSpeed * sign(vx) * (1 + BUTTERFLY_MEANDER_AMP_X * sin(age * BUTTERFLY_MEANDER_FREQ_X + phaseX))
+y  = (groundY - BLADE_HEIGHT_MAX) - altitudeAnchor
+     + BUTTERFLY_MEANDER_AMP_Y * sin(age * BUTTERFLY_MEANDER_FREQ_Y + phaseY)
+```
+
+If `x > monitorWidth + (WING_OFFSET + WING_RADIUS)`, wrap to the same negative margin; if `x < -margin`, wrap to `monitorWidth + margin`. The `altitudeAnchor` is preserved.
+
+### Day fade function
+
+```
+butterflyFade(hour):
+  [05:00,06:00) -> linear 0→1
+  [06:00,19:00) -> 1
+  [19:00,20:00) -> linear 1→0
+  otherwise     -> 0
+```
+
+### Render order
+
+Draw after grass as part of `DrawEntities`: left/right wing ovals first, small accent dots/tips on the wings, then the dark body ellipse. Wing X-scale is `clamp(cos(age * BUTTERFLY_FLUTTER_FREQ + phaseY), BUTTERFLY_FLUTTER_MIN_SCALE, 1.0)`. Entity opacity is multiplied by `butterflyFade(currentLocalHourFractional)`.
+
+---
+
+## 17.7 Fireflies
+
+Tiny nighttime ambient fireflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `FIREFLY_COUNT_MIN/MAX` | `3 / 6` | Grass ambient count |
+| `FIREFLY_DRIFT_SPEED_MIN/MAX` | `4.0 / 10.0` | slow DIP/sec drift |
+| `FIREFLY_BODY_RADIUS` | `1.2` | warm dot |
+| `FIREFLY_GLOW_RADIUS` | `5.0` | soft halo |
+| `FIREFLY_BLINK_PERIOD_MIN/MAX` | `1.4 / 2.6` | seconds |
+| `FIREFLY_BLINK_DUTY` | `0.55` | fraction of cycle on |
+| `FIREFLY_BLINK_FADE` | `0.30` | sec rise/fall |
+| `FIREFLY_DRIFT_FREQ_X / AMP_X` | `0.4 / 0.6` | speed multiplier, 0.4x..1.6x |
+| `FIREFLY_DRIFT_FREQ_Y / AMP_Y` | `0.6 / 8.0` | vertical wander |
+| `FIREFLY_ALTITUDE_MIN/MAX` | `8.0 / 55.0` | DIP above tallest grass top (`groundY - BLADE_HEIGHT_MAX`) |
+| `FIREFLY_BODY_COLOR` | `0xFFFFEE88` | yellow-green dot |
+| `FIREFLY_GLOW_COLOR_RGB` | `0xEEDD66` | halo RGB |
+| `FIREFLY_GLOW_ALPHA_MAX` | `110` | peak halo alpha |
+| `FIREFLY_BODY_ALPHA_MAX` | `255` | peak body alpha |
+| `FIREFLY_NIGHT_START/END_HOUR` | `20 / 6` | full visibility wraps midnight |
+| `FIREFLY_FADE_DURATION_HOUR` | `1` | dusk/dawn fades |
+| `FIREFLY_PRNG_SALT` | `0xF13EF1E7777` | independent firefly stream |
+
+### Generation (PRNG draw order — LOCKED)
+
+Fireflies are appended after butterflies in the Grass entity generation pipeline and use `fireflyPrng = Prng(entitySeed XOR FIREFLY_PRNG_SALT)`. Draw count with `floor(uniform(FIREFLY_COUNT_MIN, FIREFLY_COUNT_MAX + 1))`, clamped. Per firefly:
+
+```
+xFrac       = uniform(0, 1)
+yFrac       = uniform(0, 1) -> altitudeAnchor in [ALTITUDE_MIN, ALTITUDE_MAX)
+vxSign      = next_u64() & 1       // 0 left, 1 right
+baseSpeed   = uniform(DRIFT_SPEED_MIN, DRIFT_SPEED_MAX)
+blinkPeriod = uniform(BLINK_PERIOD_MIN, BLINK_PERIOD_MAX)
+blinkPhase  = uniform(0, 1)
+phaseY      = uniform(0, 2π)
+phaseX      = uniform(0, 2π)
+```
+
+### Motion model
+
+No state machine. Every tick:
+
+```
+vx = baseSpeed * sign(vx) * (1 + FIREFLY_DRIFT_AMP_X * sin(age * FIREFLY_DRIFT_FREQ_X + phaseX))
+y  = (groundY - BLADE_HEIGHT_MAX) - altitudeAnchor
+     + FIREFLY_DRIFT_AMP_Y * sin(age * FIREFLY_DRIFT_FREQ_Y + phaseY)
+```
+
+If `x > monitorWidth + FIREFLY_GLOW_RADIUS`, wrap to `-FIREFLY_GLOW_RADIUS`; if `x < -FIREFLY_GLOW_RADIUS`, wrap to `monitorWidth + FIREFLY_GLOW_RADIUS`. The `altitudeAnchor` is preserved.
+
+### Blink model
+
+```
+cycleT = (age / blinkPeriod + blinkPhase) mod 1
+if cycleT < BLINK_DUTY:
+  brightness = 1, with smoothstep fade-in over BLINK_FADE/blinkPeriod
+               and smoothstep fade-out before BLINK_DUTY
+else:
+  brightness = 0
+```
+
+Body and glow alpha are multiplied by `brightness * fireflyFade(currentHour)`.
+
+### Night fade function
+
+```
+fireflyFade(hour):
+  [20:00,06:00) -> 1  // wraps midnight
+  [19:00,20:00) -> linear 0→1
+  [06:00,07:00) -> linear 1→0
+  otherwise     -> 0
+```
+
+### Render order
+
+Draw after grass as part of `DrawEntities`: glow halo first using `GLOW_RADIUS * brightness`, then body dot using `BODY_RADIUS`. The halo opacity peaks at `FIREFLY_GLOW_ALPHA_MAX`; the body peaks at `FIREFLY_BODY_ALPHA_MAX`. Both are multiplied by the night fade. No interaction, no cut detection, no tray toggle.
 
 ---
 
