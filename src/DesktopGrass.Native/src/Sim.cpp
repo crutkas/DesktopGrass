@@ -724,6 +724,8 @@ void generate_critters_cat(Sim& sim) noexcept {
                                     CAT_WALK_DURATION_MAX);
         e.nameIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
             static_cast<uint32_t>(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]))));
+        e.coatVariantIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
+            static_cast<uint32_t>(CAT_COAT_VARIANT_COUNT)));
         sim.entities.push_back(e);
     }
 }

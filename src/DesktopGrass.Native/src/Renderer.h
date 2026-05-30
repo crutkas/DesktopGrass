@@ -106,11 +106,14 @@ private:
     ComPtr<ID2D1SolidColorBrush>           sheepFaceBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepEarBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepInkBrush_;
-    ComPtr<ID2D1SolidColorBrush>           catBodyBrush_;
-    ComPtr<ID2D1SolidColorBrush>           catLegBrush_;
-    ComPtr<ID2D1SolidColorBrush>           catFaceBrush_;
-    ComPtr<ID2D1SolidColorBrush>           catEarBrush_;
-    ComPtr<ID2D1SolidColorBrush>           catInkBrush_;
+    struct CatCoatBrushSet {
+        ComPtr<ID2D1SolidColorBrush> body;
+        ComPtr<ID2D1SolidColorBrush> leg;
+        ComPtr<ID2D1SolidColorBrush> face;
+        ComPtr<ID2D1SolidColorBrush> ear;
+        ComPtr<ID2D1SolidColorBrush> ink;
+    };
+    CatCoatBrushSet catCoatBrushes_[CAT_COAT_VARIANT_COUNT];
     ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
     ComPtr<ID2D1SolidColorBrush>           dayTintBrush_;

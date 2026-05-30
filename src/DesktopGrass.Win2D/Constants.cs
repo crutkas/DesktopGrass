@@ -304,7 +304,7 @@ internal static class Constants
     public const double SHEEP_ZZZ_SIZE_START = 2.0;
     public const double SHEEP_ZZZ_SIZE_END   = 4.0;
 
-    // Cat (§17). Calm tabby critter that reuses the sheep state byte values but
+    // Cat (§17). Calm color-varied critter that reuses the sheep state byte values but
     // only uses Walking, Idle, Sleeping, and Hopping (semantically Pouncing).
     public const int    CAT_COUNT_MIN      = 1;
     public const int    CAT_COUNT_MAX      = 2;
@@ -320,6 +320,21 @@ internal static class Constants
     public const double CAT_TAIL_THICKNESS = 1.6;
     public const double CAT_EAR_HEIGHT     = 4.5;
 
+    public const int    CAT_COAT_VARIANT_COUNT = 6;
+
+    public readonly record struct CatCoatPalette(uint Body, uint Leg, uint Face, uint Ear, uint Ink);
+
+    public static readonly CatCoatPalette[] CAT_COAT_PALETTES = new[]
+    {
+        new CatCoatPalette(0xFF6B6259u, 0xFF3D3733u, 0xFF6B6259u, 0xFF3D3733u, 0xFF1A1614u), // 0 Gray
+        new CatCoatPalette(0xFFD89A6Fu, 0xFFA56B40u, 0xFFD89A6Fu, 0xFFA56B40u, 0xFF2B1A0Eu), // 1 Orange
+        new CatCoatPalette(0xFF2A2522u, 0xFF140F0Cu, 0xFF2A2522u, 0xFF140F0Cu, 0xFFD9B85Bu), // 2 Black
+        new CatCoatPalette(0xFFEDE9E1u, 0xFFBDB7ABu, 0xFFEDE9E1u, 0xFFBDB7ABu, 0xFF1F1817u), // 3 White
+        new CatCoatPalette(0xFF7A5F3Cu, 0xFF4E3F26u, 0xFF7A5F3Cu, 0xFF4E3F26u, 0xFF1A1108u), // 4 Brown
+        new CatCoatPalette(0xFFC9B898u, 0xFF8E7F6Bu, 0xFFC9B898u, 0xFF8E7F6Bu, 0xFF2E251Du), // 5 Cream
+    };
+
+    // Backward-compat aliases: variant 0 preserves the original muted gray tabby.
     public const uint   CAT_BODY_COLOR     = 0xFF6B6259u;
     public const uint   CAT_LEG_COLOR      = 0xFF3D3733u;
     public const uint   CAT_FACE_COLOR     = 0xFF6B6259u;

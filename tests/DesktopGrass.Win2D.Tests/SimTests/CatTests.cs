@@ -159,13 +159,14 @@ public class CatTests
             Assert.Equal(Constants.CAT_BODY_RADIUS, e.Size, 9);
             Assert.True(e.Lifetime < 0.0);
             Assert.True(e.NameIndex < Constants.CAT_NAME_POOL.Length);
+            Assert.True(e.CoatVariantIndex < Constants.CAT_COAT_VARIANT_COUNT);
         }
     }
 
     [Fact]
     public void CatPrngDrawOrderMatchesSideStream()
     {
-        // count, then per-cat: x, speed, dir-coin, seed, stateTimer, nameIndex
+        // count, then per-cat: x, speed, dir-coin, seed, stateTimer, nameIndex, coatVariantIndex
         var side = Prng.Init(Constants.CANONICAL_TEST_SEED ^ Constants.CRITTER_PRNG_SALT);
 
         var sim = BuildSim();
@@ -190,12 +191,14 @@ public class CatTests
             double expectedTimer = side.Uniform(Constants.CAT_WALK_DURATION_MIN,
                                                 Constants.CAT_WALK_DURATION_MAX);
             byte expectedNameIndex = (byte)side.Index((uint)Constants.CAT_NAME_POOL.Length);
+            byte expectedCoatVariantIndex = (byte)side.Index((uint)Constants.CAT_COAT_VARIANT_COUNT);
 
             Assert.Equal(expectedX, e.X, 9);
             Assert.Equal(expectedSpeed * expectedDir, e.Vx, 9);
             Assert.Equal(expectedSeed, e.Seed);
             Assert.Equal(expectedTimer, e.StateTimer, 9);
             Assert.Equal(expectedNameIndex, e.NameIndex);
+            Assert.Equal(expectedCoatVariantIndex, e.CoatVariantIndex);
             seen++;
         }
         Assert.Equal(expectedCount, seen);

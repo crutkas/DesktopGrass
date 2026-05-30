@@ -146,11 +146,12 @@ TEST_CASE("sim_set_critter(Cat) produces deterministic cats", "[cat][gen]") {
         REQUIRE(e.size == Approx(CAT_BODY_RADIUS));
         REQUIRE(e.lifetime < 0.0);
         REQUIRE(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+        REQUIRE(e.coatVariantIndex < CAT_COAT_VARIANT_COUNT);
     }
 }
 
 TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
-    // count, then per-cat: x, speed, dir-coin, seed, stateTimer, nameIndex
+    // count, then per-cat: x, speed, dir-coin, seed, stateTimer, nameIndex, coatVariantIndex
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
 
@@ -175,12 +176,15 @@ TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
         const double expectedTimer = prng_uniform(side, CAT_WALK_DURATION_MIN, CAT_WALK_DURATION_MAX);
         const uint8_t expectedNameIndex = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]))));
+        const uint8_t expectedCoatVariantIndex = static_cast<uint8_t>(prng_index(side,
+            static_cast<uint32_t>(CAT_COAT_VARIANT_COUNT)));
 
         REQUIRE(e.x == Approx(expectedX));
         REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
         REQUIRE(e.seed == expectedSeed);
         REQUIRE(e.stateTimer == Approx(expectedTimer));
         REQUIRE(e.nameIndex == expectedNameIndex);
+        REQUIRE(e.coatVariantIndex == expectedCoatVariantIndex);
         ++seen;
     }
     REQUIRE(seen == expectedCount);

@@ -34,6 +34,24 @@ internal sealed class GrassWindow : IDisposable
     private readonly float _dpiScale;
     private readonly Rectangle _monitorBoundsPx;
 
+    private sealed class CatCoatBrushSet
+    {
+        public ID2D1SolidColorBrush? Body;
+        public ID2D1SolidColorBrush? Leg;
+        public ID2D1SolidColorBrush? Face;
+        public ID2D1SolidColorBrush? Ear;
+        public ID2D1SolidColorBrush? Ink;
+
+        public void Dispose()
+        {
+            try { Body?.Dispose(); } catch { }
+            try { Leg?.Dispose(); } catch { }
+            try { Face?.Dispose(); } catch { }
+            try { Ear?.Dispose(); } catch { }
+            try { Ink?.Dispose(); } catch { }
+        }
+    }
+
     private ID3D11Device? _d3dDevice;
     private IDXGIDevice? _dxgiDevice;
     private IDXGIFactory2? _dxgiFactory;
@@ -63,11 +81,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _sheepFaceBrush;
     private ID2D1SolidColorBrush? _sheepEarBrush;
     private ID2D1SolidColorBrush? _sheepInkBrush;
-    private ID2D1SolidColorBrush? _catBodyBrush;
-    private ID2D1SolidColorBrush? _catLegBrush;
-    private ID2D1SolidColorBrush? _catFaceBrush;
-    private ID2D1SolidColorBrush? _catEarBrush;
-    private ID2D1SolidColorBrush? _catInkBrush;
+    private CatCoatBrushSet[]? _catCoatBrushes;
     private ID2D1SolidColorBrush? _petNameBrush;
     private ID2D1SolidColorBrush? _petNameShadowBrush;
     private ID2D1SolidColorBrush? _dayTintBrush;
@@ -210,11 +224,19 @@ internal sealed class GrassWindow : IDisposable
         _sheepFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_FACE_COLOR));
         _sheepEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_EAR_COLOR));
         _sheepInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_INK_COLOR));
-        _catBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_BODY_COLOR));
-        _catLegBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_LEG_COLOR));
-        _catFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_FACE_COLOR));
-        _catEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_EAR_COLOR));
-        _catInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CAT_INK_COLOR));
+        _catCoatBrushes = new CatCoatBrushSet[Constants.CAT_COAT_VARIANT_COUNT];
+        for (int i = 0; i < Constants.CAT_COAT_VARIANT_COUNT; i++)
+        {
+            var palette = Constants.CAT_COAT_PALETTES[i];
+            _catCoatBrushes[i] = new CatCoatBrushSet
+            {
+                Body = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Body)),
+                Leg = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Leg)),
+                Face = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Face)),
+                Ear = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Ear)),
+                Ink = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Ink)),
+            };
+        }
         _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
         _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
         _dayTintBrush = _dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0f));
@@ -563,6 +585,13 @@ internal sealed class GrassWindow : IDisposable
 
     private void DrawCat(in Entity e, Vector2? cursorPosition)
     {
+        var coat = _catCoatBrushes![e.CoatVariantIndex % Constants.CAT_COAT_VARIANT_COUNT];
+        var catBodyBrush = coat.Body!;
+        var catLegBrush = coat.Leg!;
+        var catFaceBrush = coat.Face!;
+        var catEarBrush = coat.Ear!;
+        var catInkBrush = coat.Ink!;
+
         const float twoPi = (float)(Math.PI * 2.0);
         float cx = (float)e.X;
         float br = (float)Constants.CAT_BODY_RADIUS;
@@ -602,7 +631,7 @@ internal sealed class GrassWindow : IDisposable
                             new Vector2(cx - facing * br * 0.55f, cy + bh * 0.95f),
                             new Vector2(cx + facing * br * 0.10f, cy + bh * 0.95f),
                             new Vector2(cx + facing * br * 0.72f, cy + bh * 0.45f),
-                            _catLegBrush!, (float)Constants.CAT_TAIL_THICKNESS);
+                            catLegBrush, (float)Constants.CAT_TAIL_THICKNESS);
         }
         else
         {
@@ -613,7 +642,7 @@ internal sealed class GrassWindow : IDisposable
                             new Vector2(tailBaseX - facing * tailLen * 0.18f, tailBaseY - tailLen * 0.08f),
                             new Vector2(tailBaseX - facing * tailLen * 0.60f, tailBaseY - tailLen * (0.70f + 0.20f * (float)Math.Sin(tailSway))),
                             new Vector2(tipX, tipY),
-                            _catLegBrush!, (float)Constants.CAT_TAIL_THICKNESS);
+                            catLegBrush, (float)Constants.CAT_TAIL_THICKNESS);
         }
 
         if (!isSleeping)
@@ -627,11 +656,11 @@ internal sealed class GrassWindow : IDisposable
             {
                 float lx = cx + legXs[li];
                 float ly1 = cy + bh + legLen + legSwings[li];
-                _dc!.DrawLine(new Vector2(lx, legY0), new Vector2(lx, ly1), _catLegBrush!, 1.2f, _strokeStyle);
+                _dc!.DrawLine(new Vector2(lx, legY0), new Vector2(lx, ly1), catLegBrush, 1.2f, _strokeStyle);
             }
         }
 
-        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _catBodyBrush!);
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), catBodyBrush);
 
         float headDirX = facing;
         float headDx = facing * br * 0.82f;
@@ -666,18 +695,18 @@ internal sealed class GrassWindow : IDisposable
 
         float headCx = cx + headDx;
         float headCy = cy + headDy;
-        _dc!.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR), _catFaceBrush!);
+        _dc!.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR), catFaceBrush);
 
         float earBaseY = headCy - headR * 0.62f;
         float earH = (float)Constants.CAT_EAR_HEIGHT;
         DrawFilledTriangle(new Vector2(headCx - headR * 0.60f, earBaseY),
                            new Vector2(headCx - headR * 0.18f, earBaseY),
                            new Vector2(headCx - headR * 0.47f - headDirX * 0.65f, earBaseY - earH),
-                           _catEarBrush!);
+                           catEarBrush);
         DrawFilledTriangle(new Vector2(headCx + headR * 0.18f, earBaseY),
                            new Vector2(headCx + headR * 0.60f, earBaseY),
                            new Vector2(headCx + headR * 0.47f + headDirX * 0.65f, earBaseY - earH),
-                           _catEarBrush!);
+                           catEarBrush);
 
         if (isSleeping)
         {
@@ -691,16 +720,16 @@ internal sealed class GrassWindow : IDisposable
                                 new Vector2(x0 + 0.45f, eyeY + 0.8f),
                                 new Vector2(x1 - 0.45f, eyeY + 0.8f),
                                 new Vector2(x1, eyeY),
-                                _catInkBrush!, 0.9f);
+                                catInkBrush, 0.9f);
             }
         }
         else
         {
             float eyeR = headR * 0.16f;
             _dc!.FillEllipse(new Ellipse(new Vector2(headCx + headDirX * headR * 0.22f,
-                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), _catInkBrush!);
+                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), catInkBrush);
             _dc!.FillEllipse(new Ellipse(new Vector2(headCx - headDirX * headR * 0.18f,
-                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), _catInkBrush!);
+                                                     headCy - headR * 0.18f), eyeR, eyeR * 0.75f), catInkBrush);
         }
 
         float noseTipX = headCx + headDirX * headR * 0.63f;
@@ -708,7 +737,7 @@ internal sealed class GrassWindow : IDisposable
         DrawFilledTriangle(new Vector2(noseTipX, noseTipY),
                            new Vector2(noseTipX - headDirX * 1.5f, noseTipY - 1.1f),
                            new Vector2(noseTipX - headDirX * 1.5f, noseTipY + 1.1f),
-                           _catInkBrush!);
+                           catInkBrush);
 
         if (isSleeping)
         {
@@ -722,7 +751,7 @@ internal sealed class GrassWindow : IDisposable
                                       + t * (Constants.SHEEP_ZZZ_SIZE_END * 0.70 - Constants.SHEEP_ZZZ_SIZE_START * 0.65));
                 DrawCatZ(zBaseX + t * 3.0f * headDirX,
                          zBaseY - t * (float)(Constants.SHEEP_ZZZ_RISE * 0.75),
-                         zSize, 1.0f - t);
+                         zSize, 1.0f - t, catInkBrush);
             }
         }
     }
@@ -833,13 +862,13 @@ internal sealed class GrassWindow : IDisposable
         }
     }
 
-    private void DrawCatZ(float zX, float zY, float zSize, float alpha)
+    private void DrawCatZ(float zX, float zY, float zSize, float alpha, ID2D1SolidColorBrush catInkBrush)
     {
-        _catInkBrush!.Opacity = alpha;
-        _dc!.DrawLine(new Vector2(zX, zY), new Vector2(zX + zSize, zY), _catInkBrush!, 0.9f, _strokeStyle);
-        _dc!.DrawLine(new Vector2(zX + zSize, zY), new Vector2(zX, zY + zSize), _catInkBrush!, 0.9f, _strokeStyle);
-        _dc!.DrawLine(new Vector2(zX, zY + zSize), new Vector2(zX + zSize, zY + zSize), _catInkBrush!, 0.9f, _strokeStyle);
-        _catInkBrush!.Opacity = 1.0f;
+        catInkBrush.Opacity = alpha;
+        _dc!.DrawLine(new Vector2(zX, zY), new Vector2(zX + zSize, zY), catInkBrush, 0.9f, _strokeStyle);
+        _dc!.DrawLine(new Vector2(zX + zSize, zY), new Vector2(zX, zY + zSize), catInkBrush, 0.9f, _strokeStyle);
+        _dc!.DrawLine(new Vector2(zX, zY + zSize), new Vector2(zX + zSize, zY + zSize), catInkBrush, 0.9f, _strokeStyle);
+        catInkBrush.Opacity = 1.0f;
     }
 
     private void DrawFilledPineTri(float cx, float baseY, float topY, float halfW, ID2D1SolidColorBrush brush)
@@ -1145,11 +1174,11 @@ internal sealed class GrassWindow : IDisposable
         try { _sheepFaceBrush?.Dispose(); } catch { }
         try { _sheepEarBrush?.Dispose(); } catch { }
         try { _sheepInkBrush?.Dispose(); } catch { }
-        try { _catBodyBrush?.Dispose(); } catch { }
-        try { _catLegBrush?.Dispose(); } catch { }
-        try { _catFaceBrush?.Dispose(); } catch { }
-        try { _catEarBrush?.Dispose(); } catch { }
-        try { _catInkBrush?.Dispose(); } catch { }
+        if (_catCoatBrushes is not null)
+        {
+            foreach (var brushes in _catCoatBrushes)
+                brushes?.Dispose();
+        }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
         try { _dayTintBrush?.Dispose(); } catch { }

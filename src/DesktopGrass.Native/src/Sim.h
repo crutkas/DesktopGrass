@@ -169,6 +169,7 @@ struct Entity {
     uint8_t    state         = 0;     // sheep/cat: see SHEEP_STATE_* constants
     double     stateTimer    = 0.0;   // sec remaining in current state
     uint8_t    nameIndex     = 0;     // sheep/cat: index into species name pool
+    uint8_t    coatVariantIndex = 0;  // cat: index into CAT_COAT_PALETTES
 };
 
 // ---------------------------------------------------------------------------

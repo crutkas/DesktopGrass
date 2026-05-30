@@ -1574,7 +1574,7 @@ For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produc
 
 ## 17. Cat
 
-Procedural calm tabby cat. Cat exists to prove the Critter framework is species-pluggable while preserving the passive desktop philosophy: cats mostly walk, sit, or sleep. They never chase cursor proximity; pounce is click-only.
+Procedural calm color-varied cat. Cat exists to prove the Critter framework is species-pluggable while preserving the passive desktop philosophy: cats mostly walk, sit, or sleep. They never chase cursor proximity; pounce is click-only.
 
 ### Constants
 
@@ -1592,9 +1592,9 @@ Procedural calm tabby cat. Cat exists to prove the Critter framework is species-
 | `CAT_TAIL_LENGTH` | `13.0` | long curved tail |
 | `CAT_TAIL_THICKNESS` | `1.6` | DIP line width |
 | `CAT_EAR_HEIGHT` | `4.5` | triangle ears |
-| `CAT_BODY_COLOR` / `CAT_FACE_COLOR` | `0xFF6B6259` | muted warm gray |
-| `CAT_LEG_COLOR` / `CAT_EAR_COLOR` | `0xFF3D3733` | darker gray |
-| `CAT_INK_COLOR` | `0xFF1A1614` | eyes/nose |
+| `CAT_COAT_VARIANT_COUNT` | `6` | gray, orange, black, white, brown, cream |
+| `CAT_COAT_PALETTES[6]` | see below | per-cat `(body, leg, face, ear, ink)` |
+| `CAT_*_COLOR` aliases | palette `0` | backward-compatible gray tabby values |
 | `CAT_WALK_PERIOD` | `0.50` | seconds |
 | `CAT_LEG_CYCLE_AMP` | `1.6` | restrained gait |
 | `CAT_HEAD_BOB_AMP` | `0.4` | subtle bob |
@@ -1613,6 +1613,17 @@ Procedural calm tabby cat. Cat exists to prove the Critter framework is species-
 | `CAT_POUNCE_HEIGHT` | `9.0` | parabolic rise |
 | `CAT_CURIOUS_RADIUS` | `100.0` | render-only idle head turn |
 | `CAT_CURIOUS_HEAD_TURN_MAX` | `0.7` | radians |
+
+Cat coat palettes are bit-identical in Native `Constants.h` and Win2D `Constants.cs`:
+
+| # | Short name | Body | Leg | Face | Ear | Ink | Notes |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 0 | Gray | `0xFF6B6259` | `0xFF3D3733` | `0xFF6B6259` | `0xFF3D3733` | `0xFF1A1614` | existing gray tabby |
+| 1 | Orange | `0xFFD89A6F` | `0xFFA56B40` | `0xFFD89A6F` | `0xFFA56B40` | `0xFF2B1A0E` | warm ginger |
+| 2 | Black | `0xFF2A2522` | `0xFF140F0C` | `0xFF2A2522` | `0xFF140F0C` | `0xFFD9B85B` | warm yellow eyes for contrast |
+| 3 | White | `0xFFEDE9E1` | `0xFFBDB7AB` | `0xFFEDE9E1` | `0xFFBDB7AB` | `0xFF1F1817` | dark ink |
+| 4 | Brown | `0xFF7A5F3C` | `0xFF4E3F26` | `0xFF7A5F3C` | `0xFF4E3F26` | `0xFF1A1108` | rich brown tabby |
+| 5 | Cream | `0xFFC9B898` | `0xFF8E7F6B` | `0xFFC9B898` | `0xFF8E7F6B` | `0xFF2E251D` | tan/buff |
 
 ### State machine (reuses sheep state bytes)
 
@@ -1658,12 +1669,13 @@ generate_critters_cat(sim):
         seed       = critterPrng.next_u32()
         stateTimer = critterPrng.uniform(CAT_WALK_DURATION_MIN, CAT_WALK_DURATION_MAX)
         nameIndex  = critterPrng.index(CAT_NAME_POOL.size)        // one draw after stateTimer
+        coatVariantIndex = critterPrng.index(CAT_COAT_VARIANT_COUNT) // NEW DRAW after nameIndex
         state      = CAT_STATE_WALKING
 ```
 
-If `critterCountOverride` is non-zero, `count = min(critterCountOverride, PET_COUNT_MAX_PER_MONITOR)` and the count draw above is skipped. This matches the sheep draw sequence exactly with cat constants substituted. Species share the same `CRITTER_PRNG_SALT`; no per-species salt is introduced.
+If `critterCountOverride` is non-zero, `count = min(critterCountOverride, PET_COUNT_MAX_PER_MONITOR)` and the count draw above is skipped. This matches the sheep draw sequence with one cat-only draw appended after `nameIndex`. Species share the same `CRITTER_PRNG_SALT`; no per-species salt is introduced. The `coatVariantIndex` draw is new relative to prior commits, so tests that pinned per-cat post-generation PRNG state must be re-pinned.
 
-Per-pet name — assigned from `CAT_NAME_POOL = ["Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno"]` at generation (one PRNG draw after `stateTimer`). Rendered as a tiny label above the pet when cursor is within `PET_NAME_HOVER_RADIUS=50` DIP; fades out over `PET_NAME_FADE_DURATION=1.5s` after cursor leaves.
+Per-pet name — assigned from `CAT_NAME_POOL = ["Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno"]` at generation (one PRNG draw after `stateTimer`). Per-pet coat color is assigned immediately after the name draw. Rendered as a tiny label above the pet when cursor is within `PET_NAME_HOVER_RADIUS=50` DIP; fades out over `PET_NAME_FADE_DURATION=1.5s` after cursor leaves.
 
 ### Click pounce
 
@@ -1694,7 +1706,7 @@ SLEEPING : body drops to ground, legs hidden, tail wraps around body, closed cur
 POUNCING : parabolic Y offset, horizontal motion toward click
 ```
 
-Geometry is distinct from sheep: one long flattened body ellipse, smaller circular head on the top-front, tall triangle ears, visible ink eyes/nose on a light face, four thin legs, and a long curved tail. Native and Win2D use vector primitives only.
+Geometry is distinct from sheep: one long flattened body ellipse, smaller circular head on the top-front, tall triangle ears, visible ink eyes/nose on a light face, four thin legs, and a long curved tail. Renderers pre-create one brush set per `CAT_COAT_PALETTES` entry and select by `e.coatVariantIndex % CAT_COAT_VARIANT_COUNT`. Native and Win2D use vector primitives only.
 
 ### Differences from Sheep
 
@@ -1706,7 +1718,7 @@ Geometry is distinct from sheep: one long flattened body ellipse, smaller circul
 
 ### Defaults & conformance
 
-For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer, nameIndex)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests`.
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces `K ∈ [CAT_COUNT_MIN, CAT_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer, nameIndex, coatVariantIndex)` per cat when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `cat_tests` / `CatTests` and `cat_coat_tests` / `CatCoatTests`.
 
 ---
 

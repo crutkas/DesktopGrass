@@ -349,7 +349,7 @@ constexpr double   SHEEP_ZZZ_RISE          = 11.0;      // DIP rise over one cyc
 constexpr double   SHEEP_ZZZ_SIZE_START    = 2.0;       // DIP starting Z side
 constexpr double   SHEEP_ZZZ_SIZE_END      = 4.0;       // DIP ending Z side
 
-// Cat (§17). Calm tabby critter that reuses the sheep state byte values but
+// Cat (§17). Calm color-varied critter that reuses the sheep state byte values but
 // only uses Walking, Idle, Sleeping, and Hopping (semantically Pouncing).
 constexpr int      CAT_COUNT_MIN      = 1;
 constexpr int      CAT_COUNT_MAX      = 2;
@@ -365,11 +365,31 @@ constexpr double   CAT_TAIL_LENGTH    = 13.0;
 constexpr double   CAT_TAIL_THICKNESS = 1.6;
 constexpr double   CAT_EAR_HEIGHT     = 4.5;
 
-constexpr uint32_t CAT_BODY_COLOR     = 0xFF6B6259u;
-constexpr uint32_t CAT_LEG_COLOR      = 0xFF3D3733u;
-constexpr uint32_t CAT_FACE_COLOR     = 0xFF6B6259u;
-constexpr uint32_t CAT_EAR_COLOR      = 0xFF3D3733u;
-constexpr uint32_t CAT_INK_COLOR      = 0xFF1A1614u;
+constexpr int CAT_COAT_VARIANT_COUNT = 6;
+
+struct CatCoatPalette {
+    uint32_t body;
+    uint32_t leg;
+    uint32_t face;
+    uint32_t ear;
+    uint32_t ink;
+};
+
+constexpr CatCoatPalette CAT_COAT_PALETTES[CAT_COAT_VARIANT_COUNT] = {
+    { 0xFF6B6259u, 0xFF3D3733u, 0xFF6B6259u, 0xFF3D3733u, 0xFF1A1614u },  // 0 Gray tabby (existing)
+    { 0xFFD89A6Fu, 0xFFA56B40u, 0xFFD89A6Fu, 0xFFA56B40u, 0xFF2B1A0Eu },  // 1 Orange
+    { 0xFF2A2522u, 0xFF140F0Cu, 0xFF2A2522u, 0xFF140F0Cu, 0xFFD9B85Bu },  // 2 Black (yellow eyes)
+    { 0xFFEDE9E1u, 0xFFBDB7ABu, 0xFFEDE9E1u, 0xFFBDB7ABu, 0xFF1F1817u },  // 3 White
+    { 0xFF7A5F3Cu, 0xFF4E3F26u, 0xFF7A5F3Cu, 0xFF4E3F26u, 0xFF1A1108u },  // 4 Brown tabby
+    { 0xFFC9B898u, 0xFF8E7F6Bu, 0xFFC9B898u, 0xFF8E7F6Bu, 0xFF2E251Du },  // 5 Cream
+};
+
+// Backward-compat aliases: variant 0 preserves the original muted gray tabby.
+constexpr uint32_t CAT_BODY_COLOR = CAT_COAT_PALETTES[0].body;
+constexpr uint32_t CAT_LEG_COLOR  = CAT_COAT_PALETTES[0].leg;
+constexpr uint32_t CAT_FACE_COLOR = CAT_COAT_PALETTES[0].face;
+constexpr uint32_t CAT_EAR_COLOR  = CAT_COAT_PALETTES[0].ear;
+constexpr uint32_t CAT_INK_COLOR  = CAT_COAT_PALETTES[0].ink;
 
 constexpr double   CAT_WALK_PERIOD    = 0.50;
 constexpr double   CAT_LEG_CYCLE_AMP  = 1.6;

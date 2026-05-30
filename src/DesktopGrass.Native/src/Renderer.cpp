@@ -233,30 +233,37 @@ bool Renderer::CreateDeviceResources() {
                                             sheepInkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    catBodyBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_BODY_COLOR),
-                                            catBodyBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    for (auto& brushes : catCoatBrushes_) {
+        brushes.body.Reset();
+        brushes.leg.Reset();
+        brushes.face.Reset();
+        brushes.ear.Reset();
+        brushes.ink.Reset();
+    }
+    for (int i = 0; i < CAT_COAT_VARIANT_COUNT; ++i) {
+        const CatCoatPalette& palette = CAT_COAT_PALETTES[i];
+        CatCoatBrushSet& brushes = catCoatBrushes_[i];
 
-    catLegBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_LEG_COLOR),
-                                            catLegBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(palette.body),
+                                                brushes.body.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    catFaceBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_FACE_COLOR),
-                                            catFaceBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(palette.leg),
+                                                brushes.leg.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    catEarBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_EAR_COLOR),
-                                            catEarBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(palette.face),
+                                                brushes.face.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    catInkBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(CAT_INK_COLOR),
-                                            catInkBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(palette.ear),
+                                                brushes.ear.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(palette.ink),
+                                                brushes.ink.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
 
     petNameBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_COLOR),
@@ -342,11 +349,13 @@ void Renderer::DiscardDeviceResources() {
     sheepFaceBrush_.Reset();
     sheepEarBrush_.Reset();
     sheepInkBrush_.Reset();
-    catBodyBrush_.Reset();
-    catLegBrush_.Reset();
-    catFaceBrush_.Reset();
-    catEarBrush_.Reset();
-    catInkBrush_.Reset();
+    for (auto& brushes : catCoatBrushes_) {
+        brushes.body.Reset();
+        brushes.leg.Reset();
+        brushes.face.Reset();
+        brushes.ear.Reset();
+        brushes.ink.Reset();
+    }
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
     dayTintBrush_.Reset();
@@ -808,7 +817,13 @@ void Renderer::DrawGrass() {
 }
 
 void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
-    if (!catBodyBrush_ || !catLegBrush_ || !catFaceBrush_ || !catEarBrush_ || !catInkBrush_) return;
+    const CatCoatBrushSet& coat = catCoatBrushes_[e.coatVariantIndex % CAT_COAT_VARIANT_COUNT];
+    ID2D1SolidColorBrush* catBodyBrush = coat.body.Get();
+    ID2D1SolidColorBrush* catLegBrush = coat.leg.Get();
+    ID2D1SolidColorBrush* catFaceBrush = coat.face.Get();
+    ID2D1SolidColorBrush* catEarBrush = coat.ear.Get();
+    ID2D1SolidColorBrush* catInkBrush = coat.ink.Get();
+    if (!catBodyBrush || !catLegBrush || !catFaceBrush || !catEarBrush || !catInkBrush) return;
 
     constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
     const float cx = static_cast<float>(e.x);
@@ -873,17 +888,17 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     };
 
     auto drawZ = [&](float zX, float zY, float zSize, float alpha) {
-        catInkBrush_->SetOpacity(alpha);
+        catInkBrush->SetOpacity(alpha);
         d2dContext_->DrawLine(D2D1::Point2F(zX, zY),
                               D2D1::Point2F(zX + zSize, zY),
-                              catInkBrush_.Get(), 0.9f);
+                              catInkBrush, 0.9f);
         d2dContext_->DrawLine(D2D1::Point2F(zX + zSize, zY),
                               D2D1::Point2F(zX, zY + zSize),
-                              catInkBrush_.Get(), 0.9f);
+                              catInkBrush, 0.9f);
         d2dContext_->DrawLine(D2D1::Point2F(zX, zY + zSize),
                               D2D1::Point2F(zX + zSize, zY + zSize),
-                              catInkBrush_.Get(), 0.9f);
-        catInkBrush_->SetOpacity(1.0f);
+                              catInkBrush, 0.9f);
+        catInkBrush->SetOpacity(1.0f);
     };
 
     const float tailBaseX = cx - facing * br * 0.92f;
@@ -894,7 +909,7 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
             D2D1::Point2F(cx - facing * br * 0.55f, cy + bh * 0.95f),
             D2D1::Point2F(cx + facing * br * 0.10f, cy + bh * 0.95f),
             D2D1::Point2F(cx + facing * br * 0.72f, cy + bh * 0.45f),
-            catLegBrush_.Get(), static_cast<float>(CAT_TAIL_THICKNESS));
+            catLegBrush, static_cast<float>(CAT_TAIL_THICKNESS));
     } else {
         const float tailLen = static_cast<float>(CAT_TAIL_LENGTH);
         const float tipX = tailBaseX - facing * tailLen * (0.78f + 0.08f * std::sin(tailSway));
@@ -904,7 +919,7 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
             D2D1::Point2F(tailBaseX - facing * tailLen * 0.18f, tailBaseY - tailLen * 0.08f),
             D2D1::Point2F(tailBaseX - facing * tailLen * 0.60f, tailBaseY - tailLen * (0.70f + 0.20f * std::sin(tailSway))),
             D2D1::Point2F(tipX, tipY),
-            catLegBrush_.Get(), static_cast<float>(CAT_TAIL_THICKNESS));
+            catLegBrush, static_cast<float>(CAT_TAIL_THICKNESS));
     }
 
     if (!isSleeping) {
@@ -918,12 +933,12 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
             const float ly1 = cy + bh + legLen + legSwings[li];
             d2dContext_->DrawLine(D2D1::Point2F(lx, legY0),
                                   D2D1::Point2F(lx, ly1),
-                                  catLegBrush_.Get(), 1.2f);
+                                  catLegBrush, 1.2f);
         }
     }
 
     d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh),
-                             catBodyBrush_.Get());
+                             catBodyBrush);
 
     float headDirX = facing;
     float headDx = facing * br * 0.82f;
@@ -952,7 +967,7 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     const float headCx = cx + headDx;
     const float headCy = cy + headDy;
     d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), headR, headR),
-                             catFaceBrush_.Get());
+                             catFaceBrush);
 
     const float earBaseY = headCy - headR * 0.62f;
     const float earH = static_cast<float>(CAT_EAR_HEIGHT);
@@ -960,12 +975,12 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
         D2D1::Point2F(headCx - headR * 0.60f, earBaseY),
         D2D1::Point2F(headCx - headR * 0.18f, earBaseY),
         D2D1::Point2F(headCx - headR * 0.47f - headDirX * 0.65f, earBaseY - earH),
-        catEarBrush_.Get());
+        catEarBrush);
     fillTriangle(
         D2D1::Point2F(headCx + headR * 0.18f, earBaseY),
         D2D1::Point2F(headCx + headR * 0.60f, earBaseY),
         D2D1::Point2F(headCx + headR * 0.47f + headDirX * 0.65f, earBaseY - earH),
-        catEarBrush_.Get());
+        catEarBrush);
 
     if (isSleeping) {
         const float eyeY = headCy - headR * 0.05f;
@@ -976,18 +991,18 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
                        D2D1::Point2F(x0 + 0.45f, eyeY + 0.8f),
                        D2D1::Point2F(x1 - 0.45f, eyeY + 0.8f),
                        D2D1::Point2F(x1, eyeY),
-                       catInkBrush_.Get(), 0.9f);
+                       catInkBrush, 0.9f);
         }
     } else {
         const float eyeR = headR * 0.16f;
         d2dContext_->FillEllipse(
             D2D1::Ellipse(D2D1::Point2F(headCx + headDirX * headR * 0.22f,
                                         headCy - headR * 0.18f), eyeR, eyeR * 0.75f),
-            catInkBrush_.Get());
+            catInkBrush);
         d2dContext_->FillEllipse(
             D2D1::Ellipse(D2D1::Point2F(headCx - headDirX * headR * 0.18f,
                                         headCy - headR * 0.18f), eyeR, eyeR * 0.75f),
-            catInkBrush_.Get());
+            catInkBrush);
     }
 
     const float noseTipX = headCx + headDirX * headR * 0.63f;
@@ -996,7 +1011,7 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
         D2D1::Point2F(noseTipX, noseTipY),
         D2D1::Point2F(noseTipX - headDirX * 1.5f, noseTipY - 1.1f),
         D2D1::Point2F(noseTipX - headDirX * 1.5f, noseTipY + 1.1f),
-        catInkBrush_.Get());
+        catInkBrush);
 
     if (isSleeping) {
         const float zBaseX = headCx + headDirX * headR * 0.55f;

@@ -97,6 +97,7 @@
     <ClCompile Include="src\critter_tests.cpp" />
     <ClCompile Include="src\sheep_greeting_tests.cpp" />
     <ClCompile Include="src\cat_tests.cpp" />
+    <ClCompile Include="src\cat_coat_tests.cpp" />
     <ClCompile Include="src\day_tint_tests.cpp" />
     <ClCompile Include="src\persistence_tests.cpp" />
     <ClCompile Include="src\autostart_tests.cpp" />
