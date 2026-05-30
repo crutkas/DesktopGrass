@@ -52,6 +52,12 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1SolidColorBrush? _birchBarkBrush;
     private ID2D1SolidColorBrush? _birchMarkBrush;
+    // §16 sheep brushes — not scene-keyed (one critter at a time, biome-agnostic).
+    private ID2D1SolidColorBrush? _sheepBodyBrush;
+    private ID2D1SolidColorBrush? _sheepLegBrush;
+    private ID2D1SolidColorBrush? _sheepFaceBrush;
+    private ID2D1SolidColorBrush? _sheepEarBrush;
+    private ID2D1SolidColorBrush? _sheepInkBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
     public Sim Sim { get; }
@@ -62,6 +68,7 @@ internal sealed class GrassWindow : IDisposable
     public Rectangle MonitorBoundsPx => _monitorBoundsPx;
 
     public void SetScene(Scene s) => Sim.SetScene(s);
+    public void SetCritter(CritterKind c) => Sim.SetCritter(c);
 
     public GrassWindow(IntPtr hwnd, int widthPx, int heightPx, float dpiScale,
                        Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip)
@@ -173,6 +180,12 @@ internal sealed class GrassWindow : IDisposable
         _birchBarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_BARK_COLOR));
         _birchMarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_MARK_COLOR));
 
+        _sheepBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_BODY_COLOR));
+        _sheepLegBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_LEG_COLOR));
+        _sheepFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_FACE_COLOR));
+        _sheepEarBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_EAR_COLOR));
+        _sheepInkBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_INK_COLOR));
+
         // Rounded-cap stroke for blade segments - matches the spec note in §7.
         var ssProps = new StrokeStyleProperties
         {
@@ -271,10 +284,176 @@ internal sealed class GrassWindow : IDisposable
                 continue;
             }
 
+            if (e.Kind == EntityKind.Sheep)
+            {
+                DrawSheep(in e);
+                continue;
+            }
+
             if (e.Kind != EntityKind.Snowflake) continue;
             float r = (float)e.Size;
             var flake = new Ellipse(new Vector2((float)e.X, (float)e.Y), r, r);
             _dc!.FillEllipse(flake, _snowflakeBrush!);
+        }
+    }
+
+    private void DrawSheep(in Entity e)
+    {
+        // §16 Suffolk-style vector sheep — white wool cloud + dark head/legs.
+        // Pose driven by e.State (Walking / Grazing / Idle / Sleeping / Hopping).
+        const float twoPi = (float)(Math.PI * 2.0);
+        float cx     = (float)e.X;
+        float br     = (float)Constants.SHEEP_BODY_RADIUS;
+        float bh     = (float)Constants.SHEEP_BODY_HEIGHT;
+        float legLen = (float)Constants.SHEEP_LEG_LENGTH;
+        float headR  = (float)Constants.SHEEP_HEAD_RADIUS;
+        float tailR  = (float)Constants.SHEEP_TAIL_RADIUS;
+        float facing = (e.Vx >= 0.0) ? 1.0f : -1.0f;
+
+        bool isWalking  = e.State == Constants.SHEEP_STATE_WALKING;
+        bool isGrazing  = e.State == Constants.SHEEP_STATE_GRAZING;
+        bool isIdle     = e.State == Constants.SHEEP_STATE_IDLE;
+        bool isSleeping = e.State == Constants.SHEEP_STATE_SLEEPING;
+        bool isHopping  = e.State == Constants.SHEEP_STATE_HOPPING;
+
+        float hopOffsetY = 0.0f;
+        if (isHopping)
+        {
+            float t = Math.Max(0.0f, Math.Min(1.0f, (float)(e.Age / Constants.SHEEP_HOP_DURATION)));
+            hopOffsetY = -4.0f * (float)Constants.SHEEP_HOP_HEIGHT * t * (1.0f - t);
+        }
+        // Sleeping: body drops by leg-length so it sits on the ground.
+        float sleepOffsetY = isSleeping ? legLen : 0.0f;
+        float cy = (float)e.Y + hopOffsetY + sleepOffsetY;
+
+        float walkPhase = (float)(e.Age * (twoPi / Constants.SHEEP_WALK_PERIOD));
+        float legAmp = isWalking ? (float)Constants.SHEEP_LEG_CYCLE_AMP : 0.0f;
+        float headBob = isWalking
+            ? (float)(Math.Sin(walkPhase * 2.0f) * Constants.SHEEP_HEAD_BOB_AMP)
+            : 0.0f;
+        float tailWig = isWalking
+            ? (float)(Math.Sin(walkPhase * 2.0f) * Constants.SHEEP_TAIL_WIGGLE_AMP)
+            : 0.0f;
+
+        // Legs — hidden when sleeping; static when hopping (suspended look).
+        if (!isSleeping)
+        {
+            float legY0 = cy + bh * 0.30f;
+            float[] legXs = { -br * 0.62f, -br * 0.22f, +br * 0.22f, +br * 0.62f };
+            float swingA = (float)Math.Sin(walkPhase) * legAmp;
+            float swingB = (float)Math.Sin(walkPhase + Math.PI) * legAmp;
+            float[] legSwings = { swingA, swingB, swingA, swingB };
+            for (int li = 0; li < 4; li++)
+            {
+                float lx  = cx + legXs[li];
+                float ly1 = cy + bh + legLen + legSwings[li];
+                _dc!.DrawLine(new Vector2(lx, legY0), new Vector2(lx, ly1),
+                              _sheepLegBrush!, 1.8f);
+            }
+        }
+
+        // Tail puff — rear of the body.
+        float tailCx = cx - facing * br * 0.95f + tailWig;
+        float tailCy = cy - bh * 0.05f;
+        _dc!.FillEllipse(new Ellipse(new Vector2(tailCx, tailCy), tailR, tailR * 0.95f),
+                         _sheepBodyBrush!);
+
+        // Body — one large ellipse + 3 evenly-spaced top puffs (cloud silhouette).
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _sheepBodyBrush!);
+        float puffY  = cy - bh * 0.55f;
+        float puffRx = br * 0.40f;
+        float puffRy = bh * 0.48f;
+        float[] puffXs = { -br * 0.50f, 0.0f, +br * 0.50f };
+        foreach (float pdx in puffXs)
+        {
+            _dc!.FillEllipse(new Ellipse(new Vector2(cx + pdx, puffY), puffRx, puffRy),
+                             _sheepBodyBrush!);
+        }
+
+        // Head — position varies by state.
+        float headDirX = facing;
+        float headDx = headDirX * (br * 1.08f);
+        float headDy = -bh * 0.05f + headBob;
+        if (isGrazing)
+        {
+            float munch = (float)(Math.Sin(e.Age * Constants.SHEEP_GRAZE_MUNCH_FREQ)
+                                  * Constants.SHEEP_GRAZE_MUNCH_AMP);
+            headDx = headDirX * br * 0.85f;
+            headDy = bh * 0.85f + munch;
+        }
+        else if (isIdle)
+        {
+            float sweep = (float)Math.Sin(e.Age * Constants.SHEEP_IDLE_SWEEP_FREQ);
+            headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+            headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * Math.Abs(sweep));
+            headDy = -bh * 0.05f;
+        }
+        else if (isSleeping)
+        {
+            headDx = headDirX * br * 0.95f;
+            headDy = bh * 0.10f;
+        }
+        float headCx = cx + headDx;
+        float headCy = cy + headDy;
+
+        _dc!.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR * 1.05f),
+                         _sheepFaceBrush!);
+
+        // Ears — two blobs.
+        float earRx = headR * 0.32f;
+        float earRy = headR * 0.55f;
+        _dc!.FillEllipse(new Ellipse(new Vector2(headCx - headR * 0.55f,
+                                                  headCy - headR * 0.65f),
+                                      earRx, earRy), _sheepEarBrush!);
+        _dc!.FillEllipse(new Ellipse(new Vector2(headCx + headR * 0.55f,
+                                                  headCy - headR * 0.65f),
+                                      earRx, earRy), _sheepEarBrush!);
+
+        // Eye — open dot in most states, closed slit while sleeping.
+        if (isSleeping)
+        {
+            float slitY = headCy - headR * 0.05f;
+            float slitX = headCx + headDirX * headR * 0.42f;
+            _dc!.DrawLine(new Vector2(slitX - 1.4f, slitY),
+                          new Vector2(slitX + 1.4f, slitY),
+                          _sheepInkBrush!, 1.0f);
+        }
+        else
+        {
+            float eyeR = headR * 0.22f;
+            _dc!.FillEllipse(new Ellipse(new Vector2(headCx + headDirX * headR * 0.42f,
+                                                      headCy - headR * 0.05f),
+                                          eyeR, eyeR), _sheepInkBrush!);
+        }
+
+        // Sleeping Z glyphs — two staggered Z's drifting up and growing then
+        // fading. Drawn in body-white so they read on any biome.
+        if (isSleeping)
+        {
+            float zBaseX = headCx + headDirX * headR * 0.7f;
+            float zBaseY = headCy - headR * 1.4f;
+            for (int zi = 0; zi < 2; zi++)
+            {
+                float phaseOffset = 0.5f * zi;
+                float t = (float)(((e.Age / Constants.SHEEP_ZZZ_CYCLE_SEC) + phaseOffset) % 1.0);
+                if (t < 0.0f) t += 1.0f;
+                float zSize = (float)(Constants.SHEEP_ZZZ_SIZE_START
+                                      + t * (Constants.SHEEP_ZZZ_SIZE_END - Constants.SHEEP_ZZZ_SIZE_START));
+                float zY = zBaseY - t * (float)Constants.SHEEP_ZZZ_RISE;
+                float zX = zBaseX + t * 4.0f * headDirX;
+                float alpha = 1.0f - t;
+                _sheepBodyBrush!.Opacity = alpha;
+                _dc!.DrawLine(new Vector2(zX,         zY),
+                              new Vector2(zX + zSize, zY),
+                              _sheepBodyBrush!, 1.1f);
+                _dc!.DrawLine(new Vector2(zX + zSize, zY),
+                              new Vector2(zX,         zY + zSize),
+                              _sheepBodyBrush!, 1.1f);
+                _dc!.DrawLine(new Vector2(zX,         zY + zSize),
+                              new Vector2(zX + zSize, zY + zSize),
+                              _sheepBodyBrush!, 1.1f);
+            }
+            _sheepBodyBrush!.Opacity = 1.0f;
         }
     }
 
@@ -575,6 +754,11 @@ internal sealed class GrassWindow : IDisposable
         try { _pineBrush?.Dispose(); } catch { }
         try { _birchBarkBrush?.Dispose(); } catch { }
         try { _birchMarkBrush?.Dispose(); } catch { }
+        try { _sheepBodyBrush?.Dispose(); } catch { }
+        try { _sheepLegBrush?.Dispose(); } catch { }
+        try { _sheepFaceBrush?.Dispose(); } catch { }
+        try { _sheepEarBrush?.Dispose(); } catch { }
+        try { _sheepInkBrush?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }
         try { _dc?.Dispose(); } catch { }
         try { _d2dDevice?.Dispose(); } catch { }

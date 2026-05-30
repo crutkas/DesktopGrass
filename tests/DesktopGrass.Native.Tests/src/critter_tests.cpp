@@ -1,0 +1,253 @@
+// critter_tests.cpp
+//
+// Critter subsystem tests (architecture.md §13.3 / §16). Orthogonal to Scene.
+//
+// Coverage:
+//   * CritterKind discriminants are spec-locked ({None=0, Sheep=1}).
+//   * EntityKind::Sheep == 3 (added after the original {None, Tumbleweed,
+//     Snowflake} enum).
+//   * SHEEP_* and CRITTER_* constants are pinned to spec values.
+//   * sim_init defaults sim.currentCritter to None (no sheep until the user
+//     opts in via tray).
+//   * sim_set_critter(Sheep) on CANONICAL_TEST_SEED + 1920 produces
+//     deterministic count K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX], with
+//     every sheep entity well-formed: kind=Sheep, state=Walking, stateTimer
+//     in [WALK_DURATION_MIN, MAX], speed in [WALK_SPEED_MIN, MAX], x within
+//     monitor margins.
+//   * sim_set_critter(None) erases all sheep but preserves scene entities
+//     (snowflakes/tumbleweeds aren't touched).
+//   * sim_set_scene preserves the active critter — flipping Grass→Desert
+//     re-spawns sheep on the new scene.
+//   * Sheep PRNG draw order is bit-identical to a side-stream Prng for the
+//     locked sequence (count, then per-sheep: x, speed, dir-coin, seed,
+//     stateTimer).
+//   * Click within SHEEP_STARTLE_RADIUS pushes a sheep into Hopping, flips
+//     vx away from the cursor, and resets age.
+//   * Click outside SHEEP_STARTLE_RADIUS leaves sheep state untouched.
+
+#include "../third_party/catch2/catch.hpp"
+#include "Sim.h"
+
+#include <algorithm>
+#include <cmath>
+
+using namespace desktopgrass;
+
+namespace {
+
+int count_sheep(const Sim& sim) {
+    int n = 0;
+    for (const Entity& e : sim.entities) if (e.kind == EntityKind::Sheep) ++n;
+    return n;
+}
+
+const Entity* first_sheep(const Sim& sim) {
+    for (const Entity& e : sim.entities) if (e.kind == EntityKind::Sheep) return &e;
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE("CritterKind has spec-locked discriminants", "[critter][enum]") {
+    REQUIRE(static_cast<int>(CritterKind::None)  == 0);
+    REQUIRE(static_cast<int>(CritterKind::Sheep) == 1);
+    REQUIRE(static_cast<int>(EntityKind::Sheep)  == 3);
+    REQUIRE(CRITTER_DEFAULT == CritterKind::None);
+}
+
+TEST_CASE("Sheep constants are pinned to spec values", "[critter][constants]") {
+    REQUIRE(SHEEP_COUNT_MIN      == 2);
+    REQUIRE(SHEEP_COUNT_MAX      == 3);
+    REQUIRE(SHEEP_WALK_SPEED_MIN == Approx(14.0));
+    REQUIRE(SHEEP_WALK_SPEED_MAX == Approx(26.0));
+    REQUIRE(SHEEP_BODY_RADIUS    == Approx(12.0));
+    REQUIRE(SHEEP_HEAD_RADIUS    == Approx(5.0));
+    REQUIRE(SHEEP_LEG_LENGTH     == Approx(5.5));
+
+    REQUIRE(SHEEP_STATE_WALKING  == 0);
+    REQUIRE(SHEEP_STATE_GRAZING  == 1);
+    REQUIRE(SHEEP_STATE_IDLE     == 2);
+    REQUIRE(SHEEP_STATE_SLEEPING == 3);
+    REQUIRE(SHEEP_STATE_HOPPING  == 4);
+
+    REQUIRE(SHEEP_HOP_DURATION   == Approx(0.55));
+    REQUIRE(SHEEP_HOP_HEIGHT     == Approx(11.0));
+    REQUIRE(SHEEP_STARTLE_RADIUS == Approx(64.0));
+    REQUIRE(SHEEP_STARTLE_BOOST  == Approx(1.6));
+
+    REQUIRE(SHEEP_GRAZE_PROBABILITY    == Approx(0.60));
+    REQUIRE(SHEEP_IDLE_PROBABILITY     == Approx(0.25));
+    REQUIRE(SHEEP_SLEEP_FROM_IDLE_PROB == Approx(0.30));
+}
+
+TEST_CASE("sim_init defaults critter to None", "[critter][init]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    REQUIRE(sim.currentCritter == CritterKind::None);
+    REQUIRE(count_sheep(sim) == 0);
+}
+
+TEST_CASE("sim_set_critter(Sheep) produces deterministic flock", "[critter][gen]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+
+    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+    const int k = count_sheep(sim);
+    REQUIRE(k >= SHEEP_COUNT_MIN);
+    REQUIRE(k <= SHEEP_COUNT_MAX);
+
+    const double groundY = sim.windowHeight;
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Sheep) continue;
+        REQUIRE(e.state == SHEEP_STATE_WALKING);
+        REQUIRE(e.stateTimer >= SHEEP_WALK_DURATION_MIN);
+        REQUIRE(e.stateTimer <  SHEEP_WALK_DURATION_MAX);
+        REQUIRE(std::fabs(e.vx) >= SHEEP_WALK_SPEED_MIN);
+        REQUIRE(std::fabs(e.vx) <  SHEEP_WALK_SPEED_MAX);
+        const double margin = e.size + 8.0;
+        REQUIRE(e.x >= margin);
+        REQUIRE(e.x <= sim.monitorWidth - margin);
+        REQUIRE(e.y == Approx(groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH));
+        REQUIRE(e.lifetime < 0.0); // infinite — sheep don't expire
+    }
+}
+
+TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
+    // Independent side stream that walks the documented sequence:
+    //   count
+    //   per-sheep: x, speed, dir-coin, seed, stateTimer
+    Prng side;
+    prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
+
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+
+    const double countDraw = prng_uniform(side, SHEEP_COUNT_MIN, SHEEP_COUNT_MAX + 1);
+    int expectedCount = static_cast<int>(std::floor(countDraw));
+    if (expectedCount < SHEEP_COUNT_MIN) expectedCount = SHEEP_COUNT_MIN;
+    if (expectedCount > SHEEP_COUNT_MAX) expectedCount = SHEEP_COUNT_MAX;
+    REQUIRE(count_sheep(sim) == expectedCount);
+
+    int seen = 0;
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Sheep) continue;
+        const double margin = SHEEP_BODY_RADIUS + 8.0;
+        const double expectedX = prng_uniform(side, margin, 1920.0 - margin);
+        const double expectedSpeed = prng_uniform(side, SHEEP_WALK_SPEED_MIN, SHEEP_WALK_SPEED_MAX);
+        const double dirCoin = prng_uniform(side, 0.0, 1.0);
+        const double expectedDir = (dirCoin < 0.5) ? -1.0 : 1.0;
+        const uint32_t expectedSeed = prng_next_u32(side);
+        const double expectedTimer = prng_uniform(side, SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX);
+
+        REQUIRE(e.x == Approx(expectedX));
+        REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
+        REQUIRE(e.seed == expectedSeed);
+        REQUIRE(e.stateTimer == Approx(expectedTimer));
+        ++seen;
+    }
+    REQUIRE(seen == expectedCount);
+}
+
+TEST_CASE("sim_set_critter(None) removes sheep, preserves scene entities",
+          "[critter][toggle]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Desert);
+    const int desertEntitiesBefore =
+        static_cast<int>(std::count_if(sim.entities.begin(), sim.entities.end(),
+            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
+
+    sim_set_critter(sim, CritterKind::Sheep);
+    REQUIRE(count_sheep(sim) >= SHEEP_COUNT_MIN);
+    // Scene tumbleweeds untouched by critter toggle.
+    const int tumbleAfterSheep = static_cast<int>(
+        std::count_if(sim.entities.begin(), sim.entities.end(),
+            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
+    REQUIRE(tumbleAfterSheep == desertEntitiesBefore);
+
+    sim_set_critter(sim, CritterKind::None);
+    REQUIRE(count_sheep(sim) == 0);
+    const int tumbleAfterNone = static_cast<int>(
+        std::count_if(sim.entities.begin(), sim.entities.end(),
+            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
+    REQUIRE(tumbleAfterNone == desertEntitiesBefore);
+}
+
+TEST_CASE("sim_set_scene preserves the active critter", "[critter][scene]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+    const int sheepCountGrass = count_sheep(sim);
+    REQUIRE(sheepCountGrass >= SHEEP_COUNT_MIN);
+
+    sim_set_scene(sim, Scene::Desert);
+    REQUIRE(count_sheep(sim) == sheepCountGrass);
+    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+
+    sim_set_scene(sim, Scene::Winter);
+    REQUIRE(count_sheep(sim) == sheepCountGrass);
+    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+}
+
+TEST_CASE("Click within SHEEP_STARTLE_RADIUS triggers hop away", "[critter][click]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+
+    Entity* target = nullptr;
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Sheep) { target = &e; break; }
+    }
+    REQUIRE(target != nullptr);
+
+    // Click 16 DIP to the left of the sheep — well within startle radius,
+    // inside the cut band (so the early y-gate doesn't reject).
+    const double clickX = target->x - 16.0;
+    const double clickY = sim.windowHeight - 20.0;
+    target->age = 5.0; // pre-set age to verify reset
+
+    InputEvent ev{};
+    ev.type = EventType::Click;
+    ev.x = clickX;
+    ev.y = clickY;
+    ev.time = 0.0;
+    sim_apply_click(sim, ev);
+
+    Entity* after = nullptr;
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Sheep) { after = &e; break; }
+    }
+    REQUIRE(after != nullptr);
+    REQUIRE(after->state == SHEEP_STATE_HOPPING);
+    REQUIRE(after->stateTimer == Approx(SHEEP_HOP_DURATION));
+    REQUIRE(after->age == Approx(0.0));
+    REQUIRE(after->vx > 0.0); // sheep was right of click → vx flipped to +
+    REQUIRE(std::fabs(after->vx) <= SHEEP_WALK_SPEED_MAX * SHEEP_STARTLE_BOOST);
+}
+
+TEST_CASE("Click outside SHEEP_STARTLE_RADIUS leaves sheep alone", "[critter][click]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+
+    Entity* target = nullptr;
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Sheep) { target = &e; break; }
+    }
+    REQUIRE(target != nullptr);
+    const uint8_t stateBefore = target->state;
+    const double  vxBefore    = target->vx;
+
+    // Click far away (300 DIP) but still in the cut band.
+    const double clickX = target->x + SHEEP_STARTLE_RADIUS + 200.0;
+    const double clickY = sim.windowHeight - 20.0;
+    InputEvent ev{};
+    ev.type = EventType::Click;
+    ev.x = clickX;
+    ev.y = clickY;
+    ev.time = 0.0;
+    sim_apply_click(sim, ev);
+
+    Entity* after = nullptr;
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Sheep) { after = &e; break; }
+    }
+    REQUIRE(after != nullptr);
+    REQUIRE(after->state == stateBefore);
+    REQUIRE(after->vx == Approx(vxBefore));
+}

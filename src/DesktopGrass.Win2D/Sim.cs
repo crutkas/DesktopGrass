@@ -120,10 +120,10 @@ internal struct Blade
     public double EffectiveLean;
 }
 
-// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14) and
-// snowflakes (Winter §15) live in Sim.Entities. The struct fields are
-// shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2 }
+// Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
+// snowflakes (Winter §15), and sheep (§16) live in Sim.Entities. The struct
+// fields are shared across kinds; per-kind tick logic branches on Kind.
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3 }
 
 public struct Entity
 {
@@ -138,6 +138,11 @@ public struct Entity
     public double Age;
     public double Lifetime;   // <= 0 means infinite (respawn-in-place)
     public uint   Seed;
+    // Critter state machine (§16). Only meaningful for EntityKind.Sheep
+    // and future critters; ignored by tumbleweeds/snowflakes. Default
+    // values are inert so existing scene-entity tests are unaffected.
+    public byte   State;       // sheep: 0=Walking,1=Grazing,2=Idle,3=Sleeping,4=Hopping
+    public double StateTimer;  // sec remaining in current state
 }
 
 internal enum EventType { Move, Click }
@@ -190,6 +195,13 @@ internal sealed class Sim
     public Prng SnowflakePrng;
     public double NextSnowflakeSpawnTime;
 
+    // Critter subsystem (§13.3 / §16). Independent of Scene. CurrentCritter
+    // drives which (if any) generator runs at the END of SetScene so critter
+    // entities survive scene changes. CritterPrng is reseeded on every
+    // generator call from EntitySeed XOR CRITTER_PRNG_SALT.
+    public CritterKind CurrentCritter = Constants.CRITTER_DEFAULT;
+    public Prng CritterPrng;
+
     public void SetScene(Scene s)
     {
         CurrentScene = s;
@@ -217,6 +229,66 @@ internal sealed class Sim
                 double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
                 NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
                 break;
+        }
+
+        // Critters survive scene changes — re-spawn the current selection on
+        // top of whatever biome we just configured. Always runs LAST so that
+        // entities[0..N-1] for tumbleweeds/snowflakes still match the pinned
+        // conformance snapshots from §12.
+        GenerateCrittersForKind(this);
+    }
+
+    public void SetCritter(CritterKind c)
+    {
+        CurrentCritter = c;
+        // Erase only critter entities — scene entities (tumbleweeds,
+        // snowflakes) are preserved across critter toggles.
+        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep);
+        GenerateCrittersForKind(this);
+    }
+
+    private static void GenerateCrittersForKind(Sim sim)
+    {
+        sim.CritterPrng = Prng.Init(sim.EntitySeed ^ Constants.CRITTER_PRNG_SALT);
+        switch (sim.CurrentCritter)
+        {
+            case CritterKind.None:                                break;
+            case CritterKind.Sheep: GenerateCrittersSheep(sim);   break;
+        }
+    }
+
+    private static void GenerateCrittersSheep(Sim sim)
+    {
+        double countDraw = sim.CritterPrng.Uniform(
+            Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX + 1);
+        int count = (int)Math.Floor(countDraw);
+        if (count < Constants.SHEEP_COUNT_MIN) count = Constants.SHEEP_COUNT_MIN;
+        if (count > Constants.SHEEP_COUNT_MAX) count = Constants.SHEEP_COUNT_MAX;
+
+        double groundY = sim.WindowHeight;
+        for (int i = 0; i < count
+             && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Sheep;
+            e.Size = Constants.SHEEP_BODY_RADIUS;
+            double margin = e.Size + 8.0;
+            e.X = sim.CritterPrng.Uniform(margin, sim.MonitorWidth - margin);
+            e.Y = groundY - Constants.SHEEP_BODY_HEIGHT - Constants.SHEEP_LEG_LENGTH;
+            double speed = sim.CritterPrng.Uniform(
+                Constants.SHEEP_WALK_SPEED_MIN, Constants.SHEEP_WALK_SPEED_MAX);
+            double dir = sim.CritterPrng.Uniform(0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+            e.Vx = dir * speed;
+            e.Vy = 0.0;
+            e.Rotation = 0.0;
+            e.RotationSpeed = 0.0;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = sim.CritterPrng.NextU32();
+            e.State = Constants.SHEEP_STATE_WALKING;
+            e.StateTimer = sim.CritterPrng.Uniform(
+                Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+            sim.Entities.Add(e);
         }
     }
 
@@ -420,6 +492,99 @@ internal sealed class Sim
 
         Entities.RemoveAll(e => e.Kind == EntityKind.Snowflake
                              && (e.Age >= e.Lifetime || e.Y > groundY));
+
+        // §16 Sheep state machine. Walking moves horizontally and bounces off
+        // the edges; Grazing/Idle/Sleeping freeze position (the generic pass
+        // above already added vx*dt, so we undo it). Hopping continues
+        // horizontal motion (the parabolic Y offset is renderer-side).
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Sheep) continue;
+
+            bool frozen = e.State == Constants.SHEEP_STATE_GRAZING
+                       || e.State == Constants.SHEEP_STATE_IDLE
+                       || e.State == Constants.SHEEP_STATE_SLEEPING;
+            if (frozen)
+            {
+                e.X -= e.Vx * dt;
+            }
+
+            // Edge bounce — runs in every state. Even a stationary sheep
+            // that spawned near the edge gets reflected on its first walk.
+            double margin = e.Size + 2.0;
+            if (e.X < margin)
+            {
+                e.X  = margin;
+                e.Vx = Math.Abs(e.Vx);
+            }
+            else if (e.X > MonitorWidth - margin)
+            {
+                e.X  = MonitorWidth - margin;
+                e.Vx = -Math.Abs(e.Vx);
+            }
+
+            e.StateTimer -= dt;
+            if (e.StateTimer <= 0.0)
+            {
+                byte oldState = e.State;
+                if (oldState == Constants.SHEEP_STATE_WALKING)
+                {
+                    double r = CritterPrng.Uniform(0.0, 1.0);
+                    if (r < Constants.SHEEP_GRAZE_PROBABILITY)
+                    {
+                        e.State = Constants.SHEEP_STATE_GRAZING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.SHEEP_GRAZE_DURATION_MIN,
+                            Constants.SHEEP_GRAZE_DURATION_MAX);
+                    }
+                    else if (r < Constants.SHEEP_GRAZE_PROBABILITY
+                               + Constants.SHEEP_IDLE_PROBABILITY)
+                    {
+                        e.State = Constants.SHEEP_STATE_IDLE;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.SHEEP_IDLE_DURATION_MIN,
+                            Constants.SHEEP_IDLE_DURATION_MAX);
+                    }
+                    else
+                    {
+                        e.State = Constants.SHEEP_STATE_HOPPING;
+                        e.StateTimer = Constants.SHEEP_HOP_DURATION;
+                    }
+                }
+                else if (oldState == Constants.SHEEP_STATE_IDLE)
+                {
+                    double r = CritterPrng.Uniform(0.0, 1.0);
+                    if (r < Constants.SHEEP_SLEEP_FROM_IDLE_PROB)
+                    {
+                        e.State = Constants.SHEEP_STATE_SLEEPING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.SHEEP_SLEEP_DURATION_MIN,
+                            Constants.SHEEP_SLEEP_DURATION_MAX);
+                    }
+                    else
+                    {
+                        e.State = Constants.SHEEP_STATE_WALKING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.SHEEP_WALK_DURATION_MIN,
+                            Constants.SHEEP_WALK_DURATION_MAX);
+                    }
+                }
+                else
+                {
+                    // Grazing / Sleeping / Hopping → Walking.
+                    e.State = Constants.SHEEP_STATE_WALKING;
+                    e.StateTimer = CritterPrng.Uniform(
+                        Constants.SHEEP_WALK_DURATION_MIN,
+                        Constants.SHEEP_WALK_DURATION_MAX);
+                }
+                // Reset animation phase on every transition so hop arcs,
+                // sleep Z's, and walk cycles all start at phase 0.
+                e.Age = 0.0;
+            }
+
+            Entities[i] = e;
+        }
 
         if (CurrentScene == Scene.Winter)
         {
@@ -661,6 +826,28 @@ internal sealed class Sim
             b.CutInitialHeight = b.CutHeight;
             // Cancel any pending or in-progress regrowth: we're going back down.
             b.RegrowStart = -1.0;
+        }
+
+        // §16 Sheep click-startle: clicks within SHEEP_STARTLE_RADIUS (in x)
+        // push any sheep into a Hopping state and flip vx away from the
+        // cursor at boosted speed (capped to prevent repeated-click compounding).
+        // 1D distance only — matches Native; the y-band gate above already
+        // restricts clicks to the strip, and the sheep stands above it.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Sheep) continue;
+            double dxClick = e.X - clickX;
+            if (Math.Abs(dxClick) >= Constants.SHEEP_STARTLE_RADIUS) continue;
+
+            double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
+            double speed = Math.Min(Math.Abs(e.Vx) * Constants.SHEEP_STARTLE_BOOST,
+                                    Constants.SHEEP_WALK_SPEED_MAX * Constants.SHEEP_STARTLE_BOOST);
+            e.Vx           = speed * awayDir;
+            e.State        = Constants.SHEEP_STATE_HOPPING;
+            e.StateTimer   = Constants.SHEEP_HOP_DURATION;
+            e.Age          = 0.0;
+            Entities[i] = e;
         }
     }
 

@@ -17,15 +17,17 @@ internal sealed class TrayIcon : IDisposable
 
     private readonly uint _mainThreadId;
     private readonly Scene _initialScene;
+    private readonly CritterKind _initialCritter;
     private Thread? _thread;
     private NotifyIcon? _icon;
     private Form? _hiddenForm;
     private readonly ManualResetEventSlim _started = new(false);
 
-    public TrayIcon(uint mainThreadId, Scene initialScene)
+    public TrayIcon(uint mainThreadId, Scene initialScene, CritterKind initialCritter)
     {
         _mainThreadId = mainThreadId;
         _initialScene = initialScene;
+        _initialCritter = initialCritter;
     }
 
     public void Start()
@@ -72,6 +74,26 @@ internal sealed class TrayIcon : IDisposable
 
         sceneMenu.DropDownItems.AddRange(sceneItems);
         menu.Items.Add(sceneMenu);
+
+        // Critter submenu (§13.3 / §16). Independent of Scene — pick a
+        // pet to wander on top of whatever biome is active.
+        var critterMenu = new ToolStripMenuItem("Critter");
+        var critterNoneItem  = new ToolStripMenuItem("None")  { Tag = CritterKind.None,  CheckOnClick = false };
+        var critterSheepItem = new ToolStripMenuItem("Sheep") { Tag = CritterKind.Sheep, CheckOnClick = false };
+        var critterItems = new[] { critterNoneItem, critterSheepItem };
+
+        void SelectCritter(CritterKind c)
+        {
+            foreach (var it in critterItems)
+                it.Checked = ((CritterKind)it.Tag!) == c;
+            Win32App.RequestCritterChange(c);
+        }
+        critterNoneItem.Click  += (_, _) => SelectCritter(CritterKind.None);
+        critterSheepItem.Click += (_, _) => SelectCritter(CritterKind.Sheep);
+        SelectCritter(_initialCritter);
+
+        critterMenu.DropDownItems.AddRange(critterItems);
+        menu.Items.Add(critterMenu);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(quitItem);
 

@@ -1339,3 +1339,174 @@ Tests at minimum SHOULD assert:
 6. **Idempotence.** Clicking twice on the same blade within the 200 ms cut window does not change the trajectory of the first cut. Clicking on an already-cut blade is a no-op.
 
 When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to both impls.
+
+---
+
+## 13.3 Critter subsystem (orthogonal to Scene)
+
+Critters are user-pickable pets that wander on top of the bottom strip *independent of which biome is active*. The user toggles a critter from a dedicated tray submenu and it persists across scene changes — selecting **Winter** does not clear the sheep, and selecting **Sheep** does not clear the snowflakes.
+
+### Enum and salt
+
+```
+enum CritterKind { None = 0, Sheep = 1 }
+constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
+constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
+```
+
+Discriminants are cross-impl-locked. `CritterKind::Sheep` and any future critter map onto a corresponding `EntityKind` value that is appended after the existing `{None, Tumbleweed, Snowflake}` set (Sheep = 3). The `EntityKind` discriminants for existing kinds MUST NOT be renumbered.
+
+### Sim state
+
+```
+Sim:
+  CritterKind currentCritter = CRITTER_DEFAULT
+  Prng        critterPrng                   // reseeded per generator call
+```
+
+### Generator dispatcher
+
+`generate_critters_for_kind(sim)` is called by `sim_set_scene` as its **last** step (after biome generators) and by `sim_set_critter(sim, c)` after removing only critter entities from `sim.entities`. The dispatcher reseeds `critterPrng = Prng(entitySeed XOR CRITTER_PRNG_SALT)` and then dispatches:
+
+```
+None  → no-op
+Sheep → generate_critters_sheep(sim)        // §16
+```
+
+### Ordering invariant
+
+Inside `sim_set_scene`:
+
+1. `entities.clear()`
+2. Restore default blade variants.
+3. Run the scene generator (tumbleweeds, snowflakes, etc.).
+4. **Run `generate_critters_for_kind(sim)` LAST.**
+
+Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter is active.
+
+### `sim_set_critter` semantics
+
+```
+sim_set_critter(sim, c):
+    sim.currentCritter = c
+    remove every entity e with e.kind matching the previously-selected critter
+    generate_critters_for_kind(sim)
+```
+
+Scene entities (tumbleweeds, snowflakes) are NEVER removed by `sim_set_critter`. Critter entities are NEVER removed by `sim_set_scene` (the dispatcher just regenerates them).
+
+### Tray menu
+
+A `Critter` submenu (radio-style) under the tray icon offers **None** and **Sheep**. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` on each window's Sim.
+
+### Cross-impl conformance
+
+Given identical `(seed, monitorWidth, CritterKind)`, both impls MUST produce the same number of critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the species-specific draw order (§16 for sheep).
+
+---
+
+## 16. Sheep
+
+Procedural Suffolk-style vector sheep. White wool body silhouette with a near-black face and legs (the silhouette people instantly read as "sheep" at desktop pixel scale). No PNG assets — everything is `FillEllipse` + `DrawLine` so it scales cleanly with DPI.
+
+### Geometry
+
+```
+body : ellipse (radius SHEEP_BODY_RADIUS × SHEEP_BODY_HEIGHT)
+puffs: 3 evenly-spaced top puffs at puffY = cy - bh*0.55
+tail : small ellipse at the rear edge
+head : ellipse pushed OUTSIDE the body silhouette (1.08 × body_radius forward)
+ears : two small ellipses on top of the head
+eye  : single small filled circle (closed slit when sleeping)
+legs : 4 vertical line segments
+```
+
+Spawn position: `y = groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH` so the legs touch the ground line.
+
+### Generation (PRNG draw order — LOCKED)
+
+```
+generate_critters_sheep(sim):
+    count = floor(critterPrng.uniform(SHEEP_COUNT_MIN, SHEEP_COUNT_MAX + 1))
+    clamp count to [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]
+    for i in 0..count-1 (subject to MAX_ENTITIES_PER_MONITOR):
+        x          = critterPrng.uniform(margin, monitorWidth - margin)   // margin = body_radius + 8
+        speed      = critterPrng.uniform(SHEEP_WALK_SPEED_MIN, SHEEP_WALK_SPEED_MAX)
+        dirCoin    = critterPrng.uniform(0, 1)                            // <0.5 → -1, else +1
+        seed       = critterPrng.next_u32()
+        stateTimer = critterPrng.uniform(SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX)
+        state      = SHEEP_STATE_WALKING
+```
+
+Both impls MUST follow this exact sequence per sheep for bit-identical critter PRNG state across implementations.
+
+### State machine (5 states)
+
+```
+SHEEP_STATE_WALKING  = 0   // moves horizontally + animated leg cycle / head bob / tail wiggle
+SHEEP_STATE_GRAZING  = 1   // frozen, head pivoted down to grass + munch wiggle
+SHEEP_STATE_IDLE     = 2   // frozen, head sweeps L/R
+SHEEP_STATE_SLEEPING = 3   // body tucked on ground, legs hidden, eyes = horizontal slits, Z's drift up
+SHEEP_STATE_HOPPING  = 4   // continues horizontal motion, renderer applies parabolic Y offset
+```
+
+**Freeze-undo rule.** The generic entity forward pass adds `vx * dt` to `e.x` for all entities. The sheep tick undoes that addition for `{Grazing, Idle, Sleeping}` (sheep stays planted). Hopping does NOT undo — sheep covers ground during the hop, which is what gives it the "moving but jumping" feel.
+
+**Edge bounce.** Runs in every state (even frozen) — clamp `e.x` into `[margin, monitorWidth - margin]` where `margin = e.size + 2.0` and force `vx = abs(vx)` (left edge) / `-abs(vx)` (right edge). This ensures a sheep that spawns near the edge reflects on its first walk tick.
+
+**Transition graph (deterministic from `critterPrng`):**
+
+```
+Walking expires → r = critterPrng.uniform(0,1):
+  r < 0.60                              → Grazing  (duration uniform[3, 5]s)
+  0.60 ≤ r < 0.85                       → Idle     (duration uniform[1.5, 3]s)
+  r ≥ 0.85                              → Hopping  (duration 0.55s, no extra draw)
+
+Idle expires → r = critterPrng.uniform(0,1):
+  r < 0.30                              → Sleeping (duration uniform[8, 16]s)
+  r ≥ 0.30                              → Walking  (duration uniform[8, 14]s)
+
+Grazing / Sleeping / Hopping expire    → Walking  (duration uniform[8, 14]s)
+```
+
+`e.age` is reset to `0.0` on **every** state transition so animations (hop arc, sleep Z's, walk cycle) start at phase 0 every time.
+
+### Click startle
+
+```
+sim_apply_click after the blade-cut loop:
+  for each entity e with e.kind == Sheep:
+    if |e.x - clickX| >= SHEEP_STARTLE_RADIUS: skip
+    awayDir = sign(e.x - clickX)
+    e.vx    = min(|e.vx| * SHEEP_STARTLE_BOOST, SHEEP_WALK_SPEED_MAX * SHEEP_STARTLE_BOOST) * awayDir
+    e.state = SHEEP_STATE_HOPPING
+    e.stateTimer = SHEEP_HOP_DURATION
+    e.age   = 0.0
+```
+
+1D distance only (the y-band gate at the top of `sim_apply_click` already restricts clicks to the strip, and the sheep stands above it). The speed cap prevents repeated-click compounding (5 clicks does not yield 10× speed).
+
+### Render rules per state
+
+```
+hopOffsetY  = isHopping  ? -4*SHEEP_HOP_HEIGHT*t*(1-t)   : 0   where t = age/HOP_DURATION ∈ [0,1]
+sleepOffsetY = isSleeping ? SHEEP_LEG_LENGTH             : 0
+cy = e.y + hopOffsetY + sleepOffsetY
+
+WALKING  : leg cycle (sin(walkPhase) * LEG_CYCLE_AMP, 4 legs in two antiphase pairs)
+           head bob (sin(walkPhase*2) * HEAD_BOB_AMP), tail wiggle (sin(walkPhase*2) * TAIL_WIGGLE_AMP)
+GRAZING  : head dropped to bh*0.85 (touches grass), munch (sin(age*MUNCH_FREQ) * MUNCH_AMP) on head y
+IDLE     : head sweeps L/R via sin(age*IDLE_SWEEP_FREQ); facing follows sign of sweep
+SLEEPING : body sits on ground (sleepOffsetY); legs not drawn; eye → single horizontal slit
+           drawn as DrawLine in sheepInkBrush; two Z glyphs drift up, grow + fade
+HOPPING  : legs static (suspended look), parabolic Y offset, horizontal motion continues
+```
+
+Sleeping Z glyphs are drawn as 3 line segments (top horizontal, diagonal, bottom horizontal) in the body brush with `Opacity = 1 - t`. After drawing the Z's, the body brush opacity MUST be reset to `1.0` or all subsequent draws will be translucent.
+
+### Defaults & conformance
+
+All `SHEEP_*` and `CRITTER_*` constants are defined in Native `Constants.h` and Win2D `Constants.cs` with identical numeric values. The Critter tray menu is built parallel to the Scene tray menu.
+
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `critter_tests`.
+

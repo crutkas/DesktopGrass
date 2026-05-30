@@ -8,6 +8,10 @@ namespace DesktopGrass.Win2D;
 
 public enum Scene { Grass = 0, Desert = 1, Winter = 2 }
 
+// Critter (§13.3). Independent of Scene — the user can pick a critter for
+// any biome via the tray submenu. Cross-impl-locked discriminants.
+public enum CritterKind : byte { None = 0, Sheep = 1 }
+
 internal static class Constants
 {
     // Layout (§2, §8, §9)
@@ -199,6 +203,71 @@ internal static class Constants
     // Roaming-entity subsystem (§13.2). Caps Sim.Entities so the snowflake
     // emitter can't grow without bound; matches Native MAX_ENTITIES_PER_MONITOR.
     public const int MAX_ENTITIES_PER_MONITOR = 64;
+
+    // Critter subsystem (§13.3). Independent of Scene. User picks a critter
+    // via the tray submenu and it's drawn on top of whatever biome is active.
+    // CritterKind discriminants are cross-impl-locked with Native.
+    public const int        CRITTER_COUNT      = 2;
+    public const CritterKind CRITTER_DEFAULT   = CritterKind.None;
+    public const ulong      CRITTER_PRNG_SALT  = 0x5C8EE05C8EE05C8Eul;
+
+    // Sheep (§16). Procedurally drawn pet that walks, grazes, idles, sleeps,
+    // and hops along the bottom strip. Counts/speeds/sizes are sampled per
+    // monitor from the critter PRNG so different displays get different flocks.
+    public const int    SHEEP_COUNT_MIN      = 2;
+    public const int    SHEEP_COUNT_MAX      = 3;
+    public const double SHEEP_WALK_SPEED_MIN = 14.0;
+    public const double SHEEP_WALK_SPEED_MAX = 26.0;
+
+    public const double SHEEP_BODY_RADIUS    = 12.0;
+    public const double SHEEP_BODY_HEIGHT    = 9.5;
+    public const double SHEEP_HEAD_RADIUS    = 5.0;
+    public const double SHEEP_LEG_LENGTH     = 5.5;
+    public const double SHEEP_TAIL_RADIUS    = 3.2;
+
+    public const uint   SHEEP_BODY_COLOR     = 0xFFF7F4EBu;
+    public const uint   SHEEP_LEG_COLOR      = 0xFF1F1A16u;
+    public const uint   SHEEP_FACE_COLOR     = 0xFF1F1A16u;
+    public const uint   SHEEP_EAR_COLOR      = 0xFF14110Eu;
+    public const uint   SHEEP_INK_COLOR      = 0xFFF7F4EBu;
+
+    public const double SHEEP_WALK_PERIOD     = 0.55;
+    public const double SHEEP_LEG_CYCLE_AMP   = 2.0;
+    public const double SHEEP_HEAD_BOB_AMP    = 0.7;
+    public const double SHEEP_TAIL_WIGGLE_AMP = 0.6;
+
+    public const byte   SHEEP_STATE_WALKING  = 0;
+    public const byte   SHEEP_STATE_GRAZING  = 1;
+    public const byte   SHEEP_STATE_IDLE     = 2;
+    public const byte   SHEEP_STATE_SLEEPING = 3;
+    public const byte   SHEEP_STATE_HOPPING  = 4;
+
+    public const double SHEEP_WALK_DURATION_MIN   = 8.0;
+    public const double SHEEP_WALK_DURATION_MAX   = 14.0;
+    public const double SHEEP_GRAZE_DURATION_MIN  = 3.0;
+    public const double SHEEP_GRAZE_DURATION_MAX  = 5.0;
+    public const double SHEEP_IDLE_DURATION_MIN   = 1.5;
+    public const double SHEEP_IDLE_DURATION_MAX   = 3.0;
+    public const double SHEEP_SLEEP_DURATION_MIN  = 8.0;
+    public const double SHEEP_SLEEP_DURATION_MAX  = 16.0;
+    public const double SHEEP_HOP_DURATION        = 0.55;
+
+    public const double SHEEP_GRAZE_PROBABILITY    = 0.60;
+    public const double SHEEP_IDLE_PROBABILITY     = 0.25;
+    public const double SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
+
+    public const double SHEEP_IDLE_SWEEP_FREQ  = 1.4;
+    public const double SHEEP_GRAZE_MUNCH_FREQ = 8.0;
+    public const double SHEEP_GRAZE_MUNCH_AMP  = 0.6;
+
+    public const double SHEEP_HOP_HEIGHT     = 11.0;
+    public const double SHEEP_STARTLE_RADIUS = 64.0;
+    public const double SHEEP_STARTLE_BOOST  = 1.6;
+
+    public const double SHEEP_ZZZ_CYCLE_SEC  = 1.8;
+    public const double SHEEP_ZZZ_RISE       = 11.0;
+    public const double SHEEP_ZZZ_SIZE_START = 2.0;
+    public const double SHEEP_ZZZ_SIZE_END   = 4.0;
 
     // Snowflakes (§15)
     public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;
