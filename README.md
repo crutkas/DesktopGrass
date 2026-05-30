@@ -24,6 +24,11 @@ The same feature set is implemented two ways, both sharing the same `Sim.cs` / `
 
 See [`docs/architecture.md`](docs/architecture.md) for the shared algorithm spec each impl implements.
 
+> Working on this with Copilot CLI on a different machine? See
+> [`docs/agent-context/README.md`](docs/agent-context/README.md) — that folder
+> is a portable snapshot of the agent's plan + per-milestone checkpoints,
+> so a fresh session anywhere can pick up with full context.
+
 ## Run it
 
 Pick an implementation and launch its release exe:
