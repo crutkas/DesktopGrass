@@ -2001,6 +2001,76 @@ Draw after grass as part of `DrawEntities`: glow halo first using `GLOW_RADIUS *
 
 ---
 
+## 17.8 Bird flybys
+
+Rare daytime-only Grass-scene bird flybys. A flyby is a transient flock of tiny dark silhouettes that crosses the strip far above the grass and pets. Birds are pure ambient: click-through, not cuttable, no pet proximity logic, no collision, no tray toggle, and no persistence.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `BIRD_FLYBY_SPAWN_RATE_PER_HOUR` | `15.0` | Poisson mean events/hour during day window (~4 min mean interval) |
+| `BIRD_FLYBY_HOUR_START/END` | `7 / 19` | spawn window `[7,19)` local hour |
+| `BIRD_FLOCK_SIZE_MIN/MAX` | `3 / 7` | birds per flyby |
+| `BIRD_FLOCK_FORMATION_SPACING` | `9.0` | DIP between consecutive birds along the flight axis |
+| `BIRD_FLOCK_V_ANGLE_DEG` | `22.0` | arm angle used for perpendicular offsets |
+| `BIRD_SPEED_MIN/MAX` | `65.0 / 95.0` | DIP/sec |
+| `BIRD_ALTITUDE_MIN/MAX` | `78.0 / 96.0` | leader DIP above tallest grass top |
+| `BIRD_BODY_LENGTH` | `3.6` | small silhouette body length |
+| `BIRD_WING_SPAN` | `5.0` | tip-to-tip span at full extension |
+| `BIRD_WING_FLAP_FREQ` | `7.0` | rad/sec |
+| `BIRD_WING_FLAP_PHASE_JITTER` | `0.6` | per-bird random phase in `[-jitter,+jitter]` |
+| `BIRD_BODY_COLOR` | `0xFF1A1610` | dark grey-black silhouette |
+| `BIRD_WING_OPEN_RATIO/FOLD_RATIO` | `1.0 / 0.30` | wing span scale bounds |
+| `BIRD_FADE_IN_FRAC/OUT_FRAC` | `0.08 / 0.08` | horizontal edge fade fractions |
+| `BIRD_DRIFT_AMP_Y/FREQ_Y` | `3.0 / 0.8` | gentle vertical bob |
+| `BIRD_FLYBY_PRNG_SALT` | `0xB12D1F1A1B12D1A` | independent bird-flyby stream |
+
+### Poisson spawn model
+
+Each `Sim` owns `birdFlybyPrng` and `nextBirdFlybyAtTime` (seconds in sim time). Initialization seeds the stream with `entitySeed XOR BIRD_FLYBY_PRNG_SALT` and sets `nextBirdFlybyAtTime = globalTime + exponential(rate = BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600)`. Each Grass-scene daytime tick (`[BIRD_FLYBY_HOUR_START, BIRD_FLYBY_HOUR_END)`) checks `globalTime >= nextBirdFlybyAtTime`; when true it spawns exactly one flock, then schedules the next interval from the same stream. Non-Grass scenes and non-day hours do not spawn; in-flight birds continue until off-screen despawn.
+
+### Flock PRNG draw order — LOCKED
+
+Per flyby event:
+
+```
+flockSize       = uniform integer [BIRD_FLOCK_SIZE_MIN, BIRD_FLOCK_SIZE_MAX]
+direction       = next_u64() & 1      // 0 left, 1 right
+leaderAltitude  = uniform(ALTITUDE_MIN, ALTITUDE_MAX)
+leaderSpeed     = uniform(SPEED_MIN, SPEED_MAX)
+formationStyle  = next_u64() & 1      // 0 V, 1 diagonal-line
+for each bird in flock order:
+  wingPhaseOffset   = uniform(-PHASE_JITTER, +PHASE_JITTER)
+  verticalDriftPhase = uniform(0, 2π)
+```
+
+The scheduler's exponential draws occur outside this per-flock block: once at initialization, and once after each flock has consumed all of the event/per-bird draws above.
+
+### Formation geometry
+
+The leader starts at off-screen `x = -50` for rightward flight or `monitorWidth + 50` for leftward flight. For bird index `i`, `offsetAlongFlight = -i * BIRD_FLOCK_FORMATION_SPACING`; screen X is `leaderX + direction * offsetAlongFlight`. In V formation, followers alternate sides of the leader's flight line with `offsetPerpendicular = side * ((i + 1) / 2) * spacing * sin(BIRD_FLOCK_V_ANGLE_DEG)`, where side alternates left/right. In diagonal-line formation, all followers use one side with `offsetPerpendicular = i * spacing * sin(angle)`. The leader has offset `(0,0)`.
+
+### Per-bird motion and wing flap
+
+Each bird stores its spawn X (`x0`), altitude anchor, `vx = direction * leaderSpeed`, wing phase offset, vertical drift phase, spawn time, and formation offsets. Every tick:
+
+```
+x += vx * dt
+y = grassTopY - altitudeAnchor
+    + BIRD_DRIFT_AMP_Y * sin(age * BIRD_DRIFT_FREQ_Y + verticalDriftPhase)
+wingScale = lerp(BIRD_WING_FOLD_RATIO, BIRD_WING_OPEN_RATIO,
+                 0.5 + 0.5 * cos(age * BIRD_WING_FLAP_FREQ + wingPhaseOffset))
+```
+
+Birds despawn individually after crossing the opposite off-screen boundary (`x > monitorWidth + 50` for rightward flight, `x < -50` for leftward flight).
+
+### Render order and interaction
+
+Birds render in the sky layer after critters, weather, butterflies, and fireflies, and before the day-night tint. The renderer draws a tiny filled body ellipse plus two wing strokes/triangles scaled by `wingScale`, with alpha fading over the first/last `8%` of the visible cross distance. Birds are not included in cut detection or any critter interaction path.
+
+---
+
 ## 18. Persistence
 
 DesktopGrass persists calm, invisible app state automatically. There is no user-facing save UI.

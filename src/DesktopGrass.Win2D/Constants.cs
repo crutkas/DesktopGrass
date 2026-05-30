@@ -492,6 +492,31 @@ internal static class Constants
     public const int    FIREFLY_FADE_DURATION_HOUR   = 1;
     public const ulong  FIREFLY_PRNG_SALT            = 0xF13EF1E7777ul;
 
+    // Bird flybys (§17.8). Grass-only daytime transient flocks.
+    public const double BIRD_FLYBY_SPAWN_RATE_PER_HOUR = 15.0;
+    public const int    BIRD_FLYBY_HOUR_START           = 7;
+    public const int    BIRD_FLYBY_HOUR_END             = 19;
+    public const int    BIRD_FLOCK_SIZE_MIN             = 3;
+    public const int    BIRD_FLOCK_SIZE_MAX             = 7;
+    public const double BIRD_FLOCK_FORMATION_SPACING    = 9.0;
+    public const double BIRD_FLOCK_V_ANGLE_DEG          = 22.0;
+    public const double BIRD_SPEED_MIN                  = 65.0;
+    public const double BIRD_SPEED_MAX                  = 95.0;
+    public const double BIRD_ALTITUDE_MIN               = 78.0;
+    public const double BIRD_ALTITUDE_MAX               = 96.0;
+    public const double BIRD_BODY_LENGTH                = 3.6;
+    public const double BIRD_WING_SPAN                  = 5.0;
+    public const double BIRD_WING_FLAP_FREQ             = 7.0;
+    public const double BIRD_WING_FLAP_PHASE_JITTER     = 0.6;
+    public const uint   BIRD_BODY_COLOR                 = 0xFF1A1610u;
+    public const double BIRD_WING_OPEN_RATIO            = 1.0;
+    public const double BIRD_WING_FOLD_RATIO            = 0.30;
+    public const double BIRD_FADE_IN_FRAC               = 0.08;
+    public const double BIRD_FADE_OUT_FRAC              = 0.08;
+    public const double BIRD_DRIFT_AMP_Y                = 3.0;
+    public const double BIRD_DRIFT_FREQ_Y               = 0.8;
+    public const ulong  BIRD_FLYBY_PRNG_SALT            = 0xB12D1F1A1B12D1Aul;
+
     // Snowflakes (§15)
     public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;
     public const double SNOWFLAKE_FALL_SPEED_MIN = 20.0;
@@ -667,6 +692,32 @@ internal static class Constants
         if (raw < BUTTERFLY_FLUTTER_MIN_SCALE) return BUTTERFLY_FLUTTER_MIN_SCALE;
         if (raw > 1.0) return 1.0;
         return raw;
+    }
+
+    public static double BirdWingScale(double timeSeconds, double wingPhaseOffset)
+    {
+        double t = 0.5 + 0.5 * Math.Cos(timeSeconds * BIRD_WING_FLAP_FREQ + wingPhaseOffset);
+        return BIRD_WING_FOLD_RATIO + (BIRD_WING_OPEN_RATIO - BIRD_WING_FOLD_RATIO) * t;
+    }
+
+    public static double BirdFadeAlpha(double x, double vx, double monitorWidth)
+    {
+        if (monitorWidth <= 0.0) return 0.0;
+        double visibleSpan = monitorWidth;
+        double fadeInDist = BIRD_FADE_IN_FRAC * visibleSpan;
+        double fadeOutDist = BIRD_FADE_OUT_FRAC * visibleSpan;
+        double alpha = 1.0;
+        if (vx >= 0.0)
+        {
+            if (fadeInDist > 0.0 && x < fadeInDist) alpha = Math.Min(alpha, AmbientClamp01((x + 50.0) / fadeInDist));
+            if (fadeOutDist > 0.0 && x > monitorWidth - fadeOutDist) alpha = Math.Min(alpha, AmbientClamp01((monitorWidth + 50.0 - x) / fadeOutDist));
+        }
+        else
+        {
+            if (fadeInDist > 0.0 && x > monitorWidth - fadeInDist) alpha = Math.Min(alpha, AmbientClamp01((monitorWidth + 50.0 - x) / fadeInDist));
+            if (fadeOutDist > 0.0 && x < fadeOutDist) alpha = Math.Min(alpha, AmbientClamp01((x + 50.0) / fadeOutDist));
+        }
+        return AmbientClamp01(alpha);
     }
 
     public static double FireflyBlinkBrightness(double timeSeconds, double blinkPeriod, double blinkPhase)

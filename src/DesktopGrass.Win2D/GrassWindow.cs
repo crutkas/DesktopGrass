@@ -94,6 +94,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush[]? _butterflyAccentBrushes;
     private ID2D1SolidColorBrush? _fireflyBodyBrush;
     private ID2D1SolidColorBrush? _fireflyGlowBrush;
+    private ID2D1SolidColorBrush? _birdBrush;
     private ID2D1SolidColorBrush? _petNameBrush;
     private ID2D1SolidColorBrush? _petNameShadowBrush;
     private ID2D1SolidColorBrush? _dayTintBrush;
@@ -268,6 +269,7 @@ internal sealed class GrassWindow : IDisposable
         }
         _fireflyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FIREFLY_BODY_COLOR));
         _fireflyGlowBrush = _dc.CreateSolidColorBrush(RgbToColor4(Constants.FIREFLY_GLOW_COLOR_RGB));
+        _birdBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRD_BODY_COLOR));
 
         _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
         _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
@@ -456,6 +458,14 @@ internal sealed class GrassWindow : IDisposable
             var flake = new Ellipse(new Vector2((float)e.X, (float)e.Y), r, r);
             _dc!.FillEllipse(flake, _snowflakeBrush!);
         }
+
+        foreach (Entity e in Sim.Entities)
+        {
+            if (e.Kind == EntityKind.Bird)
+            {
+                DrawBird(in e);
+            }
+        }
     }
 
     private void DrawButterfly(in Entity e, double hourFloat)
@@ -515,6 +525,28 @@ internal sealed class GrassWindow : IDisposable
         _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), (float)Constants.FIREFLY_BODY_RADIUS, (float)Constants.FIREFLY_BODY_RADIUS), _fireflyBodyBrush);
         _fireflyGlowBrush.Opacity = 1.0f;
         _fireflyBodyBrush.Opacity = 1.0f;
+    }
+
+    private void DrawBird(in Entity e)
+    {
+        if (_birdBrush is null) return;
+
+        double alpha = Constants.BirdFadeAlpha(e.X, e.Vx, Sim.MonitorWidth);
+        if (alpha <= 0.0) return;
+
+        float cx = (float)e.X;
+        float cy = (float)e.Y;
+        float wingScale = (float)Constants.BirdWingScale(e.Age, e.PhaseX);
+        float halfSpan = (float)(Constants.BIRD_WING_SPAN * 0.5) * wingScale;
+        float wingRise = Math.Max(0.8f, halfSpan * 0.55f);
+        float bodyRx = (float)(Constants.BIRD_BODY_LENGTH * 0.5);
+        const float bodyRy = 0.75f;
+
+        _birdBrush.Opacity = (float)alpha;
+        _dc!.DrawLine(new Vector2(cx, cy), new Vector2(cx - halfSpan, cy - wingRise), _birdBrush, 1.0f);
+        _dc.DrawLine(new Vector2(cx, cy), new Vector2(cx + halfSpan, cy - wingRise), _birdBrush, 1.0f);
+        _dc.FillEllipse(new Ellipse(new Vector2(cx, cy), bodyRx, bodyRy), _birdBrush);
+        _birdBrush.Opacity = 1.0f;
     }
 
     private void DrawSheep(in Entity e, Vector2? cursorPosition)
@@ -1436,6 +1468,7 @@ internal sealed class GrassWindow : IDisposable
         }
         try { _fireflyBodyBrush?.Dispose(); } catch { }
         try { _fireflyGlowBrush?.Dispose(); } catch { }
+        try { _birdBrush?.Dispose(); } catch { }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
         try { _dayTintBrush?.Dispose(); } catch { }

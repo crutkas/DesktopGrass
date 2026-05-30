@@ -148,7 +148,7 @@ struct InputEvent {
 // ---------------------------------------------------------------------------
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
 // snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§17.5),
-// butterflies (§17.6), fireflies (§17.7), and raindrops (§20) live in sim.entities.
+// butterflies (§17.6), fireflies (§17.7), birds (§17.8), and raindrops (§20) live in sim.entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on `kind`.
 // ---------------------------------------------------------------------------
 
@@ -172,14 +172,20 @@ struct Entity {
     uint8_t    nameIndex     = 0;     // critters: index into species name pool
     uint8_t    coatVariantIndex = 0;  // cat: index into CAT_COAT_PALETTES
 
-    // Ambient flyers (§17.6-§17.7). These fields are ignored by grounded pets.
+    // Ambient flyers (§17.6-§17.8). These fields are ignored by grounded pets.
     double     baseSpeed      = 0.0;
     double     altitudeAnchor = 0.0;
-    double     phaseY         = 0.0;
-    double     phaseX         = 0.0;
+    double     phaseY         = 0.0;  // butterflies/fireflies: Y phase; birds: vertical drift phase
+    double     phaseX         = 0.0;  // butterflies/fireflies: X phase; birds: wing phase offset
     double     blinkPeriod    = 0.0;
     double     blinkPhase     = 0.0;
     uint8_t    colorVariant   = 0;
+
+    // Bird flyby (§17.8) transient metadata.
+    double     x0             = 0.0;
+    double     spawnTime      = 0.0;
+    double     formationOffsetAlongFlight = 0.0;
+    double     formationOffsetPerpendicular = 0.0;
 };
 
 // ---------------------------------------------------------------------------
@@ -222,6 +228,11 @@ struct Sim {
     // existing raindrops for a soft fade-out while the spawner is scene-gated.
     Prng               raindropPrng        = { 0 };
     double             nextRaindropSpawnTime = 0.0;
+
+    // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
+    // persistent stream and one next-event time across scene switches.
+    Prng               birdFlybyPrng       = { 0 };
+    double             nextBirdFlybyAtTime = 0.0;
 
     // Critter subsystem (§13.3, §16-§18). Grass-scene critters share one PRNG
     // stream seeded from entitySeed XOR CRITTER_PRNG_SALT at generation time.
@@ -288,6 +299,10 @@ double cat_sleep_prob_for_local_hour(int hour) noexcept;
 double bunny_sleep_prob_for_local_hour(int hour) noexcept;
 double bunny_hop_y_offset(double age, bool startled) noexcept;
 uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept;
+bool bird_flyby_is_day_hour(int hour) noexcept;
+double bird_flyby_sample_interval(Prng& p) noexcept;
+void sim_spawn_bird_flyby(Sim& sim) noexcept;
+void sim_tick_bird_flybys(Sim& sim, int hour) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

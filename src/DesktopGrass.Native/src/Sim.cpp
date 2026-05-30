@@ -716,6 +716,11 @@ void update_firefly_position(Entity& e, const Sim& sim) noexcept {
         + FIREFLY_DRIFT_AMP_Y * std::sin(e.age * FIREFLY_DRIFT_FREQ_Y + e.phaseY);
 }
 
+void update_bird_position(Entity& e, const Sim& sim) noexcept {
+    e.y = flyer_grass_top_y(sim) - e.altitudeAnchor
+        + BIRD_DRIFT_AMP_Y * std::sin(e.age * BIRD_DRIFT_FREQ_Y + e.phaseY);
+}
+
 void remove_critters(Sim& sim) noexcept {
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
@@ -1027,6 +1032,80 @@ void sim_set_critter_count(Sim& sim, int n) noexcept {
     generate_critters_for_kind(sim);
 }
 
+bool bird_flyby_is_day_hour(int hour) noexcept {
+    if (hour < 0 || hour > 23) return false;
+    return hour_in_half_open_range(hour, BIRD_FLYBY_HOUR_START, BIRD_FLYBY_HOUR_END);
+}
+
+double bird_flyby_sample_interval(Prng& p) noexcept {
+    return prng_exponential(p, BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
+}
+
+void sim_spawn_bird_flyby(Sim& sim) noexcept {
+    if (sim.monitorWidth <= 0.0) return;
+
+    const int flockSize = resolve_count_from_prng(sim.birdFlybyPrng, BIRD_FLOCK_SIZE_MIN, BIRD_FLOCK_SIZE_MAX);
+    const uint64_t directionBit = prng_next_u64(sim.birdFlybyPrng) & 1ull;
+    const double direction = directionBit != 0ull ? 1.0 : -1.0;
+    const double leaderAltitude = prng_uniform(sim.birdFlybyPrng, BIRD_ALTITUDE_MIN, BIRD_ALTITUDE_MAX);
+    const double leaderSpeed = prng_uniform(sim.birdFlybyPrng, BIRD_SPEED_MIN, BIRD_SPEED_MAX);
+    const uint64_t formationStyle = prng_next_u64(sim.birdFlybyPrng) & 1ull;
+
+    struct BirdDraw { double wingPhaseOffset; double verticalDriftPhase; };
+    BirdDraw draws[BIRD_FLOCK_SIZE_MAX]{};
+    for (int i = 0; i < flockSize; ++i) {
+        draws[i].wingPhaseOffset = prng_uniform(sim.birdFlybyPrng,
+            -BIRD_WING_FLAP_PHASE_JITTER, BIRD_WING_FLAP_PHASE_JITTER);
+        draws[i].verticalDriftPhase = prng_uniform(sim.birdFlybyPrng, 0.0, TWO_PI);
+    }
+
+    if (static_cast<int>(sim.entities.size()) + flockSize > MAX_ENTITIES_PER_MONITOR) return;
+
+    const double spawnX = direction > 0.0 ? -50.0 : sim.monitorWidth + 50.0;
+    const double sinAngle = std::sin(BIRD_FLOCK_V_ANGLE_DEG * 3.14159265358979323846 / 180.0);
+    for (int i = 0; i < flockSize; ++i) {
+        const double along = -static_cast<double>(i) * BIRD_FLOCK_FORMATION_SPACING;
+        double perpendicular = 0.0;
+        if (formationStyle == 0ull) {
+            const int armIndex = (i + 1) / 2;
+            const double side = (i % 2) == 0 ? 1.0 : -1.0;
+            perpendicular = side * static_cast<double>(armIndex) * BIRD_FLOCK_FORMATION_SPACING * sinAngle;
+        } else {
+            perpendicular = static_cast<double>(i) * BIRD_FLOCK_FORMATION_SPACING * sinAngle;
+        }
+
+        Entity e{};
+        e.kind = EntityKind::Bird;
+        e.size = BIRD_WING_SPAN * 0.5;
+        e.x = spawnX + direction * along;
+        e.x0 = e.x;
+        e.vx = direction * leaderSpeed;
+        e.vy = 0.0;
+        e.baseSpeed = leaderSpeed;
+        e.altitudeAnchor = leaderAltitude - perpendicular;
+        e.phaseX = draws[i].wingPhaseOffset;
+        e.phaseY = draws[i].verticalDriftPhase;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.spawnTime = sim.globalTime;
+        e.formationOffsetAlongFlight = along;
+        e.formationOffsetPerpendicular = perpendicular;
+        e.colorVariant = static_cast<uint8_t>(formationStyle);
+        e.seed = static_cast<uint32_t>(i + 1);
+        update_bird_position(e, sim);
+        sim.entities.push_back(e);
+    }
+}
+
+void sim_tick_bird_flybys(Sim& sim, int hour) noexcept {
+    if (sim.currentScene != Scene::Grass || sim.monitorWidth <= 0.0) return;
+    if (!bird_flyby_is_day_hour(hour)) return;
+    if (sim.globalTime < sim.nextBirdFlybyAtTime) return;
+
+    sim_spawn_bird_flyby(sim);
+    sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
+}
+
 // ---------------------------------------------------------------------------
 // Roaming entities (§13.2)
 //
@@ -1079,14 +1158,19 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                 e.x = sim.monitorWidth + margin;
             }
             update_firefly_position(e, sim);
+        } else if (e.kind == EntityKind::Bird) {
+            update_bird_position(e, sim);
         }
     }
 
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
-            [groundY](const Entity& e) {
+            [groundY, &sim](const Entity& e) {
                 return (e.lifetime > 0.0 && e.age >= e.lifetime)
-                    || (e.kind == EntityKind::Snowflake && e.y > groundY);
+                    || (e.kind == EntityKind::Snowflake && e.y > groundY)
+                    || (e.kind == EntityKind::Bird
+                        && ((e.vx >= 0.0 && e.x > sim.monitorWidth + 50.0)
+                         || (e.vx < 0.0 && e.x < -50.0)));
             }),
         sim.entities.end());
 
@@ -1332,6 +1416,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         }
     }
 
+    sim_tick_bird_flybys(sim, current_local_hour());
+
     if (sim.currentScene == Scene::Grass && sim.monitorWidth > 0.0) {
         const double lambda = RAINDROP_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         while (sim.globalTime >= sim.nextRaindropSpawnTime
@@ -1424,6 +1510,8 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
 
     prng_init(s.raindropPrng, s.entitySeed ^ RAINDROP_PRNG_SALT);
     s.nextRaindropSpawnTime = s.globalTime;
+    prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
+    s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
 }
 
@@ -1447,6 +1535,8 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
 
     prng_init(sim.raindropPrng, sim.entitySeed ^ RAINDROP_PRNG_SALT);
     sim.nextRaindropSpawnTime = sim.globalTime;
+    prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
+    sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }
 
 void sim_tick(Sim& sim, double dt,

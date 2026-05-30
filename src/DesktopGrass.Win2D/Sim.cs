@@ -121,9 +121,9 @@ internal struct Blade
 }
 
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), and raindrops (§20) live in Sim.Entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), birds (§17.8), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9 }
 
 public struct Entity
 {
@@ -146,14 +146,20 @@ public struct Entity
     public byte   NameIndex;   // sheep/cat: index into species name pool
     public byte   CoatVariantIndex; // cat: index into CAT_COAT_PALETTES
 
-    // Ambient flyers (§17.6-§17.7). Ignored by grounded pets.
+    // Ambient flyers (§17.6-§17.8). Ignored by grounded pets.
     public double BaseSpeed;
     public double AltitudeAnchor;
-    public double PhaseY;
-    public double PhaseX;
+    public double PhaseY; // butterflies/fireflies: Y phase; birds: vertical drift phase
+    public double PhaseX; // butterflies/fireflies: X phase; birds: wing phase offset
     public double BlinkPeriod;
     public double BlinkPhase;
     public byte   ColorVariant;
+
+    // Bird flyby (§17.8) transient metadata.
+    public double X0;
+    public double SpawnTime;
+    public double FormationOffsetAlongFlight;
+    public double FormationOffsetPerpendicular;
 }
 
 internal enum EventType { Move, Click }
@@ -210,6 +216,11 @@ internal sealed class Sim
     public Prng RaindropPrng;
     public double NextRaindropSpawnTime;
 
+    // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
+    // persistent stream and one next-event time across scene switches.
+    public Prng BirdFlybyPrng;
+    public double NextBirdFlybyAtTime;
+
     // Critter subsystem (§13.3 / §16). Independent of Scene. CurrentCritter
     // drives which (if any) generator runs at the END of SetScene so critter
     // entities survive scene changes. CritterPrng is reseeded on every
@@ -221,6 +232,12 @@ internal sealed class Sim
 
     private static bool HourInHalfOpenRange(int hour, int start, int end) =>
         start <= end ? hour >= start && hour < end : hour >= start || hour < end;
+
+    public static bool BirdFlybyIsDayHour(int hour) =>
+        hour >= 0 && hour <= 23 && HourInHalfOpenRange(hour, Constants.BIRD_FLYBY_HOUR_START, Constants.BIRD_FLYBY_HOUR_END);
+
+    public static double BirdFlybySampleInterval(ref Prng p) =>
+        p.Exponential(Constants.BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
 
     internal static double SheepSleepProbForLocalHour(int hour)
     {
@@ -415,6 +432,84 @@ internal sealed class Sim
             + Constants.FIREFLY_DRIFT_AMP_Y * Math.Sin(e.Age * Constants.FIREFLY_DRIFT_FREQ_Y + e.PhaseY);
     }
 
+    private static void UpdateBirdPosition(ref Entity e, Sim sim)
+    {
+        e.Y = FlyerGrassTopY(sim) - e.AltitudeAnchor
+            + Constants.BIRD_DRIFT_AMP_Y * Math.Sin(e.Age * Constants.BIRD_DRIFT_FREQ_Y + e.PhaseY);
+    }
+
+    public void SpawnBirdFlyby()
+    {
+        if (MonitorWidth <= 0.0) return;
+
+        int flockSize = ResolveCountFromPrng(ref BirdFlybyPrng, Constants.BIRD_FLOCK_SIZE_MIN, Constants.BIRD_FLOCK_SIZE_MAX);
+        ulong directionBit = BirdFlybyPrng.NextU64() & 1UL;
+        double direction = directionBit != 0UL ? 1.0 : -1.0;
+        double leaderAltitude = BirdFlybyPrng.Uniform(Constants.BIRD_ALTITUDE_MIN, Constants.BIRD_ALTITUDE_MAX);
+        double leaderSpeed = BirdFlybyPrng.Uniform(Constants.BIRD_SPEED_MIN, Constants.BIRD_SPEED_MAX);
+        ulong formationStyle = BirdFlybyPrng.NextU64() & 1UL;
+
+        Span<double> wingPhaseOffsets = stackalloc double[Constants.BIRD_FLOCK_SIZE_MAX];
+        Span<double> verticalDriftPhases = stackalloc double[Constants.BIRD_FLOCK_SIZE_MAX];
+        for (int i = 0; i < flockSize; i++)
+        {
+            wingPhaseOffsets[i] = BirdFlybyPrng.Uniform(
+                -Constants.BIRD_WING_FLAP_PHASE_JITTER, Constants.BIRD_WING_FLAP_PHASE_JITTER);
+            verticalDriftPhases[i] = BirdFlybyPrng.Uniform(0.0, 2.0 * Math.PI);
+        }
+
+        if (Entities.Count + flockSize > Constants.MAX_ENTITIES_PER_MONITOR) return;
+
+        double spawnX = direction > 0.0 ? -50.0 : MonitorWidth + 50.0;
+        double sinAngle = Math.Sin(Constants.BIRD_FLOCK_V_ANGLE_DEG * Math.PI / 180.0);
+        for (int i = 0; i < flockSize; i++)
+        {
+            double along = -i * Constants.BIRD_FLOCK_FORMATION_SPACING;
+            double perpendicular;
+            if (formationStyle == 0UL)
+            {
+                int armIndex = (i + 1) / 2;
+                double side = (i % 2) == 0 ? 1.0 : -1.0;
+                perpendicular = side * armIndex * Constants.BIRD_FLOCK_FORMATION_SPACING * sinAngle;
+            }
+            else
+            {
+                perpendicular = i * Constants.BIRD_FLOCK_FORMATION_SPACING * sinAngle;
+            }
+
+            Entity e = default;
+            e.Kind = EntityKind.Bird;
+            e.Size = Constants.BIRD_WING_SPAN * 0.5;
+            e.X = spawnX + direction * along;
+            e.X0 = e.X;
+            e.Vx = direction * leaderSpeed;
+            e.Vy = 0.0;
+            e.BaseSpeed = leaderSpeed;
+            e.AltitudeAnchor = leaderAltitude - perpendicular;
+            e.PhaseX = wingPhaseOffsets[i];
+            e.PhaseY = verticalDriftPhases[i];
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.SpawnTime = GlobalTime;
+            e.FormationOffsetAlongFlight = along;
+            e.FormationOffsetPerpendicular = perpendicular;
+            e.ColorVariant = (byte)formationStyle;
+            e.Seed = (uint)(i + 1);
+            UpdateBirdPosition(ref e, this);
+            Entities.Add(e);
+        }
+    }
+
+    public void TickBirdFlybys(int hour)
+    {
+        if (CurrentScene != Scene.Grass || MonitorWidth <= 0.0) return;
+        if (!BirdFlybyIsDayHour(hour)) return;
+        if (GlobalTime < NextBirdFlybyAtTime) return;
+
+        SpawnBirdFlyby();
+        NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
+    }
+
     private static void GenerateCrittersSheep(Sim sim, bool allowOverride)
     {
         int count = ResolveCritterCount(sim, Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX, allowOverride);
@@ -596,6 +691,8 @@ internal sealed class Sim
         Entities.Clear();
         RaindropPrng = Prng.Init(EntitySeed ^ Constants.RAINDROP_PRNG_SALT);
         NextRaindropSpawnTime = GlobalTime;
+        BirdFlybyPrng = Prng.Init(EntitySeed ^ Constants.BIRD_FLYBY_PRNG_SALT);
+        NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
     }
 
     private static void RestoreOriginalVariants(ref Blade b)
@@ -869,10 +966,18 @@ internal sealed class Sim
                 UpdateFireflyPosition(ref e, this);
                 Entities[i] = e;
             }
+            else if (e.Kind == EntityKind.Bird)
+            {
+                UpdateBirdPosition(ref e, this);
+                Entities[i] = e;
+            }
         }
 
         Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)
-                             || (e.Kind == EntityKind.Snowflake && e.Y > groundY));
+                             || (e.Kind == EntityKind.Snowflake && e.Y > groundY)
+                             || (e.Kind == EntityKind.Bird
+                                 && ((e.Vx >= 0.0 && e.X > MonitorWidth + 50.0)
+                                  || (e.Vx < 0.0 && e.X < -50.0))));
 
         // §16 Sheep state machine. Walking moves horizontally and bounces off
         // the edges; Grazing/Idle/Sleeping/Greeting freeze position (the generic
@@ -1176,6 +1281,8 @@ internal sealed class Sim
                 NextSnowflakeSpawnTime += SnowflakePrng.Exponential(lambda);
             }
         }
+
+        TickBirdFlybys(DateTime.Now.Hour);
 
         if (CurrentScene == Scene.Grass && MonitorWidth > 0.0)
         {

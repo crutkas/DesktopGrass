@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -228,6 +229,7 @@ enum class EntityKind : uint8_t {
     Bunny      = 6,
     Butterfly  = 7,
     Firefly    = 8,
+    Bird       = 9,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -548,6 +550,31 @@ constexpr int      FIREFLY_NIGHT_END_HOUR       = 6;
 constexpr int      FIREFLY_FADE_DURATION_HOUR   = 1;
 constexpr uint64_t FIREFLY_PRNG_SALT            = 0xF13EF1E7777ull;
 
+// Bird flybys (§17.8). Grass-only daytime transient flocks.
+constexpr double   BIRD_FLYBY_SPAWN_RATE_PER_HOUR = 15.0;
+constexpr int      BIRD_FLYBY_HOUR_START           = 7;
+constexpr int      BIRD_FLYBY_HOUR_END             = 19;
+constexpr int      BIRD_FLOCK_SIZE_MIN             = 3;
+constexpr int      BIRD_FLOCK_SIZE_MAX             = 7;
+constexpr double   BIRD_FLOCK_FORMATION_SPACING    = 9.0;
+constexpr double   BIRD_FLOCK_V_ANGLE_DEG          = 22.0;
+constexpr double   BIRD_SPEED_MIN                  = 65.0;
+constexpr double   BIRD_SPEED_MAX                  = 95.0;
+constexpr double   BIRD_ALTITUDE_MIN               = 78.0;
+constexpr double   BIRD_ALTITUDE_MAX               = 96.0;
+constexpr double   BIRD_BODY_LENGTH                = 3.6;
+constexpr double   BIRD_WING_SPAN                  = 5.0;
+constexpr double   BIRD_WING_FLAP_FREQ             = 7.0;
+constexpr double   BIRD_WING_FLAP_PHASE_JITTER     = 0.6;
+constexpr uint32_t BIRD_BODY_COLOR                 = 0xFF1A1610u;
+constexpr double   BIRD_WING_OPEN_RATIO            = 1.0;
+constexpr double   BIRD_WING_FOLD_RATIO            = 0.30;
+constexpr double   BIRD_FADE_IN_FRAC               = 0.08;
+constexpr double   BIRD_FADE_OUT_FRAC              = 0.08;
+constexpr double   BIRD_DRIFT_AMP_Y                = 3.0;
+constexpr double   BIRD_DRIFT_FREQ_Y               = 0.8;
+constexpr uint64_t BIRD_FLYBY_PRNG_SALT            = 0xB12D1F1A1B12D1Aull;
+
 // Snowflakes (§15)
 constexpr double   SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;    // flakes/sec
 constexpr double   SNOWFLAKE_FALL_SPEED_MIN        = 20.0;   // DIP/sec
@@ -678,6 +705,27 @@ inline double butterfly_wing_scale(double timeSeconds, double phaseY) noexcept {
     if (raw < BUTTERFLY_FLUTTER_MIN_SCALE) return BUTTERFLY_FLUTTER_MIN_SCALE;
     if (raw > 1.0) return 1.0;
     return raw;
+}
+
+inline double bird_wing_scale(double timeSeconds, double wingPhaseOffset) noexcept {
+    const double t = 0.5 + 0.5 * std::cos(timeSeconds * BIRD_WING_FLAP_FREQ + wingPhaseOffset);
+    return BIRD_WING_FOLD_RATIO + (BIRD_WING_OPEN_RATIO - BIRD_WING_FOLD_RATIO) * t;
+}
+
+inline double bird_fade_alpha(double x, double vx, double monitorWidth) noexcept {
+    if (monitorWidth <= 0.0) return 0.0;
+    const double visibleSpan = monitorWidth;
+    const double fadeInDist = BIRD_FADE_IN_FRAC * visibleSpan;
+    const double fadeOutDist = BIRD_FADE_OUT_FRAC * visibleSpan;
+    double alpha = 1.0;
+    if (vx >= 0.0) {
+        if (fadeInDist > 0.0 && x < fadeInDist) alpha = std::min(alpha, ambient_clamp01((x + 50.0) / fadeInDist));
+        if (fadeOutDist > 0.0 && x > monitorWidth - fadeOutDist) alpha = std::min(alpha, ambient_clamp01((monitorWidth + 50.0 - x) / fadeOutDist));
+    } else {
+        if (fadeInDist > 0.0 && x > monitorWidth - fadeInDist) alpha = std::min(alpha, ambient_clamp01((monitorWidth + 50.0 - x) / fadeInDist));
+        if (fadeOutDist > 0.0 && x < fadeOutDist) alpha = std::min(alpha, ambient_clamp01((x + 50.0) / fadeOutDist));
+    }
+    return ambient_clamp01(alpha);
 }
 
 inline double firefly_blink_brightness(double timeSeconds, double blinkPeriod, double blinkPhase) noexcept {

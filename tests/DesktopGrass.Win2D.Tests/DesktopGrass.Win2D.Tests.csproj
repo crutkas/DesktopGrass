@@ -54,6 +54,7 @@
     <Compile Include="SimTests\BunnyTests.cs" />
     <Compile Include="SimTests\ButterflyTests.cs" />
     <Compile Include="SimTests\FireflyTests.cs" />
+    <Compile Include="SimTests\BirdFlybyTests.cs" />
     <Compile Include="CatCoatTests.cs" />
     <Compile Include="InternalsVisible.cs" />
   </ItemGroup>

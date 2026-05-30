@@ -330,6 +330,11 @@ bool Renderer::CreateDeviceResources() {
         fireflyGlowBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    birdBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BIRD_BODY_COLOR),
+                                            birdBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     petNameBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_COLOR),
                                             petNameBrush_.ReleaseAndGetAddressOf());
@@ -956,6 +961,31 @@ void Renderer::DrawFirefly(const Entity& e, double hourFloat) {
     d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), bodyR, bodyR), fireflyBodyBrush_.Get());
     fireflyGlowBrush_->SetOpacity(1.0f);
     fireflyBodyBrush_->SetOpacity(1.0f);
+}
+
+void Renderer::DrawBird(const Entity& e) {
+    if (!birdBrush_) return;
+
+    const double alpha = bird_fade_alpha(e.x, e.vx, sim_.monitorWidth);
+    if (alpha <= 0.0) return;
+
+    const float cx = static_cast<float>(e.x);
+    const float cy = static_cast<float>(e.y);
+    const float wingScale = static_cast<float>(bird_wing_scale(e.age, e.phaseX));
+    const float halfSpan = static_cast<float>(BIRD_WING_SPAN * 0.5) * wingScale;
+    const float wingRise = std::max(0.8f, halfSpan * 0.55f);
+    const float bodyRx = static_cast<float>(BIRD_BODY_LENGTH * 0.5);
+    const float bodyRy = 0.75f;
+
+    birdBrush_->SetOpacity(static_cast<float>(alpha));
+    d2dContext_->DrawLine(D2D1::Point2F(cx, cy),
+                          D2D1::Point2F(cx - halfSpan, cy - wingRise),
+                          birdBrush_.Get(), 1.0f);
+    d2dContext_->DrawLine(D2D1::Point2F(cx, cy),
+                          D2D1::Point2F(cx + halfSpan, cy - wingRise),
+                          birdBrush_.Get(), 1.0f);
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), bodyRx, bodyRy), birdBrush_.Get());
+    birdBrush_->SetOpacity(1.0f);
 }
 
 void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
@@ -1621,6 +1651,12 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
             r,
             r);
         d2dContext_->FillEllipse(flake, snowflakeBrush_.Get());
+    }
+
+    for (const Entity& e : sim_.entities) {
+        if (e.kind == EntityKind::Bird) {
+            DrawBird(e);
+        }
     }
 }
 
