@@ -135,6 +135,9 @@ internal static class Win32
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern ushort RegisterClassExW(in WNDCLASSEXW lpwcx);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool UnregisterClassW(string lpClassName, IntPtr hInstance);
 

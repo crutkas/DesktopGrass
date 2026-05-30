@@ -256,6 +256,8 @@ internal static class Constants
     public const double SHEEP_GREET_DURATION_MIN  = 1.6;
     public const double SHEEP_GREET_DURATION_MAX  = 2.8;
     public const double SHEEP_GREET_MIN_AGE       = 1.5;
+    public const double SHEEP_CURIOUS_RADIUS      = 80.0;
+    public const double SHEEP_CURIOUS_HEAD_TURN_MAX = 0.55;
 
     public const double SHEEP_GRAZE_PROBABILITY    = 0.60;
     public const double SHEEP_IDLE_PROBABILITY     = 0.25;

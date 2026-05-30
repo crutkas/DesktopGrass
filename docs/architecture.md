@@ -1521,6 +1521,10 @@ HOPPING  : legs static (suspended look), parabolic Y offset, horizontal motion c
 
 Sleeping Z glyphs are drawn as 3 line segments (top horizontal, diagonal, bottom horizontal) in the body brush with `Opacity = 1 - t`. After drawing the Z's, the body brush opacity MUST be reset to `1.0` or all subsequent draws will be translucent.
 
+### Cursor-curious idle render effect
+
+Idle sheep within `SHEEP_CURIOUS_RADIUS = 80.0` DIP of the cursor notice it only when the cursor is vertically near the strip (`abs(cursorY - stripTop) <= 120 DIP`). This is render-only: no new state, no sim mutation, and zero PRNG draws. While curious, the idle L/R sweep is replaced with `headDx = clamp(cursorX - e.x, -SHEEP_CURIOUS_HEAD_TURN_MAX*SHEEP_HEAD_RADIUS, +SHEEP_CURIOUS_HEAD_TURN_MAX*SHEEP_HEAD_RADIUS)`, where `SHEEP_CURIOUS_HEAD_TURN_MAX = 0.55`.
+
 ### Defaults & conformance
 
 All `SHEEP_*` and `CRITTER_*` constants are defined in Native `Constants.h` and Win2D `Constants.cs` with identical numeric values. The Critter tray menu is built parallel to the Scene tray menu.

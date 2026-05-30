@@ -64,7 +64,8 @@ private:
     bool CreateSwapChainResources(int widthPx, int heightPx);
     void DiscardDeviceResources();
     void DrawGrass();
-    void DrawEntities();
+    void DrawEntities(const D2D1_POINT_2F* cursorPosition);
+    bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
     HWND                                   hwnd_ = nullptr;
     int                                    widthPx_   = 0;

@@ -30,6 +30,8 @@ void LogHR(const char* tag, HRESULT hr) {
     OutputDebugStringA(buf);
 }
 
+constexpr float SHEEP_CURIOUS_VERTICAL_RADIUS_DIP = 120.0f;
+
 } // anonymous
 
 Renderer::~Renderer() {
@@ -345,6 +347,16 @@ bool Renderer::Resize(int widthPx, int heightPx, UINT dpi) {
     return true;
 }
 
+bool Renderer::TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const {
+    POINT pt{};
+    if (!GetCursorPos(&pt)) return false;
+
+    const double scale = 96.0 / static_cast<double>(dpi_ == 0 ? 96 : dpi_);
+    cursorPosition.x = static_cast<float>((pt.x - windowOriginScreenX_) * scale);
+    cursorPosition.y = static_cast<float>((pt.y - windowOriginScreenY_) * scale);
+    return true;
+}
+
 void Renderer::Tick(double dt,
                     const InputEvent* events,
                     std::size_t numEvents)
@@ -364,8 +376,13 @@ void Renderer::RenderFrame(double dt,
     // Fully transparent background so the layered window stays click-through.
     d2dContext_->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
 
+    D2D1_POINT_2F cursorPosition{};
+    const D2D1_POINT_2F* cursorForRender = TryGetCursorPositionDip(cursorPosition)
+        ? &cursorPosition
+        : nullptr;
+
     DrawGrass();
-    DrawEntities();
+    DrawEntities(cursorForRender);
 
     HRESULT hr = d2dContext_->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {
@@ -684,7 +701,7 @@ void Renderer::DrawGrass() {
     }
 }
 
-void Renderer::DrawEntities() {
+void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
     if (sim_.entities.empty()) return;
 
     constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
@@ -816,10 +833,22 @@ void Renderer::DrawEntities() {
                     headDx = headDirX * br * 0.85f;
                     headDy = bh * 0.85f + munch;
                 } else if (isIdle) {
-                    const float sweep = std::sin(
-                        static_cast<float>(e.age * SHEEP_IDLE_SWEEP_FREQ));
-                    headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
-                    headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * std::fabs(sweep));
+                    const float stripTop = static_cast<float>(sim_.windowHeight - STRIP_HEIGHT);
+                    const bool curious = cursorPosition != nullptr
+                        && std::fabs(cursorPosition->y - stripTop) <= SHEEP_CURIOUS_VERTICAL_RADIUS_DIP
+                        && std::fabs(cursorPosition->x - cx) <= static_cast<float>(SHEEP_CURIOUS_RADIUS);
+                    if (curious) {
+                        const float cursorDx = cursorPosition->x - cx;
+                        const float maxHeadDx = static_cast<float>(
+                            SHEEP_CURIOUS_HEAD_TURN_MAX * SHEEP_HEAD_RADIUS);
+                        headDirX = cursorDx >= 0.0f ? 1.0f : -1.0f;
+                        headDx = std::clamp(cursorDx, -maxHeadDx, maxHeadDx);
+                    } else {
+                        const float sweep = std::sin(
+                            static_cast<float>(e.age * SHEEP_IDLE_SWEEP_FREQ));
+                        headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+                        headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * std::fabs(sweep));
+                    }
                     headDy = -bh * 0.05f;
                 } else if (isGreeting) {
                     headDy -= std::sin(static_cast<float>(e.age * SHEEP_GREET_HEAD_BOB_FREQ))

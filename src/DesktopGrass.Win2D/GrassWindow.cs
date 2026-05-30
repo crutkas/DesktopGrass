@@ -60,6 +60,8 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _sheepInkBrush;
     private ID2D1StrokeStyle? _strokeStyle;
 
+    private const float SheepCuriousVerticalRadiusDip = 120.0f;
+
     public Sim Sim { get; }
     public IntPtr Hwnd => _hwnd;
     public int WidthPx => _widthPx;
@@ -246,14 +248,29 @@ internal sealed class GrassWindow : IDisposable
             DrawBlade(in b, groundY);
         }
 
-        DrawEntities(groundY);
+        Vector2? cursorPosition = TryGetCursorPositionDip(out Vector2 cursorDip)
+            ? cursorDip
+            : null;
+        DrawEntities(groundY, cursorPosition);
 
         _dc.EndDraw();
         _swapChain.Present(0, PresentFlags.None);
         _dcompDevice?.Commit();
     }
 
-    private void DrawEntities(float groundY)
+    private bool TryGetCursorPositionDip(out Vector2 cursorPosition)
+    {
+        cursorPosition = default;
+        if (!Win32.GetCursorPos(out var pt)) return false;
+
+        double windowTopPx = _monitorBoundsPx.Bottom - _heightPx;
+        cursorPosition = new Vector2(
+            (float)((pt.X - _monitorBoundsPx.Left) / _dpiScale),
+            (float)((pt.Y - windowTopPx) / _dpiScale));
+        return true;
+    }
+
+    private void DrawEntities(float groundY, Vector2? cursorPosition)
     {
         if (Sim.Entities.Count == 0) return;
 
@@ -286,7 +303,7 @@ internal sealed class GrassWindow : IDisposable
 
             if (e.Kind == EntityKind.Sheep)
             {
-                DrawSheep(in e);
+                DrawSheep(in e, cursorPosition);
                 continue;
             }
 
@@ -297,7 +314,7 @@ internal sealed class GrassWindow : IDisposable
         }
     }
 
-    private void DrawSheep(in Entity e)
+    private void DrawSheep(in Entity e, Vector2? cursorPosition)
     {
         // §16 Suffolk-style vector sheep — white wool cloud + dark head/legs.
         // Pose driven by e.State (Walking / Grazing / Idle / Greeting / Sleeping / Hopping).
@@ -384,9 +401,25 @@ internal sealed class GrassWindow : IDisposable
         }
         else if (isIdle)
         {
-            float sweep = (float)Math.Sin(e.Age * Constants.SHEEP_IDLE_SWEEP_FREQ);
-            headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
-            headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * Math.Abs(sweep));
+            float stripTop = (float)(Sim.GroundY - Constants.STRIP_HEIGHT);
+            Vector2 cursor = cursorPosition.GetValueOrDefault();
+            bool curious = cursorPosition.HasValue
+                && Math.Abs(cursor.Y - stripTop) <= SheepCuriousVerticalRadiusDip
+                && Math.Abs(cursor.X - cx) <= (float)Constants.SHEEP_CURIOUS_RADIUS;
+            if (curious)
+            {
+                float cursorDx = cursor.X - cx;
+                float maxHeadDx = (float)(Constants.SHEEP_CURIOUS_HEAD_TURN_MAX
+                                          * Constants.SHEEP_HEAD_RADIUS);
+                headDirX = cursorDx >= 0.0f ? 1.0f : -1.0f;
+                headDx = Math.Clamp(cursorDx, -maxHeadDx, maxHeadDx);
+            }
+            else
+            {
+                float sweep = (float)Math.Sin(e.Age * Constants.SHEEP_IDLE_SWEEP_FREQ);
+                headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+                headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * Math.Abs(sweep));
+            }
             headDy = -bh * 0.05f;
         }
         else if (isGreeting)

@@ -94,6 +94,11 @@ TEST_CASE("Sheep greeting constants are pinned to spec values", "[sheep][greetin
     REQUIRE(SHEEP_GREET_HEAD_BOB_AMP   == Approx(0.7));
 }
 
+TEST_CASE("Sheep curious constants are pinned to spec values", "[sheep][curious][constants]") {
+    REQUIRE(SHEEP_CURIOUS_RADIUS        == Approx(80.0));
+    REQUIRE(SHEEP_CURIOUS_HEAD_TURN_MAX == Approx(0.55));
+}
+
 TEST_CASE("Eligible nearby sheep enter Greeting facing each other", "[sheep][greeting]") {
     Sim sim = build_sheep_sim();
     const std::vector<std::size_t> indices = prepare_two_sheep(sim);

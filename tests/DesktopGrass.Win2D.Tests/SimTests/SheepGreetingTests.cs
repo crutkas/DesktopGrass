@@ -104,6 +104,13 @@ public class SheepGreetingTests
     }
 
     [Fact]
+    public void SheepCuriousConstantsArePinnedToSpecValues()
+    {
+        Assert.Equal(80.0, Constants.SHEEP_CURIOUS_RADIUS);
+        Assert.Equal(0.55, Constants.SHEEP_CURIOUS_HEAD_TURN_MAX);
+    }
+
+    [Fact]
     public void EligibleNearbySheepEnterGreetingFacingEachOther()
     {
         Sim sim = BuildSim();

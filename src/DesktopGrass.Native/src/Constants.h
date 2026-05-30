@@ -294,6 +294,8 @@ constexpr double   SHEEP_GREET_RADIUS        = 50.0;    // DIP, center-to-center
 constexpr double   SHEEP_GREET_DURATION_MIN  = 1.6;     // sec
 constexpr double   SHEEP_GREET_DURATION_MAX  = 2.8;
 constexpr double   SHEEP_GREET_MIN_AGE       = 1.5;     // sec, natural cooldown
+constexpr double   SHEEP_CURIOUS_RADIUS      = 80.0;    // DIP, cursor proximity for noticing
+constexpr double   SHEEP_CURIOUS_HEAD_TURN_MAX = 0.55;  // radians, max head rotation toward cursor
 
 // Walking-expiry distribution. Cumulative: r<GRAZE → Grazing, else
 // r<GRAZE+IDLE → Idle, else → Hopping. GRAZE + IDLE + HOP_PROB == 1.0.
