@@ -93,6 +93,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchBarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchMarkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           sheepBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           sheepLegBrush_;
+    ComPtr<ID2D1SolidColorBrush>           sheepFaceBrush_;
+    ComPtr<ID2D1SolidColorBrush>           sheepEarBrush_;
+    ComPtr<ID2D1SolidColorBrush>           sheepInkBrush_;
 
     ComPtr<IDCompositionDevice>            dcompDevice_;
     ComPtr<IDCompositionTarget>            dcompTarget_;

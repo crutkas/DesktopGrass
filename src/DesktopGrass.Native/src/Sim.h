@@ -162,6 +162,11 @@ struct Entity {
     double     age           = 0.0;
     double     lifetime      = -1.0;  // <= 0 means infinite (respawn-in-place)
     uint32_t   seed          = 0;
+    // Critter state machine (§16). Only meaningful for EntityKind::Sheep
+    // and future critters; ignored by tumbleweeds/snowflakes. Default
+    // values are inert so existing scene-entity tests remain unaffected.
+    uint8_t    state         = 0;     // sheep: 0=Walking, 1=Grazing, 2=Idle
+    double     stateTimer    = 0.0;   // sec remaining in current state
 };
 
 // ---------------------------------------------------------------------------
@@ -200,6 +205,11 @@ struct Sim {
     // §15 snowflake emitter (Winter scene only)
     Prng               snowflakePrng       = { 0 };
     double             nextSnowflakeSpawnTime = 0.0;
+
+    // Critter subsystem (§16). Independent of currentScene. critterPrng is
+    // seeded from entitySeed XOR CRITTER_PRNG_SALT at sim_set_critter time.
+    CritterKind        currentCritter      = CRITTER_DEFAULT;
+    Prng               critterPrng         = { 0 };
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -243,6 +253,12 @@ void sim_set_scene(Sim& sim, Scene s) noexcept;
 // tumbleweed off-edge respawn, snowflake culling. Currently a no-op when
 // sim.entities is empty (which is always until §14/§15 generators run).
 void sim_tick_entities(Sim& sim, double dt) noexcept;
+
+// Critter selection (§16). Independent of sim_set_scene. State change:
+// removes existing critter-kind entities (preserving scene entities like
+// tumbleweeds/snowflakes), then re-runs the per-kind generator. Default
+// CritterKind::None = no critters spawned.
+void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

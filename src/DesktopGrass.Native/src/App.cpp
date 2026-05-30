@@ -120,9 +120,18 @@ bool App::CreateTrayIcon() {
     AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneWinter, L"Winter");
     AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
                 reinterpret_cast<UINT_PTR>(sceneSubmenu_), L"Scene");
+
+    critterSubmenu_ = CreatePopupMenu();
+    if (!critterSubmenu_) return false;
+    AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterNone,  L"None");
+    AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterSheep, L"Sheep");
+    AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
+                reinterpret_cast<UINT_PTR>(critterSubmenu_), L"Critter");
+
     AppendMenuW(trayMenu_, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(trayMenu_, MF_STRING, kMenuQuit, L"Quit DesktopGrass");
     UpdateSceneMenuCheck();
+    UpdateCritterMenuCheck();
 
     nid_ = {};
     nid_.cbSize           = sizeof(nid_);
@@ -163,6 +172,26 @@ void App::SetScene(Scene s) {
         sim_set_scene(w->GetRenderer().GetSim(), s);
     }
     UpdateSceneMenuCheck();
+}
+
+void App::UpdateCritterMenuCheck() {
+    if (!critterSubmenu_) return;
+    const int activeId = kMenuCritterNone + static_cast<int>(currentCritter_);
+    CheckMenuRadioItem(critterSubmenu_,
+                       kMenuCritterNone, kMenuCritterSheep,
+                       activeId, MF_BYCOMMAND);
+}
+
+void App::SetCritter(CritterKind c) {
+    if (c == currentCritter_) {
+        UpdateCritterMenuCheck();
+        return;
+    }
+    currentCritter_ = c;
+    for (auto& w : windows_) {
+        sim_set_critter(w->GetRenderer().GetSim(), c);
+    }
+    UpdateCritterMenuCheck();
 }
 
 void App::RemoveTrayIcon() {
@@ -335,10 +364,12 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_COMMAND:
             switch (LOWORD(wp)) {
-                case kMenuQuit:        RequestQuit();                break;
-                case kMenuSceneGrass:  SetScene(Scene::Grass);       break;
-                case kMenuSceneDesert: SetScene(Scene::Desert);      break;
-                case kMenuSceneWinter: SetScene(Scene::Winter);      break;
+                case kMenuQuit:          RequestQuit();                       break;
+                case kMenuSceneGrass:    SetScene(Scene::Grass);              break;
+                case kMenuSceneDesert:   SetScene(Scene::Desert);             break;
+                case kMenuSceneWinter:   SetScene(Scene::Winter);             break;
+                case kMenuCritterNone:   SetCritter(CritterKind::None);       break;
+                case kMenuCritterSheep:  SetCritter(CritterKind::Sheep);      break;
             }
             return 0;
 

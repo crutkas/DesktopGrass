@@ -180,6 +180,31 @@ bool Renderer::CreateDeviceResources() {
                                             birchMarkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    sheepBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_BODY_COLOR),
+                                            sheepBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    sheepLegBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_LEG_COLOR),
+                                            sheepLegBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    sheepFaceBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_FACE_COLOR),
+                                            sheepFaceBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    sheepEarBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_EAR_COLOR),
+                                            sheepEarBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    sheepInkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_INK_COLOR),
+                                            sheepInkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     return true;
 }
 
@@ -243,6 +268,11 @@ void Renderer::DiscardDeviceResources() {
     pineBrush_.Reset();
     birchBarkBrush_.Reset();
     birchMarkBrush_.Reset();
+    sheepBodyBrush_.Reset();
+    sheepLegBrush_.Reset();
+    sheepFaceBrush_.Reset();
+    sheepEarBrush_.Reset();
+    sheepInkBrush_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
     d2dContext_.Reset();
@@ -682,7 +712,200 @@ void Renderer::DrawEntities() {
             continue;
         }
 
-        if (e.kind != EntityKind::Snowflake) continue;
+        if (e.kind != EntityKind::Snowflake) {
+            if (e.kind == EntityKind::Sheep) {
+                // Suffolk-style vector sheep: white wool cloud + dark head
+                // and legs. State drives the pose:
+                //   WALKING  : leg cycle + head bob + tail wiggle.
+                //   GRAZING  : frozen, head pivoted down to the grass line.
+                //   IDLE     : frozen, head turns side-to-side.
+                //   SLEEPING : tucked on the ground, legs hidden, eyes
+                //              closed (horizontal slits), Z's drift up.
+                //   HOPPING  : sheep arcs upward (parabola) — entire pose
+                //              translated by a hopY offset; horizontal vx
+                //              still applies so the sheep covers ground.
+                const float cx = static_cast<float>(e.x);
+                const float br = static_cast<float>(SHEEP_BODY_RADIUS);
+                const float bh = static_cast<float>(SHEEP_BODY_HEIGHT);
+                const float legLen = static_cast<float>(SHEEP_LEG_LENGTH);
+                const float headR  = static_cast<float>(SHEEP_HEAD_RADIUS);
+                const float tailR  = static_cast<float>(SHEEP_TAIL_RADIUS);
+                const float facing = (e.vx >= 0.0) ? 1.0f : -1.0f;
+
+                const bool isWalking  = (e.state == SHEEP_STATE_WALKING);
+                const bool isGrazing  = (e.state == SHEEP_STATE_GRAZING);
+                const bool isIdle     = (e.state == SHEEP_STATE_IDLE);
+                const bool isSleeping = (e.state == SHEEP_STATE_SLEEPING);
+                const bool isHopping  = (e.state == SHEEP_STATE_HOPPING);
+
+                // Hop parabola y-offset (negative = up). t = age / DURATION.
+                float hopOffsetY = 0.0f;
+                if (isHopping) {
+                    const float t = std::max(0.0f,
+                        std::min(1.0f, static_cast<float>(e.age / SHEEP_HOP_DURATION)));
+                    hopOffsetY = -4.0f * static_cast<float>(SHEEP_HOP_HEIGHT) * t * (1.0f - t);
+                }
+                // Sleep pose: body drops by leg-length so it sits on the
+                // ground; legs are hidden because they're tucked underneath.
+                const float sleepOffsetY = isSleeping ? legLen : 0.0f;
+                const float cy = static_cast<float>(e.y) + hopOffsetY + sleepOffsetY;
+
+                const float walkPhase = static_cast<float>(e.age * (TWO_PI_LOCAL / SHEEP_WALK_PERIOD));
+                const float legAmp   = isWalking ? static_cast<float>(SHEEP_LEG_CYCLE_AMP) : 0.0f;
+                const float headBob  = isWalking
+                    ? std::sin(walkPhase * 2.0f) * static_cast<float>(SHEEP_HEAD_BOB_AMP)
+                    : 0.0f;
+                const float tailWig  = isWalking
+                    ? std::sin(walkPhase * 2.0f) * static_cast<float>(SHEEP_TAIL_WIGGLE_AMP)
+                    : 0.0f;
+
+                // Legs — hidden while sleeping (tucked). Hopping draws them
+                // straight (no swing) so the sheep looks suspended.
+                if (!isSleeping) {
+                    const float legY0 = cy + bh * 0.30f;
+                    const float legXs[4] = { -br * 0.62f, -br * 0.22f,
+                                             +br * 0.22f, +br * 0.62f };
+                    const float swingA = std::sin(walkPhase) * legAmp;
+                    const float swingB = std::sin(walkPhase + 3.14159265f) * legAmp;
+                    const float legSwings[4] = { swingA, swingB, swingA, swingB };
+                    for (int li = 0; li < 4; ++li) {
+                        const float lx = cx + legXs[li];
+                        const float ly1 = cy + bh + legLen + legSwings[li];
+                        d2dContext_->DrawLine(
+                            D2D1::Point2F(lx, legY0),
+                            D2D1::Point2F(lx, ly1),
+                            sheepLegBrush_.Get(),
+                            1.8f);
+                    }
+                }
+
+                // Tail puff — rear of the body (opposite of facing).
+                const float tailCx = cx - facing * br * 0.95f + tailWig;
+                const float tailCy = cy - bh * 0.05f;
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(tailCx, tailCy), tailR, tailR * 0.95f),
+                    sheepBodyBrush_.Get());
+
+                // Body — one large ellipse + 3 evenly-spaced top puffs.
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh),
+                    sheepBodyBrush_.Get());
+                const float puffY = cy - bh * 0.55f;
+                const float puffRx = br * 0.40f;
+                const float puffRy = bh * 0.48f;
+                const float puffXs[3] = { -br * 0.50f, 0.0f, +br * 0.50f };
+                for (float pdx : puffXs) {
+                    d2dContext_->FillEllipse(
+                        D2D1::Ellipse(D2D1::Point2F(cx + pdx, puffY), puffRx, puffRy),
+                        sheepBodyBrush_.Get());
+                }
+
+                // Head position. WALKING/HOPPING: forward + slight bob.
+                // GRAZING: pivoted down to the grass. IDLE: sweeps L/R.
+                // SLEEPING: rests low on the front edge of the body.
+                float headDirX = facing;
+                float headDx = headDirX * (br * 1.08f);
+                float headDy = -bh * 0.05f + headBob;
+                if (isGrazing) {
+                    const float munch = std::sin(
+                        static_cast<float>(e.age * SHEEP_GRAZE_MUNCH_FREQ))
+                        * static_cast<float>(SHEEP_GRAZE_MUNCH_AMP);
+                    headDx = headDirX * br * 0.85f;
+                    headDy = bh * 0.85f + munch;
+                } else if (isIdle) {
+                    const float sweep = std::sin(
+                        static_cast<float>(e.age * SHEEP_IDLE_SWEEP_FREQ));
+                    headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
+                    headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * std::fabs(sweep));
+                    headDy = -bh * 0.05f;
+                } else if (isSleeping) {
+                    headDx = headDirX * br * 0.95f;
+                    headDy = bh * 0.10f;
+                }
+                const float headCx = cx + headDx;
+                const float headCy = cy + headDy;
+
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(headCx, headCy), headR, headR * 1.05f),
+                    sheepFaceBrush_.Get());
+
+                // Two ear blobs at the top of the head.
+                const float earRx = headR * 0.32f;
+                const float earRy = headR * 0.55f;
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(headCx - headR * 0.55f,
+                                                headCy - headR * 0.65f),
+                                  earRx, earRy),
+                    sheepEarBrush_.Get());
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(headCx + headR * 0.55f,
+                                                headCy - headR * 0.65f),
+                                  earRx, earRy),
+                    sheepEarBrush_.Get());
+
+                // Eye — open dot in most states, closed slit while sleeping.
+                if (isSleeping) {
+                    const float slitY = headCy - headR * 0.05f;
+                    const float slitX = headCx + headDirX * headR * 0.42f;
+                    d2dContext_->DrawLine(
+                        D2D1::Point2F(slitX - 1.4f, slitY),
+                        D2D1::Point2F(slitX + 1.4f, slitY),
+                        sheepInkBrush_.Get(),
+                        1.0f);
+                } else {
+                    const float eyeR = headR * 0.22f;
+                    d2dContext_->FillEllipse(
+                        D2D1::Ellipse(D2D1::Point2F(headCx + headDirX * headR * 0.42f,
+                                                    headCy - headR * 0.05f),
+                                      eyeR, eyeR),
+                        sheepInkBrush_.Get());
+                }
+
+                // Sleeping "Z" glyphs — two staggered Z's drifting up and
+                // growing then fading, so the user reads the sleep state
+                // instantly even from across the desktop. Drawn as 3-line
+                // glyphs in body color (white) so they read on any biome.
+                if (isSleeping) {
+                    const float zBaseX = headCx + headDirX * headR * 0.7f;
+                    const float zBaseY = headCy - headR * 1.4f;
+                    for (int zi = 0; zi < 2; ++zi) {
+                        const float phaseOffset = 0.5f * static_cast<float>(zi);
+                        float t = static_cast<float>(
+                            std::fmod(e.age / SHEEP_ZZZ_CYCLE_SEC + phaseOffset, 1.0));
+                        // Skip the leading half-cycle of the offset Z so it
+                        // doesn't pop in at full size.
+                        const float zSize = static_cast<float>(
+                            SHEEP_ZZZ_SIZE_START + t * (SHEEP_ZZZ_SIZE_END - SHEEP_ZZZ_SIZE_START));
+                        const float zY = zBaseY - t * static_cast<float>(SHEEP_ZZZ_RISE);
+                        const float zX = zBaseX + t * 4.0f * headDirX;
+                        const float alpha = 1.0f - t;
+                        sheepBodyBrush_->SetOpacity(alpha);
+                        // Top horizontal
+                        d2dContext_->DrawLine(
+                            D2D1::Point2F(zX,         zY),
+                            D2D1::Point2F(zX + zSize, zY),
+                            sheepBodyBrush_.Get(),
+                            1.1f);
+                        // Diagonal
+                        d2dContext_->DrawLine(
+                            D2D1::Point2F(zX + zSize, zY),
+                            D2D1::Point2F(zX,         zY + zSize),
+                            sheepBodyBrush_.Get(),
+                            1.1f);
+                        // Bottom horizontal
+                        d2dContext_->DrawLine(
+                            D2D1::Point2F(zX,         zY + zSize),
+                            D2D1::Point2F(zX + zSize, zY + zSize),
+                            sheepBodyBrush_.Get(),
+                            1.1f);
+                    }
+                    sheepBodyBrush_->SetOpacity(1.0f);
+                }
+
+                continue;
+            }
+            continue;
+        }
         const float r = static_cast<float>(e.size);
         const D2D1_ELLIPSE flake = D2D1::Ellipse(
             D2D1::Point2F(static_cast<float>(e.x), static_cast<float>(e.y)),

@@ -221,8 +221,96 @@ enum class EntityKind : uint8_t {
     None       = 0,
     Tumbleweed = 1,
     Snowflake  = 2,
+    Sheep      = 3,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
+
+// Critter subsystem — independent of Scene. The user picks a critter via
+// the tray submenu and it's drawn on top of whatever biome is active. None
+// is the default (no pets). CritterKind discriminants are cross-impl-locked.
+enum class CritterKind : uint8_t {
+    None  = 0,
+    Sheep = 1,
+};
+constexpr int         CRITTER_COUNT   = 2;
+constexpr CritterKind CRITTER_DEFAULT = CritterKind::None;
+constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8Eull;
+
+// Sheep (§16). Procedurally drawn pet that walks, grazes, and idles along
+// the bottom strip. Phase 2: state machine (Walking / Grazing / Idle) with
+// animated leg cycle + head bob + grazing-head-down + idle-head-sweep.
+// Counts/speeds/sizes are sampled per-monitor from the critter PRNG so
+// different displays get different flocks. (Cursor-startle lands in §16.3.)
+constexpr int      SHEEP_COUNT_MIN     = 2;
+constexpr int      SHEEP_COUNT_MAX     = 3;
+constexpr double   SHEEP_WALK_SPEED_MIN = 14.0;   // DIP/sec
+constexpr double   SHEEP_WALK_SPEED_MAX = 26.0;
+
+// Geometry (DIP). Round, slightly tall body so the silhouette reads as
+// "cloud with legs" from a distance.
+constexpr double   SHEEP_BODY_RADIUS   = 12.0;    // body x-radius
+constexpr double   SHEEP_BODY_HEIGHT   = 9.5;     // body y-radius
+constexpr double   SHEEP_HEAD_RADIUS   = 5.0;
+constexpr double   SHEEP_LEG_LENGTH    = 5.5;
+constexpr double   SHEEP_TAIL_RADIUS   = 3.2;     // rear puff
+
+// Palette. Suffolk-style sheep: white wool, dark face, dark legs — that's
+// the silhouette people instantly read as "sheep". Cream/pink faces look
+// like a different creature entirely at this pixel scale.
+constexpr uint32_t SHEEP_BODY_COLOR    = 0xFFF7F4EBu;   // off-white wool
+constexpr uint32_t SHEEP_LEG_COLOR     = 0xFF1F1A16u;   // near-black
+constexpr uint32_t SHEEP_FACE_COLOR    = 0xFF1F1A16u;   // dark Suffolk face
+constexpr uint32_t SHEEP_EAR_COLOR     = 0xFF14110Eu;   // slightly darker than face
+constexpr uint32_t SHEEP_INK_COLOR     = 0xFFF7F4EBu;   // eyes = light dots on dark face
+
+// Animation cycle. WALK_PERIOD is one full leg cycle (one stride pair).
+constexpr double   SHEEP_WALK_PERIOD     = 0.55;        // seconds
+constexpr double   SHEEP_LEG_CYCLE_AMP   = 2.0;         // DIP vertical sway of leg-tip
+constexpr double   SHEEP_HEAD_BOB_AMP    = 0.7;         // DIP head Y bob during walk
+constexpr double   SHEEP_TAIL_WIGGLE_AMP = 0.6;         // DIP tail X wiggle
+
+// State machine. State encodes 0=Walking, 1=Grazing, 2=Idle, 3=Sleeping,
+// 4=Hopping in Entity.state. Walking → expires → Grazing / Idle / Hopping.
+// Idle → expires → Walking or Sleeping. Other states → expires → Walking.
+// Durations drawn from critter PRNG on every transition so behavior is
+// deterministic per (seed, monitor). Click-near-sheep also forces Hopping.
+constexpr uint8_t  SHEEP_STATE_WALKING  = 0;
+constexpr uint8_t  SHEEP_STATE_GRAZING  = 1;
+constexpr uint8_t  SHEEP_STATE_IDLE     = 2;
+constexpr uint8_t  SHEEP_STATE_SLEEPING = 3;
+constexpr uint8_t  SHEEP_STATE_HOPPING  = 4;
+constexpr double   SHEEP_WALK_DURATION_MIN  = 8.0;      // sec — average walk leg before pause
+constexpr double   SHEEP_WALK_DURATION_MAX  = 14.0;
+constexpr double   SHEEP_GRAZE_DURATION_MIN = 3.0;      // sec — head down chewing grass
+constexpr double   SHEEP_GRAZE_DURATION_MAX = 5.0;
+constexpr double   SHEEP_IDLE_DURATION_MIN  = 1.5;      // sec — looking around
+constexpr double   SHEEP_IDLE_DURATION_MAX  = 3.0;
+constexpr double   SHEEP_SLEEP_DURATION_MIN = 8.0;      // sec — Zzz nap
+constexpr double   SHEEP_SLEEP_DURATION_MAX = 16.0;
+constexpr double   SHEEP_HOP_DURATION       = 0.55;     // sec — one parabolic arc
+
+// Walking-expiry distribution. Cumulative: r<GRAZE → Grazing, else
+// r<GRAZE+IDLE → Idle, else → Hopping. GRAZE + IDLE + HOP_PROB == 1.0.
+constexpr double   SHEEP_GRAZE_PROBABILITY  = 0.60;
+constexpr double   SHEEP_IDLE_PROBABILITY   = 0.25;
+// Idle-expiry: chance of slipping into Sleeping vs returning to Walking.
+constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
+
+// Idle / Grazing tiny animations.
+constexpr double   SHEEP_IDLE_SWEEP_FREQ   = 1.4;       // rad/sec for L/R head turn
+constexpr double   SHEEP_GRAZE_MUNCH_FREQ  = 8.0;       // rad/sec for head nibble bob
+constexpr double   SHEEP_GRAZE_MUNCH_AMP   = 0.6;       // DIP
+
+// Hop arc + click-startle.
+constexpr double   SHEEP_HOP_HEIGHT        = 11.0;      // DIP peak vertical offset
+constexpr double   SHEEP_STARTLE_RADIUS    = 64.0;      // DIP — click within this hops the sheep
+constexpr double   SHEEP_STARTLE_BOOST     = 1.6;       // walking speed multiplier post-startle
+
+// Sleeping cosmetic — "Zzz" glyphs drift up from the sheep's head.
+constexpr double   SHEEP_ZZZ_CYCLE_SEC     = 1.8;       // one Z lifespan
+constexpr double   SHEEP_ZZZ_RISE          = 11.0;      // DIP rise over one cycle
+constexpr double   SHEEP_ZZZ_SIZE_START    = 2.0;       // DIP starting Z side
+constexpr double   SHEEP_ZZZ_SIZE_END      = 4.0;       // DIP ending Z side
 
 // Snowflakes (§15)
 constexpr double   SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;    // flakes/sec

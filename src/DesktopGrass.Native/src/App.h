@@ -21,10 +21,12 @@ class App {
 public:
     static constexpr UINT  kTrayMessage     = WM_APP + 100;
     static constexpr UINT  kTrayIconId      = 1;
-    static constexpr int   kMenuQuit        = 1001;
-    static constexpr int   kMenuSceneGrass  = 1010;
-    static constexpr int   kMenuSceneDesert = 1011;
-    static constexpr int   kMenuSceneWinter = 1012;
+    static constexpr int   kMenuQuit          = 1001;
+    static constexpr int   kMenuSceneGrass    = 1010;
+    static constexpr int   kMenuSceneDesert   = 1011;
+    static constexpr int   kMenuSceneWinter   = 1012;
+    static constexpr int   kMenuCritterNone   = 1020;
+    static constexpr int   kMenuCritterSheep  = 1021;
 
     App() = default;
     ~App();
@@ -34,6 +36,8 @@ public:
     void RequestQuit();
     void SetScene(Scene s);
     Scene GetScene() const { return currentScene_; }
+    void SetCritter(CritterKind c);
+    CritterKind GetCritter() const { return currentCritter_; }
 
 private:
     bool CreateMessageWindow();
@@ -46,6 +50,7 @@ private:
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
     void UpdateSceneMenuCheck();
+    void UpdateCritterMenuCheck();
 
     static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT msg,
                                               WPARAM wp, LPARAM lp);
@@ -55,12 +60,14 @@ private:
     HWND                                        msgHwnd_ = nullptr;
     HMENU                                       trayMenu_ = nullptr;
     HMENU                                       sceneSubmenu_ = nullptr;
+    HMENU                                       critterSubmenu_ = nullptr;
     NOTIFYICONDATAW                             nid_{};
     bool                                        trayAdded_ = false;
     MouseEventQueue                             queue_{};
     std::vector<std::unique_ptr<GrassWindow>>   windows_;
     uint64_t                                    seed_     = 0;
     Scene                                       currentScene_ = SCENE_DEFAULT;
+    CritterKind                                 currentCritter_ = CRITTER_DEFAULT;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     bool                                        quitRequested_ = false;

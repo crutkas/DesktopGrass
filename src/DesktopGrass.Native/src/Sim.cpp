@@ -435,6 +435,23 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
         // Cancel any pending or in-progress regrowth: we're going back down.
         b.regrowStart      = -1.0;
     }
+
+    // Sheep startle (§16). A click within SHEEP_STARTLE_RADIUS of a sheep
+    // makes it hop AWAY from the cursor: state → Hopping, vx flipped to the
+    // away direction, speed boosted (capped so repeated clicks don't
+    // compound), age reset so the hop arc starts fresh.
+    for (Entity& ent : sim.entities) {
+        if (ent.kind != EntityKind::Sheep) continue;
+        const double dxClick = ent.x - e.x;
+        if (std::fabs(dxClick) >= SHEEP_STARTLE_RADIUS) continue;
+        const double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
+        const double speed = std::min(std::abs(ent.vx) * SHEEP_STARTLE_BOOST,
+                                      SHEEP_WALK_SPEED_MAX * SHEEP_STARTLE_BOOST);
+        ent.vx = speed * awayDir;
+        ent.state      = SHEEP_STATE_HOPPING;
+        ent.stateTimer = SHEEP_HOP_DURATION;
+        ent.age        = 0.0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +495,60 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 // Scenes (§13)
 // ---------------------------------------------------------------------------
 
+namespace {
+
+void generate_critters_sheep(Sim& sim) noexcept {
+    // sheep count: uniform[MIN, MAX] inclusive
+    const double countDraw = prng_uniform(sim.critterPrng,
+        static_cast<double>(SHEEP_COUNT_MIN),
+        static_cast<double>(SHEEP_COUNT_MAX + 1));
+    int count = static_cast<int>(std::floor(countDraw));
+    if (count < SHEEP_COUNT_MIN) count = SHEEP_COUNT_MIN;
+    if (count > SHEEP_COUNT_MAX) count = SHEEP_COUNT_MAX;
+
+    const double groundY = sim.windowHeight;
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Sheep;
+        e.size = SHEEP_BODY_RADIUS;
+        // Spawn anywhere across the width, leaving an edge margin so the
+        // bounce-on-edge logic doesn't fire instantly.
+        const double margin = e.size + 8.0;
+        e.x  = prng_uniform(sim.critterPrng, margin, sim.monitorWidth - margin);
+        // Sit the sheep so its leg-tips touch the ground line. Body center
+        // is one body-height + leg-length above the ground.
+        e.y  = groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH;
+        const double speed = prng_uniform(sim.critterPrng,
+                                          SHEEP_WALK_SPEED_MIN,
+                                          SHEEP_WALK_SPEED_MAX);
+        const double dir = prng_uniform(sim.critterPrng, 0.0, 1.0) < 0.5 ? -1.0 : 1.0;
+        e.vx = dir * speed;
+        e.vy = 0.0;
+        e.rotation = 0.0;
+        e.rotationSpeed = 0.0;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = prng_next_u32(sim.critterPrng);
+        // Initial state: Walking, with a random walk-leg duration.
+        e.state = SHEEP_STATE_WALKING;
+        e.stateTimer = prng_uniform(sim.critterPrng,
+                                    SHEEP_WALK_DURATION_MIN,
+                                    SHEEP_WALK_DURATION_MAX);
+        sim.entities.push_back(e);
+    }
+}
+
+void generate_critters_for_kind(Sim& sim) noexcept {
+    prng_init(sim.critterPrng, sim.entitySeed ^ CRITTER_PRNG_SALT);
+    switch (sim.currentCritter) {
+    case CritterKind::None:                                  break;
+    case CritterKind::Sheep: generate_critters_sheep(sim);   break;
+    }
+}
+
+} // anonymous
+
 void sim_set_scene(Sim& sim, Scene s) noexcept {
     sim.currentScene = s;
     sim.entities.clear();
@@ -504,6 +575,23 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         break;
     }
     }
+
+    // Critters survive scene changes — re-spawn the current selection on
+    // top of whatever biome we just configured. Always runs LAST so that
+    // entities[0..N-1] for tumbleweeds/snowflakes still match pinned
+    // conformance snapshots from §12.
+    generate_critters_for_kind(sim);
+}
+
+void sim_set_critter(Sim& sim, CritterKind c) noexcept {
+    sim.currentCritter = c;
+    // Erase only critter entities — scene entities (tumbleweeds, snowflakes)
+    // are preserved across critter toggles.
+    sim.entities.erase(
+        std::remove_if(sim.entities.begin(), sim.entities.end(),
+            [](const Entity& e) { return e.kind == EntityKind::Sheep; }),
+        sim.entities.end());
+    generate_critters_for_kind(sim);
 }
 
 // ---------------------------------------------------------------------------
@@ -548,6 +636,85 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                     && (e.age >= e.lifetime || e.y > groundY);
             }),
         sim.entities.end());
+
+    // Critter tick — Sheep (§16). State machine drives behavior:
+    //   Walking  : moves at vx, bounces on edges, leg cycle in renderer.
+    //   Grazing  : frozen, head will be drawn pointing down at the grass.
+    //   Idle     : frozen, head sweeps side-to-side in the renderer.
+    //   Sleeping : frozen, body tucks down, Z glyphs drift up.
+    //   Hopping  : moves AND visually arcs upward (renderer applies the
+    //              parabolic Y offset). Triggered by random transition or
+    //              by sim_apply_click within SHEEP_STARTLE_RADIUS.
+    // The generic forward pass already added (vx * dt) to e.x; for frozen
+    // states we undo that integration so the sheep stays planted.
+    for (Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Sheep) continue;
+
+        const bool frozen = (e.state == SHEEP_STATE_GRAZING)
+                         || (e.state == SHEEP_STATE_IDLE)
+                         || (e.state == SHEEP_STATE_SLEEPING);
+        if (frozen) {
+            e.x -= e.vx * dt;
+        }
+
+        // Edge bounce — runs in every state. Even a stationary sheep that
+        // spawned near the edge gets reflected on its first walk tick.
+        const double margin = e.size + 2.0;
+        if (e.x < margin) {
+            e.x  = margin;
+            e.vx = std::abs(e.vx);
+        } else if (e.x > sim.monitorWidth - margin) {
+            e.x  = sim.monitorWidth - margin;
+            e.vx = -std::abs(e.vx);
+        }
+
+        // State transitions. Decrement the timer; when it expires, pick the
+        // next state and roll a fresh duration. PRNG draws are sequenced
+        // so cross-impl bit-identity is preservable once Win2D mirrors.
+        e.stateTimer -= dt;
+        if (e.stateTimer <= 0.0) {
+            if (e.state == SHEEP_STATE_WALKING) {
+                const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
+                if (r < SHEEP_GRAZE_PROBABILITY) {
+                    e.state = SHEEP_STATE_GRAZING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                SHEEP_GRAZE_DURATION_MIN,
+                                                SHEEP_GRAZE_DURATION_MAX);
+                } else if (r < SHEEP_GRAZE_PROBABILITY + SHEEP_IDLE_PROBABILITY) {
+                    e.state = SHEEP_STATE_IDLE;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                SHEEP_IDLE_DURATION_MIN,
+                                                SHEEP_IDLE_DURATION_MAX);
+                } else {
+                    e.state = SHEEP_STATE_HOPPING;
+                    e.stateTimer = SHEEP_HOP_DURATION;
+                }
+            } else if (e.state == SHEEP_STATE_IDLE) {
+                const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
+                if (r < SHEEP_SLEEP_FROM_IDLE_PROB) {
+                    e.state = SHEEP_STATE_SLEEPING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                SHEEP_SLEEP_DURATION_MIN,
+                                                SHEEP_SLEEP_DURATION_MAX);
+                } else {
+                    e.state = SHEEP_STATE_WALKING;
+                    e.stateTimer = prng_uniform(sim.critterPrng,
+                                                SHEEP_WALK_DURATION_MIN,
+                                                SHEEP_WALK_DURATION_MAX);
+                }
+            } else {
+                // Grazing / Sleeping / Hopping → return to Walking.
+                e.state = SHEEP_STATE_WALKING;
+                e.stateTimer = prng_uniform(sim.critterPrng,
+                                            SHEEP_WALK_DURATION_MIN,
+                                            SHEEP_WALK_DURATION_MAX);
+            }
+            // age reset so hop arc / walk cycle / sleep-Z animation start
+            // from phase 0 at every state entry (else the hop would catch
+            // mid-arc and a long-running sheep's leg cycle would jitter).
+            e.age = 0.0;
+        }
+    }
 
     if (sim.currentScene == Scene::Winter) {
         const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
