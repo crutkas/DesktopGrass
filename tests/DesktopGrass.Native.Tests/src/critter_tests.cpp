@@ -35,10 +35,14 @@ using namespace desktopgrass;
 
 namespace {
 
-int count_sheep(const Sim& sim) {
+int count_kind(const Sim& sim, EntityKind kind) {
     int n = 0;
-    for (const Entity& e : sim.entities) if (e.kind == EntityKind::Sheep) ++n;
+    for (const Entity& e : sim.entities) if (e.kind == kind) ++n;
     return n;
+}
+
+int count_sheep(const Sim& sim) {
+    return count_kind(sim, EntityKind::Sheep);
 }
 
 const Entity* first_sheep(const Sim& sim) {
@@ -58,6 +62,11 @@ TEST_CASE("CritterKind has spec-locked discriminants", "[critter][enum]") {
 TEST_CASE("Sheep constants are pinned to spec values", "[critter][constants]") {
     REQUIRE(SHEEP_COUNT_MIN      == 2);
     REQUIRE(SHEEP_COUNT_MAX      == 3);
+    REQUIRE(sizeof(PET_COUNT_OPTIONS) / sizeof(PET_COUNT_OPTIONS[0]) == 6);
+    for (int i = 0; i < 6; ++i) REQUIRE(PET_COUNT_OPTIONS[i] == i + 1);
+    REQUIRE(PET_COUNT_DEFAULT_SHEEP == SHEEP_COUNT_MIN);
+    REQUIRE(PET_COUNT_DEFAULT_CAT == CAT_COUNT_MIN);
+    REQUIRE(PET_COUNT_MAX_PER_MONITOR == 6);
     REQUIRE(SHEEP_WALK_SPEED_MIN == Approx(14.0));
     REQUIRE(SHEEP_WALK_SPEED_MAX == Approx(26.0));
     REQUIRE(SHEEP_BODY_RADIUS    == Approx(12.0));
@@ -152,6 +161,77 @@ TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
         ++seen;
     }
     REQUIRE(seen == expectedCount);
+}
+
+TEST_CASE("sim_set_critter_count(0) preserves random sheep count draw", "[critter][count]") {
+    bool sawMin = false;
+    bool sawMax = false;
+    for (uint64_t i = 0; i < 64; ++i) {
+        const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
+        Sim sim = sim_init(seed, 1920.0, DEFAULT_DENSITY);
+        sim_set_critter_count(sim, 3);
+        sim_set_critter_count(sim, 0);
+        sim_set_critter(sim, CritterKind::Sheep);
+
+        Prng side;
+        prng_init(side, seed ^ CRITTER_PRNG_SALT);
+        const double countDraw = prng_uniform(side, SHEEP_COUNT_MIN, SHEEP_COUNT_MAX + 1);
+        int expectedCount = static_cast<int>(std::floor(countDraw));
+        if (expectedCount < SHEEP_COUNT_MIN) expectedCount = SHEEP_COUNT_MIN;
+        if (expectedCount > SHEEP_COUNT_MAX) expectedCount = SHEEP_COUNT_MAX;
+
+        REQUIRE(count_sheep(sim) == expectedCount);
+        sawMin = sawMin || expectedCount == SHEEP_COUNT_MIN;
+        sawMax = sawMax || expectedCount == SHEEP_COUNT_MAX;
+    }
+    REQUIRE(sawMin);
+    REQUIRE(sawMax);
+}
+
+TEST_CASE("fixed sheep count override skips the count PRNG draw", "[critter][count][prng]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+    sim_set_critter_count(sim, 3);
+
+    REQUIRE(sim.critterCountOverride == 3);
+    REQUIRE(count_sheep(sim) == 3);
+
+    Prng side;
+    prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
+    int seen = 0;
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Sheep) continue;
+        const double margin = SHEEP_BODY_RADIUS + 8.0;
+        const double expectedX = prng_uniform(side, margin, 1920.0 - margin);
+        const double expectedSpeed = prng_uniform(side, SHEEP_WALK_SPEED_MIN, SHEEP_WALK_SPEED_MAX);
+        const double dirCoin = prng_uniform(side, 0.0, 1.0);
+        const double expectedDir = (dirCoin < 0.5) ? -1.0 : 1.0;
+        const uint32_t expectedSeed = prng_next_u32(side);
+        const double expectedTimer = prng_uniform(side, SHEEP_WALK_DURATION_MIN, SHEEP_WALK_DURATION_MAX);
+
+        REQUIRE(e.x == Approx(expectedX));
+        REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
+        REQUIRE(e.seed == expectedSeed);
+        REQUIRE(e.stateTimer == Approx(expectedTimer));
+        ++seen;
+    }
+    REQUIRE(seen == 3);
+}
+
+TEST_CASE("fixed critter count override supports tray range and clamps", "[critter][count]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Sheep);
+
+    sim_set_critter_count(sim, 6);
+    REQUIRE(count_sheep(sim) == 6);
+
+    sim_set_critter_count(sim, 8);
+    REQUIRE(count_sheep(sim) == PET_COUNT_MAX_PER_MONITOR);
+
+    sim_set_critter(sim, CritterKind::Cat);
+    sim_set_critter_count(sim, 2);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 2);
+    REQUIRE(count_sheep(sim) == 0);
 }
 
 TEST_CASE("sim_set_critter(None) removes sheep, preserves scene entities",

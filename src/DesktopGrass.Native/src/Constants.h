@@ -237,6 +237,10 @@ enum class CritterKind : uint8_t {
 constexpr int         CRITTER_COUNT   = 3;
 constexpr CritterKind CRITTER_DEFAULT = CritterKind::None;
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8Eull;
+constexpr int         PET_COUNT_OPTIONS[] = { 1, 2, 3, 4, 5, 6 };
+constexpr int         PET_COUNT_DEFAULT_SHEEP = 2;
+constexpr int         PET_COUNT_DEFAULT_CAT = 1;
+constexpr int         PET_COUNT_MAX_PER_MONITOR = 6;
 
 // Sheep (§16). Procedurally drawn pet that walks, grazes, and idles along
 // the bottom strip. Phase 2: state machine (Walking / Grazing / Idle) with

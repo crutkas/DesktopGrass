@@ -76,6 +76,7 @@ internal sealed class GrassWindow : IDisposable
 
     public void SetScene(Scene s) => Sim.SetScene(s);
     public void SetCritter(CritterKind c) => Sim.SetCritter(c);
+    public void SetCritterCount(int n) => Sim.SetCritterCount(n);
 
     public GrassWindow(IntPtr hwnd, int widthPx, int heightPx, float dpiScale,
                        Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip)

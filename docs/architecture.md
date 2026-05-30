@@ -1363,6 +1363,7 @@ Discriminants are cross-impl-locked. `CritterKind::Sheep` maps to `EntityKind::S
 Sim:
   CritterKind currentCritter = CRITTER_DEFAULT
   Prng        critterPrng                   // reseeded per generator call
+  int         critterCountOverride = 0      // 0=random, 1..PET_COUNT_MAX_PER_MONITOR=fixed
 ```
 
 ### Generator dispatcher
@@ -1397,9 +1398,11 @@ sim_set_critter(sim, c):
 
 Scene entities (tumbleweeds, snowflakes) are NEVER removed by `sim_set_critter`. Critter entities are NEVER removed by `sim_set_scene` (the dispatcher just regenerates them).
 
+Count override — Sim may carry a `critterCountOverride` (1-`PET_COUNT_MAX_PER_MONITOR` or 0 for random). When non-zero, the count PRNG draw in the species generator is skipped. Changing the override calls `sim_set_critter_count`, removes current critter entities, and regenerates the active species.
+
 ### Tray menu
 
-A `Critter` submenu (radio-style) under the tray icon offers **None**, **Sheep**, and **Cat**. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` on each window's Sim.
+A `Critter` submenu (radio-style) under the tray icon offers **None**, **Sheep**, and **Cat**, plus a **Pet count** picker (**Random**, **1**–**6**) that applies to the active species. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` or `sim_set_critter_count(n)` on each window's Sim.
 
 ### Cross-impl conformance
 

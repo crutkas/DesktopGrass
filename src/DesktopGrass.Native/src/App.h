@@ -25,9 +25,12 @@ public:
     static constexpr int   kMenuSceneGrass    = 1010;
     static constexpr int   kMenuSceneDesert   = 1011;
     static constexpr int   kMenuSceneWinter   = 1012;
-    static constexpr int   kMenuCritterNone   = 1020;
-    static constexpr int   kMenuCritterSheep  = 1021;
-    static constexpr int   kMenuCritterCat    = 1022;
+    static constexpr int   kMenuCritterNone     = 1020;
+    static constexpr int   kMenuCritterSheep    = 1021;
+    static constexpr int   kMenuCritterCat      = 1022;
+    static constexpr int   kMenuPetCountRandom  = 1030;
+    static constexpr int   kMenuPetCount1       = 1031;
+    static constexpr int   kMenuPetCount6       = 1036;
 
     App() = default;
     ~App();
@@ -39,6 +42,8 @@ public:
     Scene GetScene() const { return currentScene_; }
     void SetCritter(CritterKind c);
     CritterKind GetCritter() const { return currentCritter_; }
+    void SetCritterCount(int n);
+    int  GetCritterCount() const { return currentCritterCount_; }
 
 private:
     bool CreateMessageWindow();
@@ -52,6 +57,7 @@ private:
     void RenderAllWindows(double dt);
     void UpdateSceneMenuCheck();
     void UpdateCritterMenuCheck();
+    void UpdatePetCountMenuCheck();
 
     static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT msg,
                                               WPARAM wp, LPARAM lp);
@@ -62,6 +68,7 @@ private:
     HMENU                                       trayMenu_ = nullptr;
     HMENU                                       sceneSubmenu_ = nullptr;
     HMENU                                       critterSubmenu_ = nullptr;
+    HMENU                                       petCountSubmenu_ = nullptr;
     NOTIFYICONDATAW                             nid_{};
     bool                                        trayAdded_ = false;
     MouseEventQueue                             queue_{};
@@ -69,6 +76,7 @@ private:
     uint64_t                                    seed_     = 0;
     Scene                                       currentScene_ = SCENE_DEFAULT;
     CritterKind                                 currentCritter_ = CRITTER_DEFAULT;
+    int                                         currentCritterCount_ = 0;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     bool                                        quitRequested_ = false;

@@ -7,8 +7,10 @@
 #include "../resource.h"
 
 #include <shellscalingapi.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <string>
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "Shcore.lib")
@@ -126,6 +128,19 @@ bool App::CreateTrayIcon() {
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterNone,  L"None");
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterSheep, L"Sheep");
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterCat,   L"Cat");
+
+    petCountSubmenu_ = CreatePopupMenu();
+    if (!petCountSubmenu_) return false;
+    AppendMenuW(petCountSubmenu_, MF_STRING, kMenuPetCountRandom, L"Random");
+    for (int n : PET_COUNT_OPTIONS) {
+        AppendMenuW(petCountSubmenu_, MF_STRING,
+                    static_cast<UINT_PTR>(kMenuPetCount1 + (n - 1)),
+                    std::to_wstring(n).c_str());
+    }
+    AppendMenuW(critterSubmenu_, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(critterSubmenu_, MF_POPUP | MF_STRING,
+                reinterpret_cast<UINT_PTR>(petCountSubmenu_), L"Pet count");
+
     AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
                 reinterpret_cast<UINT_PTR>(critterSubmenu_), L"Critter");
 
@@ -133,6 +148,7 @@ bool App::CreateTrayIcon() {
     AppendMenuW(trayMenu_, MF_STRING, kMenuQuit, L"Quit DesktopGrass");
     UpdateSceneMenuCheck();
     UpdateCritterMenuCheck();
+    UpdatePetCountMenuCheck();
 
     nid_ = {};
     nid_.cbSize           = sizeof(nid_);
@@ -183,6 +199,16 @@ void App::UpdateCritterMenuCheck() {
                        activeId, MF_BYCOMMAND);
 }
 
+void App::UpdatePetCountMenuCheck() {
+    if (!petCountSubmenu_) return;
+    const int activeId = currentCritterCount_ > 0
+        ? kMenuPetCount1 + (std::min(currentCritterCount_, PET_COUNT_MAX_PER_MONITOR) - 1)
+        : kMenuPetCountRandom;
+    CheckMenuRadioItem(petCountSubmenu_,
+                       kMenuPetCountRandom, kMenuPetCount6,
+                       activeId, MF_BYCOMMAND);
+}
+
 void App::SetCritter(CritterKind c) {
     if (c == currentCritter_) {
         UpdateCritterMenuCheck();
@@ -193,6 +219,14 @@ void App::SetCritter(CritterKind c) {
         sim_set_critter(w->GetRenderer().GetSim(), c);
     }
     UpdateCritterMenuCheck();
+}
+
+void App::SetCritterCount(int n) {
+    currentCritterCount_ = n > 0 ? n : 0;
+    for (auto& w : windows_) {
+        sim_set_critter_count(w->GetRenderer().GetSim(), currentCritterCount_);
+    }
+    UpdatePetCountMenuCheck();
 }
 
 void App::RemoveTrayIcon() {
@@ -363,8 +397,17 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
 
-        case WM_COMMAND:
-            switch (LOWORD(wp)) {
+        case WM_COMMAND: {
+            const int id = LOWORD(wp);
+            if (id == kMenuPetCountRandom) {
+                SetCritterCount(0);
+                return 0;
+            }
+            if (id >= kMenuPetCount1 && id <= kMenuPetCount6) {
+                SetCritterCount(id - kMenuPetCount1 + 1);
+                return 0;
+            }
+            switch (id) {
                 case kMenuQuit:          RequestQuit();                       break;
                 case kMenuSceneGrass:    SetScene(Scene::Grass);              break;
                 case kMenuSceneDesert:   SetScene(Scene::Desert);             break;
@@ -374,6 +417,7 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
                 case kMenuCritterCat:    SetCritter(CritterKind::Cat);        break;
             }
             return 0;
+        }
 
         case WM_DISPLAYCHANGE:
             OnDisplayChanged();

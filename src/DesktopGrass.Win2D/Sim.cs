@@ -198,9 +198,11 @@ internal sealed class Sim
     // Critter subsystem (§13.3 / §16). Independent of Scene. CurrentCritter
     // drives which (if any) generator runs at the END of SetScene so critter
     // entities survive scene changes. CritterPrng is reseeded on every
-    // generator call from EntitySeed XOR CRITTER_PRNG_SALT.
+    // generator call from EntitySeed XOR CRITTER_PRNG_SALT. CritterCountOverride
+    // is 0 for random species count, or a fixed count capped at generation.
     public CritterKind CurrentCritter = Constants.CRITTER_DEFAULT;
     public Prng CritterPrng;
+    public int CritterCountOverride;
 
     private static bool HourInHalfOpenRange(int hour, int start, int end) =>
         start <= end ? hour >= start && hour < end : hour >= start || hour < end;
@@ -270,9 +272,19 @@ internal sealed class Sim
         CurrentCritter = c;
         // Erase only critter entities — scene entities (tumbleweeds,
         // snowflakes) are preserved across critter toggles.
-        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat);
+        RemoveCritters();
         GenerateCrittersForKind(this);
     }
+
+    public void SetCritterCount(int n)
+    {
+        CritterCountOverride = n > 0 ? n : 0;
+        RemoveCritters();
+        GenerateCrittersForKind(this);
+    }
+
+    private void RemoveCritters() =>
+        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat);
 
     private static void GenerateCrittersForKind(Sim sim)
     {
@@ -285,13 +297,23 @@ internal sealed class Sim
         }
     }
 
+    private static int ResolveCritterCount(Sim sim, int minCount, int maxCount)
+    {
+        if (sim.CritterCountOverride > 0)
+        {
+            return Math.Min(sim.CritterCountOverride, Constants.PET_COUNT_MAX_PER_MONITOR);
+        }
+
+        double countDraw = sim.CritterPrng.Uniform(minCount, maxCount + 1);
+        int count = (int)Math.Floor(countDraw);
+        if (count < minCount) count = minCount;
+        if (count > maxCount) count = maxCount;
+        return count;
+    }
+
     private static void GenerateCrittersSheep(Sim sim)
     {
-        double countDraw = sim.CritterPrng.Uniform(
-            Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX + 1);
-        int count = (int)Math.Floor(countDraw);
-        if (count < Constants.SHEEP_COUNT_MIN) count = Constants.SHEEP_COUNT_MIN;
-        if (count > Constants.SHEEP_COUNT_MAX) count = Constants.SHEEP_COUNT_MAX;
+        int count = ResolveCritterCount(sim, Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX);
 
         double groundY = sim.WindowHeight;
         for (int i = 0; i < count
@@ -322,11 +344,7 @@ internal sealed class Sim
 
     private static void GenerateCrittersCat(Sim sim)
     {
-        double countDraw = sim.CritterPrng.Uniform(
-            Constants.CAT_COUNT_MIN, Constants.CAT_COUNT_MAX + 1);
-        int count = (int)Math.Floor(countDraw);
-        if (count < Constants.CAT_COUNT_MIN) count = Constants.CAT_COUNT_MIN;
-        if (count > Constants.CAT_COUNT_MAX) count = Constants.CAT_COUNT_MAX;
+        int count = ResolveCritterCount(sim, Constants.CAT_COUNT_MIN, Constants.CAT_COUNT_MAX);
 
         double groundY = sim.WindowHeight;
         for (int i = 0; i < count

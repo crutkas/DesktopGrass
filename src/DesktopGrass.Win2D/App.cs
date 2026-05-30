@@ -31,6 +31,13 @@ internal static class Win32App
         System.Threading.Interlocked.Exchange(ref s_pendingCritter, (int)c);
     public static int ConsumePendingCritterChange() =>
         System.Threading.Interlocked.Exchange(ref s_pendingCritter, -1);
+
+    // -1 = no pending change; 0 = random; 1..6 = fixed count.
+    private static int s_pendingCritterCount = -1;
+    public static void RequestCritterCountChange(int n) =>
+        System.Threading.Interlocked.Exchange(ref s_pendingCritterCount, n > 0 ? n : 0);
+    public static int ConsumePendingCritterCountChange() =>
+        System.Threading.Interlocked.Exchange(ref s_pendingCritterCount, -1);
 }
 
 internal sealed class App : IDisposable
@@ -43,6 +50,7 @@ internal sealed class App : IDisposable
     private TrayIcon? _tray;
     private Scene _currentScene = Constants.SCENE_DEFAULT;
     private CritterKind _currentCritter = Constants.CRITTER_DEFAULT;
+    private int _currentCritterCount;
     private Win32.WndProc? _wndProcDelegate; // keep alive for class lifetime
     private ushort _classAtom;
     private long _qpcFreq;
@@ -61,7 +69,7 @@ internal sealed class App : IDisposable
         _hook = new MouseHook();
         _hook.Install();
 
-        _tray = new TrayIcon(0, _currentScene, _currentCritter);
+        _tray = new TrayIcon(0, _currentScene, _currentCritter, _currentCritterCount);
         _tray.Start();
 
         RunMessageLoop();
@@ -297,6 +305,13 @@ internal sealed class App : IDisposable
                     _currentCritter = c;
                     foreach (var w in _windows) w.SetCritter(c);
                 }
+            }
+
+            int pendingCritterCount = Win32App.ConsumePendingCritterCountChange();
+            if (pendingCritterCount >= 0)
+            {
+                _currentCritterCount = pendingCritterCount;
+                foreach (var w in _windows) w.SetCritterCount(pendingCritterCount);
             }
 
             foreach (var win in _windows)

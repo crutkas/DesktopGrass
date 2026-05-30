@@ -27,8 +27,10 @@ public class CritterTests
         return sim;
     }
 
-    private static int CountSheep(Sim sim) =>
-        sim.Entities.Count(e => e.Kind == EntityKind.Sheep);
+    private static int CountKind(Sim sim, EntityKind kind) =>
+        sim.Entities.Count(e => e.Kind == kind);
+
+    private static int CountSheep(Sim sim) => CountKind(sim, EntityKind.Sheep);
 
     private static int IndexOfFirstSheep(Sim sim)
     {
@@ -51,6 +53,10 @@ public class CritterTests
     {
         Assert.Equal(2, Constants.SHEEP_COUNT_MIN);
         Assert.Equal(3, Constants.SHEEP_COUNT_MAX);
+        Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, Constants.PET_COUNT_OPTIONS);
+        Assert.Equal(Constants.SHEEP_COUNT_MIN, Constants.PET_COUNT_DEFAULT_SHEEP);
+        Assert.Equal(Constants.CAT_COUNT_MIN, Constants.PET_COUNT_DEFAULT_CAT);
+        Assert.Equal(6, Constants.PET_COUNT_MAX_PER_MONITOR);
         Assert.Equal(14.0, Constants.SHEEP_WALK_SPEED_MIN);
         Assert.Equal(26.0, Constants.SHEEP_WALK_SPEED_MAX);
         Assert.Equal(12.0, Constants.SHEEP_BODY_RADIUS);
@@ -156,6 +162,85 @@ public class CritterTests
             seen++;
         }
         Assert.Equal(expectedCount, seen);
+    }
+
+    [Fact]
+    public void SetCritterCountZeroPreservesRandomSheepCountDraw()
+    {
+        bool sawMin = false;
+        bool sawMax = false;
+        for (ulong i = 0; i < 64; i++)
+        {
+            ulong seed = unchecked(Constants.CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15UL);
+            var sim = BuildSim(seed);
+            sim.SetCritterCount(3);
+            sim.SetCritterCount(0);
+            sim.SetCritter(CritterKind.Sheep);
+
+            var side = Prng.Init(seed ^ Constants.CRITTER_PRNG_SALT);
+            double countDraw = side.Uniform(Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX + 1);
+            int expectedCount = (int)System.Math.Floor(countDraw);
+            if (expectedCount < Constants.SHEEP_COUNT_MIN) expectedCount = Constants.SHEEP_COUNT_MIN;
+            if (expectedCount > Constants.SHEEP_COUNT_MAX) expectedCount = Constants.SHEEP_COUNT_MAX;
+
+            Assert.Equal(expectedCount, CountSheep(sim));
+            sawMin |= expectedCount == Constants.SHEEP_COUNT_MIN;
+            sawMax |= expectedCount == Constants.SHEEP_COUNT_MAX;
+        }
+        Assert.True(sawMin);
+        Assert.True(sawMax);
+    }
+
+    [Fact]
+    public void FixedSheepCountOverrideSkipsCountPrngDraw()
+    {
+        var sim = BuildSim();
+        sim.SetCritter(CritterKind.Sheep);
+        sim.SetCritterCount(3);
+
+        Assert.Equal(3, sim.CritterCountOverride);
+        Assert.Equal(3, CountSheep(sim));
+
+        var side = Prng.Init(Constants.CANONICAL_TEST_SEED ^ Constants.CRITTER_PRNG_SALT);
+        int seen = 0;
+        foreach (var e in sim.Entities)
+        {
+            if (e.Kind != EntityKind.Sheep) continue;
+            double margin = Constants.SHEEP_BODY_RADIUS + 8.0;
+            double expectedX = side.Uniform(margin, Monitor1920 - margin);
+            double expectedSpeed = side.Uniform(
+                Constants.SHEEP_WALK_SPEED_MIN, Constants.SHEEP_WALK_SPEED_MAX);
+            double dirCoin = side.Uniform(0.0, 1.0);
+            double expectedDir = dirCoin < 0.5 ? -1.0 : 1.0;
+            uint expectedSeed = side.NextU32();
+            double expectedTimer = side.Uniform(
+                Constants.SHEEP_WALK_DURATION_MIN, Constants.SHEEP_WALK_DURATION_MAX);
+
+            Assert.Equal(expectedX, e.X, 9);
+            Assert.Equal(expectedSpeed * expectedDir, e.Vx, 9);
+            Assert.Equal(expectedSeed, e.Seed);
+            Assert.Equal(expectedTimer, e.StateTimer, 9);
+            seen++;
+        }
+        Assert.Equal(3, seen);
+    }
+
+    [Fact]
+    public void FixedCritterCountOverrideSupportsTrayRangeAndClamps()
+    {
+        var sim = BuildSim();
+        sim.SetCritter(CritterKind.Sheep);
+
+        sim.SetCritterCount(6);
+        Assert.Equal(6, CountSheep(sim));
+
+        sim.SetCritterCount(8);
+        Assert.Equal(Constants.PET_COUNT_MAX_PER_MONITOR, CountSheep(sim));
+
+        sim.SetCritter(CritterKind.Cat);
+        sim.SetCritterCount(2);
+        Assert.Equal(2, CountKind(sim, EntityKind.Cat));
+        Assert.Equal(0, CountSheep(sim));
     }
 
     [Fact]

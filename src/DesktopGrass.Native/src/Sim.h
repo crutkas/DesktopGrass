@@ -207,9 +207,12 @@ struct Sim {
     double             nextSnowflakeSpawnTime = 0.0;
 
     // Critter subsystem (§16). Independent of currentScene. critterPrng is
-    // seeded from entitySeed XOR CRITTER_PRNG_SALT at sim_set_critter time.
+    // seeded from entitySeed XOR CRITTER_PRNG_SALT at generation time.
+    // critterCountOverride is 0 for random species count, or a fixed count
+    // capped by PET_COUNT_MAX_PER_MONITOR during generation.
     CritterKind        currentCritter      = CRITTER_DEFAULT;
     Prng               critterPrng         = { 0 };
+    int                critterCountOverride = 0;
 };
 
 // Construct a sim with blades generated for the given monitor width, density,
@@ -259,6 +262,10 @@ void sim_tick_entities(Sim& sim, double dt) noexcept;
 // tumbleweeds/snowflakes), then re-runs the per-kind generator. Default
 // CritterKind::None = no critters spawned.
 void sim_set_critter(Sim& sim, CritterKind c) noexcept;
+
+// Fixed critter count override (§13.3). n=0 clears to random; positive values
+// are capped at PET_COUNT_MAX_PER_MONITOR during generation.
+void sim_set_critter_count(Sim& sim, int n) noexcept;
 
 double sheep_sleep_prob_for_local_hour(int hour) noexcept;
 double cat_sleep_prob_for_local_hour(int hour) noexcept;

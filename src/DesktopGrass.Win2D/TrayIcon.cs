@@ -18,16 +18,19 @@ internal sealed class TrayIcon : IDisposable
     private readonly uint _mainThreadId;
     private readonly Scene _initialScene;
     private readonly CritterKind _initialCritter;
+    private readonly int _initialCritterCount;
     private Thread? _thread;
     private NotifyIcon? _icon;
     private Form? _hiddenForm;
     private readonly ManualResetEventSlim _started = new(false);
 
-    public TrayIcon(uint mainThreadId, Scene initialScene, CritterKind initialCritter)
+    public TrayIcon(uint mainThreadId, Scene initialScene, CritterKind initialCritter,
+                    int initialCritterCount)
     {
         _mainThreadId = mainThreadId;
         _initialScene = initialScene;
         _initialCritter = initialCritter;
+        _initialCritterCount = initialCritterCount;
     }
 
     public void Start()
@@ -83,18 +86,44 @@ internal sealed class TrayIcon : IDisposable
         var critterCatItem   = new ToolStripMenuItem("Cat")   { Tag = CritterKind.Cat,   CheckOnClick = false };
         var critterItems = new[] { critterNoneItem, critterSheepItem, critterCatItem };
 
+        var petCountMenu = new ToolStripMenuItem("Pet count");
+        var petCountRandomItem = new ToolStripMenuItem("Random") { Tag = 0, CheckOnClick = false };
+        var petCountItems = new ToolStripMenuItem[Constants.PET_COUNT_OPTIONS.Length + 1];
+        petCountItems[0] = petCountRandomItem;
+        for (int i = 0; i < Constants.PET_COUNT_OPTIONS.Length; i++)
+        {
+            int n = Constants.PET_COUNT_OPTIONS[i];
+            petCountItems[i + 1] = new ToolStripMenuItem(n.ToString()) { Tag = n, CheckOnClick = false };
+        }
+
         void SelectCritter(CritterKind c)
         {
             foreach (var it in critterItems)
                 it.Checked = ((CritterKind)it.Tag!) == c;
             Win32App.RequestCritterChange(c);
         }
+        void SelectPetCount(int n)
+        {
+            foreach (var it in petCountItems)
+                it.Checked = (int)it.Tag! == n;
+            Win32App.RequestCritterCountChange(n);
+        }
+
         critterNoneItem.Click  += (_, _) => SelectCritter(CritterKind.None);
         critterSheepItem.Click += (_, _) => SelectCritter(CritterKind.Sheep);
         critterCatItem.Click   += (_, _) => SelectCritter(CritterKind.Cat);
+        foreach (var it in petCountItems)
+        {
+            int n = (int)it.Tag!;
+            it.Click += (_, _) => SelectPetCount(n);
+        }
         SelectCritter(_initialCritter);
+        SelectPetCount(_initialCritterCount);
 
         critterMenu.DropDownItems.AddRange(critterItems);
+        critterMenu.DropDownItems.Add(new ToolStripSeparator());
+        petCountMenu.DropDownItems.AddRange(petCountItems);
+        critterMenu.DropDownItems.Add(petCountMenu);
         menu.Items.Add(critterMenu);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(quitItem);

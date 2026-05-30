@@ -210,6 +210,10 @@ internal static class Constants
     public const int        CRITTER_COUNT      = 3;
     public const CritterKind CRITTER_DEFAULT   = CritterKind.None;
     public const ulong      CRITTER_PRNG_SALT  = 0x5C8EE05C8EE05C8Eul;
+    public static readonly int[] PET_COUNT_OPTIONS = { 1, 2, 3, 4, 5, 6 };
+    public const int        PET_COUNT_DEFAULT_SHEEP = 2;
+    public const int        PET_COUNT_DEFAULT_CAT   = 1;
+    public const int        PET_COUNT_MAX_PER_MONITOR = 6;
 
     // Sheep (§16). Procedurally drawn pet that walks, grazes, idles, sleeps,
     // and hops along the bottom strip. Counts/speeds/sizes are sampled per

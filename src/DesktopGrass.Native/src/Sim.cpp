@@ -547,14 +547,31 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 
 namespace {
 
-void generate_critters_sheep(Sim& sim) noexcept {
-    // sheep count: uniform[MIN, MAX] inclusive
+int resolve_critter_count(Sim& sim, int minCount, int maxCount) noexcept {
+    if (sim.critterCountOverride > 0) {
+        return std::min(sim.critterCountOverride, PET_COUNT_MAX_PER_MONITOR);
+    }
+
     const double countDraw = prng_uniform(sim.critterPrng,
-        static_cast<double>(SHEEP_COUNT_MIN),
-        static_cast<double>(SHEEP_COUNT_MAX + 1));
+        static_cast<double>(minCount),
+        static_cast<double>(maxCount + 1));
     int count = static_cast<int>(std::floor(countDraw));
-    if (count < SHEEP_COUNT_MIN) count = SHEEP_COUNT_MIN;
-    if (count > SHEEP_COUNT_MAX) count = SHEEP_COUNT_MAX;
+    if (count < minCount) count = minCount;
+    if (count > maxCount) count = maxCount;
+    return count;
+}
+
+void remove_critters(Sim& sim) noexcept {
+    sim.entities.erase(
+        std::remove_if(sim.entities.begin(), sim.entities.end(),
+            [](const Entity& e) {
+                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat;
+            }),
+        sim.entities.end());
+}
+
+void generate_critters_sheep(Sim& sim) noexcept {
+    const int count = resolve_critter_count(sim, SHEEP_COUNT_MIN, SHEEP_COUNT_MAX);
 
     const double groundY = sim.windowHeight;
     for (int i = 0; i < count
@@ -590,12 +607,7 @@ void generate_critters_sheep(Sim& sim) noexcept {
 }
 
 void generate_critters_cat(Sim& sim) noexcept {
-    const double countDraw = prng_uniform(sim.critterPrng,
-        static_cast<double>(CAT_COUNT_MIN),
-        static_cast<double>(CAT_COUNT_MAX + 1));
-    int count = static_cast<int>(std::floor(countDraw));
-    if (count < CAT_COUNT_MIN) count = CAT_COUNT_MIN;
-    if (count > CAT_COUNT_MAX) count = CAT_COUNT_MAX;
+    const int count = resolve_critter_count(sim, CAT_COUNT_MIN, CAT_COUNT_MAX);
 
     const double groundY = sim.windowHeight;
     for (int i = 0; i < count
@@ -674,12 +686,13 @@ void sim_set_critter(Sim& sim, CritterKind c) noexcept {
     sim.currentCritter = c;
     // Erase only critter entities — scene entities (tumbleweeds, snowflakes)
     // are preserved across critter toggles.
-    sim.entities.erase(
-        std::remove_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) {
-                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat;
-            }),
-        sim.entities.end());
+    remove_critters(sim);
+    generate_critters_for_kind(sim);
+}
+
+void sim_set_critter_count(Sim& sim, int n) noexcept {
+    sim.critterCountOverride = (n > 0) ? n : 0;
+    remove_critters(sim);
     generate_critters_for_kind(sim);
 }
 
