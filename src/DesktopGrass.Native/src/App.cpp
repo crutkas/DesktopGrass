@@ -2,6 +2,7 @@
 
 #include "App.h"
 
+#include "AutoStart.h"
 #include "Constants.h"
 #include "Sim.h"
 #include "../resource.h"
@@ -77,6 +78,9 @@ bool App::Initialize(HINSTANCE hInst) {
         currentCritter_ = persistedState_.critter;
         currentCritterCount_ = persistedState_.critterCountOverride;
         autoStart_ = persistedState_.autoStart;
+    }
+    if (!autostart::ReconcileWithState(autoStart_)) {
+        OutputDebugStringA("[DesktopGrass] unable to reconcile Start with Windows registry state\n");
     }
     lastPersistenceSaveMs_ = GetTickCount64();
 
@@ -154,11 +158,13 @@ bool App::CreateTrayIcon() {
     AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
                 reinterpret_cast<UINT_PTR>(critterSubmenu_), L"Critter");
 
+    AppendMenuW(trayMenu_, MF_STRING, kMenuAutoStart, L"Start with Windows");
     AppendMenuW(trayMenu_, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(trayMenu_, MF_STRING, kMenuQuit, L"Quit DesktopGrass");
     UpdateSceneMenuCheck();
     UpdateCritterMenuCheck();
     UpdatePetCountMenuCheck();
+    UpdateAutoStartMenuCheck();
 
     nid_ = {};
     nid_.cbSize           = sizeof(nid_);
@@ -218,6 +224,29 @@ void App::UpdatePetCountMenuCheck() {
     CheckMenuRadioItem(petCountSubmenu_,
                        kMenuPetCountRandom, kMenuPetCount6,
                        activeId, MF_BYCOMMAND);
+}
+
+void App::UpdateAutoStartMenuCheck() {
+    if (!trayMenu_) return;
+    CheckMenuItem(trayMenu_, kMenuAutoStart,
+                  MF_BYCOMMAND | (autoStart_ ? MF_CHECKED : MF_UNCHECKED));
+}
+
+void App::SetAutoStart(bool enabled) {
+    if (enabled == autoStart_ && autostart::IsEnabled() == enabled) {
+        UpdateAutoStartMenuCheck();
+        return;
+    }
+
+    if (!autostart::SetEnabled(enabled)) {
+        OutputDebugStringA("[DesktopGrass] unable to update Start with Windows registry state\n");
+        UpdateAutoStartMenuCheck();
+        return;
+    }
+
+    autoStart_ = enabled;
+    UpdateAutoStartMenuCheck();
+    SaveCurrentState();
 }
 
 void App::SetCritter(CritterKind c) {
@@ -486,6 +515,7 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
             }
             switch (id) {
                 case kMenuQuit:          RequestQuit();                       break;
+                case kMenuAutoStart:     SetAutoStart(!autoStart_);           break;
                 case kMenuSceneGrass:    SetScene(Scene::Grass);              break;
                 case kMenuSceneDesert:   SetScene(Scene::Desert);             break;
                 case kMenuSceneWinter:   SetScene(Scene::Winter);             break;

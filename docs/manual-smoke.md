@@ -131,7 +131,7 @@ Run the app for 10 minutes idle.
 
 ## Known limitations
 
-- v1 has no auto-start. The user runs the exe manually.
+- Auto-start is opt-in via tray → Start with Windows and writes the per-impl HKCU Run value.
 - v1 has no settings UI. Constants are hard-coded per `docs/architecture.md`.
 - v1 has no persistence. Cut state is per-session.
 - v1 has no trees / regrowth / weather.

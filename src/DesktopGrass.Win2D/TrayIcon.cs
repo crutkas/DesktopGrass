@@ -19,18 +19,20 @@ internal sealed class TrayIcon : IDisposable
     private readonly Scene _initialScene;
     private readonly CritterKind _initialCritter;
     private readonly int _initialCritterCount;
+    private readonly bool _initialAutoStart;
     private Thread? _thread;
     private NotifyIcon? _icon;
     private Form? _hiddenForm;
     private readonly ManualResetEventSlim _started = new(false);
 
     public TrayIcon(uint mainThreadId, Scene initialScene, CritterKind initialCritter,
-                    int initialCritterCount)
+                    int initialCritterCount, bool initialAutoStart)
     {
         _mainThreadId = mainThreadId;
         _initialScene = initialScene;
         _initialCritter = initialCritter;
         _initialCritterCount = initialCritterCount;
+        _initialAutoStart = initialAutoStart;
     }
 
     public void Start()
@@ -125,6 +127,19 @@ internal sealed class TrayIcon : IDisposable
         petCountMenu.DropDownItems.AddRange(petCountItems);
         critterMenu.DropDownItems.Add(petCountMenu);
         menu.Items.Add(critterMenu);
+
+        var autoStartItem = new ToolStripMenuItem("Start with Windows")
+        {
+            Checked = _initialAutoStart,
+            CheckOnClick = false,
+        };
+        autoStartItem.Click += (_, _) =>
+        {
+            bool enabled = !autoStartItem.Checked;
+            autoStartItem.Checked = enabled;
+            Win32App.RequestAutoStartChange(enabled);
+        };
+        menu.Items.Add(autoStartItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(quitItem);
 

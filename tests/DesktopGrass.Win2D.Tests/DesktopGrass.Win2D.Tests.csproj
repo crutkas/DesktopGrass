@@ -25,10 +25,12 @@
     CI build agent.
   -->
   <ItemGroup>
+    <Compile Include="..\..\src\DesktopGrass.Win2D\AutoStart.cs" Link="Shared\AutoStart.cs" />
     <Compile Include="..\..\src\DesktopGrass.Win2D\Constants.cs" Link="Shared\Constants.cs" />
     <Compile Include="..\..\src\DesktopGrass.Win2D\Persistence.cs" Link="Shared\Persistence.cs" />
     <Compile Include="..\..\src\DesktopGrass.Win2D\Sim.cs" Link="Shared\Sim.cs" />
 
+    <Compile Include="AutoStartTests.cs" />
     <Compile Include="PersistenceTests.cs" />
     <Compile Include="SimTests\PrngTests.cs" />
     <Compile Include="SimTests\BladeGenTests.cs" />

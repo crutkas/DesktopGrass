@@ -32,6 +32,7 @@ public:
     static constexpr int   kMenuPetCountRandom  = 1030;
     static constexpr int   kMenuPetCount1       = 1031;
     static constexpr int   kMenuPetCount6       = 1036;
+    static constexpr int   kMenuAutoStart       = 1040;
 
     App() = default;
     ~App();
@@ -59,9 +60,11 @@ private:
     void ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds);
     persistence::AppState BuildAppState();
     void SaveCurrentState();
+    void SetAutoStart(bool enabled);
     void UpdateSceneMenuCheck();
     void UpdateCritterMenuCheck();
     void UpdatePetCountMenuCheck();
+    void UpdateAutoStartMenuCheck();
 
     static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT msg,
                                               WPARAM wp, LPARAM lp);

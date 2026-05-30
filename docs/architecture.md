@@ -1704,7 +1704,7 @@ Persisted fields:
 - `scene`: current `Scene` enum name (`Grass`, `Desert`, `Winter`).
 - `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`).
 - `critterCount`: `0` for random, `1..6` for fixed per-monitor count.
-- `autoStart`: bool placeholder for the upcoming startup feature; default `false`.
+- `autoStart`: whether DesktopGrass should start with Windows; default `false`.
 - `monitors`: object keyed by monitor work-area key, each with a `cuts` array of `{ bladeIndex, cutTime }` records.
 
 ### Load order
@@ -1713,7 +1713,11 @@ On startup, load `state.json` before creating any `Sim`. Apply the loaded scene,
 
 ### Save triggers
 
-Startup does not save by itself. Save immediately after a scene, critter, or critter-count change is applied; save every 60 seconds while running; and save once more on the quit/exit path.
+Startup does not save by itself. Save immediately after a scene, critter, critter-count, or auto-start change is applied; save every 60 seconds while running; and save once more on the quit/exit path.
+
+### Auto-start
+
+`autoStart` is a boolean persisted in `state.json`; on startup it is reconciled with `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and persisted state wins. Native writes `DesktopGrass.Native` and Win2D writes `DesktopGrass.Win2D` so both implementations can autostart side-by-side.
 
 ### Monitor matching
 

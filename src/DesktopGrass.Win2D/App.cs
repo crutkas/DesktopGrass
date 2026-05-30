@@ -40,6 +40,13 @@ internal static class Win32App
         System.Threading.Interlocked.Exchange(ref s_pendingCritterCount, n > 0 ? n : 0);
     public static int ConsumePendingCritterCountChange() =>
         System.Threading.Interlocked.Exchange(ref s_pendingCritterCount, -1);
+
+    // -1 = no pending change; 0 = disabled; 1 = enabled.
+    private static int s_pendingAutoStart = -1;
+    public static void RequestAutoStartChange(bool enabled) =>
+        System.Threading.Interlocked.Exchange(ref s_pendingAutoStart, enabled ? 1 : 0);
+    public static int ConsumePendingAutoStartChange() =>
+        System.Threading.Interlocked.Exchange(ref s_pendingAutoStart, -1);
 }
 
 internal sealed class App : IDisposable
@@ -70,6 +77,7 @@ internal sealed class App : IDisposable
         Win32.SetProcessDpiAwarenessContext(Win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
         LoadPersistedState();
+        ReconcileAutoStartRegistry();
 
         RegisterWindowClass();
         CreatePerMonitorWindows();
@@ -77,7 +85,7 @@ internal sealed class App : IDisposable
         _hook = new MouseHook();
         _hook.Install();
 
-        _tray = new TrayIcon(0, _currentScene, _currentCritter, _currentCritterCount);
+        _tray = new TrayIcon(0, _currentScene, _currentCritter, _currentCritterCount, _autoStart);
         _tray.Start();
 
         RunMessageLoop();
@@ -213,6 +221,18 @@ internal sealed class App : IDisposable
         _lastPersistenceSave = DateTimeOffset.UtcNow;
     }
 
+    private void ReconcileAutoStartRegistry()
+    {
+        try
+        {
+            AutoStart.ReconcileWithState(_autoStart);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Trace.WriteLine($"DesktopGrass auto-start: unable to reconcile HKCU Run state. {ex.Message}");
+        }
+    }
+
     private void ApplyPersistedStateToWindow(GrassWindow window, Rectangle monitorBounds)
     {
         window.SetScene(_currentScene);
@@ -260,6 +280,20 @@ internal sealed class App : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             Trace.WriteLine($"DesktopGrass persistence: unable to save state.json. {ex.Message}");
+        }
+    }
+
+    private void SetAutoStart(bool enabled)
+    {
+        try
+        {
+            AutoStart.SetEnabled(enabled);
+            _autoStart = enabled;
+            SaveCurrentState();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Trace.WriteLine($"DesktopGrass auto-start: unable to update HKCU Run state. {ex.Message}");
         }
     }
 
@@ -391,6 +425,12 @@ internal sealed class App : IDisposable
                     foreach (var w in _windows) w.SetCritterCount(pendingCritterCount);
                     SaveCurrentState();
                 }
+            }
+
+            int pendingAutoStart = Win32App.ConsumePendingAutoStartChange();
+            if (pendingAutoStart >= 0)
+            {
+                SetAutoStart(pendingAutoStart != 0);
             }
 
             if (DateTimeOffset.UtcNow - _lastPersistenceSave >= TimeSpan.FromSeconds(60))
