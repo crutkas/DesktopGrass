@@ -58,3 +58,6 @@ ehthumbs.db
 # Local config
 *.local.props
 *.local.json
+
+# Self-contained publish output
+publish/

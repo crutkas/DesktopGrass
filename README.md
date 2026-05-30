@@ -46,6 +46,24 @@ Right-click the tray icon to quit.
 
 The Native exe is built via MSBuild against `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj` (Release / x64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full build-from-scratch checklist.
 
+## Portability — running on another computer
+
+| Build | What to copy | Size | Target requirements |
+| --- | --- | --- | --- |
+| **Native (Release)** | `src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe` | ~210 KB | Windows 10 1809+ x64. **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
+| **Win2D (framework-dependent)** | `src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\` (whole folder, 15 files) | ~26 MB | Windows 10 1809+ x64 **and** .NET 10 desktop runtime installed (`winget install Microsoft.DotNet.DesktopRuntime.10`). |
+| **Win2D (self-contained, single file)** | `publish\win2d-selfcontained\DesktopGrass.Win2D.exe` after the publish command below | ~143 MB | Windows 10 1809+ x64. **Nothing else** — .NET runtime + Vortice native DLLs are baked in. |
+
+To produce the Win2D self-contained single-file build:
+
+```powershell
+dotnet publish src\DesktopGrass.Win2D -c Release -r win-x64 `
+  --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+  -o publish\win2d-selfcontained
+```
+
+Tip: For a drop-and-run experience on a friend's box, Native is the way — one 210 KB exe, no installer, no runtime. Win2D self-contained is the equivalent if you want the C# build.
+
 ## Tests
 
 - **Unit tests** — pure-logic suites (PRNG determinism, blade generation, sway, gust, cut, regrowth, stroke geometry, flowers, mushrooms) for each impl in [`tests/`](tests). The two impls share a Sim/Constants core so they assert against the same numerical contract.
