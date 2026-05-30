@@ -165,7 +165,7 @@ struct Entity {
     // Critter state machine (§16). Only meaningful for EntityKind::Sheep
     // and future critters; ignored by tumbleweeds/snowflakes. Default
     // values are inert so existing scene-entity tests remain unaffected.
-    uint8_t    state         = 0;     // sheep: 0=Walking, 1=Grazing, 2=Idle
+    uint8_t    state         = 0;     // sheep: see SHEEP_STATE_* constants
     double     stateTimer    = 0.0;   // sec remaining in current state
 };
 

@@ -645,6 +645,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
     //   Hopping  : moves AND visually arcs upward (renderer applies the
     //              parabolic Y offset). Triggered by random transition or
     //              by sim_apply_click within SHEEP_STARTLE_RADIUS.
+    //   Greeting : frozen, faces another sheep until both walk apart.
     // The generic forward pass already added (vx * dt) to e.x; for frozen
     // states we undo that integration so the sheep stays planted.
     for (Entity& e : sim.entities) {
@@ -652,7 +653,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 
         const bool frozen = (e.state == SHEEP_STATE_GRAZING)
                          || (e.state == SHEEP_STATE_IDLE)
-                         || (e.state == SHEEP_STATE_SLEEPING);
+                         || (e.state == SHEEP_STATE_SLEEPING)
+                         || (e.state == SHEEP_STATE_GREETING);
         if (frozen) {
             e.x -= e.vx * dt;
         }
@@ -673,7 +675,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         // so cross-impl bit-identity is preservable once Win2D mirrors.
         e.stateTimer -= dt;
         if (e.stateTimer <= 0.0) {
-            if (e.state == SHEEP_STATE_WALKING) {
+            const uint8_t oldState = e.state;
+            if (oldState == SHEEP_STATE_WALKING) {
                 const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
                 if (r < SHEEP_GRAZE_PROBABILITY) {
                     e.state = SHEEP_STATE_GRAZING;
@@ -689,7 +692,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                     e.state = SHEEP_STATE_HOPPING;
                     e.stateTimer = SHEEP_HOP_DURATION;
                 }
-            } else if (e.state == SHEEP_STATE_IDLE) {
+            } else if (oldState == SHEEP_STATE_IDLE) {
                 const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
                 if (r < SHEEP_SLEEP_FROM_IDLE_PROB) {
                     e.state = SHEEP_STATE_SLEEPING;
@@ -703,16 +706,55 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                                                 SHEEP_WALK_DURATION_MAX);
                 }
             } else {
-                // Grazing / Sleeping / Hopping → return to Walking.
+                // Grazing / Sleeping / Hopping / Greeting → return to Walking.
                 e.state = SHEEP_STATE_WALKING;
                 e.stateTimer = prng_uniform(sim.critterPrng,
                                             SHEEP_WALK_DURATION_MIN,
                                             SHEEP_WALK_DURATION_MAX);
+                if (oldState == SHEEP_STATE_GREETING) {
+                    e.vx = -e.vx;
+                }
             }
             // age reset so hop arc / walk cycle / sleep-Z animation start
             // from phase 0 at every state entry (else the hop would catch
             // mid-arc and a long-running sheep's leg cycle would jitter).
             e.age = 0.0;
+        }
+    }
+
+    // Pair-wise sheep greeting trigger. Runs after all per-sheep transitions
+    // and before the snowflake spawner so critter PRNG draw order stays locked.
+    auto canGreet = [](const Entity& sheep) noexcept {
+        return sheep.kind == EntityKind::Sheep
+            && (sheep.state == SHEEP_STATE_WALKING
+             || sheep.state == SHEEP_STATE_GRAZING
+             || sheep.state == SHEEP_STATE_IDLE)
+            && sheep.age >= SHEEP_GREET_MIN_AGE;
+    };
+    for (std::size_t i = 0; i < sim.entities.size(); ++i) {
+        Entity& a = sim.entities[i];
+        if (!canGreet(a)) continue;
+
+        for (std::size_t j = i + 1; j < sim.entities.size(); ++j) {
+            Entity& b = sim.entities[j];
+            if (!canGreet(b)) continue;
+
+            const double dx = b.x - a.x;
+            if (std::abs(dx) >= SHEEP_GREET_RADIUS) continue;
+
+            const double duration = prng_uniform(sim.critterPrng,
+                                                SHEEP_GREET_DURATION_MIN,
+                                                SHEEP_GREET_DURATION_MAX);
+            const double dir = (dx >= 0.0) ? 1.0 : -1.0;
+            a.vx =  dir * std::abs(a.vx);
+            b.vx = -dir * std::abs(b.vx);
+            a.state = SHEEP_STATE_GREETING;
+            b.state = SHEEP_STATE_GREETING;
+            a.stateTimer = duration;
+            b.stateTimer = duration;
+            a.age = 0.0;
+            b.age = 0.0;
+            break;
         }
     }
 

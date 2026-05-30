@@ -719,6 +719,7 @@ void Renderer::DrawEntities() {
                 //   WALKING  : leg cycle + head bob + tail wiggle.
                 //   GRAZING  : frozen, head pivoted down to the grass line.
                 //   IDLE     : frozen, head turns side-to-side.
+                //   GREETING : frozen, head gently bobs while facing partner.
                 //   SLEEPING : tucked on the ground, legs hidden, eyes
                 //              closed (horizontal slits), Z's drift up.
                 //   HOPPING  : sheep arcs upward (parabola) — entire pose
@@ -735,6 +736,7 @@ void Renderer::DrawEntities() {
                 const bool isWalking  = (e.state == SHEEP_STATE_WALKING);
                 const bool isGrazing  = (e.state == SHEEP_STATE_GRAZING);
                 const bool isIdle     = (e.state == SHEEP_STATE_IDLE);
+                const bool isGreeting = (e.state == SHEEP_STATE_GREETING);
                 const bool isSleeping = (e.state == SHEEP_STATE_SLEEPING);
                 const bool isHopping  = (e.state == SHEEP_STATE_HOPPING);
 
@@ -802,6 +804,7 @@ void Renderer::DrawEntities() {
 
                 // Head position. WALKING/HOPPING: forward + slight bob.
                 // GRAZING: pivoted down to the grass. IDLE: sweeps L/R.
+                // GREETING: faces partner via vx and gently nuzzles.
                 // SLEEPING: rests low on the front edge of the body.
                 float headDirX = facing;
                 float headDx = headDirX * (br * 1.08f);
@@ -818,6 +821,9 @@ void Renderer::DrawEntities() {
                     headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
                     headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * std::fabs(sweep));
                     headDy = -bh * 0.05f;
+                } else if (isGreeting) {
+                    headDy -= std::sin(static_cast<float>(e.age * SHEEP_GREET_HEAD_BOB_FREQ))
+                        * static_cast<float>(SHEEP_GREET_HEAD_BOB_AMP);
                 } else if (isSleeping) {
                     headDx = headDirX * br * 0.95f;
                     headDy = bh * 0.10f;

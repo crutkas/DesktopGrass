@@ -300,7 +300,7 @@ internal sealed class GrassWindow : IDisposable
     private void DrawSheep(in Entity e)
     {
         // §16 Suffolk-style vector sheep — white wool cloud + dark head/legs.
-        // Pose driven by e.State (Walking / Grazing / Idle / Sleeping / Hopping).
+        // Pose driven by e.State (Walking / Grazing / Idle / Greeting / Sleeping / Hopping).
         const float twoPi = (float)(Math.PI * 2.0);
         float cx     = (float)e.X;
         float br     = (float)Constants.SHEEP_BODY_RADIUS;
@@ -313,6 +313,7 @@ internal sealed class GrassWindow : IDisposable
         bool isWalking  = e.State == Constants.SHEEP_STATE_WALKING;
         bool isGrazing  = e.State == Constants.SHEEP_STATE_GRAZING;
         bool isIdle     = e.State == Constants.SHEEP_STATE_IDLE;
+        bool isGreeting = e.State == Constants.SHEEP_STATE_GREETING;
         bool isSleeping = e.State == Constants.SHEEP_STATE_SLEEPING;
         bool isHopping  = e.State == Constants.SHEEP_STATE_HOPPING;
 
@@ -387,6 +388,11 @@ internal sealed class GrassWindow : IDisposable
             headDirX = sweep >= 0.0f ? 1.0f : -1.0f;
             headDx = headDirX * (br * 1.08f) * (0.6f + 0.4f * Math.Abs(sweep));
             headDy = -bh * 0.05f;
+        }
+        else if (isGreeting)
+        {
+            headDy -= (float)(Math.Sin(e.Age * Constants.SHEEP_GREET_HEAD_BOB_FREQ)
+                              * Constants.SHEEP_GREET_HEAD_BOB_AMP);
         }
         else if (isSleeping)
         {

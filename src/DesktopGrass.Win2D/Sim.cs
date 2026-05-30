@@ -141,7 +141,7 @@ public struct Entity
     // Critter state machine (§16). Only meaningful for EntityKind.Sheep
     // and future critters; ignored by tumbleweeds/snowflakes. Default
     // values are inert so existing scene-entity tests are unaffected.
-    public byte   State;       // sheep: 0=Walking,1=Grazing,2=Idle,3=Sleeping,4=Hopping
+    public byte   State;       // sheep: see SHEEP_STATE_* constants
     public double StateTimer;  // sec remaining in current state
 }
 
@@ -494,8 +494,8 @@ internal sealed class Sim
                              && (e.Age >= e.Lifetime || e.Y > groundY));
 
         // §16 Sheep state machine. Walking moves horizontally and bounces off
-        // the edges; Grazing/Idle/Sleeping freeze position (the generic pass
-        // above already added vx*dt, so we undo it). Hopping continues
+        // the edges; Grazing/Idle/Sleeping/Greeting freeze position (the generic
+        // pass above already added vx*dt, so we undo it). Hopping continues
         // horizontal motion (the parabolic Y offset is renderer-side).
         for (int i = 0; i < Entities.Count; i++)
         {
@@ -504,7 +504,8 @@ internal sealed class Sim
 
             bool frozen = e.State == Constants.SHEEP_STATE_GRAZING
                        || e.State == Constants.SHEEP_STATE_IDLE
-                       || e.State == Constants.SHEEP_STATE_SLEEPING;
+                       || e.State == Constants.SHEEP_STATE_SLEEPING
+                       || e.State == Constants.SHEEP_STATE_GREETING;
             if (frozen)
             {
                 e.X -= e.Vx * dt;
@@ -572,11 +573,15 @@ internal sealed class Sim
                 }
                 else
                 {
-                    // Grazing / Sleeping / Hopping → Walking.
+                    // Grazing / Sleeping / Hopping / Greeting → Walking.
                     e.State = Constants.SHEEP_STATE_WALKING;
                     e.StateTimer = CritterPrng.Uniform(
                         Constants.SHEEP_WALK_DURATION_MIN,
                         Constants.SHEEP_WALK_DURATION_MAX);
+                    if (oldState == Constants.SHEEP_STATE_GREETING)
+                    {
+                        e.Vx = -e.Vx;
+                    }
                 }
                 // Reset animation phase on every transition so hop arcs,
                 // sleep Z's, and walk cycles all start at phase 0.
@@ -584,6 +589,53 @@ internal sealed class Sim
             }
 
             Entities[i] = e;
+        }
+
+        // Pair-wise sheep greeting trigger. Runs after all per-sheep transitions
+        // and before the snowflake spawner so critter PRNG draw order stays locked.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity a = Entities[i];
+            if (a.Kind != EntityKind.Sheep
+                || (a.State != Constants.SHEEP_STATE_WALKING
+                    && a.State != Constants.SHEEP_STATE_GRAZING
+                    && a.State != Constants.SHEEP_STATE_IDLE)
+                || a.Age < Constants.SHEEP_GREET_MIN_AGE)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j < Entities.Count; j++)
+            {
+                Entity b = Entities[j];
+                if (b.Kind != EntityKind.Sheep
+                    || (b.State != Constants.SHEEP_STATE_WALKING
+                        && b.State != Constants.SHEEP_STATE_GRAZING
+                        && b.State != Constants.SHEEP_STATE_IDLE)
+                    || b.Age < Constants.SHEEP_GREET_MIN_AGE)
+                {
+                    continue;
+                }
+
+                double dx = b.X - a.X;
+                if (Math.Abs(dx) >= Constants.SHEEP_GREET_RADIUS) continue;
+
+                double duration = CritterPrng.Uniform(
+                    Constants.SHEEP_GREET_DURATION_MIN,
+                    Constants.SHEEP_GREET_DURATION_MAX);
+                double dir = dx >= 0.0 ? 1.0 : -1.0;
+                a.Vx =  dir * Math.Abs(a.Vx);
+                b.Vx = -dir * Math.Abs(b.Vx);
+                a.State = Constants.SHEEP_STATE_GREETING;
+                b.State = Constants.SHEEP_STATE_GREETING;
+                a.StateTimer = duration;
+                b.StateTimer = duration;
+                a.Age = 0.0;
+                b.Age = 0.0;
+                Entities[i] = a;
+                Entities[j] = b;
+                break;
+            }
         }
 
         if (CurrentScene == Scene.Winter)

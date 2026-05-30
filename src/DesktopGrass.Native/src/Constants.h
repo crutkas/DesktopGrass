@@ -270,8 +270,9 @@ constexpr double   SHEEP_HEAD_BOB_AMP    = 0.7;         // DIP head Y bob during
 constexpr double   SHEEP_TAIL_WIGGLE_AMP = 0.6;         // DIP tail X wiggle
 
 // State machine. State encodes 0=Walking, 1=Grazing, 2=Idle, 3=Sleeping,
-// 4=Hopping in Entity.state. Walking → expires → Grazing / Idle / Hopping.
-// Idle → expires → Walking or Sleeping. Other states → expires → Walking.
+// 4=Hopping, 5=Greeting in Entity.state. Walking → expires → Grazing /
+// Idle / Hopping. Idle → expires → Walking or Sleeping. Other states →
+// expires → Walking; Greeting flips vx on exit so paired sheep walk apart.
 // Durations drawn from critter PRNG on every transition so behavior is
 // deterministic per (seed, monitor). Click-near-sheep also forces Hopping.
 constexpr uint8_t  SHEEP_STATE_WALKING  = 0;
@@ -279,15 +280,20 @@ constexpr uint8_t  SHEEP_STATE_GRAZING  = 1;
 constexpr uint8_t  SHEEP_STATE_IDLE     = 2;
 constexpr uint8_t  SHEEP_STATE_SLEEPING = 3;
 constexpr uint8_t  SHEEP_STATE_HOPPING  = 4;
-constexpr double   SHEEP_WALK_DURATION_MIN  = 8.0;      // sec — average walk leg before pause
-constexpr double   SHEEP_WALK_DURATION_MAX  = 14.0;
-constexpr double   SHEEP_GRAZE_DURATION_MIN = 3.0;      // sec — head down chewing grass
-constexpr double   SHEEP_GRAZE_DURATION_MAX = 5.0;
-constexpr double   SHEEP_IDLE_DURATION_MIN  = 1.5;      // sec — looking around
-constexpr double   SHEEP_IDLE_DURATION_MAX  = 3.0;
-constexpr double   SHEEP_SLEEP_DURATION_MIN = 8.0;      // sec — Zzz nap
-constexpr double   SHEEP_SLEEP_DURATION_MAX = 16.0;
-constexpr double   SHEEP_HOP_DURATION       = 0.55;     // sec — one parabolic arc
+constexpr uint8_t  SHEEP_STATE_GREETING = 5;
+constexpr double   SHEEP_WALK_DURATION_MIN   = 8.0;     // sec — average walk leg before pause
+constexpr double   SHEEP_WALK_DURATION_MAX   = 14.0;
+constexpr double   SHEEP_GRAZE_DURATION_MIN  = 3.0;     // sec — head down chewing grass
+constexpr double   SHEEP_GRAZE_DURATION_MAX  = 5.0;
+constexpr double   SHEEP_IDLE_DURATION_MIN   = 1.5;     // sec — looking around
+constexpr double   SHEEP_IDLE_DURATION_MAX   = 3.0;
+constexpr double   SHEEP_SLEEP_DURATION_MIN  = 8.0;     // sec — Zzz nap
+constexpr double   SHEEP_SLEEP_DURATION_MAX  = 16.0;
+constexpr double   SHEEP_HOP_DURATION        = 0.55;    // sec — one parabolic arc
+constexpr double   SHEEP_GREET_RADIUS        = 50.0;    // DIP, center-to-center
+constexpr double   SHEEP_GREET_DURATION_MIN  = 1.6;     // sec
+constexpr double   SHEEP_GREET_DURATION_MAX  = 2.8;
+constexpr double   SHEEP_GREET_MIN_AGE       = 1.5;     // sec, natural cooldown
 
 // Walking-expiry distribution. Cumulative: r<GRAZE → Grazing, else
 // r<GRAZE+IDLE → Idle, else → Hopping. GRAZE + IDLE + HOP_PROB == 1.0.
@@ -296,10 +302,12 @@ constexpr double   SHEEP_IDLE_PROBABILITY   = 0.25;
 // Idle-expiry: chance of slipping into Sleeping vs returning to Walking.
 constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
 
-// Idle / Grazing tiny animations.
-constexpr double   SHEEP_IDLE_SWEEP_FREQ   = 1.4;       // rad/sec for L/R head turn
-constexpr double   SHEEP_GRAZE_MUNCH_FREQ  = 8.0;       // rad/sec for head nibble bob
-constexpr double   SHEEP_GRAZE_MUNCH_AMP   = 0.6;       // DIP
+// Idle / Grazing / Greeting tiny animations.
+constexpr double   SHEEP_IDLE_SWEEP_FREQ      = 1.4;    // rad/sec for L/R head turn
+constexpr double   SHEEP_GRAZE_MUNCH_FREQ     = 8.0;    // rad/sec for head nibble bob
+constexpr double   SHEEP_GRAZE_MUNCH_AMP      = 0.6;    // DIP
+constexpr double   SHEEP_GREET_HEAD_BOB_FREQ  = 4.5;    // rad/sec
+constexpr double   SHEEP_GREET_HEAD_BOB_AMP   = 0.7;    // DIP, gentle nuzzle bob
 
 // Hop arc + click-startle.
 constexpr double   SHEEP_HOP_HEIGHT        = 11.0;      // DIP peak vertical offset

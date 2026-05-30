@@ -241,6 +241,7 @@ internal static class Constants
     public const byte   SHEEP_STATE_IDLE     = 2;
     public const byte   SHEEP_STATE_SLEEPING = 3;
     public const byte   SHEEP_STATE_HOPPING  = 4;
+    public const byte   SHEEP_STATE_GREETING = 5;
 
     public const double SHEEP_WALK_DURATION_MIN   = 8.0;
     public const double SHEEP_WALK_DURATION_MAX   = 14.0;
@@ -251,14 +252,20 @@ internal static class Constants
     public const double SHEEP_SLEEP_DURATION_MIN  = 8.0;
     public const double SHEEP_SLEEP_DURATION_MAX  = 16.0;
     public const double SHEEP_HOP_DURATION        = 0.55;
+    public const double SHEEP_GREET_RADIUS        = 50.0;
+    public const double SHEEP_GREET_DURATION_MIN  = 1.6;
+    public const double SHEEP_GREET_DURATION_MAX  = 2.8;
+    public const double SHEEP_GREET_MIN_AGE       = 1.5;
 
     public const double SHEEP_GRAZE_PROBABILITY    = 0.60;
     public const double SHEEP_IDLE_PROBABILITY     = 0.25;
     public const double SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
 
-    public const double SHEEP_IDLE_SWEEP_FREQ  = 1.4;
-    public const double SHEEP_GRAZE_MUNCH_FREQ = 8.0;
-    public const double SHEEP_GRAZE_MUNCH_AMP  = 0.6;
+    public const double SHEEP_IDLE_SWEEP_FREQ      = 1.4;
+    public const double SHEEP_GRAZE_MUNCH_FREQ     = 8.0;
+    public const double SHEEP_GRAZE_MUNCH_AMP      = 0.6;
+    public const double SHEEP_GREET_HEAD_BOB_FREQ  = 4.5;
+    public const double SHEEP_GREET_HEAD_BOB_AMP   = 0.7;
 
     public const double SHEEP_HOP_HEIGHT     = 11.0;
     public const double SHEEP_STARTLE_RADIUS = 64.0;

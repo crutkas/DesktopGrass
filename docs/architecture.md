@@ -1440,7 +1440,7 @@ generate_critters_sheep(sim):
 
 Both impls MUST follow this exact sequence per sheep for bit-identical critter PRNG state across implementations.
 
-### State machine (5 states)
+### State machine (6 states)
 
 ```
 SHEEP_STATE_WALKING  = 0   // moves horizontally + animated leg cycle / head bob / tail wiggle
@@ -1448,11 +1448,25 @@ SHEEP_STATE_GRAZING  = 1   // frozen, head pivoted down to grass + munch wiggle
 SHEEP_STATE_IDLE     = 2   // frozen, head sweeps L/R
 SHEEP_STATE_SLEEPING = 3   // body tucked on ground, legs hidden, eyes = horizontal slits, Z's drift up
 SHEEP_STATE_HOPPING  = 4   // continues horizontal motion, renderer applies parabolic Y offset
+SHEEP_STATE_GREETING = 5   // frozen, faces another sheep, gentle nuzzle head-bob
 ```
 
-**Freeze-undo rule.** The generic entity forward pass adds `vx * dt` to `e.x` for all entities. The sheep tick undoes that addition for `{Grazing, Idle, Sleeping}` (sheep stays planted). Hopping does NOT undo — sheep covers ground during the hop, which is what gives it the "moving but jumping" feel.
+Greeting constants:
+
+```
+SHEEP_GREET_RADIUS          = 50.0  // DIP, center-to-center
+SHEEP_GREET_DURATION_MIN    = 1.6   // sec
+SHEEP_GREET_DURATION_MAX    = 2.8   // sec
+SHEEP_GREET_MIN_AGE         = 1.5   // sec, must elapse in current state
+SHEEP_GREET_HEAD_BOB_FREQ   = 4.5   // rad/sec
+SHEEP_GREET_HEAD_BOB_AMP    = 0.7   // DIP
+```
+
+**Freeze-undo rule.** The generic entity forward pass adds `vx * dt` to `e.x` for all entities. The sheep tick undoes that addition for `{Grazing, Idle, Sleeping, Greeting}` (sheep stays planted). Hopping does NOT undo — sheep covers ground during the hop, which is what gives it the "moving but jumping" feel.
 
 **Edge bounce.** Runs in every state (even frozen) — clamp `e.x` into `[margin, monitorWidth - margin]` where `margin = e.size + 2.0` and force `vx = abs(vx)` (left edge) / `-abs(vx)` (right edge). This ensures a sheep that spawns near the edge reflects on its first walk tick.
+
+**Proximity greeting pass.** After the entire per-sheep transition loop completes, and before the snowflake spawner, the sim scans entity pairs in insertion order `(i, j)` with `j > i`. Both entities must be sheep in `{Walking, Grazing, Idle}` and have `age >= SHEEP_GREET_MIN_AGE`; this age gate is the natural anti-thrash cooldown after greeting exits because every state transition resets `age` to 0. If `abs(b.x - a.x) < SHEEP_GREET_RADIUS`, the pair enters Greeting. Exactly one `critterPrng.uniform(SHEEP_GREET_DURATION_MIN, SHEEP_GREET_DURATION_MAX)` is drawn per triggered pair and shared by both sheep. Their `vx` signs are set to face each other, `stateTimer` is set to the shared duration, `age` is reset, and the inner loop breaks so each sheep initiates at most one greeting per tick.
 
 **Transition graph (deterministic from `critterPrng`):**
 
@@ -1466,10 +1480,12 @@ Idle expires → r = critterPrng.uniform(0,1):
   r < 0.30                              → Sleeping (duration uniform[8, 16]s)
   r ≥ 0.30                              → Walking  (duration uniform[8, 14]s)
 
+Walking / Grazing / Idle pair in range → Greeting (shared duration uniform[1.6, 2.8]s)
 Grazing / Sleeping / Hopping expire    → Walking  (duration uniform[8, 14]s)
+Greeting expires                       → Walking  (duration uniform[8, 14]s, vx flipped)
 ```
 
-`e.age` is reset to `0.0` on **every** state transition so animations (hop arc, sleep Z's, walk cycle) start at phase 0 every time.
+`e.age` is reset to `0.0` on **every** state transition so animations (hop arc, sleep Z's, walk cycle, greeting bob) start at phase 0 every time. Greeting is the only timer-expiry transition that flips `vx`; Walking/Idle exits keep their current `vx` sign.
 
 ### Click startle
 
@@ -1497,6 +1513,7 @@ WALKING  : leg cycle (sin(walkPhase) * LEG_CYCLE_AMP, 4 legs in two antiphase pa
            head bob (sin(walkPhase*2) * HEAD_BOB_AMP), tail wiggle (sin(walkPhase*2) * TAIL_WIGGLE_AMP)
 GRAZING  : head dropped to bh*0.85 (touches grass), munch (sin(age*MUNCH_FREQ) * MUNCH_AMP) on head y
 IDLE     : head sweeps L/R via sin(age*IDLE_SWEEP_FREQ); facing follows sign of sweep
+GREETING : frozen like Idle with no sweep; facing follows vx sign set by trigger; headY -= sin(age*GREET_HEAD_BOB_FREQ) * GREET_HEAD_BOB_AMP
 SLEEPING : body sits on ground (sleepOffsetY); legs not drawn; eye → single horizontal slit
            drawn as DrawLine in sheepInkBrush; two Z glyphs drift up, grow + fade
 HOPPING  : legs static (suspended look), parabolic Y offset, horizontal motion continues
@@ -1508,5 +1525,5 @@ Sleeping Z glyphs are drawn as 3 line segments (top horizontal, diagonal, bottom
 
 All `SHEEP_*` and `CRITTER_*` constants are defined in Native `Constants.h` and Win2D `Constants.cs` with identical numeric values. The Critter tray menu is built parallel to the Scene tray menu.
 
-For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order. Both impls' test suites verify this in `critter_tests`.
+For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Sheep)` produces a deterministic flock size `K ∈ [SHEEP_COUNT_MIN, SHEEP_COUNT_MAX]`. Both impls produce bit-identical `(x, vx, seed, stateTimer)` per sheep when walking the same `Prng(CANONICAL_TEST_SEED XOR CRITTER_PRNG_SALT)` side stream in the documented draw order, and the greeting trigger consumes exactly one additional Uniform draw per triggered pair in pair-iteration order. Both impls' test suites verify this in `critter_tests` and `sheep_greeting_tests`.
 
