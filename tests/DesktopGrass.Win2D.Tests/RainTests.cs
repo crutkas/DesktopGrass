@@ -50,6 +50,7 @@ public class RainTests
         Assert.Equal(3, (int)EntityKind.Sheep);
         Assert.Equal(4, (int)EntityKind.Cat);
         Assert.Equal(5, (int)EntityKind.Raindrop);
+        Assert.Equal(6, (int)EntityKind.Bunny);
     }
 
     [Fact]

@@ -33,6 +33,7 @@ public class EntitySkeletonTests
         Assert.Equal(3, (int)EntityKind.Sheep);
         Assert.Equal(4, (int)EntityKind.Cat);
         Assert.Equal(5, (int)EntityKind.Raindrop);
+        Assert.Equal(6, (int)EntityKind.Bunny);
         Assert.Equal(64, Constants.MAX_ENTITIES_PER_MONITOR);
     }
 
@@ -56,7 +57,7 @@ public class EntitySkeletonTests
         });
         Assert.Single(sim.Entities);
 
-        sim.SetScene(Scene.Grass);
+        sim.SetScene(Scene.Winter);
         Assert.Empty(sim.Entities);
     }
 

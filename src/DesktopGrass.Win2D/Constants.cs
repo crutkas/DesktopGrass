@@ -9,9 +9,9 @@ namespace DesktopGrass.Win2D;
 
 public enum Scene { Grass = 0, Desert = 1, Winter = 2 }
 
-// Critter (§13.3). Independent of Scene — the user can pick a critter for
-// any biome via the tray submenu. Cross-impl-locked discriminants.
-public enum CritterKind : byte { None = 0, Sheep = 1, Cat = 2 }
+// Critter (§13.3). Grass-scene ambient critters plus legacy tray selectors.
+// Cross-impl-locked discriminants.
+public enum CritterKind : byte { None = 0, Sheep = 1, Cat = 2, Bunny = 3 }
 
 internal static class Constants
 {
@@ -205,10 +205,9 @@ internal static class Constants
     // emitter can't grow without bound; matches Native MAX_ENTITIES_PER_MONITOR.
     public const int MAX_ENTITIES_PER_MONITOR = 64;
 
-    // Critter subsystem (§13.3). Independent of Scene. User picks a critter
-    // via the tray submenu and it's drawn on top of whatever biome is active.
+    // Critter subsystem (§13.3). Grass-scene ambient critters plus legacy tray selectors.
     // CritterKind discriminants are cross-impl-locked with Native.
-    public const int        CRITTER_COUNT      = 3;
+    public const int        CRITTER_COUNT      = 4;
     public const CritterKind CRITTER_DEFAULT   = CritterKind.None;
     public const ulong      CRITTER_PRNG_SALT  = 0x5C8EE05C8EE05C8Eul;
     public static readonly int[] PET_COUNT_OPTIONS = { 1, 2, 3, 4, 5, 6 };
@@ -222,6 +221,11 @@ internal static class Constants
     public static readonly string[] CAT_NAME_POOL =
     {
         "Mittens", "Whiskers", "Shadow", "Ginger", "Smokey", "Boots", "Sage", "Juno",
+    };
+    public static readonly string[] BUNNY_NAME_POOL =
+    {
+        "Clover", "Hazel", "Thumper", "Mochi", "Pip", "Acorn",
+        "Biscuit", "Willow", "Pepper", "Hopper", "Juniper", "Snowdrop",
     };
     public const double      PET_NAME_HOVER_RADIUS = 50.0;
     public const double      PET_NAME_FADE_DURATION = 1.5;
@@ -370,6 +374,64 @@ internal static class Constants
     public const double CAT_POUNCE_HEIGHT      = 9.0;
     public const double CAT_CURIOUS_RADIUS     = 100.0;
     public const double CAT_CURIOUS_HEAD_TURN_MAX = 0.7;
+
+    // Bunny (§18). Grass-only woodland critter: shy, passive, and always hopping
+    // when it moves. Generated after sheep and cats from the shared critter PRNG.
+    public const int    BUNNY_COUNT_MIN          = 1;
+    public const int    BUNNY_COUNT_MAX          = 2;
+    public const double BUNNY_HOP_SPEED_MIN      = 22.0;
+    public const double BUNNY_HOP_SPEED_MAX      = 38.0;
+    public const double BUNNY_BODY_RADIUS        = 8.0;
+    public const double BUNNY_BODY_HEIGHT        = 6.5;
+    public const double BUNNY_HEAD_RADIUS        = 4.2;
+    public const double BUNNY_EAR_HEIGHT         = 9.0;
+    public const double BUNNY_EAR_WIDTH          = 2.2;
+    public const double BUNNY_EAR_SPACING        = 3.0;
+    public const double BUNNY_LEG_LENGTH         = 4.0;
+    public const double BUNNY_TAIL_RADIUS        = 2.4;
+    public const uint   BUNNY_BODY_COLOR         = 0xFF8A6A4Au;
+    public const uint   BUNNY_BELLY_COLOR        = 0xFFC4A98Du;
+    public const uint   BUNNY_EAR_COLOR          = 0xFF8A6A4Au;
+    public const uint   BUNNY_EAR_INNER_COLOR    = 0xFFD9A0A0u;
+    public const uint   BUNNY_TAIL_COLOR         = 0xFFF7F4EBu;
+    public const uint   BUNNY_EYE_COLOR          = 0xFF1A1208u;
+    public const uint   BUNNY_NOSE_COLOR         = 0xFF8A4040u;
+
+    public const byte   BUNNY_STATE_HOPPING      = 0;
+    public const byte   BUNNY_STATE_GRAZING      = 1;
+    public const byte   BUNNY_STATE_IDLE         = 2;
+    public const byte   BUNNY_STATE_SLEEPING     = 3;
+    public const byte   BUNNY_STATE_STARTLED     = 4;
+
+    public const double BUNNY_HOP_DURATION       = 0.40;
+    public const double BUNNY_HOP_HEIGHT         = 8.0;
+    public const double BUNNY_HOP_GAP_MIN        = 0.05;
+    public const double BUNNY_HOP_GAP_MAX        = 0.20;
+    public const double BUNNY_GRAZE_DURATION_MIN = 2.5;
+    public const double BUNNY_GRAZE_DURATION_MAX = 4.5;
+    public const double BUNNY_IDLE_DURATION_MIN  = 2.0;
+    public const double BUNNY_IDLE_DURATION_MAX  = 4.0;
+    public const double BUNNY_SLEEP_DURATION_MIN = 6.0;
+    public const double BUNNY_SLEEP_DURATION_MAX = 12.0;
+    public const double BUNNY_GRAZE_PROBABILITY  = 0.55;
+    public const double BUNNY_IDLE_PROBABILITY   = 0.30;
+    public const double BUNNY_SLEEP_PROB_DAY     = 0.05;
+    public const double BUNNY_SLEEP_PROB_NIGHT   = 0.40;
+
+    public const double BUNNY_STARTLE_RADIUS     = 90.0;
+    public const double BUNNY_STARTLE_BOOST      = 2.0;
+    public const double BUNNY_STARTLE_HOP_HEIGHT = 14.0;
+    public const double BUNNY_STARTLE_DURATION   = 3.0;
+
+    public const double BUNNY_NOSE_TWITCH_FREQ   = 6.0;
+    public const double BUNNY_NOSE_TWITCH_AMP    = 0.5;
+    public const double BUNNY_EAR_WIGGLE_FREQ    = 1.2;
+    public const double BUNNY_EAR_WIGGLE_AMP     = 0.20;
+
+    public const double BUNNY_ZZZ_CYCLE_SEC      = SHEEP_ZZZ_CYCLE_SEC;
+    public const double BUNNY_ZZZ_RISE           = SHEEP_ZZZ_RISE * 0.7;
+    public const double BUNNY_ZZZ_SIZE_START     = SHEEP_ZZZ_SIZE_START * 0.7;
+    public const double BUNNY_ZZZ_SIZE_END       = SHEEP_ZZZ_SIZE_END * 0.7;
 
     // Snowflakes (§15)
     public const double SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;

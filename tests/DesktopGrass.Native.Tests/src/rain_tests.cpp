@@ -42,6 +42,7 @@ TEST_CASE("EntityKind::Raindrop is pinned", "[rain][enum]") {
     REQUIRE(static_cast<int>(EntityKind::Sheep)      == 3);
     REQUIRE(static_cast<int>(EntityKind::Cat)        == 4);
     REQUIRE(static_cast<int>(EntityKind::Raindrop)   == 5);
+    REQUIRE(static_cast<int>(EntityKind::Bunny)      == 6);
 }
 
 TEST_CASE("Raindrop PRNG salt is distinct", "[rain][constants]") {

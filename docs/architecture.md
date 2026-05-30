@@ -993,6 +993,7 @@ enum EntityKind : uint8_t {
     EntitySheep      = 3,
     EntityCat        = 4,
     EntityRaindrop   = 5,
+    EntityBunny      = 6,
 };
 
 struct Entity {
@@ -1043,7 +1044,7 @@ The emitter and respawn paths are the only places entities are added/removed dur
 
 ### Cross-impl conformance for entities
 
-- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Raindrop=5}` match exactly.
+- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Raindrop=5, Bunny=6}` match exactly.
 - Entity-stream PRNG salts (`TUMBLEWEED_PRNG_SALT`, `SNOWFLAKE_PRNG_SALT`, `RAINDROP_PRNG_SALT`, `CACTUS_PRNG_SALT`) are global constants — both impls draw entity parameters from streams seeded `seed XOR salt`.
 - A new conformance test class (`entity_tests.cpp` / `EntityTests.cs`) asserts the first tumbleweed for `CANONICAL_TEST_SEED + Desert + monitorWidth=1920` matches a pinned (`x`, `y`, `vx`, `size`) snapshot derivable from the spec, and the first snowflake at `t = 0.5s` (after exactly one tick at 0.5s) matches a pinned snapshot.
 - Blade conformance (§12) is unchanged: `sim.blades` for any seed is bit-identical regardless of `currentScene`.
@@ -1361,20 +1362,20 @@ When any test in this list fails on a single impl, that impl has diverged from t
 
 ---
 
-## 13.3 Critter subsystem (orthogonal to Scene)
+## 13.3 Critter subsystem (Grass-scene ambient critters)
 
-Critters are user-pickable pets that wander on top of the bottom strip *independent of which biome is active*. The user toggles a critter from a dedicated tray submenu and it persists across scene changes — selecting **Winter** does not clear the active critter, selecting **Sheep** does not clear snowflakes, and selecting **Cat** proves the framework is species-pluggable.
+Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), and Bunny (§17.5) share the same `CRITTER_PRNG_SALT`; Desert and Winter currently generate zero critters. The default Grass ambient set contains all three species: `2–3` sheep, `1–2` cats, and `1–2` bunnies.
 
 ### Enum and salt
 
 ```
-enum CritterKind { None = 0, Sheep = 1, Cat = 2 }
-constexpr int         CRITTER_COUNT = 3
+enum CritterKind { None = 0, Sheep = 1, Cat = 2, Bunny = 3 }
+constexpr int         CRITTER_COUNT = 4
 constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `CritterKind::Sheep` maps to `EntityKind::Sheep = 3`; `CritterKind::Cat` maps to `EntityKind::Cat = 4`. The `EntityKind` discriminants for existing kinds MUST NOT be renumbered.
+Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, and `EntityKind::Bunny = 6`; existing discriminants MUST NOT be renumbered. Bunny introduces no new PRNG salt.
 
 ### Sim state
 
@@ -1387,45 +1388,46 @@ Sim:
 
 ### Generator dispatcher
 
-`generate_critters_for_kind(sim)` is called by `sim_set_scene` as its **last** step (after biome generators) and by `sim_set_critter(sim, c)` after removing only critter entities from `sim.entities`. The dispatcher reseeds `critterPrng = Prng(entitySeed XOR CRITTER_PRNG_SALT)` and then dispatches:
+`generate_critters_for_kind(sim)` is called by `sim_set_scene` as its **last** step (after biome generators) and by `sim_set_critter(sim, c)` after removing only critter entities from `sim.entities`. The dispatcher reseeds `critterPrng = Prng(entitySeed XOR CRITTER_PRNG_SALT)`. If `currentScene != Grass`, it returns without generating critters. In Grass it dispatches:
 
 ```
-None  → no-op
-Sheep → generate_critters_sheep(sim)        // §16
-Cat   → generate_critters_cat(sim)          // §17
+None  → generate_critters_sheep(sim); generate_critters_cat(sim); generate_critters_bunny(sim)
+Sheep → generate_critters_sheep(sim)        // legacy single-species selector, §16
+Cat   → generate_critters_cat(sim)          // legacy single-species selector, §17
+Bunny → generate all three in sheep → cat → bunny order
 ```
+
+The ambient all-species path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero.
 
 ### Ordering invariant
 
 Inside `sim_set_scene`:
 
-1. `entities.clear()`
+1. Remove hard scene-transition entities (finite raindrops are preserved for soft fade-out).
 2. Restore default blade variants.
 3. Run the scene generator (tumbleweeds, snowflakes, etc.).
 4. **Run `generate_critters_for_kind(sim)` LAST.**
 
-Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter is active.
+Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass draw order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), then bunny count + bunny entities.
 
 ### `sim_set_critter` semantics
 
 ```
 sim_set_critter(sim, c):
     sim.currentCritter = c
-    remove every entity e where e.kind is a critter species (Sheep or Cat)
+    remove every entity e where e.kind is a critter species (Sheep, Cat, or Bunny)
     generate_critters_for_kind(sim)
 ```
 
-Scene entities (tumbleweeds, snowflakes, raindrops) are NEVER removed by `sim_set_critter`. Critter entities are NEVER removed by `sim_set_scene` (the dispatcher just regenerates them).
-
-Count override — Sim may carry a `critterCountOverride` (1-`PET_COUNT_MAX_PER_MONITOR` or 0 for random). When non-zero, the count PRNG draw in the species generator is skipped. Changing the override calls `sim_set_critter_count`, removes current critter entities, and regenerates the active species.
+Scene entities (tumbleweeds, snowflakes, raindrops) are NEVER removed by `sim_set_critter`. Scene transitions remove critters and then regenerate them only if the new scene is Grass.
 
 ### Tray menu
 
-A `Critter` submenu (radio-style) under the tray icon offers **None**, **Sheep**, and **Cat**, plus a **Pet count** picker (**Random**, **1**–**6**) that applies to the active species. Selection broadcasts to all monitor windows and calls `sim_set_critter(currentCritter)` or `sim_set_critter_count(n)` on each window's Sim.
+The current tray menu retains the legacy **None**, **Sheep**, and **Cat** controls and the **Pet count** picker for existing workflows. Bunny adds no tray item or user-facing setting; it is part of the default Grass ambient set.
 
 ### Cross-impl conformance
 
-Given identical `(seed, monitorWidth, CritterKind)`, both impls MUST produce the same number of critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the species-specific draw order (§16 for sheep, §17 for cat).
+Given identical `(seed, monitorWidth, scene, CritterKind)`, both impls MUST produce the same critter entities with the same per-entity field values, drawn from `Prng(seed XOR CRITTER_PRNG_SALT)` in the documented species draw order (§16 for sheep, §17 for cat, §17.5 for bunny). Side-stream tests must walk the full all-species stream before asserting bunny fields.
 
 ---
 
@@ -1722,6 +1724,130 @@ For `CANONICAL_TEST_SEED + monitorWidth = 1920`, `sim_set_critter(Cat)` produces
 
 ---
 
+## 17.5 Bunny
+
+Procedural calm woodland bunny. Bunnies are passive and skittish: they never chase the cursor, never greet other pets, and never create an engagement loop. Normal locomotion is hopping only; clicks within the startle radius wake/break the current pose and make the bunny hop away.
+
+### Constants
+
+| Constant | Value | Notes |
+| --- | ---: | --- |
+| `BUNNY_COUNT_MIN/MAX` | `1 / 2` | Grass ambient count |
+| `BUNNY_HOP_SPEED_MIN/MAX` | `22.0 / 38.0` | DIP/sec horizontal |
+| `BUNNY_BODY_RADIUS` / `HEIGHT` | `8.0 / 6.5` | small round body |
+| `BUNNY_HEAD_RADIUS` | `4.2` | circular head |
+| `BUNNY_EAR_HEIGHT` / `WIDTH` / `SPACING` | `9.0 / 2.2 / 3.0` | tall signature ears |
+| `BUNNY_LEG_LENGTH` | `4.0` | visible when idle/grazing |
+| `BUNNY_TAIL_RADIUS` | `2.4` | white puff |
+| `BUNNY_BODY_COLOR` | `0xFF8A6A4A` | warm brown |
+| `BUNNY_BELLY_COLOR` | `0xFFC4A98D` | lighter belly underglow |
+| `BUNNY_EAR_COLOR` | `0xFF8A6A4A` | body brown |
+| `BUNNY_EAR_INNER_COLOR` | `0xFFD9A0A0` | soft pink |
+| `BUNNY_TAIL_COLOR` | `0xFFF7F4EB` | white puff |
+| `BUNNY_EYE_COLOR` | `0xFF1A1208` | black dot |
+| `BUNNY_NOSE_COLOR` | `0xFF8A4040` | pink nose |
+| `BUNNY_HOP_DURATION` | `0.40` | sec per hop arc |
+| `BUNNY_HOP_HEIGHT` | `8.0` | DIP peak offset |
+| `BUNNY_HOP_GAP_MIN/MAX` | `0.05 / 0.20` | landing pause |
+| `BUNNY_GRAZE_DURATION_MIN/MAX` | `2.5 / 4.5` | sec |
+| `BUNNY_IDLE_DURATION_MIN/MAX` | `2.0 / 4.0` | sec |
+| `BUNNY_SLEEP_DURATION_MIN/MAX` | `6.0 / 12.0` | sec |
+| `BUNNY_GRAZE_PROBABILITY` | `0.55` | non-sleep active weight |
+| `BUNNY_IDLE_PROBABILITY` | `0.30` | non-sleep active weight |
+| `BUNNY_SLEEP_PROB_DAY/NIGHT` | `0.05 / 0.40` | absolute sleep probability |
+| `BUNNY_STARTLE_RADIUS` | `90.0` | DIP, click center distance |
+| `BUNNY_STARTLE_BOOST` | `2.0` | base speed multiplier |
+| `BUNNY_STARTLE_HOP_HEIGHT` | `14.0` | boosted arc |
+| `BUNNY_STARTLE_DURATION` | `3.0` | sec |
+| `BUNNY_NOSE_TWITCH_FREQ` / `AMP` | `6.0 / 0.5` | idle nose animation |
+| `BUNNY_EAR_WIGGLE_FREQ` / `AMP` | `1.2 / 0.20` | idle ear sway |
+| `BUNNY_ZZZ_*` | sheep `ZZZ` × `0.7` where sized | smaller sleep glyphs |
+| `BUNNY_NAME_POOL` | `Clover, Hazel, Thumper, Mochi, Pip, Acorn, Biscuit, Willow, Pepper, Hopper, Juniper, Snowdrop` | woodland names |
+
+### State machine
+
+```
+BUNNY_STATE_HOPPING  = 0   // one parabolic hop; no smooth walking
+BUNNY_STATE_GRAZING  = 1   // stationary, body lowered, head down nibbling
+BUNNY_STATE_IDLE     = 2   // stationary, sitting up, nose twitch + ear wiggle
+BUNNY_STATE_SLEEPING = 3   // lying flat, ears back, small Zzz glyphs
+BUNNY_STATE_STARTLED = 4   // boosted flee-hop after click
+
+Hopping expires  → choose Grazing / Idle / Sleeping, then draw duration
+Grazing expires  → Hopping (duration = hop + random gap)
+Idle expires     → Hopping (duration = hop + random gap)
+Sleeping expires → Hopping (duration = hop + random gap)
+Startled expires → Hopping (normal base speed, no gap)
+Click in radius  → Startled from any bunny state
+```
+
+Hop render offset is `4 * peak_h * t * (1 - t)` with `t = clamp(age / BUNNY_HOP_DURATION, 0, 1)`; renderers subtract that value from `cy` so positive offset moves upward. Hopping freezes horizontal integration during the landing-gap portion (`age > BUNNY_HOP_DURATION`) so the bunny pauses on the ground between hops.
+
+### Generation (PRNG draw order — LOCKED)
+
+Bunnies are generated after sheep and cats in the Grass ambient stream. Species share `CRITTER_PRNG_SALT`.
+
+```
+generate_critters_bunny(sim):
+    count = floor(critterPrng.uniform(BUNNY_COUNT_MIN, BUNNY_COUNT_MAX + 1))
+    clamp count to [BUNNY_COUNT_MIN, BUNNY_COUNT_MAX]
+    for each bunny:
+        xFrac    = critterPrng.uniform(0, 1)
+        vxSign   = critterPrng.next_u64() & 1       // 0 → left, 1 → right
+        speed    = critterPrng.uniform(BUNNY_HOP_SPEED_MIN, BUNNY_HOP_SPEED_MAX)
+        nameIndex = critterPrng.index(BUNNY_NAME_POOL.size)
+```
+
+Initial `x = margin + xFrac * (monitorWidth - 2*margin)` with `margin = BUNNY_BODY_RADIUS + 8`; `vx = sign * speed`; `rotationSpeed` stores the normal base speed for restoring after a startle. No coat variant and no PRNG seed draw are consumed in v1.
+
+### Time-of-day sleep bias
+
+Bunnies use a 2-band day/night helper:
+
+| Local hour range | Sleep probability |
+| --- | ---: |
+| `10:00 ≤ hour < 20:00` | `BUNNY_SLEEP_PROB_DAY = 0.05` |
+| `20:00 ≤ hour or hour < 10:00` | `BUNNY_SLEEP_PROB_NIGHT = 0.40` |
+
+Sleep probability is absolute. The remaining non-sleep probability is split between Grazing and Idle using `BUNNY_GRAZE_PROBABILITY : BUNNY_IDLE_PROBABILITY` as weights, preserving the crepuscular sleep bias without adding another PRNG draw.
+
+### Click startle
+
+```
+sim_apply_click after sheep and cat handling:
+  for each entity e with e.kind == Bunny:
+    if distance((e.x,e.y), (clickX,clickY)) > BUNNY_STARTLE_RADIUS: skip
+    awayDir = sign(e.x - clickX)
+    e.vx = awayDir * baseSpeed * BUNNY_STARTLE_BOOST
+    e.state = BUNNY_STATE_STARTLED
+    e.stateTimer = BUNNY_STARTLE_DURATION
+    e.age = 0.0
+```
+
+Startle wakes sleeping bunnies and interrupts grazing/idle. There is no greeting, no cursor-curious behavior, and no inter-pet interaction.
+
+### Render order
+
+Bottom-to-top:
+
+1. Tail puff behind body (`BUNNY_TAIL_COLOR`).
+2. Body ellipse (`BUNNY_BODY_COLOR`), flattened to 0.7× Y when sleeping.
+3. Belly underglow ellipse (`BUNNY_BELLY_COLOR`), offset down.
+4. Two short leg ovals when idle/grazing only; legs are tucked while hopping/startled/sleeping.
+5. Head circle on the leading front-top side.
+6. Two tall narrow ears with pink inner strokes; while sleeping, ears render as short horizontal back dashes.
+7. Eye dot; while sleeping, a short horizontal slit.
+8. Nose dot; idle adds `BUNNY_NOSE_TWITCH_AMP * sin(age * BUNNY_NOSE_TWITCH_FREQ)` to nose Y.
+9. Sleeping Zzz glyphs using `BUNNY_ZZZ_*`.
+
+Facing mirrors horizontally from `vx` sign: head, ears, eye, and nose are on the leading side; tail trails.
+
+### Scene gating and conformance
+
+Bunnies are Grass-only. `generate_critters_for_kind` returns without bunnies in Desert and Winter. Native `bunny_tests.cpp` and Win2D `BunnyTests.cs` pin constants, scene gating, count/speed/name ranges, side-stream PRNG identity after sheep+cat draws, edge bounce, startle behavior, wake-from-sleep, hop arc bounds, transition probabilities, and day/night sleep bias.
+
+---
+
 ## 18. Persistence
 
 DesktopGrass persists calm, invisible app state automatically. There is no user-facing save UI.
@@ -1733,7 +1859,7 @@ State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Both implementations 
 Persisted fields:
 
 - `scene`: current `Scene` enum name (`Grass`, `Desert`, `Winter`).
-- `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`).
+- `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`, `Bunny`).
 - `critterCount`: `0` for random, `1..6` for fixed per-monitor count.
 - `autoStart`: whether DesktopGrass should start with Windows; default `false`.
 - `monitors`: object keyed by monitor work-area key, each with a `cuts` array of `{ bladeIndex, cutTime }` records.

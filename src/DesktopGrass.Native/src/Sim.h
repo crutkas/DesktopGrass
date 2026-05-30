@@ -147,7 +147,7 @@ struct InputEvent {
 
 // ---------------------------------------------------------------------------
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), cats (§17), and raindrops (§20) live in sim.entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), and raindrops (§20) live in sim.entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on `kind`.
 // ---------------------------------------------------------------------------
 
@@ -163,12 +163,12 @@ struct Entity {
     double     age           = 0.0;
     double     lifetime      = -1.0;  // <= 0 means infinite (respawn-in-place)
     uint32_t   seed          = 0;
-    // Critter state machine (§16, §17). Sheep and Cat share state bytes;
-    // Cat reuses Hopping semantically as Pouncing.
+    // Critter state machine (§16-§18). Sheep and Cat share state bytes;
+    // Cat reuses Hopping semantically as Pouncing. Bunny uses BUNNY_STATE_*.
     // Values are ignored by tumbleweeds/snowflakes and inert by default.
-    uint8_t    state         = 0;     // sheep/cat: see SHEEP_STATE_* constants
+    uint8_t    state         = 0;     // critters: see species STATE constants
     double     stateTimer    = 0.0;   // sec remaining in current state
-    uint8_t    nameIndex     = 0;     // sheep/cat: index into species name pool
+    uint8_t    nameIndex     = 0;     // critters: index into species name pool
     uint8_t    coatVariantIndex = 0;  // cat: index into CAT_COAT_PALETTES
 };
 
@@ -213,10 +213,10 @@ struct Sim {
     Prng               raindropPrng        = { 0 };
     double             nextRaindropSpawnTime = 0.0;
 
-    // Critter subsystem (§16). Independent of currentScene. critterPrng is
-    // seeded from entitySeed XOR CRITTER_PRNG_SALT at generation time.
+    // Critter subsystem (§13.3, §16-§18). Grass-scene critters share one PRNG
+    // stream seeded from entitySeed XOR CRITTER_PRNG_SALT at generation time.
     // critterCountOverride is 0 for random species count, or a fixed count
-    // capped by PET_COUNT_MAX_PER_MONITOR during generation.
+    // capped by PET_COUNT_MAX_PER_MONITOR during legacy single-species generation.
     CritterKind        currentCritter      = CRITTER_DEFAULT;
     Prng               critterPrng         = { 0 };
     int                critterCountOverride = 0;
@@ -264,10 +264,9 @@ void sim_set_scene(Sim& sim, Scene s) noexcept;
 // sim.entities is empty (which is always until §14/§15 generators run).
 void sim_tick_entities(Sim& sim, double dt) noexcept;
 
-// Critter selection (§16). Independent of sim_set_scene. State change:
-// removes existing critter-kind entities (preserving scene entities like
-// tumbleweeds/snowflakes), then re-runs the per-kind generator. Default
-// CritterKind::None = no critters spawned.
+// Critter selection (§16-§18). Removes existing critter-kind entities
+// (preserving scene entities like tumbleweeds/snowflakes), then re-runs the
+// critter generator. Default CritterKind::None uses the Grass ambient set.
 void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 
 // Fixed critter count override (§13.3). n=0 clears to random; positive values
@@ -276,6 +275,9 @@ void sim_set_critter_count(Sim& sim, int n) noexcept;
 
 double sheep_sleep_prob_for_local_hour(int hour) noexcept;
 double cat_sleep_prob_for_local_hour(int hour) noexcept;
+double bunny_sleep_prob_for_local_hour(int hour) noexcept;
+double bunny_hop_y_offset(double age, bool startled) noexcept;
+uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

@@ -318,6 +318,7 @@ std::string CritterToString(CritterKind critter) noexcept {
     case CritterKind::None:  return "None";
     case CritterKind::Sheep: return "Sheep";
     case CritterKind::Cat:   return "Cat";
+    case CritterKind::Bunny: return "Bunny";
     }
     return "None";
 }
@@ -325,6 +326,7 @@ std::string CritterToString(CritterKind critter) noexcept {
 CritterKind CritterFromString(const std::string& critter) noexcept {
     if (critter == "Sheep") return CritterKind::Sheep;
     if (critter == "Cat") return CritterKind::Cat;
+    if (critter == "Bunny") return CritterKind::Bunny;
     return CritterKind::None;
 }
 

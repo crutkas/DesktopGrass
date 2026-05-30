@@ -82,6 +82,13 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _sheepEarBrush;
     private ID2D1SolidColorBrush? _sheepInkBrush;
     private CatCoatBrushSet[]? _catCoatBrushes;
+    private ID2D1SolidColorBrush? _bunnyBodyBrush;
+    private ID2D1SolidColorBrush? _bunnyBellyBrush;
+    private ID2D1SolidColorBrush? _bunnyEarBrush;
+    private ID2D1SolidColorBrush? _bunnyEarInnerBrush;
+    private ID2D1SolidColorBrush? _bunnyTailBrush;
+    private ID2D1SolidColorBrush? _bunnyEyeBrush;
+    private ID2D1SolidColorBrush? _bunnyNoseBrush;
     private ID2D1SolidColorBrush? _petNameBrush;
     private ID2D1SolidColorBrush? _petNameShadowBrush;
     private ID2D1SolidColorBrush? _dayTintBrush;
@@ -237,6 +244,15 @@ internal sealed class GrassWindow : IDisposable
                 Ink = _dc.CreateSolidColorBrush(ArgbToColor4(palette.Ink)),
             };
         }
+
+        _bunnyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_BODY_COLOR));
+        _bunnyBellyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_BELLY_COLOR));
+        _bunnyEarBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_EAR_COLOR));
+        _bunnyEarInnerBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_EAR_INNER_COLOR));
+        _bunnyTailBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_TAIL_COLOR));
+        _bunnyEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_EYE_COLOR));
+        _bunnyNoseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUNNY_NOSE_COLOR));
+
         _petNameBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_COLOR));
         _petNameShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PET_NAME_SHADOW_COLOR));
         _dayTintBrush = _dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0f));
@@ -379,6 +395,13 @@ internal sealed class GrassWindow : IDisposable
             if (e.Kind == EntityKind.Cat)
             {
                 DrawCat(in e, cursorPosition);
+                DrawPetName(in e, cursorPosition);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Bunny)
+            {
+                DrawBunny(in e);
                 DrawPetName(in e, cursorPosition);
                 continue;
             }
@@ -756,13 +779,122 @@ internal sealed class GrassWindow : IDisposable
         }
     }
 
+    private void DrawBunny(in Entity e)
+    {
+        bool isHopping = e.State == Constants.BUNNY_STATE_HOPPING;
+        bool isGrazing = e.State == Constants.BUNNY_STATE_GRAZING;
+        bool isIdle = e.State == Constants.BUNNY_STATE_IDLE;
+        bool isSleeping = e.State == Constants.BUNNY_STATE_SLEEPING;
+        bool isStartled = e.State == Constants.BUNNY_STATE_STARTLED;
+        float facing = e.Vx >= 0.0 ? 1.0f : -1.0f;
+        float hopY = (isHopping || isStartled) ? (float)Sim.BunnyHopYOffset(e.Age, isStartled) : 0.0f;
+        float poseLift = isIdle ? 1.5f : (isGrazing ? -1.5f : 0.0f);
+        float sleepDrop = isSleeping ? (float)(Constants.BUNNY_LEG_LENGTH + Constants.BUNNY_BODY_HEIGHT * 0.3) : 0.0f;
+        float cx = (float)e.X;
+        float cy = (float)e.Y - hopY - poseLift + sleepDrop;
+        float br = (float)Constants.BUNNY_BODY_RADIUS;
+        float bh = (float)Constants.BUNNY_BODY_HEIGHT * (isSleeping ? 0.7f : 1.0f);
+        float headR = (float)Constants.BUNNY_HEAD_RADIUS;
+        float tailR = (float)Constants.BUNNY_TAIL_RADIUS;
+
+        float tailCx = cx - facing * (br + tailR * 0.35f);
+        float tailCy = cy + bh * 0.02f;
+        _dc!.FillEllipse(new Ellipse(new Vector2(tailCx, tailCy), tailR, tailR), _bunnyTailBrush!);
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _bunnyBodyBrush!);
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx + facing * br * 0.15f, cy + bh * 0.38f),
+                                     br * 0.52f, bh * 0.34f), _bunnyBellyBrush!);
+
+        if (!isSleeping && !isHopping && !isStartled)
+        {
+            float legY = cy + bh * 0.82f;
+            float legRx = 1.5f;
+            float legRy = (float)(Constants.BUNNY_LEG_LENGTH * 0.35);
+            _dc.FillEllipse(new Ellipse(new Vector2(cx - br * 0.35f, legY), legRx, legRy), _bunnyBodyBrush!);
+            _dc.FillEllipse(new Ellipse(new Vector2(cx + br * 0.35f, legY), legRx, legRy), _bunnyBodyBrush!);
+        }
+
+        float headCx = cx + facing * br * 0.78f;
+        float headCy = cy - bh * 0.72f;
+        if (isGrazing) headCy = cy + bh * 0.10f;
+        if (isSleeping) headCy = cy - bh * 0.05f;
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx, headCy), headR, headR), _bunnyBodyBrush!);
+
+        if (isSleeping)
+        {
+            float earY = headCy - headR * 0.55f;
+            for (int i = 0; i < 2; i++)
+            {
+                float y = earY + i * 1.8f;
+                _dc.DrawLine(new Vector2(headCx - facing * headR * 0.25f, y),
+                             new Vector2(headCx - facing * (headR + (float)Constants.BUNNY_EAR_HEIGHT * 0.45f), y + 0.7f),
+                             _bunnyEarBrush!, (float)Constants.BUNNY_EAR_WIDTH, _strokeStyle);
+            }
+            float eyeY = headCy - headR * 0.05f;
+            _dc.DrawLine(new Vector2(headCx + facing * headR * 0.15f, eyeY),
+                         new Vector2(headCx + facing * headR * 0.62f, eyeY),
+                         _bunnyEyeBrush!, 0.9f, _strokeStyle);
+        }
+        else
+        {
+            float wiggle = isIdle
+                ? (float)(Constants.BUNNY_EAR_WIGGLE_AMP * Math.Sin(e.Age * Constants.BUNNY_EAR_WIGGLE_FREQ))
+                : 0.0f;
+            float earTopY = headCy - headR - (float)Constants.BUNNY_EAR_HEIGHT;
+            float earBaseY = headCy - headR * 0.45f;
+            float spacing = (float)Constants.BUNNY_EAR_SPACING * 0.5f;
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1.0f : 1.0f;
+                float lean = side * wiggle;
+                float baseX = headCx + side * spacing;
+                float topX = baseX + lean * (float)Constants.BUNNY_EAR_HEIGHT;
+                _dc.DrawLine(new Vector2(baseX, earBaseY), new Vector2(topX, earTopY),
+                             _bunnyEarBrush!, (float)Constants.BUNNY_EAR_WIDTH, _strokeStyle);
+                _dc.DrawLine(new Vector2(baseX, earBaseY - 0.8f), new Vector2(topX, earTopY + 1.8f),
+                             _bunnyEarInnerBrush!, (float)(Constants.BUNNY_EAR_WIDTH * 0.45), _strokeStyle);
+            }
+            const float eyeR = 0.9f;
+            _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * headR * 0.35f,
+                                                    headCy - headR * 0.12f), eyeR, eyeR), _bunnyEyeBrush!);
+        }
+
+        float noseY = headCy + headR * 0.15f
+            + (isIdle ? (float)(Constants.BUNNY_NOSE_TWITCH_AMP * Math.Sin(e.Age * Constants.BUNNY_NOSE_TWITCH_FREQ)) : 0.0f);
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * headR * 0.72f, noseY), 1.0f, 0.85f), _bunnyNoseBrush!);
+
+        if (isSleeping)
+        {
+            float zBaseX = headCx + facing * headR * 0.65f;
+            float zBaseY = headCy - headR * 1.3f;
+            for (int zi = 0; zi < 2; zi++)
+            {
+                float t = (float)(((e.Age / Constants.BUNNY_ZZZ_CYCLE_SEC) + 0.5 * zi) % 1.0);
+                if (t < 0.0f) t += 1.0f;
+                float zSize = (float)(Constants.BUNNY_ZZZ_SIZE_START
+                                      + t * (Constants.BUNNY_ZZZ_SIZE_END - Constants.BUNNY_ZZZ_SIZE_START));
+                float zX = zBaseX + t * 3.0f * facing;
+                float zY = zBaseY - t * (float)Constants.BUNNY_ZZZ_RISE;
+                _bunnyTailBrush!.Opacity = 1.0f - t;
+                _dc.DrawLine(new Vector2(zX, zY), new Vector2(zX + zSize, zY), _bunnyTailBrush!, 0.9f, _strokeStyle);
+                _dc.DrawLine(new Vector2(zX + zSize, zY), new Vector2(zX, zY + zSize), _bunnyTailBrush!, 0.9f, _strokeStyle);
+                _dc.DrawLine(new Vector2(zX, zY + zSize), new Vector2(zX + zSize, zY + zSize), _bunnyTailBrush!, 0.9f, _strokeStyle);
+            }
+            _bunnyTailBrush!.Opacity = 1.0f;
+        }
+    }
+
     private void DrawPetName(in Entity e, Vector2? cursorPosition)
     {
         if (_dc is null || _petNameTextFormat is null || _petNameBrush is null || _petNameShadowBrush is null)
             return;
-        if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat) return;
+        if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat && e.Kind != EntityKind.Bunny) return;
 
-        string[] pool = e.Kind == EntityKind.Sheep ? Constants.SHEEP_NAME_POOL : Constants.CAT_NAME_POOL;
+        string[] pool = e.Kind switch
+        {
+            EntityKind.Cat => Constants.CAT_NAME_POOL,
+            EntityKind.Bunny => Constants.BUNNY_NAME_POOL,
+            _ => Constants.SHEEP_NAME_POOL,
+        };
         if (pool.Length == 0) return;
 
         ulong key = ((ulong)e.Kind << 32) ^ e.Seed;
@@ -1179,6 +1311,13 @@ internal sealed class GrassWindow : IDisposable
             foreach (var brushes in _catCoatBrushes)
                 brushes?.Dispose();
         }
+        try { _bunnyBodyBrush?.Dispose(); } catch { }
+        try { _bunnyBellyBrush?.Dispose(); } catch { }
+        try { _bunnyEarBrush?.Dispose(); } catch { }
+        try { _bunnyEarInnerBrush?.Dispose(); } catch { }
+        try { _bunnyTailBrush?.Dispose(); } catch { }
+        try { _bunnyEyeBrush?.Dispose(); } catch { }
+        try { _bunnyNoseBrush?.Dispose(); } catch { }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
         try { _dayTintBrush?.Dispose(); } catch { }

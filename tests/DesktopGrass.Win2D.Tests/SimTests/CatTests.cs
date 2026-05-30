@@ -52,7 +52,8 @@ public class CatTests
         Assert.Equal(0, (int)CritterKind.None);
         Assert.Equal(1, (int)CritterKind.Sheep);
         Assert.Equal(2, (int)CritterKind.Cat);
-        Assert.Equal(3, Constants.CRITTER_COUNT);
+        Assert.Equal(3, (int)CritterKind.Bunny);
+        Assert.Equal(4, Constants.CRITTER_COUNT);
         Assert.Equal(CritterKind.None, Constants.CRITTER_DEFAULT);
     }
 
@@ -205,7 +206,7 @@ public class CatTests
     }
 
     [Fact]
-    public void SetCritterNoneClearsCats()
+    public void SetCritterNoneRestoresAmbientCats()
     {
         var sim = BuildSim();
         sim.SetCritter(CritterKind.Cat);
@@ -213,7 +214,8 @@ public class CatTests
 
         sim.SetCritter(CritterKind.None);
         Assert.Equal(CritterKind.None, sim.CurrentCritter);
-        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
+        Assert.True(CountKind(sim, EntityKind.Cat) >= Constants.CAT_COUNT_MIN);
+        Assert.True(CountKind(sim, EntityKind.Bunny) >= Constants.BUNNY_COUNT_MIN);
     }
 
     [Fact]
@@ -234,7 +236,7 @@ public class CatTests
     }
 
     [Fact]
-    public void SetScenePreservesActiveCat()
+    public void SetSceneGatesActiveCatToGrass()
     {
         var sim = BuildSim();
         sim.SetCritter(CritterKind.Cat);
@@ -243,10 +245,13 @@ public class CatTests
 
         sim.SetScene(Scene.Desert);
         Assert.Equal(CritterKind.Cat, sim.CurrentCritter);
-        Assert.Equal(catsGrass, CountKind(sim, EntityKind.Cat));
+        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
 
         sim.SetScene(Scene.Winter);
         Assert.Equal(CritterKind.Cat, sim.CurrentCritter);
+        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
+
+        sim.SetScene(Scene.Grass);
         Assert.Equal(catsGrass, CountKind(sim, EntityKind.Cat));
     }
 

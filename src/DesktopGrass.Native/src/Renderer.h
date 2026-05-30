@@ -70,6 +70,7 @@ private:
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawDayTint();
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
+    void DrawBunny(const Entity& e);
     void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
@@ -114,6 +115,13 @@ private:
         ComPtr<ID2D1SolidColorBrush> ink;
     };
     CatCoatBrushSet catCoatBrushes_[CAT_COAT_VARIANT_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           bunnyBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyBellyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyEarBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyEarInnerBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyTailBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyEyeBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bunnyNoseBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
     ComPtr<ID2D1SolidColorBrush>           dayTintBrush_;

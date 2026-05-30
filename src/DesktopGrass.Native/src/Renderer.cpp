@@ -265,6 +265,35 @@ bool Renderer::CreateDeviceResources() {
         if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
     }
 
+    bunnyBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_BODY_COLOR),
+                                            bunnyBodyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyBellyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_BELLY_COLOR),
+                                            bunnyBellyBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyEarBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_EAR_COLOR),
+                                            bunnyEarBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyEarInnerBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_EAR_INNER_COLOR),
+                                            bunnyEarInnerBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyTailBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_TAIL_COLOR),
+                                            bunnyTailBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyEyeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_EYE_COLOR),
+                                            bunnyEyeBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bunnyNoseBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUNNY_NOSE_COLOR),
+                                            bunnyNoseBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     petNameBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PET_NAME_COLOR),
                                             petNameBrush_.ReleaseAndGetAddressOf());
@@ -356,6 +385,13 @@ void Renderer::DiscardDeviceResources() {
         brushes.ear.Reset();
         brushes.ink.Reset();
     }
+    bunnyBodyBrush_.Reset();
+    bunnyBellyBrush_.Reset();
+    bunnyEarBrush_.Reset();
+    bunnyEarInnerBrush_.Reset();
+    bunnyTailBrush_.Reset();
+    bunnyEyeBrush_.Reset();
+    bunnyNoseBrush_.Reset();
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
     dayTintBrush_.Reset();
@@ -1027,14 +1063,129 @@ void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     }
 }
 
+void Renderer::DrawBunny(const Entity& e) {
+    if (!bunnyBodyBrush_ || !bunnyBellyBrush_ || !bunnyEarBrush_ || !bunnyEarInnerBrush_
+        || !bunnyTailBrush_ || !bunnyEyeBrush_ || !bunnyNoseBrush_) return;
+
+    const bool isHopping = (e.state == BUNNY_STATE_HOPPING);
+    const bool isGrazing = (e.state == BUNNY_STATE_GRAZING);
+    const bool isIdle = (e.state == BUNNY_STATE_IDLE);
+    const bool isSleeping = (e.state == BUNNY_STATE_SLEEPING);
+    const bool isStartled = (e.state == BUNNY_STATE_STARTLED);
+    const float facing = (e.vx >= 0.0) ? 1.0f : -1.0f;
+    const float hopY = (isHopping || isStartled)
+        ? static_cast<float>(bunny_hop_y_offset(e.age, isStartled))
+        : 0.0f;
+    const float poseLift = isIdle ? 1.5f : (isGrazing ? -1.5f : 0.0f);
+    const float sleepDrop = isSleeping ? static_cast<float>(BUNNY_LEG_LENGTH + BUNNY_BODY_HEIGHT * 0.3) : 0.0f;
+    const float cx = static_cast<float>(e.x);
+    const float cy = static_cast<float>(e.y) - hopY - poseLift + sleepDrop;
+    const float br = static_cast<float>(BUNNY_BODY_RADIUS);
+    const float bh = static_cast<float>(BUNNY_BODY_HEIGHT) * (isSleeping ? 0.7f : 1.0f);
+    const float headR = static_cast<float>(BUNNY_HEAD_RADIUS);
+    const float tailR = static_cast<float>(BUNNY_TAIL_RADIUS);
+
+    const float tailCx = cx - facing * (br + tailR * 0.35f);
+    const float tailCy = cy + bh * 0.02f;
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(tailCx, tailCy), tailR, tailR),
+                              bunnyTailBrush_.Get());
+
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh),
+                              bunnyBodyBrush_.Get());
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx + facing * br * 0.15f, cy + bh * 0.38f),
+                                           br * 0.52f, bh * 0.34f),
+                              bunnyBellyBrush_.Get());
+
+    if (!isSleeping && !isHopping && !isStartled) {
+        const float legY = cy + bh * 0.82f;
+        const float legRx = 1.5f;
+        const float legRy = static_cast<float>(BUNNY_LEG_LENGTH * 0.35);
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx - br * 0.35f, legY), legRx, legRy),
+                                  bunnyBodyBrush_.Get());
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx + br * 0.35f, legY), legRx, legRy),
+                                  bunnyBodyBrush_.Get());
+    }
+
+    float headCx = cx + facing * br * 0.78f;
+    float headCy = cy - bh * 0.72f;
+    if (isGrazing) headCy = cy + bh * 0.10f;
+    if (isSleeping) headCy = cy - bh * 0.05f;
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), headR, headR),
+                              bunnyBodyBrush_.Get());
+
+    if (isSleeping) {
+        const float earY = headCy - headR * 0.55f;
+        for (int i = 0; i < 2; ++i) {
+            const float y = earY + static_cast<float>(i) * 1.8f;
+            d2dContext_->DrawLine(D2D1::Point2F(headCx - facing * headR * 0.25f, y),
+                                  D2D1::Point2F(headCx - facing * (headR + static_cast<float>(BUNNY_EAR_HEIGHT) * 0.45f), y + 0.7f),
+                                  bunnyEarBrush_.Get(), static_cast<float>(BUNNY_EAR_WIDTH));
+        }
+        const float eyeY = headCy - headR * 0.05f;
+        d2dContext_->DrawLine(D2D1::Point2F(headCx + facing * headR * 0.15f, eyeY),
+                              D2D1::Point2F(headCx + facing * headR * 0.62f, eyeY),
+                              bunnyEyeBrush_.Get(), 0.9f);
+    } else {
+        const float wiggle = isIdle
+            ? static_cast<float>(BUNNY_EAR_WIGGLE_AMP * std::sin(e.age * BUNNY_EAR_WIGGLE_FREQ))
+            : 0.0f;
+        const float earTopY = headCy - headR - static_cast<float>(BUNNY_EAR_HEIGHT);
+        const float earBaseY = headCy - headR * 0.45f;
+        const float spacing = static_cast<float>(BUNNY_EAR_SPACING * 0.5);
+        for (int i = 0; i < 2; ++i) {
+            const float side = (i == 0) ? -1.0f : 1.0f;
+            const float lean = side * wiggle;
+            const float baseX = headCx + side * spacing;
+            const float topX = baseX + lean * static_cast<float>(BUNNY_EAR_HEIGHT);
+            d2dContext_->DrawLine(D2D1::Point2F(baseX, earBaseY),
+                                  D2D1::Point2F(topX, earTopY),
+                                  bunnyEarBrush_.Get(), static_cast<float>(BUNNY_EAR_WIDTH));
+            d2dContext_->DrawLine(D2D1::Point2F(baseX, earBaseY - 0.8f),
+                                  D2D1::Point2F(topX, earTopY + 1.8f),
+                                  bunnyEarInnerBrush_.Get(), static_cast<float>(BUNNY_EAR_WIDTH * 0.45));
+        }
+        const float eyeR = 0.9f;
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx + facing * headR * 0.35f,
+                                                              headCy - headR * 0.12f), eyeR, eyeR),
+                                  bunnyEyeBrush_.Get());
+    }
+
+    const float noseY = headCy + headR * 0.15f
+        + (isIdle ? static_cast<float>(BUNNY_NOSE_TWITCH_AMP * std::sin(e.age * BUNNY_NOSE_TWITCH_FREQ)) : 0.0f);
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx + facing * headR * 0.72f, noseY), 1.0f, 0.85f),
+                              bunnyNoseBrush_.Get());
+
+    if (isSleeping) {
+        const float zBaseX = headCx + facing * headR * 0.65f;
+        const float zBaseY = headCy - headR * 1.3f;
+        for (int zi = 0; zi < 2; ++zi) {
+            const float t = static_cast<float>(std::fmod(e.age / BUNNY_ZZZ_CYCLE_SEC + 0.5 * zi, 1.0));
+            const float zSize = static_cast<float>(BUNNY_ZZZ_SIZE_START + t * (BUNNY_ZZZ_SIZE_END - BUNNY_ZZZ_SIZE_START));
+            const float zX = zBaseX + t * 3.0f * facing;
+            const float zY = zBaseY - t * static_cast<float>(BUNNY_ZZZ_RISE);
+            const float alpha = 1.0f - t;
+            bunnyTailBrush_->SetOpacity(alpha);
+            d2dContext_->DrawLine(D2D1::Point2F(zX, zY), D2D1::Point2F(zX + zSize, zY), bunnyTailBrush_.Get(), 0.9f);
+            d2dContext_->DrawLine(D2D1::Point2F(zX + zSize, zY), D2D1::Point2F(zX, zY + zSize), bunnyTailBrush_.Get(), 0.9f);
+            d2dContext_->DrawLine(D2D1::Point2F(zX, zY + zSize), D2D1::Point2F(zX + zSize, zY + zSize), bunnyTailBrush_.Get(), 0.9f);
+        }
+        bunnyTailBrush_->SetOpacity(1.0f);
+    }
+}
+
 void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     if (!petNameTextFormat_ || !petNameBrush_ || !petNameShadowBrush_) return;
-    if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat) return;
+    if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat && e.kind != EntityKind::Bunny) return;
 
-    const wchar_t* const* pool = (e.kind == EntityKind::Sheep) ? SHEEP_NAME_POOL : CAT_NAME_POOL;
-    const std::size_t poolSize = (e.kind == EntityKind::Sheep)
-        ? (sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))
-        : (sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+    const wchar_t* const* pool = SHEEP_NAME_POOL;
+    std::size_t poolSize = sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]);
+    if (e.kind == EntityKind::Cat) {
+        pool = CAT_NAME_POOL;
+        poolSize = sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]);
+    } else if (e.kind == EntityKind::Bunny) {
+        pool = BUNNY_NAME_POOL;
+        poolSize = sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]);
+    }
     if (poolSize == 0) return;
 
     const uint64_t key = (static_cast<uint64_t>(static_cast<uint8_t>(e.kind)) << 32)
@@ -1112,6 +1263,12 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
 
         if (e.kind == EntityKind::Cat) {
             DrawCat(e, cursorPosition);
+            DrawPetName(e, cursorPosition);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Bunny) {
+            DrawBunny(e);
             DrawPetName(e, cursorPosition);
             continue;
         }

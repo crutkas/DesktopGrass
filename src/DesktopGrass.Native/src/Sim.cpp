@@ -100,6 +100,35 @@ double cat_sleep_prob_for_local_hour(int hour) noexcept {
     return CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
 }
 
+double bunny_sleep_prob_for_local_hour(int hour) noexcept {
+    if (hour < 0 || hour > 23) return BUNNY_SLEEP_PROB_DAY;
+    return hour_in_half_open_range(hour, 10, 20)
+        ? BUNNY_SLEEP_PROB_DAY
+        : BUNNY_SLEEP_PROB_NIGHT;
+}
+
+double bunny_hop_y_offset(double age, bool startled) noexcept {
+    const double height = startled ? BUNNY_STARTLE_HOP_HEIGHT : BUNNY_HOP_HEIGHT;
+    double t = age / BUNNY_HOP_DURATION;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    return 4.0 * height * t * (1.0 - t);
+}
+
+uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept {
+    const double sleepProb = bunny_sleep_prob_for_local_hour(hour);
+    const double r = prng_uniform(p, 0.0, 1.0);
+    if (r < sleepProb) return BUNNY_STATE_SLEEPING;
+
+    const double activeWeight = BUNNY_GRAZE_PROBABILITY + BUNNY_IDLE_PROBABILITY;
+    const double activeT = (activeWeight > 0.0 && sleepProb < 1.0)
+        ? (r - sleepProb) / (1.0 - sleepProb)
+        : 0.0;
+    return activeT < (BUNNY_GRAZE_PROBABILITY / activeWeight)
+        ? BUNNY_STATE_GRAZING
+        : BUNNY_STATE_IDLE;
+}
+
 // ---------------------------------------------------------------------------
 // Blade generation. Field-draw order MUST be (height, thickness, hue,
 // swayPhaseOffset, stiffness) — see architecture.md §5.
@@ -580,6 +609,23 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
         ent.stateTimer = CAT_POUNCE_DURATION;
         ent.age        = 0.0;
     }
+
+    // Bunny startle (§18). Bunnies are shy: nearby clicks wake/break their
+    // current pose and send them hopping AWAY from the click point.
+    for (Entity& ent : sim.entities) {
+        if (ent.kind != EntityKind::Bunny) continue;
+        const double dxClick = ent.x - e.x;
+        const double dyClick = ent.y - e.y;
+        if ((dxClick * dxClick + dyClick * dyClick) > (BUNNY_STARTLE_RADIUS * BUNNY_STARTLE_RADIUS)) continue;
+        const double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
+        double baseSpeed = ent.rotationSpeed;
+        if (baseSpeed <= 0.0) baseSpeed = std::min(std::max(std::abs(ent.vx), BUNNY_HOP_SPEED_MIN), BUNNY_HOP_SPEED_MAX);
+        ent.rotationSpeed = baseSpeed;
+        ent.vx = awayDir * baseSpeed * BUNNY_STARTLE_BOOST;
+        ent.state      = BUNNY_STATE_STARTLED;
+        ent.stateTimer = BUNNY_STARTLE_DURATION;
+        ent.age        = 0.0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -625,8 +671,8 @@ void sim_tick_ambient_gusts(Sim& sim) noexcept {
 
 namespace {
 
-int resolve_critter_count(Sim& sim, int minCount, int maxCount) noexcept {
-    if (sim.critterCountOverride > 0) {
+int resolve_critter_count(Sim& sim, int minCount, int maxCount, bool allowOverride) noexcept {
+    if (allowOverride && sim.critterCountOverride > 0) {
         return std::min(sim.critterCountOverride, PET_COUNT_MAX_PER_MONITOR);
     }
 
@@ -643,7 +689,7 @@ void remove_critters(Sim& sim) noexcept {
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
             [](const Entity& e) {
-                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat;
+                return e.kind == EntityKind::Sheep || e.kind == EntityKind::Cat || e.kind == EntityKind::Bunny;
             }),
         sim.entities.end());
 }
@@ -657,8 +703,8 @@ void remove_scene_transition_entities(Sim& sim) noexcept {
         sim.entities.end());
 }
 
-void generate_critters_sheep(Sim& sim) noexcept {
-    const int count = resolve_critter_count(sim, SHEEP_COUNT_MIN, SHEEP_COUNT_MAX);
+void generate_critters_sheep(Sim& sim, bool allowOverride) noexcept {
+    const int count = resolve_critter_count(sim, SHEEP_COUNT_MIN, SHEEP_COUNT_MAX, allowOverride);
 
     const double groundY = sim.windowHeight;
     for (int i = 0; i < count
@@ -695,8 +741,8 @@ void generate_critters_sheep(Sim& sim) noexcept {
     }
 }
 
-void generate_critters_cat(Sim& sim) noexcept {
-    const int count = resolve_critter_count(sim, CAT_COUNT_MIN, CAT_COUNT_MAX);
+void generate_critters_cat(Sim& sim, bool allowOverride) noexcept {
+    const int count = resolve_critter_count(sim, CAT_COUNT_MIN, CAT_COUNT_MAX, allowOverride);
 
     const double groundY = sim.windowHeight;
     for (int i = 0; i < count
@@ -730,13 +776,95 @@ void generate_critters_cat(Sim& sim) noexcept {
     }
 }
 
+void generate_critters_bunny(Sim& sim, bool allowOverride) noexcept {
+    const int count = resolve_critter_count(sim, BUNNY_COUNT_MIN, BUNNY_COUNT_MAX, allowOverride);
+
+    const double groundY = sim.windowHeight;
+    for (int i = 0; i < count
+         && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        Entity e{};
+        e.kind = EntityKind::Bunny;
+        e.size = BUNNY_BODY_RADIUS;
+        const double margin = e.size + 8.0;
+        const double usableWidth = std::max(0.0, sim.monitorWidth - 2.0 * margin);
+        const double xFrac = prng_uniform(sim.critterPrng, 0.0, 1.0);
+        e.x = margin + xFrac * usableWidth;
+        const uint64_t vxSign = prng_next_u64(sim.critterPrng) & 1ull;
+        const double dir = (vxSign != 0ull) ? 1.0 : -1.0;
+        const double speed = prng_uniform(sim.critterPrng,
+                                          BUNNY_HOP_SPEED_MIN,
+                                          BUNNY_HOP_SPEED_MAX);
+        e.vx = dir * speed;
+        e.vy = 0.0;
+        e.rotation = 0.0;
+        e.rotationSpeed = speed;
+        e.age = 0.0;
+        e.lifetime = -1.0;
+        e.seed = static_cast<uint32_t>(i + 1);
+        e.state = BUNNY_STATE_HOPPING;
+        e.stateTimer = BUNNY_HOP_DURATION;
+        e.nameIndex = static_cast<uint8_t>(prng_index(sim.critterPrng,
+            static_cast<uint32_t>(sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]))));
+        e.y = groundY - BUNNY_BODY_HEIGHT - BUNNY_LEG_LENGTH;
+        sim.entities.push_back(e);
+    }
+}
+
+void generate_grass_critters_all(Sim& sim) noexcept {
+    generate_critters_sheep(sim, false);
+    generate_critters_cat(sim, false);
+    generate_critters_bunny(sim, false);
+}
+
 void generate_critters_for_kind(Sim& sim) noexcept {
     prng_init(sim.critterPrng, sim.entitySeed ^ CRITTER_PRNG_SALT);
+    if (sim.currentScene != Scene::Grass) return;
+
     switch (sim.currentCritter) {
-    case CritterKind::None:                                  break;
-    case CritterKind::Sheep: generate_critters_sheep(sim);   break;
-    case CritterKind::Cat:   generate_critters_cat(sim);     break;
+    case CritterKind::None:  generate_grass_critters_all(sim);      break;
+    case CritterKind::Sheep: generate_critters_sheep(sim, true);    break;
+    case CritterKind::Cat:   generate_critters_cat(sim, true);      break;
+    case CritterKind::Bunny: generate_grass_critters_all(sim);      break;
     }
+}
+
+void restore_bunny_base_speed(Entity& e) noexcept {
+    double baseSpeed = e.rotationSpeed;
+    if (baseSpeed <= 0.0) {
+        baseSpeed = std::min(std::max(std::abs(e.vx), BUNNY_HOP_SPEED_MIN), BUNNY_HOP_SPEED_MAX);
+        e.rotationSpeed = baseSpeed;
+    }
+    const double dir = e.vx >= 0.0 ? 1.0 : -1.0;
+    e.vx = dir * baseSpeed;
+}
+
+void start_bunny_hopping(Sim& sim, Entity& e, bool includeGap) noexcept {
+    restore_bunny_base_speed(e);
+    e.state = BUNNY_STATE_HOPPING;
+    e.stateTimer = BUNNY_HOP_DURATION;
+    if (includeGap) {
+        e.stateTimer += prng_uniform(sim.critterPrng, BUNNY_HOP_GAP_MIN, BUNNY_HOP_GAP_MAX);
+    }
+    e.age = 0.0;
+}
+
+void enter_bunny_rest_state(Sim& sim, Entity& e) noexcept {
+    const uint8_t next = bunny_choose_rest_state(sim.critterPrng, current_local_hour());
+    e.state = next;
+    if (next == BUNNY_STATE_GRAZING) {
+        e.stateTimer = prng_uniform(sim.critterPrng,
+                                    BUNNY_GRAZE_DURATION_MIN,
+                                    BUNNY_GRAZE_DURATION_MAX);
+    } else if (next == BUNNY_STATE_IDLE) {
+        e.stateTimer = prng_uniform(sim.critterPrng,
+                                    BUNNY_IDLE_DURATION_MIN,
+                                    BUNNY_IDLE_DURATION_MAX);
+    } else {
+        e.stateTimer = prng_uniform(sim.critterPrng,
+                                    BUNNY_SLEEP_DURATION_MIN,
+                                    BUNNY_SLEEP_DURATION_MAX);
+    }
+    e.age = 0.0;
 }
 
 } // anonymous
@@ -1017,6 +1145,41 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                                             CAT_WALK_DURATION_MAX);
             }
             e.age = 0.0;
+        }
+    }
+
+    // Bunny (§18). No walk cycle: normal movement is hop arcs, with stationary
+    // grazing/idle/sleeping poses. Startled bunnies flee-hop until timer expiry.
+    for (Entity& e : sim.entities) {
+        if (e.kind != EntityKind::Bunny) continue;
+
+        const bool stationary = (e.state == BUNNY_STATE_GRAZING)
+                             || (e.state == BUNNY_STATE_IDLE)
+                             || (e.state == BUNNY_STATE_SLEEPING)
+                             || (e.state == BUNNY_STATE_HOPPING && e.age > BUNNY_HOP_DURATION);
+        if (stationary) {
+            e.x -= e.vx * dt;
+        }
+
+        const double margin = e.size + 2.0;
+        if (e.x < margin) {
+            e.x  = margin;
+            e.vx = std::abs(e.vx);
+        } else if (e.x > sim.monitorWidth - margin) {
+            e.x  = sim.monitorWidth - margin;
+            e.vx = -std::abs(e.vx);
+        }
+
+        e.stateTimer -= dt;
+        if (e.stateTimer <= 0.0) {
+            const uint8_t oldState = e.state;
+            if (oldState == BUNNY_STATE_HOPPING) {
+                enter_bunny_rest_state(sim, e);
+            } else if (oldState == BUNNY_STATE_STARTLED) {
+                start_bunny_hopping(sim, e, false);
+            } else {
+                start_bunny_hopping(sim, e, true);
+            }
         }
     }
 

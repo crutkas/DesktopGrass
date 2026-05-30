@@ -56,7 +56,10 @@ const Entity* first_sheep(const Sim& sim) {
 TEST_CASE("CritterKind has spec-locked discriminants", "[critter][enum]") {
     REQUIRE(static_cast<int>(CritterKind::None)  == 0);
     REQUIRE(static_cast<int>(CritterKind::Sheep) == 1);
+    REQUIRE(static_cast<int>(CritterKind::Cat)   == 2);
+    REQUIRE(static_cast<int>(CritterKind::Bunny) == 3);
     REQUIRE(static_cast<int>(EntityKind::Sheep)  == 3);
+    REQUIRE(static_cast<int>(EntityKind::Bunny)  == 6);
     REQUIRE(CRITTER_DEFAULT == CritterKind::None);
 }
 
@@ -282,43 +285,35 @@ TEST_CASE("fixed critter count override supports tray range and clamps", "[critt
     REQUIRE(count_sheep(sim) == 0);
 }
 
-TEST_CASE("sim_set_critter(None) removes sheep, preserves scene entities",
+TEST_CASE("sim_set_critter(None) restores Grass ambient critters",
           "[critter][toggle]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
-    sim_set_scene(sim, Scene::Desert);
-    const int desertEntitiesBefore =
-        static_cast<int>(std::count_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
-
     sim_set_critter(sim, CritterKind::Sheep);
     REQUIRE(count_sheep(sim) >= SHEEP_COUNT_MIN);
-    // Scene tumbleweeds untouched by critter toggle.
-    const int tumbleAfterSheep = static_cast<int>(
-        std::count_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
-    REQUIRE(tumbleAfterSheep == desertEntitiesBefore);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_critter(sim, CritterKind::None);
-    REQUIRE(count_sheep(sim) == 0);
-    const int tumbleAfterNone = static_cast<int>(
-        std::count_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) { return e.kind == EntityKind::Tumbleweed; }));
-    REQUIRE(tumbleAfterNone == desertEntitiesBefore);
+    REQUIRE(count_sheep(sim) >= SHEEP_COUNT_MIN);
+    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    REQUIRE(count_kind(sim, EntityKind::Bunny) >= BUNNY_COUNT_MIN);
 }
 
-TEST_CASE("sim_set_scene preserves the active critter", "[critter][scene]") {
+TEST_CASE("sim_set_scene gates active sheep to Grass", "[critter][scene]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
     const int sheepCountGrass = count_sheep(sim);
     REQUIRE(sheepCountGrass >= SHEEP_COUNT_MIN);
 
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(count_sheep(sim) == sheepCountGrass);
+    REQUIRE(count_sheep(sim) == 0);
     REQUIRE(sim.currentCritter == CritterKind::Sheep);
 
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(count_sheep(sim) == sheepCountGrass);
+    REQUIRE(count_sheep(sim) == 0);
     REQUIRE(sim.currentCritter == CritterKind::Sheep);
+
+    sim_set_scene(sim, Scene::Grass);
+    REQUIRE(count_sheep(sim) == sheepCountGrass);
 }
 
 TEST_CASE("Click within SHEEP_STARTLE_RADIUS triggers hop away", "[critter][click]") {

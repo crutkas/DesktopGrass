@@ -50,7 +50,8 @@ TEST_CASE("CritterKind::Cat and CRITTER_COUNT are pinned", "[cat][enum]") {
     REQUIRE(static_cast<int>(CritterKind::None)  == 0);
     REQUIRE(static_cast<int>(CritterKind::Sheep) == 1);
     REQUIRE(static_cast<int>(CritterKind::Cat)   == 2);
-    REQUIRE(CRITTER_COUNT == 3);
+    REQUIRE(static_cast<int>(CritterKind::Bunny) == 3);
+    REQUIRE(CRITTER_COUNT == 4);
     REQUIRE(CRITTER_DEFAULT == CritterKind::None);
 }
 
@@ -190,14 +191,15 @@ TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
     REQUIRE(seen == expectedCount);
 }
 
-TEST_CASE("sim_set_critter(None) clears cats", "[cat][toggle]") {
+TEST_CASE("sim_set_critter(None) restores ambient cats", "[cat][toggle]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 
     sim_set_critter(sim, CritterKind::None);
     REQUIRE(sim.currentCritter == CritterKind::None);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    REQUIRE(count_kind(sim, EntityKind::Bunny) >= BUNNY_COUNT_MIN);
 }
 
 TEST_CASE("Switching between critter species replaces the previous species", "[cat][toggle]") {
@@ -215,7 +217,7 @@ TEST_CASE("Switching between critter species replaces the previous species", "[c
     REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 }
 
-TEST_CASE("sim_set_scene preserves active Cat", "[cat][scene]") {
+TEST_CASE("sim_set_scene gates active Cat to Grass", "[cat][scene]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     const int catsGrass = count_kind(sim, EntityKind::Cat);
@@ -223,10 +225,13 @@ TEST_CASE("sim_set_scene preserves active Cat", "[cat][scene]") {
 
     sim_set_scene(sim, Scene::Desert);
     REQUIRE(sim.currentCritter == CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == catsGrass);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_scene(sim, Scene::Winter);
     REQUIRE(sim.currentCritter == CritterKind::Cat);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+
+    sim_set_scene(sim, Scene::Grass);
     REQUIRE(count_kind(sim, EntityKind::Cat) == catsGrass);
 }
 

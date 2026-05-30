@@ -121,9 +121,9 @@ internal struct Blade
 }
 
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
-// snowflakes (Winter §15), sheep (§16), cats (§17), and raindrops (§20) live in Sim.Entities.
+// snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6 }
 
 public struct Entity
 {
@@ -237,6 +237,36 @@ internal sealed class Sim
         return Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
     }
 
+    internal static double BunnySleepProbForLocalHour(int hour)
+    {
+        if (hour < 0 || hour > 23) return Constants.BUNNY_SLEEP_PROB_DAY;
+        return HourInHalfOpenRange(hour, 10, 20)
+            ? Constants.BUNNY_SLEEP_PROB_DAY
+            : Constants.BUNNY_SLEEP_PROB_NIGHT;
+    }
+
+    internal static double BunnyHopYOffset(double age, bool startled)
+    {
+        double height = startled ? Constants.BUNNY_STARTLE_HOP_HEIGHT : Constants.BUNNY_HOP_HEIGHT;
+        double t = Math.Clamp(age / Constants.BUNNY_HOP_DURATION, 0.0, 1.0);
+        return 4.0 * height * t * (1.0 - t);
+    }
+
+    internal static byte BunnyChooseRestState(ref Prng p, int hour)
+    {
+        double sleepProb = BunnySleepProbForLocalHour(hour);
+        double r = p.Uniform(0.0, 1.0);
+        if (r < sleepProb) return Constants.BUNNY_STATE_SLEEPING;
+
+        double activeWeight = Constants.BUNNY_GRAZE_PROBABILITY + Constants.BUNNY_IDLE_PROBABILITY;
+        double activeT = activeWeight > 0.0 && sleepProb < 1.0
+            ? (r - sleepProb) / (1.0 - sleepProb)
+            : 0.0;
+        return activeT < Constants.BUNNY_GRAZE_PROBABILITY / activeWeight
+            ? Constants.BUNNY_STATE_GRAZING
+            : Constants.BUNNY_STATE_IDLE;
+    }
+
     public void SetScene(Scene s)
     {
         CurrentScene = s;
@@ -293,7 +323,7 @@ internal sealed class Sim
     }
 
     private void RemoveCritters() =>
-        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat);
+        Entities.RemoveAll(e => e.Kind == EntityKind.Sheep || e.Kind == EntityKind.Cat || e.Kind == EntityKind.Bunny);
 
     private void RemoveSceneTransitionEntities() =>
         Entities.RemoveAll(e => e.Kind != EntityKind.Raindrop);
@@ -301,17 +331,28 @@ internal sealed class Sim
     private static void GenerateCrittersForKind(Sim sim)
     {
         sim.CritterPrng = Prng.Init(sim.EntitySeed ^ Constants.CRITTER_PRNG_SALT);
+        if (sim.CurrentScene != Scene.Grass) return;
+
         switch (sim.CurrentCritter)
         {
-            case CritterKind.None:                                break;
-            case CritterKind.Sheep: GenerateCrittersSheep(sim);   break;
-            case CritterKind.Cat:   GenerateCrittersCat(sim);     break;
+            case CritterKind.None:
+                GenerateGrassCrittersAll(sim);
+                break;
+            case CritterKind.Sheep:
+                GenerateCrittersSheep(sim, allowOverride: true);
+                break;
+            case CritterKind.Cat:
+                GenerateCrittersCat(sim, allowOverride: true);
+                break;
+            case CritterKind.Bunny:
+                GenerateGrassCrittersAll(sim);
+                break;
         }
     }
 
-    private static int ResolveCritterCount(Sim sim, int minCount, int maxCount)
+    private static int ResolveCritterCount(Sim sim, int minCount, int maxCount, bool allowOverride)
     {
-        if (sim.CritterCountOverride > 0)
+        if (allowOverride && sim.CritterCountOverride > 0)
         {
             return Math.Min(sim.CritterCountOverride, Constants.PET_COUNT_MAX_PER_MONITOR);
         }
@@ -323,9 +364,9 @@ internal sealed class Sim
         return count;
     }
 
-    private static void GenerateCrittersSheep(Sim sim)
+    private static void GenerateCrittersSheep(Sim sim, bool allowOverride)
     {
-        int count = ResolveCritterCount(sim, Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX);
+        int count = ResolveCritterCount(sim, Constants.SHEEP_COUNT_MIN, Constants.SHEEP_COUNT_MAX, allowOverride);
 
         double groundY = sim.WindowHeight;
         for (int i = 0; i < count
@@ -355,9 +396,9 @@ internal sealed class Sim
         }
     }
 
-    private static void GenerateCrittersCat(Sim sim)
+    private static void GenerateCrittersCat(Sim sim, bool allowOverride)
     {
-        int count = ResolveCritterCount(sim, Constants.CAT_COUNT_MIN, Constants.CAT_COUNT_MAX);
+        int count = ResolveCritterCount(sim, Constants.CAT_COUNT_MIN, Constants.CAT_COUNT_MAX, allowOverride);
 
         double groundY = sim.WindowHeight;
         for (int i = 0; i < count
@@ -386,6 +427,47 @@ internal sealed class Sim
             e.CoatVariantIndex = (byte)sim.CritterPrng.Index((uint)Constants.CAT_COAT_VARIANT_COUNT);
             sim.Entities.Add(e);
         }
+    }
+
+    private static void GenerateCrittersBunny(Sim sim, bool allowOverride)
+    {
+        int count = ResolveCritterCount(sim, Constants.BUNNY_COUNT_MIN, Constants.BUNNY_COUNT_MAX, allowOverride);
+
+        double groundY = sim.WindowHeight;
+        for (int i = 0; i < count
+             && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Bunny;
+            e.Size = Constants.BUNNY_BODY_RADIUS;
+            double margin = e.Size + 8.0;
+            double usableWidth = Math.Max(0.0, sim.MonitorWidth - 2.0 * margin);
+            double xFrac = sim.CritterPrng.Uniform(0.0, 1.0);
+            e.X = margin + xFrac * usableWidth;
+            ulong vxSign = sim.CritterPrng.NextU64() & 1UL;
+            double dir = vxSign != 0UL ? 1.0 : -1.0;
+            double speed = sim.CritterPrng.Uniform(
+                Constants.BUNNY_HOP_SPEED_MIN, Constants.BUNNY_HOP_SPEED_MAX);
+            e.Vx = dir * speed;
+            e.Vy = 0.0;
+            e.Rotation = 0.0;
+            e.RotationSpeed = speed;
+            e.Age = 0.0;
+            e.Lifetime = -1.0;
+            e.Seed = (uint)(i + 1);
+            e.State = Constants.BUNNY_STATE_HOPPING;
+            e.StateTimer = Constants.BUNNY_HOP_DURATION;
+            e.NameIndex = (byte)sim.CritterPrng.Index((uint)Constants.BUNNY_NAME_POOL.Length);
+            e.Y = groundY - Constants.BUNNY_BODY_HEIGHT - Constants.BUNNY_LEG_LENGTH;
+            sim.Entities.Add(e);
+        }
+    }
+
+    private static void GenerateGrassCrittersAll(Sim sim)
+    {
+        GenerateCrittersSheep(sim, allowOverride: false);
+        GenerateCrittersCat(sim, allowOverride: false);
+        GenerateCrittersBunny(sim, allowOverride: false);
     }
 
     public void ResetEntities(ulong seed)
@@ -545,6 +627,54 @@ internal sealed class Sim
         e.RotationSpeed = e.Vx / e.Size;
         e.Age = 0.0;
         e.Lifetime = -1.0;
+    }
+
+    private static void RestoreBunnyBaseSpeed(ref Entity e)
+    {
+        double baseSpeed = e.RotationSpeed;
+        if (baseSpeed <= 0.0)
+        {
+            baseSpeed = Math.Min(Math.Max(Math.Abs(e.Vx), Constants.BUNNY_HOP_SPEED_MIN),
+                                 Constants.BUNNY_HOP_SPEED_MAX);
+            e.RotationSpeed = baseSpeed;
+        }
+        double dir = e.Vx >= 0.0 ? 1.0 : -1.0;
+        e.Vx = dir * baseSpeed;
+    }
+
+    private void StartBunnyHopping(ref Entity e, bool includeGap)
+    {
+        RestoreBunnyBaseSpeed(ref e);
+        e.State = Constants.BUNNY_STATE_HOPPING;
+        e.StateTimer = Constants.BUNNY_HOP_DURATION;
+        if (includeGap)
+        {
+            e.StateTimer += CritterPrng.Uniform(Constants.BUNNY_HOP_GAP_MIN,
+                                                Constants.BUNNY_HOP_GAP_MAX);
+        }
+        e.Age = 0.0;
+    }
+
+    private void EnterBunnyRestState(ref Entity e)
+    {
+        byte next = BunnyChooseRestState(ref CritterPrng, DateTime.Now.Hour);
+        e.State = next;
+        if (next == Constants.BUNNY_STATE_GRAZING)
+        {
+            e.StateTimer = CritterPrng.Uniform(Constants.BUNNY_GRAZE_DURATION_MIN,
+                                               Constants.BUNNY_GRAZE_DURATION_MAX);
+        }
+        else if (next == Constants.BUNNY_STATE_IDLE)
+        {
+            e.StateTimer = CritterPrng.Uniform(Constants.BUNNY_IDLE_DURATION_MIN,
+                                               Constants.BUNNY_IDLE_DURATION_MAX);
+        }
+        else
+        {
+            e.StateTimer = CritterPrng.Uniform(Constants.BUNNY_SLEEP_DURATION_MIN,
+                                               Constants.BUNNY_SLEEP_DURATION_MAX);
+        }
+        e.Age = 0.0;
     }
 
     // §13.2 — generic roaming-entity tick. Integrates position + rotation,
@@ -816,6 +946,55 @@ internal sealed class Sim
                         Constants.CAT_WALK_DURATION_MAX);
                 }
                 e.Age = 0.0;
+            }
+
+            Entities[i] = e;
+        }
+
+        // §18 Bunny state machine. Bunnies never walk smoothly: movement is a hop arc,
+        // optional landing gap, then a calm stationary pose unless startled.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Bunny) continue;
+
+            bool stationary = e.State == Constants.BUNNY_STATE_GRAZING
+                           || e.State == Constants.BUNNY_STATE_IDLE
+                           || e.State == Constants.BUNNY_STATE_SLEEPING
+                           || (e.State == Constants.BUNNY_STATE_HOPPING && e.Age > Constants.BUNNY_HOP_DURATION);
+            if (stationary)
+            {
+                e.X -= e.Vx * dt;
+            }
+
+            double margin = e.Size + 2.0;
+            if (e.X < margin)
+            {
+                e.X = margin;
+                e.Vx = Math.Abs(e.Vx);
+            }
+            else if (e.X > MonitorWidth - margin)
+            {
+                e.X = MonitorWidth - margin;
+                e.Vx = -Math.Abs(e.Vx);
+            }
+
+            e.StateTimer -= dt;
+            if (e.StateTimer <= 0.0)
+            {
+                byte oldState = e.State;
+                if (oldState == Constants.BUNNY_STATE_HOPPING)
+                {
+                    EnterBunnyRestState(ref e);
+                }
+                else if (oldState == Constants.BUNNY_STATE_STARTLED)
+                {
+                    StartBunnyHopping(ref e, includeGap: false);
+                }
+                else
+                {
+                    StartBunnyHopping(ref e, includeGap: true);
+                }
             }
 
             Entities[i] = e;
@@ -1123,6 +1302,31 @@ internal sealed class Sim
             e.Vx = towardDir * Constants.CAT_POUNCE_SPEED;
             e.State = Constants.CAT_STATE_POUNCING;
             e.StateTimer = Constants.CAT_POUNCE_DURATION;
+            e.Age = 0.0;
+            Entities[i] = e;
+        }
+
+        // §18 Bunny startle: nearby clicks wake/break the current pose and
+        // send the bunny hopping AWAY from the click point.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Bunny) continue;
+            double dxClick = e.X - clickX;
+            double dyClick = e.Y - clickY;
+            if (dxClick * dxClick + dyClick * dyClick > Constants.BUNNY_STARTLE_RADIUS * Constants.BUNNY_STARTLE_RADIUS) continue;
+
+            double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
+            double baseSpeed = e.RotationSpeed;
+            if (baseSpeed <= 0.0)
+            {
+                baseSpeed = Math.Min(Math.Max(Math.Abs(e.Vx), Constants.BUNNY_HOP_SPEED_MIN),
+                                     Constants.BUNNY_HOP_SPEED_MAX);
+            }
+            e.RotationSpeed = baseSpeed;
+            e.Vx = awayDir * baseSpeed * Constants.BUNNY_STARTLE_BOOST;
+            e.State = Constants.BUNNY_STATE_STARTLED;
+            e.StateTimer = Constants.BUNNY_STARTLE_DURATION;
             e.Age = 0.0;
             Entities[i] = e;
         }

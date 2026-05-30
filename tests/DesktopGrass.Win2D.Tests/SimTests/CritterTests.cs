@@ -44,7 +44,10 @@ public class CritterTests
     {
         Assert.Equal(0, (int)CritterKind.None);
         Assert.Equal(1, (int)CritterKind.Sheep);
+        Assert.Equal(2, (int)CritterKind.Cat);
+        Assert.Equal(3, (int)CritterKind.Bunny);
         Assert.Equal(3, (int)EntityKind.Sheep);
+        Assert.Equal(6, (int)EntityKind.Bunny);
         Assert.Equal(CritterKind.None, Constants.CRITTER_DEFAULT);
     }
 
@@ -280,25 +283,21 @@ public class CritterTests
     }
 
     [Fact]
-    public void SetCritterNoneRemovesSheepPreservesSceneEntities()
+    public void SetCritterNoneRestoresGrassAmbientCritters()
     {
         var sim = BuildSim();
-        sim.SetScene(Scene.Desert);
-        int tumbleBefore = sim.Entities.Count(e => e.Kind == EntityKind.Tumbleweed);
-
         sim.SetCritter(CritterKind.Sheep);
         Assert.True(CountSheep(sim) >= Constants.SHEEP_COUNT_MIN);
-        int tumbleAfterSheep = sim.Entities.Count(e => e.Kind == EntityKind.Tumbleweed);
-        Assert.Equal(tumbleBefore, tumbleAfterSheep);
+        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
 
         sim.SetCritter(CritterKind.None);
-        Assert.Equal(0, CountSheep(sim));
-        int tumbleAfterNone = sim.Entities.Count(e => e.Kind == EntityKind.Tumbleweed);
-        Assert.Equal(tumbleBefore, tumbleAfterNone);
+        Assert.True(CountSheep(sim) >= Constants.SHEEP_COUNT_MIN);
+        Assert.True(CountKind(sim, EntityKind.Cat) >= Constants.CAT_COUNT_MIN);
+        Assert.True(CountKind(sim, EntityKind.Bunny) >= Constants.BUNNY_COUNT_MIN);
     }
 
     [Fact]
-    public void SetScenePreservesActiveCritter()
+    public void SetSceneGatesActiveCritterToGrass()
     {
         var sim = BuildSim();
         sim.SetCritter(CritterKind.Sheep);
@@ -306,12 +305,15 @@ public class CritterTests
         Assert.True(sheepGrass >= Constants.SHEEP_COUNT_MIN);
 
         sim.SetScene(Scene.Desert);
-        Assert.Equal(sheepGrass, CountSheep(sim));
+        Assert.Equal(0, CountSheep(sim));
         Assert.Equal(CritterKind.Sheep, sim.CurrentCritter);
 
         sim.SetScene(Scene.Winter);
-        Assert.Equal(sheepGrass, CountSheep(sim));
+        Assert.Equal(0, CountSheep(sim));
         Assert.Equal(CritterKind.Sheep, sim.CurrentCritter);
+
+        sim.SetScene(Scene.Grass);
+        Assert.Equal(sheepGrass, CountSheep(sim));
     }
 
     [Fact]

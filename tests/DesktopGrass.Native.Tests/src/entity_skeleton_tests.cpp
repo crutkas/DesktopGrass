@@ -25,6 +25,7 @@ TEST_CASE("EntityKind has spec-locked discriminants", "[entities][enum]") {
     REQUIRE(static_cast<int>(EntityKind::Sheep)      == 3);
     REQUIRE(static_cast<int>(EntityKind::Cat)        == 4);
     REQUIRE(static_cast<int>(EntityKind::Raindrop)   == 5);
+    REQUIRE(static_cast<int>(EntityKind::Bunny)      == 6);
     REQUIRE(MAX_ENTITIES_PER_MONITOR == 64);
 }
 
@@ -37,14 +38,14 @@ TEST_CASE("sim_init reserves entities capacity", "[entities][init]") {
 
 TEST_CASE("sim_set_scene clears entities", "[entities][scene]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
-    // Push a fake entity directly to verify clear() runs.
+    // Push a fake entity directly to verify scene-transition removal runs.
     Entity fake{};
     fake.kind = EntityKind::Tumbleweed;
     fake.x = 100.0;
     sim.entities.push_back(fake);
     REQUIRE(sim.entities.size() == 1);
 
-    sim_set_scene(sim, Scene::Grass);
+    sim_set_scene(sim, Scene::Winter);
     REQUIRE(sim.entities.empty());
     REQUIRE(sim.entities.capacity() >= static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR));
 }

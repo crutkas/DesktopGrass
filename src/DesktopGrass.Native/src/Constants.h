@@ -225,18 +225,19 @@ enum class EntityKind : uint8_t {
     Sheep      = 3,
     Cat        = 4,
     Raindrop   = 5,
+    Bunny      = 6,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
-// Critter subsystem — independent of Scene. The user picks a critter via
-// the tray submenu and it's drawn on top of whatever biome is active. None
-// is the default (no pets). CritterKind discriminants are cross-impl-locked.
+// Critter subsystem — Grass-scene ambient critters plus legacy tray selectors.
+// CritterKind discriminants are cross-impl-locked.
 enum class CritterKind : uint8_t {
     None  = 0,
     Sheep = 1,
     Cat   = 2,
+    Bunny = 3,
 };
-constexpr int         CRITTER_COUNT   = 3;
+constexpr int         CRITTER_COUNT   = 4;
 constexpr CritterKind CRITTER_DEFAULT = CritterKind::None;
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8Eull;
 constexpr int         PET_COUNT_OPTIONS[] = { 1, 2, 3, 4, 5, 6 };
@@ -248,6 +249,10 @@ constexpr const wchar_t* SHEEP_NAME_POOL[] = {
 };
 constexpr const wchar_t* CAT_NAME_POOL[] = {
     L"Mittens", L"Whiskers", L"Shadow", L"Ginger", L"Smokey", L"Boots", L"Sage", L"Juno"
+};
+constexpr const wchar_t* BUNNY_NAME_POOL[] = {
+    L"Clover", L"Hazel", L"Thumper", L"Mochi", L"Pip", L"Acorn",
+    L"Biscuit", L"Willow", L"Pepper", L"Hopper", L"Juniper", L"Snowdrop"
 };
 constexpr double      PET_NAME_HOVER_RADIUS = 50.0;
 constexpr double      PET_NAME_FADE_DURATION = 1.5;
@@ -420,6 +425,64 @@ constexpr double   CAT_POUNCE_RADIUS      = 80.0;
 constexpr double   CAT_POUNCE_HEIGHT      = 9.0;
 constexpr double   CAT_CURIOUS_RADIUS     = 100.0;
 constexpr double   CAT_CURIOUS_HEAD_TURN_MAX = 0.7;
+
+// Bunny (§18). Grass-only woodland critter: shy, passive, and always hopping
+// when it moves. Generated after sheep and cats from the shared critter PRNG.
+constexpr int      BUNNY_COUNT_MIN          = 1;
+constexpr int      BUNNY_COUNT_MAX          = 2;
+constexpr double   BUNNY_HOP_SPEED_MIN      = 22.0;
+constexpr double   BUNNY_HOP_SPEED_MAX      = 38.0;
+constexpr double   BUNNY_BODY_RADIUS        = 8.0;
+constexpr double   BUNNY_BODY_HEIGHT        = 6.5;
+constexpr double   BUNNY_HEAD_RADIUS        = 4.2;
+constexpr double   BUNNY_EAR_HEIGHT         = 9.0;
+constexpr double   BUNNY_EAR_WIDTH          = 2.2;
+constexpr double   BUNNY_EAR_SPACING        = 3.0;
+constexpr double   BUNNY_LEG_LENGTH         = 4.0;
+constexpr double   BUNNY_TAIL_RADIUS        = 2.4;
+constexpr uint32_t BUNNY_BODY_COLOR         = 0xFF8A6A4Au;
+constexpr uint32_t BUNNY_BELLY_COLOR        = 0xFFC4A98Du;
+constexpr uint32_t BUNNY_EAR_COLOR          = 0xFF8A6A4Au;
+constexpr uint32_t BUNNY_EAR_INNER_COLOR    = 0xFFD9A0A0u;
+constexpr uint32_t BUNNY_TAIL_COLOR         = 0xFFF7F4EBu;
+constexpr uint32_t BUNNY_EYE_COLOR          = 0xFF1A1208u;
+constexpr uint32_t BUNNY_NOSE_COLOR         = 0xFF8A4040u;
+
+constexpr uint8_t  BUNNY_STATE_HOPPING      = 0;
+constexpr uint8_t  BUNNY_STATE_GRAZING      = 1;
+constexpr uint8_t  BUNNY_STATE_IDLE         = 2;
+constexpr uint8_t  BUNNY_STATE_SLEEPING     = 3;
+constexpr uint8_t  BUNNY_STATE_STARTLED     = 4;
+
+constexpr double   BUNNY_HOP_DURATION       = 0.40;
+constexpr double   BUNNY_HOP_HEIGHT         = 8.0;
+constexpr double   BUNNY_HOP_GAP_MIN        = 0.05;
+constexpr double   BUNNY_HOP_GAP_MAX        = 0.20;
+constexpr double   BUNNY_GRAZE_DURATION_MIN = 2.5;
+constexpr double   BUNNY_GRAZE_DURATION_MAX = 4.5;
+constexpr double   BUNNY_IDLE_DURATION_MIN  = 2.0;
+constexpr double   BUNNY_IDLE_DURATION_MAX  = 4.0;
+constexpr double   BUNNY_SLEEP_DURATION_MIN = 6.0;
+constexpr double   BUNNY_SLEEP_DURATION_MAX = 12.0;
+constexpr double   BUNNY_GRAZE_PROBABILITY  = 0.55;
+constexpr double   BUNNY_IDLE_PROBABILITY   = 0.30;
+constexpr double   BUNNY_SLEEP_PROB_DAY     = 0.05;
+constexpr double   BUNNY_SLEEP_PROB_NIGHT   = 0.40;
+
+constexpr double   BUNNY_STARTLE_RADIUS     = 90.0;
+constexpr double   BUNNY_STARTLE_BOOST      = 2.0;
+constexpr double   BUNNY_STARTLE_HOP_HEIGHT = 14.0;
+constexpr double   BUNNY_STARTLE_DURATION   = 3.0;
+
+constexpr double   BUNNY_NOSE_TWITCH_FREQ   = 6.0;
+constexpr double   BUNNY_NOSE_TWITCH_AMP    = 0.5;
+constexpr double   BUNNY_EAR_WIGGLE_FREQ    = 1.2;
+constexpr double   BUNNY_EAR_WIGGLE_AMP     = 0.20;
+
+constexpr double   BUNNY_ZZZ_CYCLE_SEC      = SHEEP_ZZZ_CYCLE_SEC;
+constexpr double   BUNNY_ZZZ_RISE           = SHEEP_ZZZ_RISE * 0.7;
+constexpr double   BUNNY_ZZZ_SIZE_START     = SHEEP_ZZZ_SIZE_START * 0.7;
+constexpr double   BUNNY_ZZZ_SIZE_END       = SHEEP_ZZZ_SIZE_END * 0.7;
 
 // Snowflakes (§15)
 constexpr double   SNOWFLAKE_EMIT_RATE_PER_1920DIP = 8.0;    // flakes/sec
