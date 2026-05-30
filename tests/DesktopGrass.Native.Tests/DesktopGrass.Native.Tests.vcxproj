@@ -98,6 +98,7 @@
     <ClCompile Include="src\cat_tests.cpp" />
     <ClCompile Include="src\persistence_tests.cpp" />
     <ClCompile Include="src\autostart_tests.cpp" />
+    <ClCompile Include="src\click_through_smoke_test.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Persistence.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />

@@ -37,6 +37,10 @@ When a blade is perfectly vertical, its endpoint sits at `groundY - L`, so a tal
 
 The grass anchors to the bottom of the monitor's **work area** (`MONITORINFO.rcWork.bottom`), so it sits directly on top of the taskbar rather than being clipped behind it. Each implementation queries `GetMonitorInfo` per monitor and uses `rcWork` for the window position. (Side- or top-docked taskbars work the same way: the work area excludes whatever side the taskbar is on, and the grass strip lands on the bottom edge of what remains.)
 
+### Click-through verification
+
+A `[smoke]` test spawns a probe window beneath an overlay with the same click-through extended styles, sends a synthetic click via `SendInput`, and asserts the probe receives `WM_LBUTTONDOWN`. The test skips gracefully when no interactive desktop is available, so headless CI does not fail only because `SendInput` cannot run.
+
 ---
 
 ## 3. Random number source
