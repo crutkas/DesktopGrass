@@ -95,6 +95,7 @@
     <ClCompile Include="src\snow_accumulation_tests.cpp" />
     <ClCompile Include="src\rain_tests.cpp" />
     <ClCompile Include="src\pine_tests.cpp" />
+    <ClCompile Include="src\autumn_tests.cpp" />
     <ClCompile Include="src\critter_tests.cpp" />
     <ClCompile Include="src\sheep_greeting_tests.cpp" />
     <ClCompile Include="src\cat_tests.cpp" />

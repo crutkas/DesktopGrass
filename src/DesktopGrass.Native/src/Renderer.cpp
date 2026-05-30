@@ -196,6 +196,13 @@ bool Renderer::CreateDeviceResources() {
                                             raindropBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    for (int i = 0; i < LEAF_COLOR_COUNT; ++i) {
+        leafBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(LEAF_COLORS[i]),
+                                                leafBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+
     snowTipBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_TIP_COLOR),
                                             snowTipBrush_.ReleaseAndGetAddressOf());
@@ -230,6 +237,23 @@ bool Renderer::CreateDeviceResources() {
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(BIRCH_MARK_COLOR),
                                             birchMarkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    mapleTrunkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(MAPLE_TRUNK_COLOR),
+                                            mapleTrunkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    mapleTrunkDarkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(MAPLE_TRUNK_DARK),
+                                            mapleTrunkDarkBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    for (int i = 0; i < MAPLE_CANOPY_COLOR_COUNT; ++i) {
+        mapleCanopyBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(MAPLE_CANOPY_COLORS[i]),
+                                                mapleCanopyBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
 
     sheepBodyBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_BODY_COLOR),
@@ -446,6 +470,7 @@ void Renderer::DiscardDeviceResources() {
     tumbleweedBrush_.Reset();
     snowflakeBrush_.Reset();
     raindropBrush_.Reset();
+    for (auto& b : leafBrushes_) b.Reset();
     snowTipBrush_.Reset();
     snowLayerTopBrush_.Reset();
     snowLayerBottomBrush_.Reset();
@@ -453,6 +478,9 @@ void Renderer::DiscardDeviceResources() {
     pineBrush_.Reset();
     birchBarkBrush_.Reset();
     birchMarkBrush_.Reset();
+    mapleTrunkBrush_.Reset();
+    mapleTrunkDarkBrush_.Reset();
+    for (auto& b : mapleCanopyBrushes_) b.Reset();
     sheepBodyBrush_.Reset();
     sheepLegBrush_.Reset();
     sheepFaceBrush_.Reset();
@@ -683,7 +711,7 @@ void Renderer::DrawSnowLayer() {
 }
 
 void Renderer::DrawGrass(bool treesOnly) {
-    if (treesOnly && sim_.currentScene != Scene::Winter) return;
+    if (treesOnly && sim_.currentScene != Scene::Winter && sim_.currentScene != Scene::Autumn) return;
     const double groundY = sim_.windowHeight;
     const int sceneIdx = static_cast<int>(sim_.currentScene);
     ComPtr<ID2D1Factory> factoryGeneric;
@@ -717,8 +745,8 @@ void Renderer::DrawGrass(bool treesOnly) {
 
     for (const Blade& b : sim_.blades) {
         if (treesOnly) {
-            if (!b.isPine) continue;
-        } else if (b.isPine) {
+            if (!b.isPine && !b.isMaple) continue;
+        } else if (b.isPine || b.isMaple) {
             continue;
         }
 
@@ -878,6 +906,66 @@ void Renderer::DrawGrass(bool treesOnly) {
                               static_cast<float>(topY),
                               static_cast<float>(capHalfW),
                               snowTipBrush_.Get());
+            }
+            continue;
+        }
+
+        if (b.isMaple) {
+            const float baseX = static_cast<float>(b.baseX);
+            const float gy = static_cast<float>(groundY);
+            const float trunkW = static_cast<float>(b.mapleTrunkWidth);
+
+            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+                d2dContext_->DrawLine(
+                    D2D1::Point2F(baseX, gy),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    mapleTrunkBrush_.Get(), std::max(2.0f, trunkW * 0.65f));
+                continue;
+            }
+
+            const float totalH = static_cast<float>(b.mapleHeight * b.cutHeight);
+            const float topY = gy - totalH;
+            const float canopyR = static_cast<float>(b.mapleCanopyRadius * b.cutHeight);
+            d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, topY),
+                                  mapleTrunkBrush_.Get(), trunkW);
+            d2dContext_->DrawLine(D2D1::Point2F(baseX + trunkW * 0.18f, gy - totalH * 0.08f),
+                                  D2D1::Point2F(baseX + trunkW * 0.12f, topY + totalH * 0.15f),
+                                  mapleTrunkDarkBrush_.Get(), std::max(1.0f, trunkW * 0.18f));
+
+            struct MapleBranch { float trunkFrac; float angleDeg; float side; float lenMul; };
+            static const MapleBranch kBranches[] = {
+                {0.58f, 55.0f, -1.0f, 0.95f},
+                {0.70f, 38.0f, +1.0f, 1.05f},
+                {0.82f, 28.0f, -1.0f, 0.70f},
+            };
+            D2D1_POINT_2F tips[3]{};
+            const float branchBaseLen = std::max(trunkW * 2.6f, canopyR * 0.55f);
+            const float branchW = std::max(1.0f, trunkW * 0.32f);
+            for (int i = 0; i < 3; ++i) {
+                const auto& br = kBranches[i];
+                const float sy = gy - totalH * br.trunkFrac;
+                const float len = branchBaseLen * br.lenMul;
+                const float angle = br.angleDeg * 3.14159265f / 180.0f;
+                const float ex = baseX + br.side * len * std::sin(angle);
+                const float ey = sy - len * std::cos(angle);
+                tips[i] = D2D1::Point2F(ex, ey);
+                d2dContext_->DrawLine(D2D1::Point2F(baseX, sy), tips[i],
+                                      mapleTrunkDarkBrush_.Get(), branchW);
+            }
+
+            if (!b.mapleIsBare) {
+                uint8_t idx = b.mapleCanopyColorIdx;
+                if (idx >= MAPLE_CANOPY_COLOR_COUNT) idx = 0;
+                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX, topY), canopyR, canopyR * 0.92f),
+                                         mapleCanopyBrushes_[idx].Get());
+                ID2D1SolidColorBrush* hi0 = mapleCanopyBrushes_[(idx + 1) % MAPLE_CANOPY_COLOR_COUNT].Get();
+                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX - canopyR * 0.32f, topY - canopyR * 0.12f), canopyR * 0.28f, canopyR * 0.22f), hi0);
+                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX + canopyR * 0.22f, topY + canopyR * 0.18f), canopyR * 0.22f, canopyR * 0.18f), hi0);
+            } else {
+                for (int i = 0; i < 3; ++i) {
+                    ID2D1SolidColorBrush* leafBrush = leafBrushes_[i % LEAF_COLOR_COUNT].Get();
+                    d2dContext_->FillEllipse(D2D1::Ellipse(tips[i], 1.8f, 1.8f), leafBrush);
+                }
             }
             continue;
         }
@@ -1650,6 +1738,20 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
                                   D2D1::Point2F(x2, y2),
                                   raindropBrush_.Get(),
                                   static_cast<float>(RAINDROP_THICKNESS));
+            continue;
+        }
+
+        if (e.kind == EntityKind::Leaf) {
+            uint8_t idx = e.colorVariant;
+            if (idx >= LEAF_COLOR_COUNT) idx = 0;
+            const float cx = static_cast<float>(e.x);
+            const float cy = static_cast<float>(e.y);
+            const float r = static_cast<float>(e.size);
+            d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), r, r * 0.78f), leafBrushes_[idx].Get());
+            const float dx = std::cos(static_cast<float>(e.rotation));
+            const float dy = std::sin(static_cast<float>(e.rotation));
+            d2dContext_->DrawLine(D2D1::Point2F(cx, cy), D2D1::Point2F(cx + dx * r * 1.25f, cy + dy * r * 1.25f),
+                                  mapleTrunkDarkBrush_.Get(), std::max(0.8f, r * 0.18f));
             continue;
         }
 

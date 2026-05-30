@@ -26,6 +26,7 @@ public:
     static constexpr int   kMenuSceneGrass    = 1010;
     static constexpr int   kMenuSceneDesert   = 1011;
     static constexpr int   kMenuSceneWinter   = 1012;
+    static constexpr int   kMenuSceneAutumn   = 1013;
     static constexpr int   kMenuCritterNone     = 1020;
     static constexpr int   kMenuCritterSheep    = 1021;
     static constexpr int   kMenuCritterCat      = 1022;

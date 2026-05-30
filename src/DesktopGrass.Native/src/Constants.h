@@ -153,13 +153,14 @@ constexpr uint64_t TUMBLEWEED_PRNG_SALT          = 0x7B0117CA7B0117CAull;
 // Scenes (architecture.md §13). Render-time presentation modes that share
 // generation, sway, gust, cut, and ambient-gust logic. The infrastructure
 // pass swaps only the blade palette; per-scene entity content (cacti,
-// tumbleweeds, snowflakes, frost) ships in §14/§15.
+// tumbleweeds, snowflakes, frost, falling leaves, maples) ships in §14/§15/§16.5.
 enum class Scene : uint8_t {
     Grass  = 0,   // default
     Desert = 1,
     Winter = 2,
+    Autumn = 3,
 };
-constexpr int    SCENE_COUNT   = 3;
+constexpr int    SCENE_COUNT   = 4;
 constexpr Scene  SCENE_DEFAULT = Scene::Grass;
 
 // Per-scene blade palettes (§13). Each is six ARGB colors indexed by
@@ -182,6 +183,15 @@ constexpr uint32_t WINTER_PALETTE[PALETTE_SIZE] = {
     0xFFD7E2EEu,  // 3 light snow
     0xFFA8B7C6u,  // 4 winter slate
     0xFFEEF3F8u,  // 5 hoarfrost
+};
+
+constexpr uint32_t AUTUMN_PALETTE[PALETTE_SIZE] = {
+    0xFFD96B0Cu,  // 0 burnt orange
+    0xFFB54D1Eu,  // 1 deep rust
+    0xFFE89A3Cu,  // 2 warm amber
+    0xFFC23E12u,  // 3 vibrant red-orange
+    0xFFD9A65Cu,  // 4 honey-gold
+    0xFF8C2E0Fu,  // 5 dark maroon
 };
 
 constexpr uint32_t MUSHROOM_PALETTE[MUSHROOM_PALETTE_SIZE] = {
@@ -213,6 +223,7 @@ constexpr uint32_t SCENE_PALETTES[SCENE_COUNT][PALETTE_SIZE] = {
     { PALETTE[0],        PALETTE[1],        PALETTE[2],        PALETTE[3],        PALETTE[4],        PALETTE[5]        },
     { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
     { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
+    { AUTUMN_PALETTE[0], AUTUMN_PALETTE[1], AUTUMN_PALETTE[2], AUTUMN_PALETTE[3], AUTUMN_PALETTE[4], AUTUMN_PALETTE[5] },
 };
 
 // Roaming-entity subsystem (§13.2). EntityKind discriminants are
@@ -231,6 +242,7 @@ enum class EntityKind : uint8_t {
     Firefly    = 8,
     Bird       = 9,
     Hedgehog   = 10,
+    Leaf       = 11,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -669,6 +681,30 @@ constexpr double   RAINDROP_DRIFT_MAX              = 8.0;
 constexpr uint32_t RAINDROP_COLOR                  = 0x88B0C4D0u;
 constexpr double   RAINDROP_LIFETIME_PADDING_SEC   = 0.3;
 
+// Falling leaves (§16.5). Autumn-only transient particles.
+constexpr double   LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;
+constexpr double   LEAF_FALL_SPEED_MIN             = 14.0;
+constexpr double   LEAF_FALL_SPEED_MAX             = 26.0;
+constexpr double   LEAF_HORIZONTAL_DRIFT_AMP       = 32.0;
+constexpr double   LEAF_HORIZONTAL_DRIFT_FREQ      = 1.4;
+constexpr double   LEAF_ROTATION_SPEED_MIN         = 0.8;
+constexpr double   LEAF_ROTATION_SPEED_MAX         = 2.4;
+constexpr double   LEAF_SIZE_MIN                   = 4.0;
+constexpr double   LEAF_SIZE_MAX                   = 7.0;
+constexpr double   LEAF_SPAWN_Y_OFFSET             = -10.0;
+constexpr int      LEAF_COLOR_COUNT                = 6;
+constexpr uint32_t LEAF_COLOR_0                    = 0xFFD96B0Cu;
+constexpr uint32_t LEAF_COLOR_1                    = 0xFFB54D1Eu;
+constexpr uint32_t LEAF_COLOR_2                    = 0xFFE89A3Cu;
+constexpr uint32_t LEAF_COLOR_3                    = 0xFFC23E12u;
+constexpr uint32_t LEAF_COLOR_4                    = 0xFFE6C849u;
+constexpr uint32_t LEAF_COLOR_5                    = 0xFF8C2E0Fu;
+constexpr uint64_t LEAF_PRNG_SALT                  = 0x1EA1DEC1D1EA1D05ull;
+constexpr uint32_t LEAF_COLORS[LEAF_COLOR_COUNT] = {
+    LEAF_COLOR_0, LEAF_COLOR_1, LEAF_COLOR_2,
+    LEAF_COLOR_3, LEAF_COLOR_4, LEAF_COLOR_5,
+};
+
 // Snow-tipped blade caps (§15)
 constexpr double   SNOW_TIP_RADIUS_FACTOR          = 1.25;
 constexpr uint32_t SNOW_TIP_COLOR                  = 0xFFFFFFFFu;
@@ -699,6 +735,28 @@ constexpr int      BIRCH_BRANCH_COUNT              = 6;     // upward-angled bra
 constexpr double   BIRCH_SNOW_CAP_FRACTION         = 0.18;  // fraction of trunk height
 constexpr uint32_t BIRCH_BARK_COLOR                = 0xFFEFEFE6u; // off-white trunk
 constexpr uint32_t BIRCH_MARK_COLOR                = 0xFF2A2A28u; // dark bark stripes
+
+// Maple trees (§16.5). Autumn slot-bound biome anchor, shorter and warmer than pines.
+constexpr double   MAPLE_PROBABILITY               = 0.0070;
+constexpr double   MAPLE_HEIGHT_MIN                = 50.0;
+constexpr double   MAPLE_HEIGHT_MAX                = 85.0;
+constexpr double   MAPLE_TRUNK_WIDTH_MIN           = 6.0;
+constexpr double   MAPLE_TRUNK_WIDTH_MAX           = 10.0;
+constexpr double   MAPLE_CANOPY_RADIUS_MIN         = 14.0;
+constexpr double   MAPLE_CANOPY_RADIUS_MAX         = 24.0;
+constexpr uint32_t MAPLE_TRUNK_COLOR               = 0xFF4A2C18u;
+constexpr uint32_t MAPLE_TRUNK_DARK                = 0xFF2F1B0Eu;
+constexpr int      MAPLE_CANOPY_COLOR_COUNT        = 4;
+constexpr uint32_t MAPLE_CANOPY_COLOR_0            = 0xFFD96B0Cu;
+constexpr uint32_t MAPLE_CANOPY_COLOR_1            = 0xFFE89A3Cu;
+constexpr uint32_t MAPLE_CANOPY_COLOR_2            = 0xFFC23E12u;
+constexpr uint32_t MAPLE_CANOPY_COLOR_3            = 0xFFE6C849u;
+constexpr double   MAPLE_BARE_FRACTION             = 0.20;
+constexpr uint64_t MAPLE_PRNG_SALT                 = 0xC1AA51EC1AA51Eull;
+constexpr uint32_t MAPLE_CANOPY_COLORS[MAPLE_CANOPY_COLOR_COUNT] = {
+    MAPLE_CANOPY_COLOR_0, MAPLE_CANOPY_COLOR_1,
+    MAPLE_CANOPY_COLOR_2, MAPLE_CANOPY_COLOR_3,
+};
 
 // Day-night ambient tint (§19). Pure render overlay; no simulation state.
 struct DayTintPhase {

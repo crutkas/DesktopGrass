@@ -103,6 +103,7 @@ private:
     ComPtr<ID2D1SolidColorBrush>           tumbleweedBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
     ComPtr<ID2D1SolidColorBrush>           raindropBrush_;
+    ComPtr<ID2D1SolidColorBrush>           leafBrushes_[LEAF_COLOR_COUNT];
     ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerTopBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerBottomBrush_;
@@ -110,6 +111,9 @@ private:
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchBarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchMarkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           mapleTrunkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           mapleTrunkDarkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           mapleCanopyBrushes_[MAPLE_CANOPY_COLOR_COUNT];
     ComPtr<ID2D1SolidColorBrush>           sheepBodyBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepLegBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepFaceBrush_;

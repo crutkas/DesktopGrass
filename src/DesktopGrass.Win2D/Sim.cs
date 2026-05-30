@@ -117,13 +117,21 @@ internal struct Blade
     public double PineHeight;      // DIP
     public double PineWidth;       // DIP (pine base-tier width OR birch trunk width)
 
+    // Maple (§16.5). Autumn-only slot-bound blade variant.
+    public bool   IsMaple;
+    public double MapleHeight;
+    public double MapleTrunkWidth;
+    public double MapleCanopyRadius;
+    public byte   MapleCanopyColorIdx;
+    public bool   MapleIsBare;
+
     public double EffectiveLean;
 }
 
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
 // snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), birds (§17.8), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11 }
 
 public struct Entity
 {
@@ -221,6 +229,10 @@ internal sealed class Sim
     // existing raindrops for a soft fade-out while the spawner is scene-gated.
     public Prng RaindropPrng;
     public double NextRaindropSpawnTime;
+
+    // §16.5 leaf emitter (Autumn scene only).
+    public Prng LeafPrng;
+    public double NextLeafSpawnTime;
 
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
@@ -394,9 +406,8 @@ internal sealed class Sim
             SnowDepth = 0.0;
         }
         CurrentScene = s;
-        // Soft-fade Grass rain: scene transitions remove hard scene entities but
-        // preserve finite-lifetime raindrops so they naturally fall out.
-        RemoveSceneTransitionEntities();
+        // Soft-fade Grass rain for existing scenes; Autumn is intentionally weather-free except leaves.
+        RemoveSceneTransitionEntities(s);
 
         // Every scene transition starts from a clean blade-variant slate so
         // that e.g. Desert→Winter doesn't leave cacti on screen. Desert then
@@ -421,12 +432,15 @@ internal sealed class Sim
                 double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
                 NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
                 break;
+            case Scene.Autumn:
+                GenerateMaplesForAutumn(this);
+                LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
+                NextLeafSpawnTime = GlobalTime;
+                break;
         }
 
-        // Critters survive scene changes — re-spawn the current selection on
-        // top of whatever biome we just configured. Always runs LAST so that
-        // entities[0..N-1] for tumbleweeds/snowflakes still match the pinned
-        // conformance snapshots from §12.
+        // Grass critters/flyers are scene-gated inside GenerateCrittersForKind.
+        // Run LAST so scene entity snapshots stay pinned.
         GenerateCrittersForKind(this);
     }
 
@@ -454,8 +468,8 @@ internal sealed class Sim
                              || e.Kind == EntityKind.Butterfly
                              || e.Kind == EntityKind.Firefly);
 
-    private void RemoveSceneTransitionEntities() =>
-        Entities.RemoveAll(e => e.Kind != EntityKind.Raindrop);
+    private void RemoveSceneTransitionEntities(Scene destination) =>
+        Entities.RemoveAll(e => destination == Scene.Autumn || e.Kind != EntityKind.Raindrop);
 
     private static void GenerateCrittersForKind(Sim sim)
     {
@@ -827,6 +841,8 @@ internal sealed class Sim
         Entities.Clear();
         RaindropPrng = Prng.Init(EntitySeed ^ Constants.RAINDROP_PRNG_SALT);
         NextRaindropSpawnTime = GlobalTime;
+        LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
+        NextLeafSpawnTime = GlobalTime;
         BirdFlybyPrng = Prng.Init(EntitySeed ^ Constants.BIRD_FLYBY_PRNG_SALT);
         NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
     }
@@ -843,6 +859,12 @@ internal sealed class Sim
         b.TreeVariant = 0;
         b.PineHeight = 0.0;
         b.PineWidth = 0.0;
+        b.IsMaple = false;
+        b.MapleHeight = 0.0;
+        b.MapleTrunkWidth = 0.0;
+        b.MapleCanopyRadius = 0.0;
+        b.MapleCanopyColorIdx = 0;
+        b.MapleIsBare = false;
         b.IsFlower = b.OriginalIsFlower;
         b.IsMushroom = b.OriginalIsMushroom;
     }
@@ -889,6 +911,29 @@ internal sealed class Sim
             if (tiers < Constants.PINE_TIER_COUNT_MIN) tiers = Constants.PINE_TIER_COUNT_MIN;
             if (tiers > Constants.PINE_TIER_COUNT_MAX) tiers = Constants.PINE_TIER_COUNT_MAX;
             b.PineTierCount = (byte)tiers;
+        }
+    }
+
+    public static void GenerateMaplesForAutumn(Sim sim)
+    {
+        var maplePrng = Prng.Init(sim.EntitySeed ^ Constants.MAPLE_PRNG_SALT);
+
+        for (int i = 0; i < sim.Blades.Length; i++)
+        {
+            ref Blade b = ref sim.Blades[i];
+            RestoreOriginalVariants(ref b);
+
+            double r = maplePrng.Uniform(0.0, 1.0);
+            if (r >= Constants.MAPLE_PROBABILITY) continue;
+
+            b.IsMaple = true;
+            b.IsFlower = false;
+            b.IsMushroom = false;
+            b.MapleHeight = maplePrng.Uniform(Constants.MAPLE_HEIGHT_MIN, Constants.MAPLE_HEIGHT_MAX);
+            b.MapleTrunkWidth = maplePrng.Uniform(Constants.MAPLE_TRUNK_WIDTH_MIN, Constants.MAPLE_TRUNK_WIDTH_MAX);
+            b.MapleCanopyRadius = maplePrng.Uniform(Constants.MAPLE_CANOPY_RADIUS_MIN, Constants.MAPLE_CANOPY_RADIUS_MAX);
+            b.MapleCanopyColorIdx = (byte)maplePrng.Index((uint)Constants.MAPLE_CANOPY_COLOR_COUNT);
+            b.MapleIsBare = maplePrng.Uniform(0.0, 1.0) < Constants.MAPLE_BARE_FRACTION;
         }
     }
 
@@ -1088,6 +1133,17 @@ internal sealed class Sim
         for (int i = 0; i < Entities.Count; i++)
         {
             Entity e = Entities[i];
+            if (e.Kind == EntityKind.Leaf)
+            {
+                e.X = e.X0 + Constants.LEAF_HORIZONTAL_DRIFT_AMP
+                    * Math.Sin(e.Age * Constants.LEAF_HORIZONTAL_DRIFT_FREQ + e.PhaseX);
+                Entities[i] = e;
+            }
+        }
+
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
             if (e.Kind == EntityKind.Butterfly)
             {
                 double margin = Constants.BUTTERFLY_WING_OFFSET + Constants.BUTTERFLY_WING_RADIUS;
@@ -1125,6 +1181,7 @@ internal sealed class Sim
 
         Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)
                              || (e.Kind == EntityKind.Snowflake && e.Y > groundY)
+                             || (e.Kind == EntityKind.Leaf && e.Y > groundY)
                              || (e.Kind == EntityKind.Snowflake
                                  && CurrentScene == Scene.Winter
                                  && SnowDepth > 0.0
@@ -1497,6 +1554,36 @@ internal sealed class Sim
         }
 
         TickBirdFlybys(DateTime.Now.Hour);
+
+        if (CurrentScene == Scene.Autumn && MonitorWidth > 0.0)
+        {
+            double lambda = Constants.LEAF_SPAWN_RATE_PER_SEC_1920DIP * MonitorWidth / 1920.0;
+            while (lambda > 0.0 && GlobalTime >= NextLeafSpawnTime && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+            {
+                Entity e = default;
+                e.Kind = EntityKind.Leaf;
+                double xFrac = LeafPrng.Uniform(0.0, 1.0);
+                double spawnX = xFrac * MonitorWidth;
+                double fallSpeed = LeafPrng.Uniform(Constants.LEAF_FALL_SPEED_MIN, Constants.LEAF_FALL_SPEED_MAX);
+                e.PhaseX = LeafPrng.Uniform(0.0, twoPi);
+                double rotationSpeedMag = LeafPrng.Uniform(Constants.LEAF_ROTATION_SPEED_MIN, Constants.LEAF_ROTATION_SPEED_MAX);
+                double rotationSign = (LeafPrng.NextU64() & 1UL) != 0UL ? 1.0 : -1.0;
+                e.RotationSpeed = rotationSpeedMag * rotationSign;
+                e.Rotation = LeafPrng.Uniform(0.0, twoPi);
+                e.Size = LeafPrng.Uniform(Constants.LEAF_SIZE_MIN, Constants.LEAF_SIZE_MAX);
+                e.ColorVariant = (byte)LeafPrng.Index((uint)Constants.LEAF_COLOR_COUNT);
+                e.X0 = spawnX;
+                e.X = spawnX + Constants.LEAF_HORIZONTAL_DRIFT_AMP * Math.Sin(e.PhaseX);
+                e.Y = Constants.LEAF_SPAWN_Y_OFFSET;
+                e.Vx = 0.0;
+                e.Vy = fallSpeed;
+                e.BaseSpeed = fallSpeed;
+                e.Age = 0.0;
+                e.Lifetime = -1.0;
+                Entities.Add(e);
+                NextLeafSpawnTime += LeafPrng.Exponential(lambda);
+            }
+        }
 
         if (CurrentScene == Scene.Grass && MonitorWidth > 0.0)
         {

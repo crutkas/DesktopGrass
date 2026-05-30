@@ -30,7 +30,8 @@ public class SceneTests
         Assert.Equal(0, (int)Scene.Grass);
         Assert.Equal(1, (int)Scene.Desert);
         Assert.Equal(2, (int)Scene.Winter);
-        Assert.Equal(3, Constants.SCENE_COUNT);
+        Assert.Equal(3, (int)Scene.Autumn);
+        Assert.Equal(4, Constants.SCENE_COUNT);
         Assert.Equal(0, (int)Constants.SCENE_DEFAULT);
     }
 
@@ -73,6 +74,8 @@ public class SceneTests
         Assert.Equal(Scene.Desert, sim.CurrentScene);
         sim.SetScene(Scene.Winter);
         Assert.Equal(Scene.Winter, sim.CurrentScene);
+        sim.SetScene(Scene.Autumn);
+        Assert.Equal(Scene.Autumn, sim.CurrentScene);
         sim.SetScene(Scene.Grass);
         Assert.Equal(Scene.Grass, sim.CurrentScene);
     }

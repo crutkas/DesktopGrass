@@ -107,6 +107,14 @@ struct Blade {
     double  pineHeight              = 0.0;   // DIP
     double  pineWidth               = 0.0;   // DIP, base-tier width (pine) or trunk width (birch)
 
+    // Maple (§16.5). Autumn-only slot-bound blade variant.
+    bool    isMaple                 = false;
+    double  mapleHeight             = 0.0;   // DIP
+    double  mapleTrunkWidth         = 0.0;   // DIP
+    double  mapleCanopyRadius       = 0.0;   // DIP
+    uint8_t mapleCanopyColorIdx     = 0;
+    bool    mapleIsBare             = false;
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;
@@ -235,6 +243,10 @@ struct Sim {
     Prng               raindropPrng        = { 0 };
     double             nextRaindropSpawnTime = 0.0;
 
+    // §16.5 leaf emitter (Autumn scene only).
+    Prng               leafPrng            = { 0 };
+    double             nextLeafSpawnTime   = 0.0;
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     Prng               birdFlybyPrng       = { 0 };
@@ -335,6 +347,10 @@ void generate_tumbleweeds(Sim& sim) noexcept;
 // fraction to pines from the PINE_PRNG_SALT stream when entering Winter.
 // Slot-bound and reversed by restore_original_variants on scene exit.
 void generate_pines_for_winter(Sim& sim) noexcept;
+
+// Maple tree generator (§16.5). Iterates blade slots; promotes a small
+// fraction to maples from the MAPLE_PRNG_SALT stream when entering Autumn.
+void generate_maples_for_autumn(Sim& sim) noexcept;
 
 // Per-blade dynamics helper (visible for tests).
 void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept;

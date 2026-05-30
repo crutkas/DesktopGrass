@@ -71,6 +71,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _tumbleweedBrush;
     private ID2D1SolidColorBrush? _snowflakeBrush;
     private ID2D1SolidColorBrush? _raindropBrush;
+    private ID2D1SolidColorBrush[]? _leafBrushes;
     private ID2D1SolidColorBrush? _snowTipBrush;
     private ID2D1SolidColorBrush? _snowLayerTopBrush;
     private ID2D1SolidColorBrush? _snowLayerBottomBrush;
@@ -78,6 +79,9 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1SolidColorBrush? _birchBarkBrush;
     private ID2D1SolidColorBrush? _birchMarkBrush;
+    private ID2D1SolidColorBrush? _mapleTrunkBrush;
+    private ID2D1SolidColorBrush? _mapleTrunkDarkBrush;
+    private ID2D1SolidColorBrush[]? _mapleCanopyBrushes;
     // §16 sheep brushes — not scene-keyed (one critter at a time, biome-agnostic).
     private ID2D1SolidColorBrush? _sheepBodyBrush;
     private ID2D1SolidColorBrush? _sheepLegBrush;
@@ -239,6 +243,11 @@ internal sealed class GrassWindow : IDisposable
         _tumbleweedBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.TUMBLEWEED_COLOR));
         _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
         _raindropBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RAINDROP_COLOR));
+        _leafBrushes = new ID2D1SolidColorBrush[Constants.LEAF_COLOR_COUNT];
+        for (int i = 0; i < Constants.LEAF_COLOR_COUNT; i++)
+        {
+            _leafBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.LEAF_COLORS[i]));
+        }
         _snowTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_TIP_COLOR));
         _snowLayerTopBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_TOP));
         _snowLayerBottomBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_BOTTOM));
@@ -246,6 +255,13 @@ internal sealed class GrassWindow : IDisposable
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
         _birchBarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_BARK_COLOR));
         _birchMarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_MARK_COLOR));
+        _mapleTrunkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MAPLE_TRUNK_COLOR));
+        _mapleTrunkDarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MAPLE_TRUNK_DARK));
+        _mapleCanopyBrushes = new ID2D1SolidColorBrush[Constants.MAPLE_CANOPY_COLOR_COUNT];
+        for (int i = 0; i < Constants.MAPLE_CANOPY_COLOR_COUNT; i++)
+        {
+            _mapleCanopyBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MAPLE_CANOPY_COLORS[i]));
+        }
 
         _sheepBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_BODY_COLOR));
         _sheepLegBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_LEG_COLOR));
@@ -358,7 +374,7 @@ internal sealed class GrassWindow : IDisposable
 
         DrawSnowLayer(groundY);
 
-        if (Sim.CurrentScene == Scene.Winter)
+        if (Sim.CurrentScene == Scene.Winter || Sim.CurrentScene == Scene.Autumn)
         {
             for (int i = 0; i < Sim.Blades.Length; i++)
             {
@@ -523,6 +539,21 @@ internal sealed class GrassWindow : IDisposable
                 float y2 = (float)(e.Y + e.Size);
                 _dc!.DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), _raindropBrush!,
                               (float)Constants.RAINDROP_THICKNESS);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Leaf)
+            {
+                int idx = e.ColorVariant;
+                if ((uint)idx >= (uint)Constants.LEAF_COLOR_COUNT) idx = 0;
+                float cx = (float)e.X;
+                float cy = (float)e.Y;
+                float leafR = (float)e.Size;
+                _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), leafR, leafR * 0.78f), _leafBrushes![idx]);
+                float dx = (float)Math.Cos(e.Rotation);
+                float dy = (float)Math.Sin(e.Rotation);
+                _dc.DrawLine(new Vector2(cx, cy), new Vector2(cx + dx * leafR * 1.25f, cy + dy * leafR * 1.25f),
+                             _mapleTrunkDarkBrush!, Math.Max(0.8f, leafR * 0.18f), _strokeStyle);
                 continue;
             }
 
@@ -1368,9 +1399,9 @@ internal sealed class GrassWindow : IDisposable
     {
         if (treesOnly)
         {
-            if (!b.IsPine) return;
+            if (!b.IsPine && !b.IsMaple) return;
         }
-        else if (b.IsPine)
+        else if (b.IsPine || b.IsMaple)
         {
             return;
         }
@@ -1492,6 +1523,67 @@ internal sealed class GrassWindow : IDisposable
                 double capBaseY = topY + capHd;
                 double capHalfW = widthAt * 0.5 * Constants.PINE_SNOW_CAP_FRACTION * 1.4;
                 DrawFilledPineTri(baseX, (float)capBaseY, (float)topY, (float)capHalfW, _snowTipBrush!);
+            }
+            return;
+        }
+
+        if (b.IsMaple)
+        {
+            float baseX = (float)b.BaseX;
+            float gy = groundY;
+            float trunkW = (float)b.MapleTrunkWidth;
+
+            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            {
+                _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                              _mapleTrunkBrush!, Math.Max(2.0f, trunkW * 0.65f), _strokeStyle);
+                return;
+            }
+
+            float totalH = (float)(b.MapleHeight * b.CutHeight);
+            float topY = gy - totalH;
+            float canopyR = (float)(b.MapleCanopyRadius * b.CutHeight);
+            _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY), _mapleTrunkBrush!, trunkW, _strokeStyle);
+            _dc.DrawLine(new Vector2(baseX + trunkW * 0.18f, gy - totalH * 0.08f),
+                         new Vector2(baseX + trunkW * 0.12f, topY + totalH * 0.15f),
+                         _mapleTrunkDarkBrush!, Math.Max(1.0f, trunkW * 0.18f), _strokeStyle);
+
+            (float trunkFrac, float angleDeg, float side, float lenMul)[] branches =
+            {
+                (0.58f, 55.0f, -1.0f, 0.95f),
+                (0.70f, 38.0f, +1.0f, 1.05f),
+                (0.82f, 28.0f, -1.0f, 0.70f),
+            };
+            Span<Vector2> tips = stackalloc Vector2[3];
+            float branchBaseLen = Math.Max(trunkW * 2.6f, canopyR * 0.55f);
+            float branchW = Math.Max(1.0f, trunkW * 0.32f);
+            for (int i = 0; i < branches.Length; i++)
+            {
+                var br = branches[i];
+                float sy = gy - totalH * br.trunkFrac;
+                float len = branchBaseLen * br.lenMul;
+                float angle = br.angleDeg * (float)Math.PI / 180.0f;
+                float ex = baseX + br.side * len * (float)Math.Sin(angle);
+                float ey = sy - len * (float)Math.Cos(angle);
+                tips[i] = new Vector2(ex, ey);
+                _dc.DrawLine(new Vector2(baseX, sy), tips[i], _mapleTrunkDarkBrush!, branchW, _strokeStyle);
+            }
+
+            if (!b.MapleIsBare)
+            {
+                int idx = b.MapleCanopyColorIdx;
+                if ((uint)idx >= (uint)Constants.MAPLE_CANOPY_COLOR_COUNT) idx = 0;
+                _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), canopyR, canopyR * 0.92f), _mapleCanopyBrushes![idx]);
+                var hi0 = _mapleCanopyBrushes[(idx + 1) % Constants.MAPLE_CANOPY_COLOR_COUNT];
+                _dc.FillEllipse(new Ellipse(new Vector2(baseX - canopyR * 0.32f, topY - canopyR * 0.12f), canopyR * 0.28f, canopyR * 0.22f), hi0);
+                _dc.FillEllipse(new Ellipse(new Vector2(baseX + canopyR * 0.22f, topY + canopyR * 0.18f), canopyR * 0.22f, canopyR * 0.18f), hi0);
+            }
+            else
+            {
+                for (int i = 0; i < tips.Length; i++)
+                {
+                    _dc.FillEllipse(new Ellipse(tips[i], 1.8f, 1.8f), _leafBrushes![i % Constants.LEAF_COLOR_COUNT]);
+                }
             }
             return;
         }
@@ -1632,6 +1724,13 @@ internal sealed class GrassWindow : IDisposable
         try { _tumbleweedBrush?.Dispose(); } catch { }
         try { _snowflakeBrush?.Dispose(); } catch { }
         try { _raindropBrush?.Dispose(); } catch { }
+        if (_leafBrushes is not null)
+        {
+            foreach (var br in _leafBrushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
         try { _snowTipBrush?.Dispose(); } catch { }
         try { _snowLayerTopBrush?.Dispose(); } catch { }
         try { _snowLayerBottomBrush?.Dispose(); } catch { }
@@ -1639,6 +1738,15 @@ internal sealed class GrassWindow : IDisposable
         try { _pineBrush?.Dispose(); } catch { }
         try { _birchBarkBrush?.Dispose(); } catch { }
         try { _birchMarkBrush?.Dispose(); } catch { }
+        try { _mapleTrunkBrush?.Dispose(); } catch { }
+        try { _mapleTrunkDarkBrush?.Dispose(); } catch { }
+        if (_mapleCanopyBrushes is not null)
+        {
+            foreach (var br in _mapleCanopyBrushes)
+            {
+                try { br?.Dispose(); } catch { }
+            }
+        }
         try { _sheepBodyBrush?.Dispose(); } catch { }
         try { _sheepLegBrush?.Dispose(); } catch { }
         try { _sheepFaceBrush?.Dispose(); } catch { }

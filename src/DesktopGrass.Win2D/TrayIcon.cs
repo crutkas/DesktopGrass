@@ -64,7 +64,8 @@ internal sealed class TrayIcon : IDisposable
         var grassItem  = new ToolStripMenuItem("Grass")  { Tag = Scene.Grass,  CheckOnClick = false };
         var desertItem = new ToolStripMenuItem("Desert") { Tag = Scene.Desert, CheckOnClick = false };
         var winterItem = new ToolStripMenuItem("Winter") { Tag = Scene.Winter, CheckOnClick = false };
-        var sceneItems = new[] { grassItem, desertItem, winterItem };
+        var autumnItem = new ToolStripMenuItem("Autumn") { Tag = Scene.Autumn, CheckOnClick = false };
+        var sceneItems = new[] { grassItem, desertItem, winterItem, autumnItem };
 
         void SelectScene(Scene s)
         {
@@ -75,6 +76,7 @@ internal sealed class TrayIcon : IDisposable
         grassItem.Click  += (_, _) => SelectScene(Scene.Grass);
         desertItem.Click += (_, _) => SelectScene(Scene.Desert);
         winterItem.Click += (_, _) => SelectScene(Scene.Winter);
+        autumnItem.Click += (_, _) => SelectScene(Scene.Autumn);
         SelectScene(_initialScene);
 
         sceneMenu.DropDownItems.AddRange(sceneItems);

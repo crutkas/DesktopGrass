@@ -3,7 +3,7 @@
 // Scene infrastructure tests (architecture.md §13).
 //
 // Coverage:
-//   * Scene enum discriminants match the spec ({Grass=0, Desert=1, Winter=2}).
+//   * Scene enum discriminants match the spec ({Grass=0, Desert=1, Winter=2, Autumn=3}).
 //   * sim_init defaults currentScene to SCENE_DEFAULT (= Grass).
 //   * sim_set_scene does not perturb blade positions/dimensions/hues or
 //     any non-scene PRNG stream.
@@ -22,7 +22,8 @@ TEST_CASE("Scene enum has spec-locked discriminants", "[scene][enum]") {
     REQUIRE(static_cast<int>(Scene::Grass)  == 0);
     REQUIRE(static_cast<int>(Scene::Desert) == 1);
     REQUIRE(static_cast<int>(Scene::Winter) == 2);
-    REQUIRE(SCENE_COUNT == 3);
+    REQUIRE(static_cast<int>(Scene::Autumn) == 3);
+    REQUIRE(SCENE_COUNT == 4);
     REQUIRE(static_cast<int>(SCENE_DEFAULT) == 0);
 }
 
@@ -59,6 +60,7 @@ TEST_CASE("sim_set_scene round-trips through all values", "[scene][api]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);  REQUIRE(sim.currentScene == Scene::Desert);
     sim_set_scene(sim, Scene::Winter);  REQUIRE(sim.currentScene == Scene::Winter);
+    sim_set_scene(sim, Scene::Autumn);  REQUIRE(sim.currentScene == Scene::Autumn);
     sim_set_scene(sim, Scene::Grass);   REQUIRE(sim.currentScene == Scene::Grass);
 }
 

@@ -308,6 +308,12 @@ void restore_original_variants(Blade& b) noexcept {
     b.treeVariant    = 0;
     b.pineHeight     = 0.0;
     b.pineWidth      = 0.0;
+    b.isMaple        = false;
+    b.mapleHeight    = 0.0;
+    b.mapleTrunkWidth = 0.0;
+    b.mapleCanopyRadius = 0.0;
+    b.mapleCanopyColorIdx = 0;
+    b.mapleIsBare    = false;
     b.isFlower       = b.originalIsFlower;
     b.isMushroom     = b.originalIsMushroom;
 }
@@ -349,6 +355,30 @@ void respawn_tumbleweed(Entity& e, Prng& prng, double monitorWidth,
     e.rotationSpeed = e.vx / e.size;
     e.age = 0.0;
     e.lifetime = -1.0;
+}
+
+Entity make_leaf(Prng& prng, double monitorWidth) noexcept {
+    Entity e{};
+    e.kind = EntityKind::Leaf;
+    const double xFrac = prng_uniform(prng, 0.0, 1.0);
+    const double spawnX = xFrac * monitorWidth;
+    const double fallSpeed = prng_uniform(prng, LEAF_FALL_SPEED_MIN, LEAF_FALL_SPEED_MAX);
+    e.phaseX = prng_uniform(prng, 0.0, TWO_PI);
+    const double rotationSpeedMag = prng_uniform(prng, LEAF_ROTATION_SPEED_MIN, LEAF_ROTATION_SPEED_MAX);
+    const double rotationSign = (prng_next_u64(prng) & 1ull) != 0ull ? 1.0 : -1.0;
+    e.rotationSpeed = rotationSpeedMag * rotationSign;
+    e.rotation = prng_uniform(prng, 0.0, TWO_PI);
+    e.size = prng_uniform(prng, LEAF_SIZE_MIN, LEAF_SIZE_MAX);
+    e.colorVariant = static_cast<uint8_t>(prng_index(prng, LEAF_COLOR_COUNT));
+    e.x0 = spawnX;
+    e.x = spawnX + LEAF_HORIZONTAL_DRIFT_AMP * std::sin(e.phaseX);
+    e.y = LEAF_SPAWN_Y_OFFSET;
+    e.vx = 0.0;
+    e.vy = fallSpeed;
+    e.baseSpeed = fallSpeed;
+    e.age = 0.0;
+    e.lifetime = -1.0;
+    return e;
 }
 
 } // anonymous
@@ -435,6 +465,27 @@ void generate_pines_for_winter(Sim& sim) noexcept {
         if (tiers < PINE_TIER_COUNT_MIN) tiers = PINE_TIER_COUNT_MIN;
         if (tiers > PINE_TIER_COUNT_MAX) tiers = PINE_TIER_COUNT_MAX;
         b.pineTierCount = static_cast<uint8_t>(tiers);
+    }
+}
+
+void generate_maples_for_autumn(Sim& sim) noexcept {
+    Prng maplePrng;
+    prng_init(maplePrng, sim.entitySeed ^ MAPLE_PRNG_SALT);
+
+    for (Blade& b : sim.blades) {
+        restore_original_variants(b);
+
+        const double r = prng_uniform(maplePrng, 0.0, 1.0);
+        if (r >= MAPLE_PROBABILITY) continue;
+
+        b.isMaple = true;
+        b.isFlower = false;
+        b.isMushroom = false;
+        b.mapleHeight = prng_uniform(maplePrng, MAPLE_HEIGHT_MIN, MAPLE_HEIGHT_MAX);
+        b.mapleTrunkWidth = prng_uniform(maplePrng, MAPLE_TRUNK_WIDTH_MIN, MAPLE_TRUNK_WIDTH_MAX);
+        b.mapleCanopyRadius = prng_uniform(maplePrng, MAPLE_CANOPY_RADIUS_MIN, MAPLE_CANOPY_RADIUS_MAX);
+        b.mapleCanopyColorIdx = static_cast<uint8_t>(prng_index(maplePrng, MAPLE_CANOPY_COLOR_COUNT));
+        b.mapleIsBare = prng_uniform(maplePrng, 0.0, 1.0) < MAPLE_BARE_FRACTION;
     }
 }
 
@@ -814,11 +865,11 @@ void remove_critters(Sim& sim) noexcept {
         sim.entities.end());
 }
 
-void remove_scene_transition_entities(Sim& sim) noexcept {
+void remove_scene_transition_entities(Sim& sim, Scene destination) noexcept {
     sim.entities.erase(
         std::remove_if(sim.entities.begin(), sim.entities.end(),
-            [](const Entity& e) {
-                return e.kind != EntityKind::Raindrop;
+            [destination](const Entity& e) {
+                return destination == Scene::Autumn || e.kind != EntityKind::Raindrop;
             }),
         sim.entities.end());
 }
@@ -1119,9 +1170,8 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         sim.snowDepth = 0.0;
     }
     sim.currentScene = s;
-    // Soft-fade Grass rain: scene transitions remove hard scene entities but
-    // preserve finite-lifetime raindrops so they naturally fall out.
-    remove_scene_transition_entities(sim);
+    // Soft-fade Grass rain for existing scenes; Autumn is intentionally weather-free except leaves.
+    remove_scene_transition_entities(sim, s);
 
     // Every scene transition starts from a clean blade-variant slate so that
     // e.g. Desert→Winter doesn't leave cacti on screen. Desert then promotes
@@ -1145,12 +1195,15 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         sim.nextSnowflakeSpawnTime = sim.globalTime + prng_exponential(sim.snowflakePrng, lambda);
         break;
     }
+    case Scene::Autumn:
+        generate_maples_for_autumn(sim);
+        prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
+        sim.nextLeafSpawnTime = sim.globalTime;
+        break;
     }
 
-    // Critters survive scene changes — re-spawn the current selection on
-    // top of whatever biome we just configured. Always runs LAST so that
-    // entities[0..N-1] for tumbleweeds/snowflakes still match pinned
-    // conformance snapshots from §12.
+    // Grass critters/flyers are scene-gated inside generate_critters_for_kind.
+    // Run LAST so scene entity snapshots stay pinned.
     generate_critters_for_kind(sim);
 }
 
@@ -1278,6 +1331,13 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
     }
 
     for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Leaf) {
+            e.x = e.x0 + LEAF_HORIZONTAL_DRIFT_AMP
+                * std::sin(e.age * LEAF_HORIZONTAL_DRIFT_FREQ + e.phaseX);
+        }
+    }
+
+    for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Butterfly) {
             const double margin = BUTTERFLY_WING_OFFSET + BUTTERFLY_WING_RADIUS;
             if (e.x > sim.monitorWidth + margin) {
@@ -1304,6 +1364,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             [groundY, &sim](const Entity& e) {
                 return (e.lifetime > 0.0 && e.age >= e.lifetime)
                     || (e.kind == EntityKind::Snowflake && e.y > groundY)
+                    || (e.kind == EntityKind::Leaf && e.y > groundY)
                     || (e.kind == EntityKind::Snowflake
                         && sim.currentScene == Scene::Winter
                         && sim.snowDepth > 0.0
@@ -1601,6 +1662,16 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 
     sim_tick_bird_flybys(sim, current_local_hour());
 
+    if (sim.currentScene == Scene::Autumn && sim.monitorWidth > 0.0) {
+        const double lambda = LEAF_SPAWN_RATE_PER_SEC_1920DIP * sim.monitorWidth / 1920.0;
+        while (lambda > 0.0
+               && sim.globalTime >= sim.nextLeafSpawnTime
+               && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
+            sim.entities.push_back(make_leaf(sim.leafPrng, sim.monitorWidth));
+            sim.nextLeafSpawnTime += prng_exponential(sim.leafPrng, lambda);
+        }
+    }
+
     if (sim.currentScene == Scene::Grass && sim.monitorWidth > 0.0) {
         const double lambda = RAINDROP_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         while (sim.globalTime >= sim.nextRaindropSpawnTime
@@ -1631,7 +1702,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 
 Stroke compute_blade_stroke(const Blade& b, double groundY, Scene scene) noexcept {
     Stroke s{};
-    s.argb      = PALETTE[b.hue];
+    s.argb      = SCENE_PALETTES[static_cast<int>(scene)][b.hue];
     s.thickness = b.thickness;
 
     if (b.cutHeight < CUT_STUMP_THRESHOLD) {
@@ -1696,6 +1767,8 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
 
     prng_init(s.raindropPrng, s.entitySeed ^ RAINDROP_PRNG_SALT);
     s.nextRaindropSpawnTime = s.globalTime;
+    prng_init(s.leafPrng, s.entitySeed ^ LEAF_PRNG_SALT);
+    s.nextLeafSpawnTime = s.globalTime;
     prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
@@ -1724,6 +1797,8 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
 
     prng_init(sim.raindropPrng, sim.entitySeed ^ RAINDROP_PRNG_SALT);
     sim.nextRaindropSpawnTime = sim.globalTime;
+    prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
+    sim.nextLeafSpawnTime = sim.globalTime;
     prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }
