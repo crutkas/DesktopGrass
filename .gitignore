@@ -61,3 +61,6 @@ ehthumbs.db
 
 # Self-contained publish output
 publish/
+
+# Local scratch directory used by Copilot agent runs for test outputs
+.copilot-scratch/
