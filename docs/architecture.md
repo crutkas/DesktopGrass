@@ -1476,9 +1476,9 @@ Walking expires → r = critterPrng.uniform(0,1):
   0.60 ≤ r < 0.85                       → Idle     (duration uniform[1.5, 3]s)
   r ≥ 0.85                              → Hopping  (duration 0.55s, no extra draw)
 
-Idle expires → r = critterPrng.uniform(0,1):
-  r < 0.30                              → Sleeping (duration uniform[8, 16]s)
-  r ≥ 0.30                              → Walking  (duration uniform[8, 14]s)
+Idle expires → r = critterPrng.uniform(0,1), sleepProb = sheep_sleep_prob_for_local_hour(localHour):
+  r < sleepProb                         → Sleeping (duration uniform[8, 16]s)
+  r ≥ sleepProb                         → Walking  (duration uniform[8, 14]s)
 
 Walking / Grazing / Idle pair in range → Greeting (shared duration uniform[1.6, 2.8]s)
 Grazing / Sleeping / Hopping expire    → Walking  (duration uniform[8, 14]s)
@@ -1486,6 +1486,18 @@ Greeting expires                       → Walking  (duration uniform[8, 14]s, v
 ```
 
 `e.age` is reset to `0.0` on **every** state transition so animations (hop arc, sleep Z's, walk cycle, greeting bob) start at phase 0 every time. Greeting is the only timer-expiry transition that flips `vx`; Walking/Idle exits keep their current `vx` sign.
+
+### Time-of-day sleep bias
+
+The Idle→Sleep roll uses the same single `critterPrng.uniform(0,1)` draw as before, compared against a probability derived from the system local hour. This changes only the threshold; it adds zero PRNG draws and preserves cross-impl draw-count invariance.
+
+| Local hour range | Sleep probability |
+| --- | ---: |
+| 06:00 ≤ hour < 10:00 | `SHEEP_SLEEP_PROB_MORNING = 0.10` |
+| 10:00 ≤ hour < 22:00 | `SHEEP_SLEEP_PROB_DEFAULT = 0.30` |
+| 22:00 ≤ hour or hour < 06:00 | `SHEEP_SLEEP_PROB_NIGHT = 0.70` |
+
+`SHEEP_SLEEP_FROM_IDLE_PROB` remains an alias for the default 0.30 probability.
 
 ### Click startle
 

@@ -202,6 +202,21 @@ internal sealed class Sim
     public CritterKind CurrentCritter = Constants.CRITTER_DEFAULT;
     public Prng CritterPrng;
 
+    private static bool HourInHalfOpenRange(int hour, int start, int end) =>
+        start <= end ? hour >= start && hour < end : hour >= start || hour < end;
+
+    internal static double SheepSleepProbForLocalHour(int hour)
+    {
+        if (hour < 0 || hour > 23) return Constants.SHEEP_SLEEP_PROB_DEFAULT;
+        if (HourInHalfOpenRange(hour, Constants.SHEEP_MORNING_START_HOUR,
+                                Constants.SHEEP_MORNING_END_HOUR))
+            return Constants.SHEEP_SLEEP_PROB_MORNING;
+        if (HourInHalfOpenRange(hour, Constants.SHEEP_NIGHT_START_HOUR,
+                                Constants.SHEEP_NIGHT_END_HOUR))
+            return Constants.SHEEP_SLEEP_PROB_NIGHT;
+        return Constants.SHEEP_SLEEP_PROB_DEFAULT;
+    }
+
     public void SetScene(Scene s)
     {
         CurrentScene = s;
@@ -556,7 +571,8 @@ internal sealed class Sim
                 else if (oldState == Constants.SHEEP_STATE_IDLE)
                 {
                     double r = CritterPrng.Uniform(0.0, 1.0);
-                    if (r < Constants.SHEEP_SLEEP_FROM_IDLE_PROB)
+                    double sleepProb = SheepSleepProbForLocalHour(DateTime.Now.Hour);
+                    if (r < sleepProb)
                     {
                         e.State = Constants.SHEEP_STATE_SLEEPING;
                         e.StateTimer = CritterPrng.Uniform(

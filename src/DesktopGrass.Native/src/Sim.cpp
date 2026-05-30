@@ -6,11 +6,26 @@
 
 #include <cmath>
 #include <algorithm>
+#include <chrono>
+#include <ctime>
 
 namespace desktopgrass {
 
 namespace {
 constexpr double TWO_PI = 6.28318530717958647692;
+
+bool hour_in_half_open_range(int hour, int start, int end) noexcept {
+    if (start <= end) return hour >= start && hour < end;
+    return hour >= start || hour < end;
+}
+
+int current_local_hour() noexcept {
+    const std::time_t now = std::chrono::system_clock::to_time_t(
+        std::chrono::system_clock::now());
+    std::tm local{};
+    if (localtime_s(&local, &now) != 0) return SHEEP_MORNING_END_HOUR;
+    return local.tm_hour;
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +76,17 @@ double prng_exponential(Prng& p, double lambda) noexcept {
 
 uint32_t prng_index(Prng& p, uint32_t n) noexcept {
     return static_cast<uint32_t>(prng_next_unit(p) * static_cast<double>(n));
+}
+
+double sheep_sleep_prob_for_local_hour(int hour) noexcept {
+    if (hour < 0 || hour > 23) return SHEEP_SLEEP_PROB_DEFAULT;
+    if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
+        return SHEEP_SLEEP_PROB_MORNING;
+    }
+    if (hour_in_half_open_range(hour, SHEEP_NIGHT_START_HOUR, SHEEP_NIGHT_END_HOUR)) {
+        return SHEEP_SLEEP_PROB_NIGHT;
+    }
+    return SHEEP_SLEEP_PROB_DEFAULT;
 }
 
 // ---------------------------------------------------------------------------
@@ -694,7 +720,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                 }
             } else if (oldState == SHEEP_STATE_IDLE) {
                 const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
-                if (r < SHEEP_SLEEP_FROM_IDLE_PROB) {
+                const double sleepProb = sheep_sleep_prob_for_local_hour(current_local_hour());
+                if (r < sleepProb) {
                     e.state = SHEEP_STATE_SLEEPING;
                     e.stateTimer = prng_uniform(sim.critterPrng,
                                                 SHEEP_SLEEP_DURATION_MIN,

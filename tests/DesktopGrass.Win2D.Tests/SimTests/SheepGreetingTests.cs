@@ -110,6 +110,21 @@ public class SheepGreetingTests
         Assert.Equal(0.55, Constants.SHEEP_CURIOUS_HEAD_TURN_MAX);
     }
 
+    [Theory]
+    [InlineData(2, 0.70)]
+    [InlineData(5, 0.70)]
+    [InlineData(6, 0.10)]
+    [InlineData(9, 0.10)]
+    [InlineData(10, 0.30)]
+    [InlineData(15, 0.30)]
+    [InlineData(21, 0.30)]
+    [InlineData(22, 0.70)]
+    [InlineData(23, 0.70)]
+    public void SheepSleepProbabilityFollowsLocalHourBands(int hour, double expected)
+    {
+        Assert.Equal(expected, Sim.SheepSleepProbForLocalHour(hour));
+    }
+
     [Fact]
     public void EligibleNearbySheepEnterGreetingFacingEachOther()
     {

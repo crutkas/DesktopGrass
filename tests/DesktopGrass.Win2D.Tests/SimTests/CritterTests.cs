@@ -70,7 +70,14 @@ public class CritterTests
 
         Assert.Equal(0.60, Constants.SHEEP_GRAZE_PROBABILITY);
         Assert.Equal(0.25, Constants.SHEEP_IDLE_PROBABILITY);
-        Assert.Equal(0.30, Constants.SHEEP_SLEEP_FROM_IDLE_PROB);
+        Assert.Equal(0.10, Constants.SHEEP_SLEEP_PROB_MORNING);
+        Assert.Equal(0.30, Constants.SHEEP_SLEEP_PROB_DEFAULT);
+        Assert.Equal(0.70, Constants.SHEEP_SLEEP_PROB_NIGHT);
+        Assert.Equal(6, Constants.SHEEP_MORNING_START_HOUR);
+        Assert.Equal(10, Constants.SHEEP_MORNING_END_HOUR);
+        Assert.Equal(22, Constants.SHEEP_NIGHT_START_HOUR);
+        Assert.Equal(6, Constants.SHEEP_NIGHT_END_HOUR);
+        Assert.Equal(Constants.SHEEP_SLEEP_PROB_DEFAULT, Constants.SHEEP_SLEEP_FROM_IDLE_PROB);
     }
 
     [Fact]

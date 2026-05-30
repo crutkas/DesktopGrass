@@ -75,9 +75,16 @@ TEST_CASE("Sheep constants are pinned to spec values", "[critter][constants]") {
     REQUIRE(SHEEP_STARTLE_RADIUS == Approx(64.0));
     REQUIRE(SHEEP_STARTLE_BOOST  == Approx(1.6));
 
-    REQUIRE(SHEEP_GRAZE_PROBABILITY    == Approx(0.60));
-    REQUIRE(SHEEP_IDLE_PROBABILITY     == Approx(0.25));
-    REQUIRE(SHEEP_SLEEP_FROM_IDLE_PROB == Approx(0.30));
+    REQUIRE(SHEEP_GRAZE_PROBABILITY     == Approx(0.60));
+    REQUIRE(SHEEP_IDLE_PROBABILITY      == Approx(0.25));
+    REQUIRE(SHEEP_SLEEP_PROB_MORNING    == Approx(0.10));
+    REQUIRE(SHEEP_SLEEP_PROB_DEFAULT    == Approx(0.30));
+    REQUIRE(SHEEP_SLEEP_PROB_NIGHT      == Approx(0.70));
+    REQUIRE(SHEEP_MORNING_START_HOUR    == 6);
+    REQUIRE(SHEEP_MORNING_END_HOUR      == 10);
+    REQUIRE(SHEEP_NIGHT_START_HOUR      == 22);
+    REQUIRE(SHEEP_NIGHT_END_HOUR        == 6);
+    REQUIRE(SHEEP_SLEEP_FROM_IDLE_PROB  == Approx(SHEEP_SLEEP_PROB_DEFAULT));
 }
 
 TEST_CASE("sim_init defaults critter to None", "[critter][init]") {

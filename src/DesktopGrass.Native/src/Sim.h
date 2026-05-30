@@ -260,6 +260,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept;
 // CritterKind::None = no critters spawned.
 void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 
+double sheep_sleep_prob_for_local_hour(int hour) noexcept;
+
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if
 // no events fired this frame.

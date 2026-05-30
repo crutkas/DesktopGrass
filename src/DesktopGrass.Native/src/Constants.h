@@ -302,7 +302,14 @@ constexpr double   SHEEP_CURIOUS_HEAD_TURN_MAX = 0.55;  // radians, max head rot
 constexpr double   SHEEP_GRAZE_PROBABILITY  = 0.60;
 constexpr double   SHEEP_IDLE_PROBABILITY   = 0.25;
 // Idle-expiry: chance of slipping into Sleeping vs returning to Walking.
-constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
+constexpr double   SHEEP_SLEEP_PROB_MORNING = 0.10;  // 06:00-10:00 local
+constexpr double   SHEEP_SLEEP_PROB_DEFAULT = 0.30;  // 10:00-22:00 local
+constexpr double   SHEEP_SLEEP_PROB_NIGHT   = 0.70;  // 22:00-06:00 local
+constexpr int      SHEEP_MORNING_START_HOUR = 6;     // inclusive
+constexpr int      SHEEP_MORNING_END_HOUR   = 10;    // exclusive
+constexpr int      SHEEP_NIGHT_START_HOUR   = 22;    // inclusive
+constexpr int      SHEEP_NIGHT_END_HOUR     = 6;     // exclusive, wraps midnight
+constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = SHEEP_SLEEP_PROB_DEFAULT;
 
 // Idle / Grazing / Greeting tiny animations.
 constexpr double   SHEEP_IDLE_SWEEP_FREQ      = 1.4;    // rad/sec for L/R head turn

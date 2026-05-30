@@ -261,7 +261,14 @@ internal static class Constants
 
     public const double SHEEP_GRAZE_PROBABILITY    = 0.60;
     public const double SHEEP_IDLE_PROBABILITY     = 0.25;
-    public const double SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
+    public const double SHEEP_SLEEP_PROB_MORNING   = 0.10;
+    public const double SHEEP_SLEEP_PROB_DEFAULT   = 0.30;
+    public const double SHEEP_SLEEP_PROB_NIGHT     = 0.70;
+    public const int    SHEEP_MORNING_START_HOUR   = 6;
+    public const int    SHEEP_MORNING_END_HOUR     = 10;
+    public const int    SHEEP_NIGHT_START_HOUR     = 22;
+    public const int    SHEEP_NIGHT_END_HOUR       = 6;
+    public const double SHEEP_SLEEP_FROM_IDLE_PROB = SHEEP_SLEEP_PROB_DEFAULT;
 
     public const double SHEEP_IDLE_SWEEP_FREQ      = 1.4;
     public const double SHEEP_GRAZE_MUNCH_FREQ     = 8.0;
