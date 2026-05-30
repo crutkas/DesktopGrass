@@ -17,13 +17,17 @@ no engagement loops, no toys.
   so the tip arcs over and drops as they lean (no stretching artifacts).
 - Occasional flowers and mushrooms procedurally appear on independent PRNG streams.
 - Ambient gusts puff across the strip on their own schedule.
-- **Critters** — sheep, cats, and bunnies wander the strip. Each has a name
-  shown on hover, a state machine (walking / grazing / idle / sleeping / etc.),
-  time-of-day sleep biasing, and species-specific quirks: sheep greet each other,
-  cats pounce toward clicks, bunnies skitter away from them. Cats come in
-  6 coat variants. Pet count is configurable from the tray.
+- **Critters** — sheep, cats, bunnies, and hedgehogs wander the strip. Each has
+  a name shown on hover, a state machine (walking / grazing / idle / sleeping /
+  etc.), time-of-day sleep biasing, and species-specific quirks: sheep greet
+  each other, cats pounce toward clicks, bunnies skitter away from them,
+  hedgehogs curl into a defensive spiky ball. Cats come in 6 coat variants.
+  Hedgehog sightings are probabilistic (~55% per session). Pet count is
+  configurable from the tray.
 - **Butterflies by day, fireflies by night** — ambient flyers above the strip.
   Crossfade during dawn and dusk for a "magic hour" overlap.
+- **V-formation bird flybys** — occasional flocks of 3-7 birds cross overhead
+  during daytime, far above the critters and weather.
 - **Light rain** weather with thin blue-grey raindrops.
 
 **Desert scene**
@@ -31,11 +35,22 @@ no engagement loops, no toys.
 
 **Winter scene**
 - -50% grass density; pines and birches with snow caps; falling snowflakes.
+- **Snow accumulation** — leave the scene on for ~40 minutes of continuous
+  Winter and watch a snow layer slowly pile up along the strip baseline.
+  Snowflakes "land" on the layer; trees subtly settle into the deepening snow.
+  Switching away melts it; persisted across app restarts.
+
+**Autumn scene**
+- Warm orange / red / yellow / gold blade palette. Falling leaves drift down
+  with horizontal sway and rotation in six color variants. Maple trees with
+  warm canopies; 20% are bare for a late-autumn feel. Intentionally the
+  contemplative empty season — no critters, no other weather, just leaves
+  and trees.
 
 **Always-on touches**
 - Subtle day-night ambient color tint keyed to the local hour (peak alpha 36/255).
-- App state (scene, cuts, pet counts, auto-start preference) persists across
-  sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
+- App state (scene, cuts, pet counts, snow depth, auto-start preference)
+  persists across sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
 - Optional "Start with Windows" toggle in the tray menu.
 - Spans all monitors, anchored to the bottom of each monitor's work area
   regardless of taskbar position.
@@ -156,10 +171,9 @@ cross-check against indirectly via the shared spec.
 
 Possible next directions, in no particular order:
 
-- More critter species (deer, hedgehog, ducks crossing the strip).
-- Snow accumulation on grass during long Winter sessions.
-- Auto-rotation of scenes by date (cherry blossoms in spring, autumn leaves
-  in fall, holiday lights in December).
+- More critter species (deer, ducks crossing the strip).
+- Auto-rotation of scenes by date (e.g. Autumn in October, Winter in December).
+- Brief rainbow arc after rain bursts end (requires modeling rain in bursts first).
 - Multi-monitor smoke tests in CI.
 - A settings UI (currently held off — passive philosophy prefers tray-only
   controls; revisit if the tray menu starts feeling cluttered).
