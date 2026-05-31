@@ -704,7 +704,7 @@ internal static class Constants
     // Day-night ambient tint (§19). Pure render overlay; no simulation state.
     public readonly record struct DayTintPhase(float StartHour, byte R, byte G, byte B, byte Alpha);
 
-    public const bool DAYTINT_ENABLED_DEFAULT = true;
+    public const bool DAYTINT_ENABLED_DEFAULT = false;
     public const byte DAYTINT_MAX_ALPHA = 36;
 
     public static readonly DayTintPhase[] DAYTINT_PHASES =

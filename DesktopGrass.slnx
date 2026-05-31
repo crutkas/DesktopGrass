@@ -1,10 +1,10 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/DesktopGrass.Native/DesktopGrass.Native.vcxproj" />
+    <Project Path="src/DesktopGrass.Native/DesktopGrass.Native.vcxproj" Id="b0d4e1b0-1f5e-4c2d-9f44-da8c3f1a2a11" />
     <Project Path="src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj" />
+    <Project Path="tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj" Id="c2e4f2b0-3a0e-4b1d-a23c-da8c3f1a2a22" />
     <Project Path="tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj" />
   </Folder>
 </Solution>

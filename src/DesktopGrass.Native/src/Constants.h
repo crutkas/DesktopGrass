@@ -767,7 +767,7 @@ struct DayTintPhase {
     uint8_t alpha;
 };
 
-constexpr bool    DAYTINT_ENABLED_DEFAULT = true;
+constexpr bool    DAYTINT_ENABLED_DEFAULT = false;
 constexpr uint8_t DAYTINT_MAX_ALPHA       = 36;
 
 constexpr DayTintPhase DAYTINT_PHASES[] = {
