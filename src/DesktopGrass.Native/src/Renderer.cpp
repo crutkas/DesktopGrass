@@ -1040,7 +1040,7 @@ void Renderer::DrawGrass(bool treesOnly) {
 
         ID2D1SolidColorBrush* brush = brushes_[sceneIdx][b.hue].Get();
         d2dContext_->DrawGeometry(path.Get(), brush,
-                                  static_cast<float>(s.thickness));
+                                  static_cast<float>(s.thickness + BLADE_THICKNESS_RENDER_BONUS));
 
         if (b.isFlower && b.cutHeight >= CUT_STUMP_THRESHOLD) {
             const D2D1_ELLIPSE ellipse = D2D1::Ellipse(

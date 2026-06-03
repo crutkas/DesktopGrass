@@ -285,7 +285,7 @@ public class CritterTests
     }
 
     [Fact]
-    public void SetCritterNoneRestoresGrassAmbientCritters()
+    public void SetCritterNoneClearsAllGroundCritters()
     {
         var sim = BuildSim();
         sim.SetCritter(CritterKind.Sheep);
@@ -293,9 +293,10 @@ public class CritterTests
         Assert.Equal(0, CountKind(sim, EntityKind.Cat));
 
         sim.SetCritter(CritterKind.None);
-        Assert.True(CountSheep(sim) >= Constants.SHEEP_COUNT_MIN);
-        Assert.True(CountKind(sim, EntityKind.Cat) >= Constants.CAT_COUNT_MIN);
-        Assert.True(CountKind(sim, EntityKind.Bunny) >= Constants.BUNNY_COUNT_MIN);
+        Assert.Equal(0, CountSheep(sim));
+        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
+        Assert.Equal(0, CountKind(sim, EntityKind.Bunny));
+        Assert.Equal(0, CountKind(sim, EntityKind.Hedgehog));
     }
 
     [Fact]

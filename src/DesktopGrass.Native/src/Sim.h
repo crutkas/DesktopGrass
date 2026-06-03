@@ -310,7 +310,8 @@ double snow_tree_base_y_offset(const Sim& sim) noexcept;
 
 // Critter selection (§16-§18). Removes existing critter-kind entities
 // (preserving scene entities like tumbleweeds/snowflakes), then re-runs the
-// critter generator. Default CritterKind::None uses the Grass ambient set.
+// critter generator. CritterKind::None spawns no ground critters; only the
+// ambient flyers (butterflies/fireflies) remain.
 void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 
 // Fixed critter count override (§13.3). n=0 clears to random; positive values

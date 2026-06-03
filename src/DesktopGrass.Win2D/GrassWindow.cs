@@ -1635,7 +1635,7 @@ internal sealed class GrassWindow : IDisposable
         float cy = (float)stroke.CtrlY;
         float tx = (float)stroke.TipX;
         float ty = (float)stroke.TipY;
-        float thickness = (float)stroke.Thickness;
+        float thickness = (float)(stroke.Thickness + Constants.BLADE_THICKNESS_RENDER_BONUS);
 
         // Tessellate the quadratic Bezier into 6 line segments. D2D batches
         // DrawLine calls internally so this is cheaper than constructing a

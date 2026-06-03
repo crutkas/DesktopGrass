@@ -191,15 +191,15 @@ TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
     REQUIRE(seen == expectedCount);
 }
 
-TEST_CASE("sim_set_critter(None) restores ambient cats", "[cat][toggle]") {
+TEST_CASE("sim_set_critter(None) clears ambient cats", "[cat][toggle]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 
     sim_set_critter(sim, CritterKind::None);
     REQUIRE(sim.currentCritter == CritterKind::None);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) >= BUNNY_COUNT_MIN);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
 }
 
 TEST_CASE("Switching between critter species replaces the previous species", "[cat][toggle]") {

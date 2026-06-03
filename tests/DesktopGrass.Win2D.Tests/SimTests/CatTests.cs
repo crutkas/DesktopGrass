@@ -206,7 +206,7 @@ public class CatTests
     }
 
     [Fact]
-    public void SetCritterNoneRestoresAmbientCats()
+    public void SetCritterNoneClearsAmbientCats()
     {
         var sim = BuildSim();
         sim.SetCritter(CritterKind.Cat);
@@ -214,8 +214,8 @@ public class CatTests
 
         sim.SetCritter(CritterKind.None);
         Assert.Equal(CritterKind.None, sim.CurrentCritter);
-        Assert.True(CountKind(sim, EntityKind.Cat) >= Constants.CAT_COUNT_MIN);
-        Assert.True(CountKind(sim, EntityKind.Bunny) >= Constants.BUNNY_COUNT_MIN);
+        Assert.Equal(0, CountKind(sim, EntityKind.Cat));
+        Assert.Equal(0, CountKind(sim, EntityKind.Bunny));
     }
 
     [Fact]

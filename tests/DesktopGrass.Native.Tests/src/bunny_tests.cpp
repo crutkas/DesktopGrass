@@ -23,6 +23,7 @@ int count_kind(const Sim& sim, EntityKind kind) {
 Sim build_grass_sim(uint64_t seed = CANONICAL_TEST_SEED) {
     Sim sim = sim_init(seed, Monitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Grass);
+    sim_set_critter(sim, CritterKind::Bunny);
     return sim;
 }
 

@@ -287,7 +287,7 @@ TEST_CASE("fixed critter count override supports tray range and clamps", "[critt
     REQUIRE(count_sheep(sim) == 0);
 }
 
-TEST_CASE("sim_set_critter(None) restores Grass ambient critters",
+TEST_CASE("sim_set_critter(None) clears all ground critters",
           "[critter][toggle]") {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
@@ -295,9 +295,10 @@ TEST_CASE("sim_set_critter(None) restores Grass ambient critters",
     REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_critter(sim, CritterKind::None);
-    REQUIRE(count_sheep(sim) >= SHEEP_COUNT_MIN);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) >= BUNNY_COUNT_MIN);
+    REQUIRE(count_sheep(sim) == 0);
+    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
+    REQUIRE(count_kind(sim, EntityKind::Hedgehog) == 0);
 }
 
 TEST_CASE("sim_set_scene gates active sheep to Grass", "[critter][scene]") {

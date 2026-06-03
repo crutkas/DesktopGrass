@@ -27,6 +27,7 @@ Sim build_sim(uint64_t seed = CANONICAL_TEST_SEED) {
 Sim build_grass_sim(uint64_t seed = CANONICAL_TEST_SEED) {
     Sim sim = build_sim(seed);
     sim_set_scene(sim, Scene::Grass);
+    sim_set_critter(sim, CritterKind::Bunny);
     return sim;
 }
 

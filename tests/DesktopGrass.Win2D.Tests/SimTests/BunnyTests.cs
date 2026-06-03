@@ -29,6 +29,7 @@ public class BunnyTests
     {
         var sim = BuildSim(seed);
         sim.SetScene(Scene.Grass);
+        sim.SetCritter(CritterKind.Bunny);
         return sim;
     }
 

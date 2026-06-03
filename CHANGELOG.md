@@ -8,6 +8,32 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-03 — Denser grass, "None" critter means none, "All" option
+
+### Added
+- **"All" critter tray option** — the Critter submenu now offers **None /
+  Sheep / Cat / All**. "All" spawns the curated mixed ground-critter set
+  (sheep + cat + bunny + hedgehog) that was previously the hidden default.
+  Added in both the Native and Win2D implementations; selection persists.
+
+### Changed
+- **Grass density +25%** — `DEFAULT_DENSITY` raised from 2.25 to 2.8125 across
+  both the Native and Win2D implementations for a fuller, lusher field.
+- **Thicker blades** — each blade is drawn ~1.5 px wider via a render-only
+  `BLADE_THICKNESS_RENDER_BONUS` so the field reads denser on screen. Applied
+  at the renderer (Native + Win2D) so the generation PRNG and blade snapshots
+  are untouched.
+
+### Fixed
+- **"Critter → None" now spawns no animals** — previously `None` secretly
+  generated the full mixed ground-critter set (sheep, cat, bunny, hedgehog),
+  so selecting "None" still showed animals. `None` now produces zero ground
+  critters; the gentle ambient flyers (butterflies, fireflies) remain. Sheep
+  and Cat continue to spawn their single species. Fixed in both the Native
+  and Win2D implementations.
+
+---
+
 ## 2026-05-30 — Autumn, bird flybys, snow accumulation, hedgehog
 
 ### Added

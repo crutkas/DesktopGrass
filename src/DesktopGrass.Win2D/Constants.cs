@@ -25,6 +25,9 @@ internal static class Constants
     public const double BLADE_HEIGHT_MAX = 30.0;   // DIP - maximum blade height
     public const double BLADE_THICKNESS_MIN = 1.0;
     public const double BLADE_THICKNESS_MAX = 2.5;
+    // Render-only stroke-width bonus added to each blade so grass reads thicker
+    // on screen without perturbing the generation PRNG / blade snapshots.
+    public const double BLADE_THICKNESS_RENDER_BONUS = 1.5;
     public const double STIFFNESS_MIN = 0.6;
     public const double STIFFNESS_MAX = 1.0;
     public const int PALETTE_SIZE = 6;
@@ -154,7 +157,7 @@ internal static class Constants
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;
 
     // Density override the plan calls for ~600 blades / 1920 px monitor.
-    public const double DEFAULT_DENSITY = 2.25;
+    public const double DEFAULT_DENSITY = 2.8125;
 
     // Palette (§4) - exactly 6 ARGB colors, alpha always 0xFF.
     public static readonly uint[] PALETTE =

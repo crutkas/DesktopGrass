@@ -479,7 +479,6 @@ internal sealed class Sim
         switch (sim.CurrentCritter)
         {
             case CritterKind.None:
-                GenerateGrassCrittersAll(sim);
                 break;
             case CritterKind.Sheep:
                 GenerateCrittersSheep(sim, allowOverride: true);

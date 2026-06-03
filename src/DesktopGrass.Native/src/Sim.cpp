@@ -1098,7 +1098,7 @@ void generate_critters_for_kind(Sim& sim) noexcept {
     if (sim.currentScene != Scene::Grass) return;
 
     switch (sim.currentCritter) {
-    case CritterKind::None:  generate_grass_critters_all(sim);      break;
+    case CritterKind::None:  break;
     case CritterKind::Sheep: generate_critters_sheep(sim, true);    break;
     case CritterKind::Cat:   generate_critters_cat(sim, true);      break;
     case CritterKind::Bunny: generate_grass_critters_all(sim);      break;

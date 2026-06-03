@@ -17,13 +17,16 @@ constexpr double STRIP_HEIGHT          = 80.0;
 constexpr double HEADROOM              = 30.0;
 
 // Procedural generation -------------------------------------------------------
-constexpr double DEFAULT_DENSITY        = 2.25;
+constexpr double DEFAULT_DENSITY        = 2.8125;
 constexpr double BLADE_SPACING_MIN     = 4.0;
 constexpr double BLADE_SPACING_MAX     = 8.0;
 constexpr double BLADE_HEIGHT_MIN      = 6.0;
 constexpr double BLADE_HEIGHT_MAX      = 30.0;
 constexpr double BLADE_THICKNESS_MIN   = 1.0;
 constexpr double BLADE_THICKNESS_MAX   = 2.5;
+// Render-only stroke-width bonus added to each blade so grass reads thicker
+// on screen without perturbing the generation PRNG / blade snapshots.
+constexpr double BLADE_THICKNESS_RENDER_BONUS = 1.5;
 constexpr double STIFFNESS_MIN         = 0.6;
 constexpr double STIFFNESS_MAX         = 1.0;
 constexpr int    PALETTE_SIZE          = 6;
