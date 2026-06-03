@@ -153,6 +153,15 @@ internal static class Constants
     public const double CTRL_OFFSET_FACTOR = 0.6;
     public const double MAX_LEAN_FRACTION = 0.95;      // fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
 
+    // Cut residual height (stubble). A mowed blade settles at a small per-blade
+    // normalized height in [CUT_FLOOR_MIN, CUT_FLOOR_MAX] (both above
+    // CUT_STUMP_THRESHOLD) so the cut line reads with gentle, natural variation
+    // instead of a perfectly even edge. Sampled from an independent stream
+    // salted with CUT_FLOOR_PRNG_SALT so it does NOT perturb generation.
+    public const double CUT_FLOOR_MIN = 0.06;
+    public const double CUT_FLOOR_MAX = 0.16;
+    public const ulong  CUT_FLOOR_PRNG_SALT = 0xC07F100DC07F100DUL;
+
     // Canonical seed for snapshot tests (§12)
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;
 

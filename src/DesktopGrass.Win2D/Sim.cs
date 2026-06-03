@@ -75,6 +75,11 @@ internal struct Blade
     public double CutAnimStart;
     public double CutInitialHeight;
 
+    // Residual normalized height a mowed blade settles at (stubble). Assigned
+    // once at generation from an independent salted PRNG stream. Defaults to
+    // 0.0 so default-constructed Blade fixtures collapse fully as before.
+    public double CutFloor;
+
     // Regrowth (§9 "Regrowth"). RegrowDelay / RegrowDuration are assigned
     // once at generation from an independent PRNG stream. RegrowStart is the
     // absolute GlobalTime at which the regrow animation begins; -1 = not
@@ -1686,6 +1691,9 @@ internal sealed class Sim
         // MUSHROOM_PRNG_SALT. Order: probability, then (if mushroom)
         // cap-color, cap-width, cap-height, stem-height, stem-thickness.
         var rngMushroom = Prng.Init(seed ^ Constants.MUSHROOM_PRNG_SALT);
+        // Cut-floor (stubble) stream — independent salted stream so the
+        // per-blade mowed residual height does NOT perturb existing sequences.
+        var rngCutFloor = Prng.Init(seed ^ Constants.CUT_FLOOR_PRNG_SALT);
         var list = new List<Blade>(capacity: (int)(monitorWidth / 4.0));
         double x = 0.0;
 
@@ -1707,6 +1715,7 @@ internal sealed class Sim
             b.GustVelocity = 0.0;
             b.CutAnimStart = -1.0;
             b.CutInitialHeight = 1.0;
+            b.CutFloor = rngCutFloor.Uniform(Constants.CUT_FLOOR_MIN, Constants.CUT_FLOOR_MAX);
 
             // Regrowth jitter — independent stream, draw delay then duration
             // (order MUST match across impls).
@@ -1822,7 +1831,8 @@ internal sealed class Sim
         {
             ref Blade b = ref Blades[i];
             if (Math.Abs(b.BaseX - clickX) >= Constants.CUT_RADIUS) continue;
-            if (b.CutHeight <= 0.0) continue;
+            // Already at (or below) its stubble floor — can't be cut shorter.
+            if (b.CutHeight <= b.CutFloor) continue;
             if (b.CutAnimStart >= 0.0) continue;
 
             b.CutAnimStart = GlobalTime;
@@ -1925,7 +1935,7 @@ internal sealed class Sim
             double t = elapsed / Constants.CUT_DURATION_SEC;
             if (t >= 1.0)
             {
-                b.CutHeight = 0.0;
+                b.CutHeight = b.CutFloor;
                 b.CutAnimStart = -1.0;
                 // Schedule regrowth only if the per-blade jitter is
                 // well-defined. Production blades from GenerateBlades always
@@ -1938,7 +1948,10 @@ internal sealed class Sim
             }
             else
             {
-                b.CutHeight = b.CutInitialHeight * (1.0 - t);
+                // Lerp from the height at cut time down to the per-blade
+                // stubble floor. With CutFloor == 0 this reduces to the
+                // original CutInitialHeight * (1 - t).
+                b.CutHeight = b.CutFloor + (b.CutInitialHeight - b.CutFloor) * (1.0 - t);
             }
             return;
         }
@@ -1961,8 +1974,10 @@ internal sealed class Sim
         }
         else
         {
-            // Linear 0 -> 1, same easing as the cut animation in reverse.
-            b.CutHeight = regrowT;
+            // Linear regrowth from the stubble floor back to full height,
+            // same easing as the cut animation in reverse. With CutFloor == 0
+            // this reduces to the original CutHeight = regrowT.
+            b.CutHeight = b.CutFloor + (1.0 - b.CutFloor) * regrowT;
         }
     }
 
@@ -2014,13 +2029,13 @@ internal sealed class Sim
             {
                 double t = age / Constants.CUT_DURATION_SEC;
                 b.CutAnimStart = cutTime;
-                b.CutHeight = 1.0 - t;
+                b.CutHeight = b.CutFloor + (1.0 - b.CutFloor) * (1.0 - t);
                 b.RegrowStart = -1.0;
                 continue;
             }
 
             b.CutAnimStart = -1.0;
-            b.CutHeight = 0.0;
+            b.CutHeight = b.CutFloor;
             if (b.RegrowDelay <= 0.0 || b.RegrowDuration <= 0.0)
             {
                 b.RegrowStart = -1.0;
@@ -2042,7 +2057,7 @@ internal sealed class Sim
                 continue;
             }
 
-            b.CutHeight = regrowElapsed / b.RegrowDuration;
+            b.CutHeight = b.CutFloor + (1.0 - b.CutFloor) * (regrowElapsed / b.RegrowDuration);
             b.RegrowStart = regrowStart;
         }
     }

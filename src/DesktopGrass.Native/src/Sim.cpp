@@ -229,6 +229,11 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
     Prng pMushroom;
     prng_init(pMushroom, seed ^ MUSHROOM_PRNG_SALT);
 
+    // Cut-floor (stubble) stream. Independent salted stream so the per-blade
+    // mowed residual height does NOT perturb any existing sequence.
+    Prng pCutFloor;
+    prng_init(pCutFloor, seed ^ CUT_FLOOR_PRNG_SALT);
+
     double x = 0.0;
     while (true) {
         double step = prng_uniform(p, BLADE_SPACING_MIN, BLADE_SPACING_MAX) / density;
@@ -247,6 +252,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.gustVelocity     = 0.0;
         b.cutAnimStart     = -1.0;
         b.cutInitialHeight = 1.0;
+        b.cutFloor         = prng_uniform(pCutFloor, CUT_FLOOR_MIN, CUT_FLOOR_MAX);
         b.effectiveLean    = 0.0;
 
         // Regrowth jitter — independent stream. Draw delay first, then duration
@@ -515,7 +521,7 @@ void advance_cut(Blade& b, double globalTime) noexcept {
         const double elapsed = globalTime - b.cutAnimStart;
         const double t       = elapsed / CUT_DURATION_SEC;
         if (t >= 1.0) {
-            b.cutHeight    = 0.0;
+            b.cutHeight    = b.cutFloor;
             b.cutAnimStart = -1.0;
             // Schedule regrowth only if the per-blade jitter is well-defined.
             // Production blades from generate_blades always satisfy this;
@@ -525,7 +531,10 @@ void advance_cut(Blade& b, double globalTime) noexcept {
                 b.regrowStart = globalTime + b.regrowDelay;
             }
         } else {
-            b.cutHeight = b.cutInitialHeight * (1.0 - t);
+            // Lerp from the height at cut time down to the per-blade stubble
+            // floor. With cutFloor == 0 (hand-built fixtures) this reduces to
+            // the original cutInitialHeight * (1 - t).
+            b.cutHeight = b.cutFloor + (b.cutInitialHeight - b.cutFloor) * (1.0 - t);
         }
         return;
     }
@@ -545,9 +554,10 @@ void advance_cut(Blade& b, double globalTime) noexcept {
         b.cutHeight   = 1.0;
         b.regrowStart = -1.0;
     } else {
-        // Linear regrowth 0 -> 1. Same easing curve as the cut animation,
-        // just in reverse and over a longer span.
-        b.cutHeight = t;
+        // Linear regrowth from the stubble floor back to full height. Same
+        // easing curve as the cut animation, reversed and over a longer span.
+        // With cutFloor == 0 this reduces to the original cutHeight = t.
+        b.cutHeight = b.cutFloor + (1.0 - b.cutFloor) * t;
     }
 }
 
@@ -599,13 +609,13 @@ void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) n
         if (age < CUT_DURATION_SEC) {
             const double t = age / CUT_DURATION_SEC;
             b.cutAnimStart = cutTime;
-            b.cutHeight = 1.0 - t;
+            b.cutHeight = b.cutFloor + (1.0 - b.cutFloor) * (1.0 - t);
             b.regrowStart = -1.0;
             continue;
         }
 
         b.cutAnimStart = -1.0;
-        b.cutHeight = 0.0;
+        b.cutHeight = b.cutFloor;
         if (b.regrowDelay <= 0.0 || b.regrowDuration <= 0.0) {
             b.regrowStart = -1.0;
             continue;
@@ -624,7 +634,7 @@ void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) n
             continue;
         }
 
-        b.cutHeight = regrowElapsed / b.regrowDuration;
+        b.cutHeight = b.cutFloor + (1.0 - b.cutFloor) * (regrowElapsed / b.regrowDuration);
         b.regrowStart = regrowStart;
     }
 }
@@ -688,7 +698,8 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
 
     for (Blade& b : sim.blades) {
         if (std::fabs(b.baseX - e.x) >= CUT_RADIUS) continue;
-        if (b.cutHeight <= 0.0) continue;
+        // Already at (or below) its stubble floor — can't be cut shorter.
+        if (b.cutHeight <= b.cutFloor) continue;
         if (b.cutAnimStart >= 0.0) continue;
 
         b.cutAnimStart     = sim.globalTime;

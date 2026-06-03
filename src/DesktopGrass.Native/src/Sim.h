@@ -54,6 +54,12 @@ struct Blade {
     double  cutAnimStart;
     double  cutInitialHeight;
 
+    // Residual normalized height a mowed blade settles at (stubble). Assigned
+    // once at generation from an independent salted PRNG stream so it does not
+    // perturb the static-field draws. Defaults to 0.0 so hand-built `Blade b{}`
+    // fixtures collapse fully to a flat stump exactly as before.
+    double  cutFloor = 0.0;
+
     // Regrowth (Constants.h §"Regrowth"). regrowDelay / regrowDuration are
     // assigned once at generation from an independent PRNG stream (so they do
     // not perturb the static fields' draws). regrowStart is the absolute

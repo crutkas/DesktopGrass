@@ -77,12 +77,15 @@ public class CutTests
             heights[frame + 1] = sim.Blades[idx].CutHeight;
         }
 
+        // Production blades settle at their per-blade stubble floor, so the
+        // cut animation lerps 1.0 -> floor rather than 1.0 -> 0.
+        double f = sim.Blades[idx].CutFloor;
         Assert.Equal(1.0, heights[0], 9);
-        Assert.Equal(0.75, heights[1], 9);
-        Assert.Equal(0.5, heights[2], 9);
-        Assert.Equal(0.25, heights[3], 9);
-        Assert.Equal(0.0, heights[4], 9);
-        Assert.Equal(0.0, heights[5], 9);
+        Assert.Equal(f + (1.0 - f) * 0.75, heights[1], 9);
+        Assert.Equal(f + (1.0 - f) * 0.50, heights[2], 9);
+        Assert.Equal(f + (1.0 - f) * 0.25, heights[3], 9);
+        Assert.Equal(f, heights[4], 9);
+        Assert.Equal(f, heights[5], 9);
     }
 
     [Fact]
@@ -116,14 +119,16 @@ public class CutTests
         for (int i = 0; i < sim.Blades.Length; i++)
         {
             if (Math.Abs(sim.Blades[i].BaseX - 500.0) < Constants.CUT_RADIUS
-                && sim.Blades[i].CutHeight == 0.0)
+                && sim.Blades[i].CutAnimStart < 0.0
+                && sim.Blades[i].CutHeight == sim.Blades[i].CutFloor)
             { idx = i; break; }
         }
         Assert.True(idx >= 0);
 
+        double floor = sim.Blades[idx].CutFloor;
         sim.ApplyClick(500.0, 80.0, sim.GlobalTime);
         Assert.Equal(-1.0, sim.Blades[idx].CutAnimStart);
-        Assert.Equal(0.0, sim.Blades[idx].CutHeight);
+        Assert.Equal(floor, sim.Blades[idx].CutHeight);
     }
 
     [Fact]
@@ -180,5 +185,90 @@ public class CutTests
         Assert.Equal(105.0, stroke.TipX, 9);
         Assert.Equal(110.0 - Math.Sqrt(30.0 * 30.0 - 5.0 * 5.0), stroke.TipY, 9);
         Assert.Equal(Constants.PALETTE[2], stroke.Argb);
+    }
+
+    [Fact]
+    public void GeneratedBladesGetCutFloorWithinSpecRange()
+    {
+        var blades = Sim.GenerateBlades(Constants.CANONICAL_TEST_SEED, 1920.0, 1.0);
+        Assert.True(blades.Length > 50);
+
+        foreach (ref readonly var b in blades.AsSpan())
+        {
+            Assert.InRange(b.CutFloor, Constants.CUT_FLOOR_MIN, Constants.CUT_FLOOR_MAX);
+            Assert.True(b.CutFloor >= Constants.CUT_STUMP_THRESHOLD);
+        }
+
+        bool varies = false;
+        for (int i = 1; i < blades.Length; i++)
+        {
+            if (blades[i].CutFloor != blades[0].CutFloor) { varies = true; break; }
+        }
+        Assert.True(varies);
+    }
+
+    [Fact]
+    public void CutSettlesAtStubbleFloorNotZero()
+    {
+        var b = new Blade
+        {
+            Height = 20.0,
+            CutHeight = 1.0,
+            CutInitialHeight = 1.0,
+            CutFloor = 0.12,
+            CutAnimStart = 0.0,
+        };
+        Sim.AdvanceCut(ref b, Constants.CUT_DURATION_SEC + 0.01);
+        Assert.Equal(0.12, b.CutHeight, 9);
+        Assert.Equal(-1.0, b.CutAnimStart);
+    }
+
+    [Fact]
+    public void CutDownLerpsTowardFloor()
+    {
+        var b = new Blade
+        {
+            Height = 20.0,
+            CutHeight = 1.0,
+            CutInitialHeight = 1.0,
+            CutFloor = 0.10,
+            CutAnimStart = 0.0,
+        };
+        Sim.AdvanceCut(ref b, Constants.CUT_DURATION_SEC * 0.5);
+        Assert.Equal(0.10 + 0.90 * 0.5, b.CutHeight, 9);
+    }
+
+    [Fact]
+    public void RegrowthGrowsBackFromFloor()
+    {
+        var b = new Blade
+        {
+            Height = 20.0,
+            CutFloor = 0.10,
+            CutHeight = 0.10,
+            CutAnimStart = -1.0,
+            RegrowDuration = 0.4,
+            RegrowStart = 0.0,
+        };
+        Sim.AdvanceCut(ref b, 0.2);
+        Assert.Equal(0.10 + 0.90 * 0.5, b.CutHeight, 9);
+
+        Sim.AdvanceCut(ref b, 0.4);
+        Assert.Equal(1.0, b.CutHeight, 9);
+    }
+
+    [Fact]
+    public void ZeroFloorBladeStillCollapsesFully()
+    {
+        var b = new Blade
+        {
+            Height = 20.0,
+            CutHeight = 1.0,
+            CutInitialHeight = 1.0,
+            CutFloor = 0.0,
+            CutAnimStart = 0.0,
+        };
+        Sim.AdvanceCut(ref b, Constants.CUT_DURATION_SEC + 0.01);
+        Assert.Equal(0.0, b.CutHeight, 9);
     }
 }

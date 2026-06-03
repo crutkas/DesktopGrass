@@ -8,6 +8,20 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-03 — Mowed grass leaves varied stubble
+
+### Changed
+- **Cut grass settles at a varied stubble height** — instead of every mowed
+  blade collapsing to the same flat stump, each blade now keeps a small
+  per-blade residual height (`cutFloor`, ~6–16% of full height) so the cut line
+  reads with gentle, natural variation. The floor is drawn from an independent
+  salted PRNG stream, so it does not perturb blade generation or any snapshot.
+  Cut, regrowth, and persistence-restore all lerp to/from this floor. Mirrored
+  in the Native and Win2D implementations. A blade already at its floor is no
+  longer re-cuttable (the cut click is a no-op until it has regrown).
+
+---
+
 ## 2026-06-03 — Denser grass, "None" critter means none, "All" option
 
 ### Added

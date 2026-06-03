@@ -52,6 +52,17 @@ constexpr double CTRL_OFFSET_FACTOR    = 0.6;
 // fraction of blade length that the tip may horizontally displace; clamps gust impulses so the blade never folds completely flat.
 constexpr double MAX_LEAN_FRACTION     = 0.95;
 
+// Cut residual height (stubble). A freshly mowed blade does not collapse to a
+// flat stump; it settles at a small per-blade normalized height in
+// [CUT_FLOOR_MIN, CUT_FLOOR_MAX] so the cut line reads with gentle, natural
+// variation instead of a perfectly even edge. Both bounds stay above
+// CUT_STUMP_THRESHOLD so stubble renders as a short blade (still swaying), not
+// a degenerate stump. Sampled from an independent stream salted with
+// CUT_FLOOR_PRNG_SALT so it does NOT perturb the main generation sequence.
+constexpr double   CUT_FLOOR_MIN       = 0.06;
+constexpr double   CUT_FLOOR_MAX       = 0.16;
+constexpr uint64_t CUT_FLOOR_PRNG_SALT = 0xC07F100DC07F100Dull;
+
 // Regrowth -------------------------------------------------------------------
 // After a blade's cut animation finishes, it waits `regrowDelay` seconds (a
 // per-blade jittered value in [MIN, MAX]) and then grows back from cutHeight=0

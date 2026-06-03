@@ -118,6 +118,7 @@ Each blade is a plain-old-data struct. Field order is not load-bearing across im
 | `gustVelocity` | double (rad/sec) | unbounded | runtime | Wind impulse, decays exponentially. Initial: 0.0. |
 | `cutAnimStart` | double (sec) | `-1` or `≥ 0` | runtime | `globalTime` when the current cut animation began; `-1` = idle. Initial: -1. |
 | `cutInitialHeight` | double | `[0.0, 1.0]` | runtime | `cutHeight` at the moment the current cut animation began. Initial: 1.0. |
+| `cutFloor` | double | `[0.06, 0.16)` | static | Per-blade residual height a mowed blade settles at (stubble), so the cut line varies naturally instead of being perfectly flat. Drawn from an independent salted PRNG stream (`CUT_FLOOR_PRNG_SALT`). Both bounds sit above `CUT_STUMP_THRESHOLD` so stubble renders as a short blade, not a degenerate stump. Default-constructed `Blade` (test fixtures) has `0.0`, which reduces all cut/regrow math to the original collapse-to-zero behavior. |
 | `regrowDelay` | double (sec) | `[30, 90]` | static | Per-blade wait after being cut before regrowth begins. |
 | `regrowDuration` | double (sec) | `[2, 4]` | static | Per-blade time to grow back from stump to full height. |
 | `regrowStart` | double (sec) | `-1` or `≥ 0` | runtime | `globalTime` at which regrowth begins (set when cut anim completes); `-1` = idle. Initial: -1. |
@@ -595,7 +596,7 @@ Reject the click if `clickY < cutBandTop` or `clickY > cutBandBottom`.
 void apply_click(BladeList* blades, double clickX, double globalTime) {
     for (Blade* b in blades) {
         if (fabs(b->baseX - clickX) >= CUT_RADIUS) continue;
-        if (b->cutHeight <= 0.0) continue;                   // stump, waiting to regrow
+        if (b->cutHeight <= b->cutFloor) continue;           // already at its stubble floor
         if (b->cutAnimStart >= 0.0) continue;                // already animating a cut
 
         b->cutAnimStart     = globalTime;
@@ -606,7 +607,7 @@ void apply_click(BladeList* blades, double clickX, double globalTime) {
 }
 ```
 
-`CUT_RADIUS = 30` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion. The `cutHeight <= 0` check makes clicks on a stump (cut, in delay) a no-op; clicks on a mid-regrowing blade (`cutHeight ∈ (0,1)`) do re-cut, and the cancellation of `regrowStart` keeps phase 2 from firing on top of phase 1.
+`CUT_RADIUS = 30` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion. The `cutHeight <= cutFloor` check makes clicks on a blade already mowed to its stubble floor a no-op (with `cutFloor == 0` for test fixtures this is the original `cutHeight <= 0` stump check); clicks on a mid-regrowing blade (`cutHeight ∈ (cutFloor, 1)`) do re-cut, and the cancellation of `regrowStart` keeps phase 2 from firing on top of phase 1.
 
 ### Advance animation (per frame)
 
@@ -619,7 +620,7 @@ void advance_cut(Blade* b, double globalTime) {
         double elapsed = globalTime - b->cutAnimStart;
         double t = elapsed / CUT_DURATION_SEC;       // 0..1 across 200 ms
         if (t >= 1.0) {
-            b->cutHeight    = 0.0;
+            b->cutHeight    = b->cutFloor;   // settle at the stubble floor (0 for fixtures)
             b->cutAnimStart = -1.0;
             // Schedule regrowth — but only if this blade has valid jitter values.
             // (A zero-initialized Blade with regrowDelay == regrowDuration == 0
@@ -628,7 +629,8 @@ void advance_cut(Blade* b, double globalTime) {
                 b->regrowStart = globalTime + b->regrowDelay;
             }
         } else {
-            b->cutHeight = b->cutInitialHeight * (1.0 - t);  // linear to 0
+            // Lerp from the height at cut time down to the per-blade floor.
+            b->cutHeight = b->cutFloor + (b->cutInitialHeight - b->cutFloor) * (1.0 - t);
         }
         return;
     }
@@ -643,7 +645,7 @@ void advance_cut(Blade* b, double globalTime) {
             b->cutHeight   = 1.0;
             b->regrowStart = -1.0;
         } else {
-            b->cutHeight = t;                        // linear 0 → 1
+            b->cutHeight = b->cutFloor + (1.0 - b->cutFloor) * t;  // linear floor → 1
         }
     }
 }
@@ -655,13 +657,13 @@ void advance_cut(Blade* b, double globalTime) {
 
 For a single click on an uncut blade:
 1. `apply_click` sets `cutAnimStart = globalTime`, leaves `regrowStart = -1`.
-2. Over `CUT_DURATION_SEC` (200 ms), phase 1 drives `cutHeight` from its current value to 0.
-3. On phase 1 completion, `cutHeight = 0`, `cutAnimStart = -1`, and `regrowStart = globalTime + regrowDelay`.
-4. For `regrowDelay` seconds (30–90 s, per-blade), the blade is a stump.
-5. Once `globalTime >= regrowStart`, phase 2 drives `cutHeight` from 0 to 1 over `regrowDuration` seconds (2–4 s, per-blade).
+2. Over `CUT_DURATION_SEC` (200 ms), phase 1 drives `cutHeight` from its current value down to the per-blade `cutFloor` (the stubble height; `0` for zero-floor test fixtures).
+3. On phase 1 completion, `cutHeight = cutFloor`, `cutAnimStart = -1`, and `regrowStart = globalTime + regrowDelay`.
+4. For `regrowDelay` seconds (30–90 s, per-blade), the blade rests at its stubble floor.
+5. Once `globalTime >= regrowStart`, phase 2 drives `cutHeight` from `cutFloor` to 1 over `regrowDuration` seconds (2–4 s, per-blade).
 6. On phase 2 completion, `cutHeight = 1`, `regrowStart = -1`. The blade is uncut and clickable again.
 
-For a click during phase 2 (re-cut a mid-regrowing blade): `apply_click` records the current `cutHeight` as `cutInitialHeight`, sets `cutAnimStart = globalTime`, and clears `regrowStart`. Phase 1 runs back to 0 from wherever the blade was, and a new regrowth cycle is scheduled on completion.
+For a click during phase 2 (re-cut a mid-regrowing blade): `apply_click` records the current `cutHeight` as `cutInitialHeight`, sets `cutAnimStart = globalTime`, and clears `regrowStart`. Phase 1 runs back down to the blade's `cutFloor` from wherever it was, and a new regrowth cycle is scheduled on completion.
 
 Cut state is **per-session only**. There is no persistence in v1, and re-generating the blade list (DPI change, display hot-plug) resets all `cutHeight` to 1.0 and `regrowStart` to -1.
 

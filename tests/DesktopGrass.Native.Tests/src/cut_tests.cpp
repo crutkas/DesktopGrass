@@ -4,10 +4,13 @@
 
 #include "../third_party/catch2/catch.hpp"
 #include "Sim.h"
+#include "snapshot_data.h"
 
 #include <cmath>
+#include <vector>
 
 using namespace desktopgrass;
+using namespace desktopgrass::test;
 
 namespace {
 
@@ -170,4 +173,87 @@ TEST_CASE("compute_blade_stroke produces vertical line when lean is zero", "[cut
     REQUIRE(s.tip.x     == Approx(100.0));
     REQUIRE(s.tip.y     == Approx(90.0));
     REQUIRE(s.control.x == Approx(100.0));
+}
+
+// ---------------------------------------------------------------------------
+// Cut-floor (stubble) variation
+// ---------------------------------------------------------------------------
+
+TEST_CASE("generated blades get a per-blade cut floor within spec range", "[cut][floor]") {
+    std::vector<Blade> blades;
+    generate_blades(CANONICAL_TEST_SEED, 1920.0, 1.0, blades);
+    REQUIRE(blades.size() > 50);
+
+    for (const Blade& b : blades) {
+        REQUIRE(b.cutFloor >= CUT_FLOOR_MIN);
+        REQUIRE(b.cutFloor <  CUT_FLOOR_MAX);
+        // Stubble must render as a short blade, never a degenerate stump.
+        REQUIRE(b.cutFloor >= CUT_STUMP_THRESHOLD);
+    }
+
+    // The whole point is variation: not every blade settles at the same height.
+    bool varies = false;
+    for (std::size_t i = 1; i < blades.size(); ++i) {
+        if (blades[i].cutFloor != blades[0].cutFloor) { varies = true; break; }
+    }
+    REQUIRE(varies);
+}
+
+TEST_CASE("cut settles at the per-blade stubble floor, not flat zero", "[cut][floor]") {
+    Blade b{};
+    b.height           = 20.0;
+    b.thickness        = 1.5;
+    b.cutHeight        = 1.0;
+    b.cutInitialHeight = 1.0;
+    b.cutFloor         = 0.12;
+    b.cutAnimStart     = 0.0;
+
+    // Advance past the full cut duration.
+    advance_cut(b, CUT_DURATION_SEC + 0.01);
+
+    REQUIRE(b.cutHeight    == Approx(0.12));
+    REQUIRE(b.cutAnimStart == Approx(-1.0));
+}
+
+TEST_CASE("cut-down animation lerps toward the floor", "[cut][floor]") {
+    Blade b{};
+    b.height           = 20.0;
+    b.cutHeight        = 1.0;
+    b.cutInitialHeight = 1.0;
+    b.cutFloor         = 0.10;
+    b.cutAnimStart     = 0.0;
+
+    // Half-way through the cut: lerp(1.0 -> 0.10) at t=0.5 = 0.10 + 0.90*0.5.
+    advance_cut(b, CUT_DURATION_SEC * 0.5);
+    REQUIRE(b.cutHeight == Approx(0.10 + 0.90 * 0.5).margin(1e-9));
+}
+
+TEST_CASE("regrowth grows back from the floor to full height", "[cut][floor][regrowth]") {
+    Blade b{};
+    b.height         = 20.0;
+    b.cutFloor       = 0.10;
+    b.cutHeight      = 0.10;
+    b.cutAnimStart   = -1.0;
+    b.regrowDuration = 0.4;
+    b.regrowStart    = 0.0;
+
+    // Half-way through regrowth: lerp(0.10 -> 1.0) at t=0.5.
+    advance_cut(b, 0.2);
+    REQUIRE(b.cutHeight == Approx(0.10 + 0.90 * 0.5).margin(1e-9));
+
+    // Fully regrown.
+    advance_cut(b, 0.4);
+    REQUIRE(b.cutHeight == Approx(1.0).margin(1e-9));
+}
+
+TEST_CASE("zero-floor blades still collapse fully (back-compat)", "[cut][floor]") {
+    Blade b{};
+    b.height           = 20.0;
+    b.cutHeight        = 1.0;
+    b.cutInitialHeight = 1.0;
+    b.cutFloor         = 0.0;
+    b.cutAnimStart     = 0.0;
+
+    advance_cut(b, CUT_DURATION_SEC + 0.01);
+    REQUIRE(b.cutHeight == Approx(0.0));
 }

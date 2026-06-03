@@ -387,7 +387,9 @@ public sealed class AutumnTests
         sim.Tick(Constants.CUT_DURATION_SEC + 0.01, ReadOnlySpan<InputEvent>.Empty);
 
         Blade cutMaple = sim.Blades.First(b => b.IsMaple && Math.Abs(b.BaseX - clickX) <= Epsilon);
-        Assert.Equal(0.0, cutMaple.CutHeight, 9);
+        // Cut blades now settle at their per-blade stubble floor, not flat zero.
+        Assert.True(cutMaple.CutFloor > 0.0);
+        Assert.Equal(cutMaple.CutFloor, cutMaple.CutHeight, 9);
     }
 
     [Fact]

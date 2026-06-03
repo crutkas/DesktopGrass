@@ -386,7 +386,9 @@ TEST_CASE("Maples are cuttable through existing cut model", "[autumn][maple]") {
 
     const Blade& cutMaple = *std::find_if(sim.blades.begin(), sim.blades.end(),
         [clickX](const Blade& b) { return b.isMaple && b.baseX == Approx(clickX); });
-    REQUIRE(cutMaple.cutHeight == Approx(0.0).margin(kEpsilon));
+    // Cut blades now settle at their per-blade stubble floor, not flat zero.
+    REQUIRE(cutMaple.cutFloor > 0.0);
+    REQUIRE(cutMaple.cutHeight == Approx(cutMaple.cutFloor).margin(kEpsilon));
 }
 
 TEST_CASE("Autumn is critter-free", "[autumn][critter][gating]") {
