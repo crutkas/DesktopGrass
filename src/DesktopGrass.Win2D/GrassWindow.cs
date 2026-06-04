@@ -1378,21 +1378,16 @@ internal sealed class GrassWindow : IDisposable
         float cy = sy;
         float armWidth = width * 0.7f;
 
-        const int N = 4;
-        float prevX = sx;
-        float prevY = sy;
-        for (int i = 1; i <= N; i++)
+        using ID2D1PathGeometry path = _d2dFactory!.CreatePathGeometry();
+        using (ID2D1GeometrySink sink = path.Open())
         {
-            float t = i / (float)N;
-            float u = 1.0f - t;
-            float px = u * u * sx + 2.0f * u * t * cx + t * t * ex;
-            float py = u * u * sy + 2.0f * u * t * cy + t * t * ey;
-            _dc!.DrawLine(new Vector2(prevX, prevY), new Vector2(px, py), _cactusBrush!, armWidth, _strokeStyle);
-            prevX = px;
-            prevY = py;
+            sink.BeginFigure(new Vector2(sx, sy), FigureBegin.Hollow);
+            sink.AddQuadraticBezier(new QuadraticBezierSegment(new Vector2(cx, cy), new Vector2(ex, ey)));
+            sink.AddLine(new Vector2(ex, ey - h * 0.15f));
+            sink.EndFigure(FigureEnd.Open);
+            sink.Close();
         }
-
-        _dc!.DrawLine(new Vector2(ex, ey), new Vector2(ex, ey - h * 0.15f), _cactusBrush!, armWidth, _strokeStyle);
+        _dc!.DrawGeometry(path, _cactusBrush!, armWidth, _strokeStyle);
     }
 
     private void DrawBlade(in Blade b, float groundY, bool treesOnly = false)
@@ -1412,7 +1407,7 @@ internal sealed class GrassWindow : IDisposable
             float gy = groundY;
             float width = (float)b.CactusWidth;
 
-            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            if (b.CutHeight <= b.CutFloor + 1e-6 || b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
             {
                 _dc!.DrawLine(new Vector2(baseX, gy),
                               new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
@@ -1425,14 +1420,17 @@ internal sealed class GrassWindow : IDisposable
             _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY), _cactusBrush!, width, _strokeStyle);
             _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), width * 0.5f, width * 0.5f), _cactusBrush!);
 
-            if (b.CactusType == 1)
+            if (b.CutHeight >= Constants.CACTUS_ARM_MIN_CUT_HEIGHT)
             {
-                DrawCactusArm(baseX, gy, h, width, b.CactusArmSide < 0 ? -1 : 1);
-            }
-            else if (b.CactusType == 2)
-            {
-                DrawCactusArm(baseX, gy, h, width, -1);
-                DrawCactusArm(baseX, gy, h, width, +1);
+                if (b.CactusType == 1)
+                {
+                    DrawCactusArm(baseX, gy, h, width, b.CactusArmSide < 0 ? -1 : 1);
+                }
+                else if (b.CactusType == 2)
+                {
+                    DrawCactusArm(baseX, gy, h, width, -1);
+                    DrawCactusArm(baseX, gy, h, width, +1);
+                }
             }
             return;
         }

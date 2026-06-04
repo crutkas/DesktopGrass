@@ -8,6 +8,23 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Smoother cactus arms & cleaner cut cacti
+
+### Changed
+- **Cactus arms are now a single smooth curved stroke** instead of ~10 blocky
+  tessellated segments. Both renderers build one path geometry (quadratic Bézier
+  out to the elbow, then up to the tip) and stroke it with round caps/joins, so
+  the arm curves like a grass blade. Native gained a shared round
+  `ID2D1StrokeStyle`; Win2D reuses its existing round `_strokeStyle`.
+
+### Fixed
+- **Cut cacti no longer leave arms (or a green nub) on the ground.** A mowed
+  cactus that settles at its cut floor now renders as a clean stump, and arms are
+  only drawn while the cactus is near full height (`CACTUS_ARM_MIN_CUT_HEIGHT =
+  0.85`), so a short/regrowing cactus doesn't show ground-hugging arms.
+
+---
+
 ## 2026-06-04 — Slower tumbleweeds
 
 ### Changed

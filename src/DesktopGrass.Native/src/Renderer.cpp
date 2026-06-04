@@ -114,7 +114,17 @@ bool Renderer::CreateDeviceResources() {
     d2dContext_->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
     d2dContext_->SetDpi(static_cast<float>(dpi_), static_cast<float>(dpi_));
 
-    dwriteFactory_.Reset();
+    roundStrokeStyle_.Reset();
+    {
+        D2D1_STROKE_STYLE_PROPERTIES ssp = D2D1::StrokeStyleProperties(
+            D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND,
+            D2D1_LINE_JOIN_ROUND, 1.0f, D2D1_DASH_STYLE_SOLID, 0.0f);
+        hr = d2dFactory_->CreateStrokeStyle(ssp, nullptr, 0,
+                                            roundStrokeStyle_.ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateStrokeStyle", hr); return false; }
+    }
+
+
     hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
                              __uuidof(IDWriteFactory),
                              reinterpret_cast<IUnknown**>(dwriteFactory_.ReleaseAndGetAddressOf()));
@@ -509,6 +519,7 @@ void Renderer::DiscardDeviceResources() {
     petNameShadowBrush_.Reset();
     dayTintBrush_.Reset();
     petNameTextFormat_.Reset();
+    roundStrokeStyle_.Reset();
     dwriteFactory_.Reset();
     d2dTarget_.Reset();
     if (d2dContext_) d2dContext_->SetTarget(nullptr);
@@ -726,21 +737,18 @@ void Renderer::DrawGrass(bool treesOnly) {
         const float cy = sy;
         const float armWidth = width * 0.7f;
 
-        constexpr int N = 4;
-        float prevX = sx;
-        float prevY = sy;
-        for (int i = 1; i <= N; ++i) {
-            const float t = static_cast<float>(i) / static_cast<float>(N);
-            const float u = 1.0f - t;
-            const float px = u * u * sx + 2.0f * u * t * cx + t * t * ex;
-            const float py = u * u * sy + 2.0f * u * t * cy + t * t * ey;
-            d2dContext_->DrawLine(D2D1::Point2F(prevX, prevY), D2D1::Point2F(px, py),
-                                  cactusBrush_.Get(), armWidth);
-            prevX = px;
-            prevY = py;
-        }
-        d2dContext_->DrawLine(D2D1::Point2F(ex, ey), D2D1::Point2F(ex, ey - h * 0.15f),
-                              cactusBrush_.Get(), armWidth);
+        ComPtr<ID2D1PathGeometry> path;
+        if (FAILED(d2dFactory_->CreatePathGeometry(&path))) return;
+        ComPtr<ID2D1GeometrySink> sink;
+        if (FAILED(path->Open(&sink))) return;
+        sink->BeginFigure(D2D1::Point2F(sx, sy), D2D1_FIGURE_BEGIN_HOLLOW);
+        sink->AddQuadraticBezier(D2D1::QuadraticBezierSegment(
+            D2D1::Point2F(cx, cy), D2D1::Point2F(ex, ey)));
+        sink->AddLine(D2D1::Point2F(ex, ey - h * 0.15f));
+        sink->EndFigure(D2D1_FIGURE_END_OPEN);
+        if (FAILED(sink->Close())) return;
+        d2dContext_->DrawGeometry(path.Get(), cactusBrush_.Get(), armWidth,
+                                  roundStrokeStyle_.Get());
     };
 
     for (const Blade& b : sim_.blades) {
@@ -755,7 +763,7 @@ void Renderer::DrawGrass(bool treesOnly) {
             const float gy = static_cast<float>(groundY);
             const float width = static_cast<float>(b.cactusWidth);
 
-            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+            if (b.cutHeight <= b.cutFloor + 1e-6 || b.cutHeight < CUT_STUMP_THRESHOLD) {
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
                     D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
@@ -771,11 +779,13 @@ void Renderer::DrawGrass(bool treesOnly) {
                 D2D1::Ellipse(D2D1::Point2F(baseX, topY), width * 0.5f, width * 0.5f),
                 cactusBrush_.Get());
 
-            if (b.cactusType == 1) {
-                drawCactusArm(baseX, gy, h, width, b.cactusArmSide < 0 ? -1 : 1);
-            } else if (b.cactusType == 2) {
-                drawCactusArm(baseX, gy, h, width, -1);
-                drawCactusArm(baseX, gy, h, width, +1);
+            if (b.cutHeight >= CACTUS_ARM_MIN_CUT_HEIGHT) {
+                if (b.cactusType == 1) {
+                    drawCactusArm(baseX, gy, h, width, b.cactusArmSide < 0 ? -1 : 1);
+                } else if (b.cactusType == 2) {
+                    drawCactusArm(baseX, gy, h, width, -1);
+                    drawCactusArm(baseX, gy, h, width, +1);
+                }
             }
             continue;
         }

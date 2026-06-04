@@ -149,6 +149,7 @@ constexpr double   CACTUS_WIDTH_MIN              = 8.0;
 constexpr double   CACTUS_WIDTH_MAX              = 14.0;
 constexpr double   CACTUS_ARM_PROBABILITY        = 0.55;
 constexpr double   CACTUS_TWO_ARM_PROBABILITY    = 0.35;
+constexpr double   CACTUS_ARM_MIN_CUT_HEIGHT     = 0.85; // render-only: hide arms once a cactus is cut
 constexpr uint32_t CACTUS_COLOR                  = 0xFF2D7A2Du;
 constexpr uint64_t CACTUS_PRNG_SALT              = 0xCAC75CAC75CAC75Cull;
 
