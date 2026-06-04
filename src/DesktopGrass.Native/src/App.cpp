@@ -178,7 +178,7 @@ bool App::CreateTrayIcon() {
     HICON icon = LoadIconW(hInst_, MAKEINTRESOURCEW(IDI_TRAYICON));
     if (!icon) icon = LoadIconW(nullptr, IDI_APPLICATION);
     nid_.hIcon = icon;
-    wcsncpy_s(nid_.szTip, L"DesktopGrass", _TRUNCATE);
+    wcsncpy_s(nid_.szTip, L"Desktop Grass", _TRUNCATE);
 
     BOOL ok = Shell_NotifyIconW(NIM_ADD, &nid_);
     trayAdded_ = (ok == TRUE);

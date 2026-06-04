@@ -20,7 +20,13 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
     <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <CsWinRTAotOptimizerEnabled>false</CsWinRTAotOptimizerEnabled>
+    <ApplicationIcon>..\..\assets\GrassIcon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embedded so TrayIcon can load it via assembly resources at runtime. -->
+    <EmbeddedResource Include="..\..\assets\GrassIcon.ico" LogicalName="DesktopGrass.Win2D.GrassIcon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!--

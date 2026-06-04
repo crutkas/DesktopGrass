@@ -63,7 +63,7 @@ bool GrassWindow::Create(HINSTANCE hInst,
     const DWORD style = WS_POPUP;
 
     hwnd_ = CreateWindowExW(
-        exStyle, kWindowClassName, L"DesktopGrass",
+        exStyle, kWindowClassName, L"Desktop Grass",
         style,
         screenBounds_.left,  screenBounds_.top,
         monitorW,            heightPx,
