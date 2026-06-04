@@ -763,7 +763,7 @@ void Renderer::DrawGrass(bool treesOnly) {
             const float gy = static_cast<float>(groundY);
             const float width = static_cast<float>(b.cactusWidth);
 
-            if (b.cutHeight <= b.cutFloor + 1e-6 || b.cutHeight < CUT_STUMP_THRESHOLD) {
+            if (b.cutHeight < CUT_STUMP_THRESHOLD) {
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
                     D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
@@ -773,10 +773,11 @@ void Renderer::DrawGrass(bool treesOnly) {
 
             const float h = static_cast<float>(b.cactusHeight * b.cutHeight);
             const float topY = gy - h;
+            const float capR = width * 0.5f * static_cast<float>(b.cutHeight);
             d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, topY),
                                   cactusBrush_.Get(), width);
             d2dContext_->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(baseX, topY), width * 0.5f, width * 0.5f),
+                D2D1::Ellipse(D2D1::Point2F(baseX, topY), capR, capR),
                 cactusBrush_.Get());
 
             if (b.cutHeight >= CACTUS_ARM_MIN_CUT_HEIGHT) {

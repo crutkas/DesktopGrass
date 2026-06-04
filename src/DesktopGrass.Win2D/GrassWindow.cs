@@ -1382,7 +1382,7 @@ internal sealed class GrassWindow : IDisposable
         using (ID2D1GeometrySink sink = path.Open())
         {
             sink.BeginFigure(new Vector2(sx, sy), FigureBegin.Hollow);
-            sink.AddQuadraticBezier(new QuadraticBezierSegment(new Vector2(cx, cy), new Vector2(ex, ey)));
+            sink.AddQuadraticBezier(new QuadraticBezierSegment { Point1 = new Vector2(cx, cy), Point2 = new Vector2(ex, ey) });
             sink.AddLine(new Vector2(ex, ey - h * 0.15f));
             sink.EndFigure(FigureEnd.Open);
             sink.Close();
@@ -1407,7 +1407,7 @@ internal sealed class GrassWindow : IDisposable
             float gy = groundY;
             float width = (float)b.CactusWidth;
 
-            if (b.CutHeight <= b.CutFloor + 1e-6 || b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+            if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
             {
                 _dc!.DrawLine(new Vector2(baseX, gy),
                               new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
@@ -1417,8 +1417,9 @@ internal sealed class GrassWindow : IDisposable
 
             float h = (float)(b.CactusHeight * b.CutHeight);
             float topY = gy - h;
+            float capR = width * 0.5f * (float)b.CutHeight;
             _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY), _cactusBrush!, width, _strokeStyle);
-            _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), width * 0.5f, width * 0.5f), _cactusBrush!);
+            _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), capR, capR), _cactusBrush!);
 
             if (b.CutHeight >= Constants.CACTUS_ARM_MIN_CUT_HEIGHT)
             {
