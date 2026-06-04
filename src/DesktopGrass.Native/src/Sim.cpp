@@ -420,6 +420,11 @@ void generate_cacti_for_desert(Sim& sim) noexcept {
                 ? static_cast<int8_t>(-1)
                 : static_cast<int8_t>(+1);
         }
+
+        if (b.cactusHeight < CACTUS_ARM_MIN_HEIGHT) {
+            b.cactusType = 0;
+            b.cactusArmSide = +1;
+        }
     }
 }
 

@@ -48,6 +48,10 @@ ExpectedCactus first_expected_cactus(std::size_t bladeCount) {
                 ? static_cast<int8_t>(-1)
                 : static_cast<int8_t>(+1);
         }
+        if (expected.height < CACTUS_ARM_MIN_HEIGHT) {
+            expected.type = 0;
+            expected.armSide = +1;
+        }
         return expected;
     }
 

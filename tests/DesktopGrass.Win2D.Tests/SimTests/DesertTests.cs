@@ -55,17 +55,28 @@ public class DesertTests
             double armDraw = prng.Uniform(0.0, 1.0);
             double noArmThreshold = 1.0 - Constants.CACTUS_ARM_PROBABILITY;
             double twoArmThreshold = noArmThreshold + Constants.CACTUS_TWO_ARM_PROBABILITY * Constants.CACTUS_ARM_PROBABILITY;
+            byte type;
+            sbyte side = +1;
             if (armDraw < noArmThreshold)
             {
-                return new ExpectedCactus(i, 0, height, width, +1);
+                type = 0;
             }
-            if (armDraw < twoArmThreshold)
+            else if (armDraw < twoArmThreshold)
             {
-                return new ExpectedCactus(i, 2, height, width, +1);
+                type = 2;
+            }
+            else
+            {
+                type = 1;
+                side = prng.Uniform(0.0, 1.0) < 0.5 ? (sbyte)-1 : (sbyte)+1;
             }
 
-            sbyte side = prng.Uniform(0.0, 1.0) < 0.5 ? (sbyte)-1 : (sbyte)+1;
-            return new ExpectedCactus(i, 1, height, width, side);
+            if (height < Constants.CACTUS_ARM_MIN_HEIGHT)
+            {
+                type = 0;
+                side = +1;
+            }
+            return new ExpectedCactus(i, type, height, width, side);
         }
 
         throw new InvalidOperationException("canonical seed produced no cactus slot");

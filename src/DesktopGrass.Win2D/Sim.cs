@@ -977,6 +977,12 @@ internal sealed class Sim
                 b.CactusType = 1;
                 b.CactusArmSide = cactusPrng.Uniform(0.0, 1.0) < 0.5 ? (sbyte)-1 : (sbyte)+1;
             }
+
+            if (b.CactusHeight < Constants.CACTUS_ARM_MIN_HEIGHT)
+            {
+                b.CactusType = 0;
+                b.CactusArmSide = +1;
+            }
         }
     }
 

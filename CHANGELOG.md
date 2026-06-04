@@ -8,6 +8,17 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Arms only on tall cacti
+
+### Changed
+- **Only tall cacti grow arms now.** A new structural gate (`CACTUS_ARM_MIN_HEIGHT
+  = 50.0`, in a 30–70 height range) forces short cacti to be armless, since an arm
+  on a stubby cactus looked unbalanced. Tall cacti still get a left, right, or both
+  arms via the existing probabilities. The gate is applied after the arm PRNG draws,
+  so the generation stream stays deterministic.
+
+---
+
 ## 2026-06-04 — Smoother cactus arms & cleaner cut cacti
 
 ### Changed

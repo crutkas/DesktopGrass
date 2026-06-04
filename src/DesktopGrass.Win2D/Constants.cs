@@ -131,6 +131,7 @@ internal static class Constants
     public const double CACTUS_WIDTH_MAX           = 14.0;
     public const double CACTUS_ARM_PROBABILITY     = 0.55;
     public const double CACTUS_TWO_ARM_PROBABILITY = 0.35;
+    public const double CACTUS_ARM_MIN_HEIGHT      = 50.0; // only tall cacti grow arms (range is 30-70)
     public const double CACTUS_ARM_MIN_CUT_HEIGHT  = 0.85; // render-only: hide arms once a cactus is cut
     public const uint   CACTUS_COLOR               = 0xFF2D7A2D;
     public const ulong  CACTUS_PRNG_SALT           = 0xCAC75CAC75CAC75CUL;
