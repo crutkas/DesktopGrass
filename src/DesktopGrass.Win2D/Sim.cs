@@ -1004,6 +1004,40 @@ internal sealed class Sim
         return Math.Min(count, Constants.MAX_ENTITIES_PER_MONITOR);
     }
 
+    // Deterministic [0,1) hash used to give each tumbleweed its own bounce
+    // cadence/height without drawing from the shared PRNG stream (which would
+    // shift the spec-pinned spawn snapshots).
+    private static double TumbleweedHash01(uint seed, uint salt)
+    {
+        unchecked
+        {
+            uint x = seed + salt * 0x9E3779B9u;
+            x ^= x >> 16; x *= 0x7FEB352Du;
+            x ^= x >> 15; x *= 0x846CA68Bu;
+            x ^= x >> 16;
+            return (x >> 8) * (1.0 / 16777216.0);
+        }
+    }
+
+    private static double TumbleweedBouncePeriod(uint seed)
+        => Constants.TUMBLEWEED_BOUNCE_PERIOD_MIN
+         + (Constants.TUMBLEWEED_BOUNCE_PERIOD_MAX - Constants.TUMBLEWEED_BOUNCE_PERIOD_MIN)
+           * TumbleweedHash01(seed, 11u);
+
+    private static double TumbleweedHopHeight(uint seed, double size)
+    {
+        double frac = Constants.TUMBLEWEED_BOUNCE_HEIGHT_MIN_FRAC
+            + (Constants.TUMBLEWEED_BOUNCE_HEIGHT_MAX_FRAC - Constants.TUMBLEWEED_BOUNCE_HEIGHT_MIN_FRAC)
+              * TumbleweedHash01(seed, 7u);
+        return size * frac;
+    }
+
+    private static double TumbleweedNextGap(uint seed, double age)
+    {
+        uint salt = seed ^ (uint)Math.Floor(age);
+        return TumbleweedBouncePeriod(seed) * (0.6 + 0.8 * TumbleweedHash01(salt, 17u));
+    }
+
     private static Entity MakeTumbleweed(ref Prng prng, double monitorWidth, double groundY)
     {
         Entity e = default;
@@ -1020,6 +1054,8 @@ internal sealed class Sim
         e.Age = 0.0;
         e.Lifetime = -1.0;
         e.Seed = prng.NextU32();
+        e.AltitudeAnchor = e.Y; // grounded baseline the hop returns to
+        e.StateTimer = TumbleweedHash01(e.Seed, 3u) * TumbleweedBouncePeriod(e.Seed);
         return e;
     }
 
@@ -1035,6 +1071,8 @@ internal sealed class Sim
         e.RotationSpeed = e.Vx / e.Size;
         e.Age = 0.0;
         e.Lifetime = -1.0;
+        e.AltitudeAnchor = e.Y;
+        e.StateTimer = TumbleweedHash01(e.Seed, 3u) * TumbleweedBouncePeriod(e.Seed);
     }
 
     private static void RestoreBunnyBaseSpeed(ref Entity e)
@@ -1124,6 +1162,31 @@ internal sealed class Sim
                 else if (e.X > MonitorWidth + e.Size + 10.0)
                 {
                     RespawnTumbleweed(ref e, ref TumbleweedPrng, MonitorWidth, GroundY, fromLeft: true);
+                }
+
+                // Gentle staggered hop: the generic pass above already advanced
+                // Y by Vy*dt. While airborne, gravity pulls it back to the
+                // baseline; once grounded, count down to the next launch.
+                double yBase = e.AltitudeAnchor;
+                bool airborne = e.Vy != 0.0 || e.Y < yBase - 1e-9;
+                if (airborne)
+                {
+                    e.Vy += Constants.TUMBLEWEED_BOUNCE_GRAVITY * dt;
+                    if (e.Vy >= 0.0 && e.Y >= yBase)
+                    {
+                        e.Y = yBase;
+                        e.Vy = 0.0;
+                        e.StateTimer = TumbleweedNextGap(e.Seed, e.Age);
+                    }
+                }
+                else
+                {
+                    e.StateTimer -= dt;
+                    if (e.StateTimer <= 0.0)
+                    {
+                        double hopH = TumbleweedHopHeight(e.Seed, e.Size);
+                        e.Vy = -Math.Sqrt(2.0 * Constants.TUMBLEWEED_BOUNCE_GRAVITY * hopH);
+                    }
                 }
             }
 

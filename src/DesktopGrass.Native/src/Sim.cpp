@@ -332,6 +332,37 @@ int tumbleweed_count_for_width(double monitorWidth) noexcept {
     return std::min(count, MAX_ENTITIES_PER_MONITOR);
 }
 
+// Deterministic [0,1) hash used to give each tumbleweed its own bounce
+// cadence/height without drawing from the shared PRNG stream (which would
+// shift the spec-pinned spawn snapshots).
+double tumbleweed_hash01(uint32_t seed, uint32_t salt) noexcept {
+    uint32_t x = seed + salt * 0x9E3779B9u;
+    x ^= x >> 16; x *= 0x7FEB352Du;
+    x ^= x >> 15; x *= 0x846CA68Bu;
+    x ^= x >> 16;
+    return static_cast<double>(x >> 8) * (1.0 / 16777216.0);
+}
+
+double tumbleweed_bounce_period(uint32_t seed) noexcept {
+    return TUMBLEWEED_BOUNCE_PERIOD_MIN
+         + (TUMBLEWEED_BOUNCE_PERIOD_MAX - TUMBLEWEED_BOUNCE_PERIOD_MIN)
+           * tumbleweed_hash01(seed, 11u);
+}
+
+double tumbleweed_hop_height(uint32_t seed, double size) noexcept {
+    const double frac = TUMBLEWEED_BOUNCE_HEIGHT_MIN_FRAC
+        + (TUMBLEWEED_BOUNCE_HEIGHT_MAX_FRAC - TUMBLEWEED_BOUNCE_HEIGHT_MIN_FRAC)
+          * tumbleweed_hash01(seed, 7u);
+    return size * frac;
+}
+
+// Per-hop jittered gap so a single tumbleweed's bounces aren't perfectly
+// metronomic; salted with the current second so each landing differs.
+double tumbleweed_next_gap(uint32_t seed, double age) noexcept {
+    const uint32_t salt = seed ^ static_cast<uint32_t>(std::floor(age));
+    return tumbleweed_bounce_period(seed) * (0.6 + 0.8 * tumbleweed_hash01(salt, 17u));
+}
+
 Entity make_tumbleweed(Prng& prng, double monitorWidth, double groundY) noexcept {
     Entity e{};
     e.kind = EntityKind::Tumbleweed;
@@ -347,6 +378,8 @@ Entity make_tumbleweed(Prng& prng, double monitorWidth, double groundY) noexcept
     e.age           = 0.0;
     e.lifetime      = -1.0;
     e.seed          = prng_next_u32(prng);
+    e.altitudeAnchor = e.y; // grounded baseline the hop returns to
+    e.stateTimer     = tumbleweed_hash01(e.seed, 3u) * tumbleweed_bounce_period(e.seed);
     return e;
 }
 
@@ -361,6 +394,8 @@ void respawn_tumbleweed(Entity& e, Prng& prng, double monitorWidth,
     e.rotationSpeed = e.vx / e.size;
     e.age = 0.0;
     e.lifetime = -1.0;
+    e.altitudeAnchor = e.y;
+    e.stateTimer     = tumbleweed_hash01(e.seed, 3u) * tumbleweed_bounce_period(e.seed);
 }
 
 Entity make_leaf(Prng& prng, double monitorWidth) noexcept {
@@ -1335,6 +1370,26 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                 respawn_tumbleweed(e, sim.tumbleweedPrng, sim.monitorWidth, groundY, false);
             } else if (e.x > sim.monitorWidth + e.size + 10.0) {
                 respawn_tumbleweed(e, sim.tumbleweedPrng, sim.monitorWidth, groundY, true);
+            }
+
+            // Gentle staggered hop: the generic pass above already advanced y
+            // by vy*dt. While airborne, gravity pulls it back to the baseline;
+            // once grounded, count down to the next launch.
+            const double yBase = e.altitudeAnchor;
+            const bool airborne = (e.vy != 0.0) || (e.y < yBase - 1e-9);
+            if (airborne) {
+                e.vy += TUMBLEWEED_BOUNCE_GRAVITY * dt;
+                if (e.vy >= 0.0 && e.y >= yBase) {
+                    e.y  = yBase;
+                    e.vy = 0.0;
+                    e.stateTimer = tumbleweed_next_gap(e.seed, e.age);
+                }
+            } else {
+                e.stateTimer -= dt;
+                if (e.stateTimer <= 0.0) {
+                    const double hopH = tumbleweed_hop_height(e.seed, e.size);
+                    e.vy = -std::sqrt(2.0 * TUMBLEWEED_BOUNCE_GRAVITY * hopH);
+                }
             }
         }
     }

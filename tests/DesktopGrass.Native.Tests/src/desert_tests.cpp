@@ -73,7 +73,7 @@ TEST_CASE("Desert constants are pinned", "[desert][constants]") {
     REQUIRE(CACTUS_HEIGHT_MAX == Approx(70.0));
     REQUIRE(CACTUS_COLOR == 0xFF2D7A2Du);
     REQUIRE(TUMBLEWEED_COUNT_PER_1920DIP == 4);
-    REQUIRE(TUMBLEWEED_SPEED_MAX == Approx(90.0));
+    REQUIRE(TUMBLEWEED_SPEED_MAX == Approx(72.0));
     REQUIRE(TUMBLEWEED_PRNG_SALT == 0x7B0117CA7B0117CAull);
 }
 
@@ -178,6 +178,29 @@ TEST_CASE("Tumbleweed respawns at the opposite edge when off-screen", "[desert][
     REQUIRE(e.kind == EntityKind::Tumbleweed);
     REQUIRE(e.x == Approx(-e.size).margin(1e-12));
     REQUIRE(e.vx > 0.0);
+}
+
+TEST_CASE("Tumbleweed hops above its baseline then settles", "[desert][tumbleweed]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Desert);
+    REQUIRE_FALSE(sim.entities.empty());
+
+    double yBase = sim.entities[0].altitudeAnchor;
+    REQUIRE(sim.entities[0].y == Approx(yBase).margin(1e-9)); // starts grounded
+
+    double minY = sim.entities[0].y;
+    for (int i = 0; i < 900; ++i) {
+        sim_tick_entities(sim, 1.0 / 60.0);
+        Entity& t = sim.entities[0];
+        // Pin x on-screen so it doesn't roll off and respawn mid-test.
+        if (t.x < 50.0) t.x = 50.0;
+        if (t.x > sim.monitorWidth - 50.0) t.x = sim.monitorWidth - 50.0;
+        yBase = t.altitudeAnchor;
+        minY = std::min(minY, t.y);
+        REQUIRE(t.y <= yBase + 1e-6); // never sinks below the baseline
+    }
+
+    REQUIRE(minY < yBase - 1.0); // it left the ground at least once
 }
 
 TEST_CASE("Desert scene leaves the canonical first blade geometry bit-identical", "[desert][snapshot]") {

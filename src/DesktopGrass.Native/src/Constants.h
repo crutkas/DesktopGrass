@@ -159,12 +159,20 @@ constexpr uint64_t CACTUS_PRNG_SALT              = 0xCAC75CAC75CAC75Cull;
 constexpr int      TUMBLEWEED_COUNT_PER_1920DIP  = 4;
 constexpr double   TUMBLEWEED_SIZE_MIN           = 8.0;
 constexpr double   TUMBLEWEED_SIZE_MAX           = 18.0;
-constexpr double   TUMBLEWEED_SPEED_MIN          = 30.0;
-constexpr double   TUMBLEWEED_SPEED_MAX          = 90.0;
+constexpr double   TUMBLEWEED_SPEED_MIN          = 24.0;
+constexpr double   TUMBLEWEED_SPEED_MAX          = 72.0;
 constexpr double   TUMBLEWEED_Y_OFFSET_MIN       = 8.0;
 constexpr double   TUMBLEWEED_Y_OFFSET_MAX       = 20.0;
 constexpr uint32_t TUMBLEWEED_COLOR              = 0xFF8A6A3Du;
 constexpr uint64_t TUMBLEWEED_PRNG_SALT          = 0x7B0117CA7B0117CAull;
+// Gentle, staggered vertical hop (§14). Heights are a fraction of the
+// tumbleweed radius so the bounce stays subtle; period is the rough gap
+// between hops, jittered per-hop. Gravity sets the arc/airtime.
+constexpr double   TUMBLEWEED_BOUNCE_GRAVITY     = 300.0;
+constexpr double   TUMBLEWEED_BOUNCE_HEIGHT_MIN_FRAC = 0.35;
+constexpr double   TUMBLEWEED_BOUNCE_HEIGHT_MAX_FRAC = 0.75;
+constexpr double   TUMBLEWEED_BOUNCE_PERIOD_MIN  = 2.5;
+constexpr double   TUMBLEWEED_BOUNCE_PERIOD_MAX  = 6.0;
 
 // Scenes (architecture.md §13). Render-time presentation modes that share
 // generation, sway, gust, cut, and ambient-gust logic. The infrastructure

@@ -97,7 +97,7 @@ public class DesertTests
         Assert.Equal(70.0, Constants.CACTUS_HEIGHT_MAX);
         Assert.Equal(0xFF2D7A2Du, Constants.CACTUS_COLOR);
         Assert.Equal(4, Constants.TUMBLEWEED_COUNT_PER_1920DIP);
-        Assert.Equal(90.0, Constants.TUMBLEWEED_SPEED_MAX);
+        Assert.Equal(72.0, Constants.TUMBLEWEED_SPEED_MAX);
         Assert.Equal(0x7B0117CA7B0117CAul, Constants.TUMBLEWEED_PRNG_SALT);
     }
 
@@ -209,6 +209,33 @@ public class DesertTests
         Assert.Equal(EntityKind.Tumbleweed, e.Kind);
         Assert.Equal(-e.Size, e.X, 12);
         Assert.True(e.Vx > 0.0);
+    }
+
+    [Fact]
+    public void TumbleweedHopsAboveBaselineThenSettles()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Desert);
+        Assert.NotEmpty(sim.Entities);
+
+        double yBase = sim.Entities[0].AltitudeAnchor;
+        Assert.Equal(yBase, sim.Entities[0].Y, 9); // starts grounded
+
+        double minY = sim.Entities[0].Y;
+        for (int i = 0; i < 900; i++)
+        {
+            sim.TickEntities(1.0 / 60.0);
+            Entity t = sim.Entities[0];
+            // Pin x on-screen so it doesn't roll off and respawn mid-test.
+            if (t.X < 50.0) t.X = 50.0;
+            if (t.X > sim.MonitorWidth - 50.0) t.X = sim.MonitorWidth - 50.0;
+            yBase = t.AltitudeAnchor;
+            sim.Entities[0] = t;
+            minY = Math.Min(minY, t.Y);
+            Assert.True(t.Y <= yBase + 1e-6); // never sinks below the baseline
+        }
+
+        Assert.True(minY < yBase - 1.0); // it left the ground at least once
     }
 
     [Fact]

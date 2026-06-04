@@ -8,6 +8,23 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Bouncier, slower tumbleweeds
+
+### Changed
+- **Tumbleweeds roll a touch slower again** — `TUMBLEWEED_SPEED_MIN`/`MAX`
+  trimmed 30–90 → 24–72 DIP/sec for an even calmer drift.
+
+### Added
+- **Subtle random tumbleweed bounce.** Each tumbleweed now hops gently as it
+  rolls — a small parabolic arc (height is a fraction of its radius, capped so it
+  never gets over the top) with a staggered, per-tumbleweed cadence so they don't
+  hop in sync. The hop schedule/height are derived deterministically from the
+  entity seed (no extra PRNG draws), so the spec-pinned spawn snapshots are
+  unchanged. New tuning constants: `TUMBLEWEED_BOUNCE_GRAVITY`,
+  `TUMBLEWEED_BOUNCE_HEIGHT_MIN/MAX_FRAC`, `TUMBLEWEED_BOUNCE_PERIOD_MIN/MAX`.
+
+---
+
 ## 2026-06-04 — Arms only on tall cacti
 
 ### Changed
