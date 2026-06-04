@@ -139,8 +139,8 @@ internal static class Constants
     public const int    TUMBLEWEED_COUNT_PER_1920DIP = 4;
     public const double TUMBLEWEED_SIZE_MIN          = 8.0;
     public const double TUMBLEWEED_SIZE_MAX          = 18.0;
-    public const double TUMBLEWEED_SPEED_MIN         = 40.0;
-    public const double TUMBLEWEED_SPEED_MAX         = 120.0;
+    public const double TUMBLEWEED_SPEED_MIN         = 30.0;
+    public const double TUMBLEWEED_SPEED_MAX         = 90.0;
     public const double TUMBLEWEED_Y_OFFSET_MIN      = 8.0;
     public const double TUMBLEWEED_Y_OFFSET_MAX      = 20.0;
     public const uint   TUMBLEWEED_COLOR             = 0xFF8A6A3D;

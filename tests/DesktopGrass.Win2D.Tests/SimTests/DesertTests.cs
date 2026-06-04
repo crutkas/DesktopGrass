@@ -86,7 +86,7 @@ public class DesertTests
         Assert.Equal(70.0, Constants.CACTUS_HEIGHT_MAX);
         Assert.Equal(0xFF2D7A2Du, Constants.CACTUS_COLOR);
         Assert.Equal(4, Constants.TUMBLEWEED_COUNT_PER_1920DIP);
-        Assert.Equal(120.0, Constants.TUMBLEWEED_SPEED_MAX);
+        Assert.Equal(90.0, Constants.TUMBLEWEED_SPEED_MAX);
         Assert.Equal(0x7B0117CA7B0117CAul, Constants.TUMBLEWEED_PRNG_SALT);
     }
 

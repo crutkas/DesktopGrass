@@ -8,6 +8,16 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Slower tumbleweeds
+
+### Changed
+- **Tumbleweeds roll 25% slower** — `TUMBLEWEED_SPEED_MIN`/`MAX` lowered from
+  40–120 to 30–90 DIP/sec across both implementations for a calmer drift across
+  the desert strip. (Rotation speed is derived from `vx / size`, so the roll
+  slows proportionally.)
+
+---
+
 ## 2026-06-03 — Mowed grass leaves varied stubble
 
 ### Changed

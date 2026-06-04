@@ -816,8 +816,8 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `TUMBLEWEED_COUNT_PER_1920DIP` | 4 | count | §14 |
 | `TUMBLEWEED_SIZE_MIN` | 8.0 | DIP | §14 |
 | `TUMBLEWEED_SIZE_MAX` | 18.0 | DIP | §14 |
-| `TUMBLEWEED_SPEED_MIN` | 40.0 | DIP/sec | §14 |
-| `TUMBLEWEED_SPEED_MAX` | 120.0 | DIP/sec | §14 |
+| `TUMBLEWEED_SPEED_MIN` | 30.0 | DIP/sec | §14 |
+| `TUMBLEWEED_SPEED_MAX` | 90.0 | DIP/sec | §14 |
 | `TUMBLEWEED_Y_OFFSET_MIN` | 8.0 | DIP above groundY | §14 |
 | `TUMBLEWEED_Y_OFFSET_MAX` | 20.0 | DIP above groundY | §14 |
 | `TUMBLEWEED_COLOR` | `0xFF8A6A3D` | uint32 ARGB | §14 |
