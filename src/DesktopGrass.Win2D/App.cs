@@ -159,7 +159,7 @@ internal sealed class App : IDisposable
                     | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_NOACTIVATE
                     | Win32.WS_EX_NOREDIRECTIONBITMAP,
                 WindowClassName,
-                "DesktopGrass.Win2D",
+                "Desktop Grass",
                 Win32.WS_POPUP,
                 x, y, widthPx, heightPx,
                 IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);

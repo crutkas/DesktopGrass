@@ -149,8 +149,8 @@ internal sealed class TrayIcon : IDisposable
 
         _icon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
-            Text = "DesktopGrass (Win2D)",
+            Icon = LoadAppIcon(),
+            Text = "Desktop Grass",
             Visible = true,
             ContextMenuStrip = menu,
         };
@@ -174,6 +174,24 @@ internal sealed class TrayIcon : IDisposable
         // surface above doesn't expose it; instead we ask each grass
         // window to close, which exits the main loop.
         Win32App.SignalQuit();
+    }
+
+    private static Icon LoadAppIcon()
+    {
+        try
+        {
+            using var stream = typeof(TrayIcon).Assembly
+                .GetManifestResourceStream("DesktopGrass.Win2D.GrassIcon.ico");
+            if (stream is not null)
+            {
+                return new Icon(stream);
+            }
+        }
+        catch
+        {
+            // Fall through to the system fallback.
+        }
+        return SystemIcons.Application;
     }
 
     public void Dispose()
