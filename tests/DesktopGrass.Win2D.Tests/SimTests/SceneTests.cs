@@ -31,7 +31,8 @@ public class SceneTests
         Assert.Equal(1, (int)Scene.Desert);
         Assert.Equal(2, (int)Scene.Winter);
         Assert.Equal(3, (int)Scene.Autumn);
-        Assert.Equal(4, Constants.SCENE_COUNT);
+        Assert.Equal(4, (int)Scene.Ocean);
+        Assert.Equal(5, Constants.SCENE_COUNT);
         Assert.Equal(0, (int)Constants.SCENE_DEFAULT);
     }
 

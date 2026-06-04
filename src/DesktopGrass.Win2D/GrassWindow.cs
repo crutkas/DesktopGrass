@@ -81,6 +81,11 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _mapleTrunkBrush;
     private ID2D1SolidColorBrush? _mapleTrunkDarkBrush;
     private ID2D1SolidColorBrush[]? _mapleCanopyBrushes;
+    private ID2D1SolidColorBrush[]? _coralBrushes;
+    private ID2D1SolidColorBrush? _bubbleStrokeBrush;
+    private ID2D1SolidColorBrush? _bubbleHighlightBrush;
+    private ID2D1SolidColorBrush[]? _fishBrushes;
+    private ID2D1SolidColorBrush? _fishFinBrush;
     // §16 sheep brushes — not scene-keyed (one critter at a time, biome-agnostic).
     private ID2D1SolidColorBrush? _sheepBodyBrush;
     private ID2D1SolidColorBrush? _sheepLegBrush;
@@ -281,6 +286,20 @@ internal sealed class GrassWindow : IDisposable
         {
             _mapleCanopyBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MAPLE_CANOPY_COLORS[i]));
         }
+
+        _coralBrushes = new ID2D1SolidColorBrush[Constants.CORAL_COLOR_COUNT];
+        for (int i = 0; i < Constants.CORAL_COLOR_COUNT; i++)
+        {
+            _coralBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CORAL_COLORS[i]));
+        }
+        _bubbleStrokeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUBBLE_STROKE_COLOR));
+        _bubbleHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUBBLE_HIGHLIGHT_COLOR));
+        _fishBrushes = new ID2D1SolidColorBrush[Constants.FISH_COLOR_COUNT];
+        for (int i = 0; i < Constants.FISH_COLOR_COUNT; i++)
+        {
+            _fishBrushes[i] = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FISH_COLORS[i]));
+        }
+        _fishFinBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.FISH_FIN_COLOR));
 
         _sheepBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_BODY_COLOR));
         _sheepLegBrush  = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SHEEP_LEG_COLOR));
@@ -551,6 +570,29 @@ internal sealed class GrassWindow : IDisposable
                 _snowflakeBrush!.Opacity = alpha;
                 _dc!.FillEllipse(new Ellipse(new Vector2(pcx, pcy), pr, pr), _snowflakeBrush!);
                 _snowflakeBrush!.Opacity = 1.0f;
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Bubble)
+            {
+                float cx = (float)e.X;
+                float cy = (float)e.Y;
+                float br = (float)e.Size;
+                if (_bubbleStrokeBrush is not null)
+                {
+                    _dc!.DrawEllipse(new Ellipse(new Vector2(cx, cy), br, br), _bubbleStrokeBrush, Math.Max(0.9f, br * 0.25f));
+                }
+                if (_bubbleHighlightBrush is not null)
+                {
+                    float hr = Math.Max(0.6f, br * 0.30f);
+                    _dc!.FillEllipse(new Ellipse(new Vector2(cx - br * 0.32f, cy - br * 0.32f), hr, hr), _bubbleHighlightBrush);
+                }
+                continue;
+            }
+
+            if (e.Kind == EntityKind.Fish)
+            {
+                DrawFish(in e);
                 continue;
             }
 
@@ -1377,6 +1419,151 @@ internal sealed class GrassWindow : IDisposable
         _dc!.DrawGeometry(path, _cactusBrush!, armWidth, _strokeStyle);
     }
 
+    private void DrawFish(in Entity e)
+    {
+        if (_fishBrushes is null) return;
+        int idx = e.ColorVariant;
+        if ((uint)idx >= (uint)Constants.FISH_COLOR_COUNT) idx = 0;
+        var body = _fishBrushes[idx];
+
+        float cx = (float)e.X;
+        float cy = (float)e.Y;
+        float halfLen = (float)e.Size;
+        float halfH   = halfLen * 0.55f;
+        float facing  = e.Vx >= 0.0 ? 1.0f : -1.0f;
+
+        // Body
+        _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), halfLen, halfH), body);
+
+        // Tail — wobbles with time; tail points away from heading direction.
+        double tailAngle = Math.Sin(e.Age * Constants.FISH_TAIL_WOBBLE_FREQ + e.PhaseX) * Constants.FISH_TAIL_WOBBLE_AMP;
+        float tailRootX = cx - facing * halfLen * 0.95f;
+        float tailLen   = halfLen * 0.80f;
+        float tipX      = tailRootX - facing * tailLen * (float)Math.Cos(tailAngle);
+        float tipY      = cy + tailLen * (float)Math.Sin(tailAngle);
+        float spreadH   = halfH * 0.85f;
+        _dc.DrawLine(new Vector2(tailRootX, cy - spreadH * 0.6f), new Vector2(tipX, tipY - spreadH * 0.5f), body, Math.Max(1.0f, halfH * 0.50f), _strokeStyle);
+        _dc.DrawLine(new Vector2(tailRootX, cy + spreadH * 0.6f), new Vector2(tipX, tipY + spreadH * 0.5f), body, Math.Max(1.0f, halfH * 0.50f), _strokeStyle);
+        _dc.DrawLine(new Vector2(tailRootX, cy), new Vector2(tipX, tipY), body, Math.Max(1.0f, halfH * 0.40f), _strokeStyle);
+
+        // Top fin
+        float finBase1X = cx - facing * halfLen * 0.10f;
+        float finBase2X = cx + facing * halfLen * 0.15f;
+        float finBaseY  = cy - halfH * 0.85f;
+        float finTipX   = cx;
+        float finTipY   = cy - halfH * 1.55f;
+        _dc.DrawLine(new Vector2(finBase1X, finBaseY), new Vector2(finTipX, finTipY), body, Math.Max(0.8f, halfH * 0.30f), _strokeStyle);
+        _dc.DrawLine(new Vector2(finBase2X, finBaseY), new Vector2(finTipX, finTipY), body, Math.Max(0.8f, halfH * 0.30f), _strokeStyle);
+
+        // Eye — small dark dot near the head.
+        if (_fishFinBrush is not null)
+        {
+            float eyeX = cx + facing * halfLen * 0.55f;
+            float eyeY = cy - halfH * 0.18f;
+            float eyeR = Math.Max(0.8f, halfH * 0.18f);
+            _dc.FillEllipse(new Ellipse(new Vector2(eyeX, eyeY), eyeR, eyeR), _fishFinBrush);
+        }
+    }
+
+    private void DrawCoral(in Blade b, float groundY)
+    {
+        if (_coralBrushes is null) return;
+        int idx = b.CoralColorIdx;
+        if ((uint)idx >= (uint)Constants.CORAL_COLOR_COUNT) idx = 0;
+        var brush = _coralBrushes[idx];
+
+        float baseX = (float)b.BaseX;
+        float gy    = groundY;
+        float h     = (float)(b.CoralHeight * b.CutHeight);
+        float w     = (float)b.CoralWidth;
+
+        if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
+        {
+            float stumpW = Math.Max(2.0f, w * 0.45f);
+            _dc!.DrawLine(new Vector2(baseX, gy),
+                          new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                          brush, stumpW, _strokeStyle);
+            return;
+        }
+
+        switch (b.CoralType)
+        {
+            case 0:
+            {
+                // Fan coral — splayed line bundle anchored at the base, tips
+                // spread across a horizontal arc at the top.
+                const int rays = 7;
+                float topY = gy - h;
+                float halfW = w * 0.5f;
+                float rayW = Math.Max(1.2f, w * 0.10f);
+                for (int i = 0; i < rays; i++)
+                {
+                    float t = (rays == 1) ? 0.5f : (float)i / (rays - 1);
+                    float tipX = baseX - halfW + t * w;
+                    float tipY = topY + Math.Abs(t - 0.5f) * h * 0.18f;
+                    _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(tipX, tipY),
+                                  brush, rayW, _strokeStyle);
+                    _dc!.FillEllipse(new Ellipse(new Vector2(tipX, tipY), rayW * 0.9f, rayW * 0.9f), brush);
+                }
+                // Thicker stub at the base to read as anchored mass.
+                _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, gy - h * 0.18f),
+                              brush, Math.Max(2.0f, w * 0.30f), _strokeStyle);
+                break;
+            }
+            case 1:
+            {
+                // Branching coral — central trunk with 3 paired branches.
+                float trunkW = Math.Max(1.6f, w * 0.22f);
+                float topY = gy - h;
+                _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY),
+                              brush, trunkW, _strokeStyle);
+                _dc!.FillEllipse(new Ellipse(new Vector2(baseX, topY), trunkW * 0.9f, trunkW * 0.9f), brush);
+                (float frac, float side, float lenFrac, float angleDeg)[] branches =
+                {
+                    (0.45f, -1.0f, 0.55f, 55.0f),
+                    (0.55f, +1.0f, 0.50f, 50.0f),
+                    (0.72f, -1.0f, 0.40f, 35.0f),
+                    (0.78f, +1.0f, 0.45f, 40.0f),
+                };
+                float branchW = Math.Max(1.2f, trunkW * 0.75f);
+                foreach (var br in branches)
+                {
+                    float sx = baseX;
+                    float sy = gy - h * br.frac;
+                    float blen = h * br.lenFrac;
+                    float ang = br.angleDeg * (float)Math.PI / 180.0f;
+                    float ex = sx + br.side * blen * (float)Math.Sin(ang);
+                    float ey = sy - blen * (float)Math.Cos(ang);
+                    _dc!.DrawLine(new Vector2(sx, sy), new Vector2(ex, ey), brush, branchW, _strokeStyle);
+                    _dc!.FillEllipse(new Ellipse(new Vector2(ex, ey), branchW * 0.9f, branchW * 0.9f), brush);
+                }
+                break;
+            }
+            default:
+            {
+                // Brain coral — bulbous mound with internal ridge lines.
+                float cx = baseX;
+                float cy = gy - h * 0.45f;
+                float rx = w * 0.55f;
+                float ry = h * 0.55f;
+                _dc!.FillEllipse(new Ellipse(new Vector2(cx, cy), rx, ry), brush);
+                // Ridge lines suggest the brain texture.
+                if (_bubbleStrokeBrush is null) break;
+                float ridgeW = Math.Max(0.8f, w * 0.06f);
+                for (int i = -2; i <= 2; i++)
+                {
+                    float t = i / 2.0f;
+                    float ridgeY = cy + t * ry * 0.55f;
+                    float halfRidge = rx * (float)Math.Sqrt(Math.Max(0.0, 1.0 - t * t * 0.85)) * 0.85f;
+                    _dc!.DrawLine(new Vector2(cx - halfRidge, ridgeY),
+                                  new Vector2(cx + halfRidge, ridgeY),
+                                  _bubbleStrokeBrush!, ridgeW, _strokeStyle);
+                }
+                break;
+            }
+        }
+    }
+
     private static System.Numerics.Matrix3x2 TreeSwayTransform(in Blade b, double totalH, double pivotGy)
     {
         if (!(totalH > 0.0)) return System.Numerics.Matrix3x2.Identity;
@@ -1400,6 +1587,12 @@ internal sealed class GrassWindow : IDisposable
         }
         else if (b.IsPine || b.IsMaple)
         {
+            return;
+        }
+
+        if (b.IsCoral)
+        {
+            DrawCoral(in b, groundY);
             return;
         }
 
@@ -1908,6 +2101,17 @@ internal sealed class GrassWindow : IDisposable
         try { _birdBrush?.Dispose(); } catch { }
         try { _petNameBrush?.Dispose(); } catch { }
         try { _petNameShadowBrush?.Dispose(); } catch { }
+        try { _fishFinBrush?.Dispose(); } catch { }
+        if (_fishBrushes is not null)
+        {
+            foreach (var br in _fishBrushes) { try { br?.Dispose(); } catch { } }
+        }
+        try { _bubbleHighlightBrush?.Dispose(); } catch { }
+        try { _bubbleStrokeBrush?.Dispose(); } catch { }
+        if (_coralBrushes is not null)
+        {
+            foreach (var br in _coralBrushes) { try { br?.Dispose(); } catch { } }
+        }
         try { _petNameTextFormat?.Dispose(); } catch { }
         try { _dwriteFactory?.Dispose(); } catch { }
         try { _targetBitmap?.Dispose(); } catch { }

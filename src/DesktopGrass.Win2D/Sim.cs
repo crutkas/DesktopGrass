@@ -136,6 +136,13 @@ internal struct Blade
     // 0.0 keeps default-constructed Blade fixtures ready to puff immediately.
     public double LeafPuffCooldownEnd;
 
+    // Coral. Ocean-only slot-bound blade variant.
+    public bool   IsCoral;
+    public byte   CoralType;        // 0 = fan, 1 = branching, 2 = brain
+    public double CoralHeight;      // DIP
+    public double CoralWidth;       // DIP
+    public byte   CoralColorIdx;
+
     public double EffectiveLean;
 }
 
@@ -144,7 +151,7 @@ internal struct Blade
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
 // 5 (Raindrop) retired — rain effect removed; discriminant left as a gap so the
 // remaining cross-impl-locked ordinals stay stable.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11, SnowPuff = 12 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11, SnowPuff = 12, Bubble = 13, Fish = 14 }
 
 public struct Entity
 {
@@ -257,6 +264,12 @@ internal sealed class Sim
     public Prng SnowDriftPrng;
     public double SnowDriftCooldownEnd;
 
+    // Ocean: bubble emitter (rising) and fish stream (horizontal swimmers).
+    // Fish are persistent — count is maintained near target every tick.
+    public Prng BubblePrng;
+    public double NextBubbleSpawnTime;
+    public Prng FishPrng;
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     public Prng BirdFlybyPrng;
@@ -350,6 +363,13 @@ internal sealed class Sim
                 LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
                 LeafPuffPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PUFF_PRNG_SALT);
                 NextLeafSpawnTime = GlobalTime;
+                break;
+            case Scene.Ocean:
+                GenerateCoralForOcean(this);
+                BubblePrng = Prng.Init(EntitySeed ^ Constants.BUBBLE_PRNG_SALT);
+                NextBubbleSpawnTime = GlobalTime;
+                FishPrng = Prng.Init(EntitySeed ^ Constants.FISH_PRNG_SALT);
+                SpawnInitialFish();
                 break;
         }
 
@@ -780,6 +800,11 @@ internal sealed class Sim
         b.MapleCanopyColorIdx = 0;
         b.MapleIsBare = false;
         b.LeafPuffCooldownEnd = 0.0;
+        b.IsCoral = false;
+        b.CoralType = 0;
+        b.CoralHeight = 0.0;
+        b.CoralWidth = 0.0;
+        b.CoralColorIdx = 0;
         b.IsFlower = b.OriginalIsFlower;
         b.IsMushroom = b.OriginalIsMushroom;
     }
@@ -856,6 +881,79 @@ internal sealed class Sim
             b.MapleCanopyColorIdx = (byte)maplePrng.Index((uint)Constants.MAPLE_CANOPY_COLOR_COUNT);
             b.MapleIsBare = maplePrng.Uniform(0.0, 1.0) < Constants.MAPLE_BARE_FRACTION;
         }
+    }
+
+    public static void GenerateCoralForOcean(Sim sim)
+    {
+        var coralPrng = Prng.Init(sim.EntitySeed ^ Constants.CORAL_PRNG_SALT);
+
+        for (int i = 0; i < sim.Blades.Length; i++)
+        {
+            ref Blade b = ref sim.Blades[i];
+            RestoreOriginalVariants(ref b);
+            // Underwater scene suppresses mushrooms — they don't fit a reef.
+            b.IsMushroom = false;
+
+            double r = coralPrng.Uniform(0.0, 1.0);
+            if (r >= Constants.CORAL_PROBABILITY) continue;
+
+            // Draw order: probability (consumed above), height, width, type,
+            // color. Locked so PRNG stream is reproducible.
+            b.IsCoral = true;
+            b.IsFlower = false;
+            b.IsMushroom = false;
+            b.CoralHeight = coralPrng.Uniform(Constants.CORAL_HEIGHT_MIN, Constants.CORAL_HEIGHT_MAX);
+            b.CoralWidth  = coralPrng.Uniform(Constants.CORAL_WIDTH_MIN,  Constants.CORAL_WIDTH_MAX);
+            b.CoralType   = (byte)coralPrng.Index((uint)Constants.CORAL_TYPE_COUNT);
+            b.CoralColorIdx = (byte)coralPrng.Index((uint)Constants.CORAL_COLOR_COUNT);
+        }
+    }
+
+    private void SpawnInitialFish()
+    {
+        if (MonitorWidth <= 0.0) return;
+        int target = TargetFishCount();
+        for (int i = 0; i < target && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = SpawnFish(fromEdge: false);
+            Entities.Add(e);
+        }
+    }
+
+    private int TargetFishCount()
+    {
+        double scaled = Constants.FISH_COUNT_PER_1920DIP * MonitorWidth / 1920.0;
+        int n = (int)Math.Round(scaled);
+        if (n < Constants.FISH_COUNT_MIN) n = Constants.FISH_COUNT_MIN;
+        if (n > Constants.FISH_COUNT_MAX) n = Constants.FISH_COUNT_MAX;
+        return n;
+    }
+
+    private Entity SpawnFish(bool fromEdge)
+    {
+        Entity e = default;
+        e.Kind = EntityKind.Fish;
+        e.Size = FishPrng.Uniform(Constants.FISH_SIZE_MIN, Constants.FISH_SIZE_MAX);
+        double speed = FishPrng.Uniform(Constants.FISH_SPEED_MIN, Constants.FISH_SPEED_MAX);
+        bool swimsRight = (FishPrng.NextU64() & 1UL) != 0UL;
+        e.Vx = swimsRight ? speed : -speed;
+        e.Vy = 0.0;
+        double altitude = FishPrng.Uniform(Constants.FISH_ALTITUDE_MIN, Constants.FISH_ALTITUDE_MAX);
+        e.Y = GroundY - altitude;
+        if (fromEdge)
+        {
+            e.X = swimsRight ? -e.Size - 4.0 : MonitorWidth + e.Size + 4.0;
+        }
+        else
+        {
+            e.X = FishPrng.Uniform(0.0, MonitorWidth);
+        }
+        e.PhaseX = FishPrng.Uniform(0.0, Math.PI * 2.0);
+        e.ColorVariant = (byte)FishPrng.Index((uint)Constants.FISH_COLOR_COUNT);
+        e.Age = 0.0;
+        e.Lifetime = -1.0; // edge-respawned, not lifetime-bounded
+        e.Seed = FishPrng.NextU32();
+        return e;
     }
 
     public static void GenerateCactiForDesert(Sim sim)
@@ -1138,6 +1236,15 @@ internal sealed class Sim
                     * Math.Sin(e.Age * Constants.LEAF_HORIZONTAL_DRIFT_FREQ + e.PhaseX);
                 Entities[i] = e;
             }
+            else if (e.Kind == EntityKind.Bubble)
+            {
+                // Apply horizontal wobble in absolute terms (X0 = spawn column).
+                // The generic Vx*dt above is zero for bubbles so this fully
+                // controls X.
+                e.X = e.X0 + Constants.BUBBLE_WOBBLE_AMPLITUDE
+                    * Math.Sin(e.Age * Constants.BUBBLE_WOBBLE_FREQUENCY * twoPi + e.PhaseX);
+                Entities[i] = e;
+            }
         }
 
         // Snow-puff powder (§21): gravity pulls the upward burst back toward the
@@ -1199,7 +1306,11 @@ internal sealed class Sim
                              || (e.Kind == EntityKind.SnowPuff && e.Y > groundY)
                              || (e.Kind == EntityKind.Bird
                                  && ((e.Vx >= 0.0 && e.X > MonitorWidth + 50.0)
-                                  || (e.Vx < 0.0 && e.X < -50.0))));
+                                  || (e.Vx < 0.0 && e.X < -50.0)))
+                             || (e.Kind == EntityKind.Bubble && e.Y < -e.Size)
+                             || (e.Kind == EntityKind.Fish
+                                 && ((e.Vx >= 0.0 && e.X > MonitorWidth + e.Size + 4.0)
+                                  || (e.Vx < 0.0 && e.X < -e.Size - 4.0))));
 
         // §16 Sheep state machine. Walking moves horizontally and bounces off
         // the edges; Grazing/Idle/Sleeping/Greeting freeze position (the generic
@@ -1593,6 +1704,51 @@ internal sealed class Sim
                 e.Lifetime = -1.0;
                 Entities.Add(e);
                 NextLeafSpawnTime += LeafPrng.Exponential(lambda);
+            }
+        }
+
+        if (CurrentScene == Scene.Ocean && MonitorWidth > 0.0)
+        {
+            // Bubbles rise from the seafloor toward the canvas top, with a
+            // gentle sinusoidal horizontal wobble (applied during the post
+            // pass below). Lifetime ensures cleanup even if the cap-by-Y
+            // condition is somehow missed on a window resize.
+            double lambda = Constants.BUBBLE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
+            while (lambda > 0.0 && GlobalTime >= NextBubbleSpawnTime && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+            {
+                Entity e = default;
+                e.Kind = EntityKind.Bubble;
+                e.Size = BubblePrng.Uniform(Constants.BUBBLE_SIZE_MIN, Constants.BUBBLE_SIZE_MAX);
+                double xFrac = BubblePrng.Uniform(0.0, 1.0);
+                double spawnX = xFrac * MonitorWidth;
+                double rise = BubblePrng.Uniform(Constants.BUBBLE_RISE_SPEED_MIN, Constants.BUBBLE_RISE_SPEED_MAX);
+                e.PhaseX = BubblePrng.Uniform(0.0, twoPi);
+                e.X0 = spawnX;
+                e.X = spawnX;
+                e.Y = groundY + e.Size + 2.0;
+                e.Vx = 0.0;
+                e.Vy = -rise; // negative = up
+                e.BaseSpeed = rise;
+                e.Age = 0.0;
+                // Travel distance from below ground to above canvas = groundY + 2*size.
+                e.Lifetime = (groundY + 2.0 * e.Size) / rise + Constants.BUBBLE_LIFETIME_PADDING_SEC;
+                e.Seed = BubblePrng.NextU32();
+                Entities.Add(e);
+                NextBubbleSpawnTime += BubblePrng.Exponential(lambda);
+            }
+
+            // Keep the fish population at the target. Edge despawn happens in
+            // the cleanup RemoveAll below.
+            int target = TargetFishCount();
+            int currentFish = 0;
+            for (int i = 0; i < Entities.Count; i++)
+            {
+                if (Entities[i].Kind == EntityKind.Fish) currentFish++;
+            }
+            while (currentFish < target && Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+            {
+                Entities.Add(SpawnFish(fromEdge: true));
+                currentFish++;
             }
         }
     }
