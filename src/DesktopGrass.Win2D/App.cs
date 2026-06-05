@@ -47,6 +47,17 @@ internal static class Win32App
         System.Threading.Interlocked.Exchange(ref s_pendingAutoStart, enabled ? 1 : 0);
     public static int ConsumePendingAutoStartChange() =>
         System.Threading.Interlocked.Exchange(ref s_pendingAutoStart, -1);
+
+    // Set when a display/DPI change requires the per-monitor windows to be
+    // rebuilt against the new monitor geometry (see App.RebuildWindows).
+    private static volatile bool s_pendingRebuild;
+    public static void RequestRebuild() => s_pendingRebuild = true;
+    public static bool ConsumePendingRebuild()
+    {
+        if (!s_pendingRebuild) return false;
+        s_pendingRebuild = false;
+        return true;
+    }
 }
 
 internal sealed class App : IDisposable
@@ -64,6 +75,7 @@ internal sealed class App : IDisposable
     private AppState? _persistedState;
     private DateTimeOffset _lastPersistenceSave = DateTimeOffset.UtcNow;
     private bool _shutdownSaved;
+    private bool _rebuilding;
     private Win32.WndProc? _wndProcDelegate; // keep alive for class lifetime
     private ushort _classAtom;
     private long _qpcFreq;
@@ -209,6 +221,33 @@ internal sealed class App : IDisposable
         }
     }
 
+    private void RebuildWindows()
+    {
+        // Persist current grass state (cuts/snow) so it can be restored against
+        // any monitors whose geometry is unchanged, then tear down and recreate
+        // every per-monitor window against the current display layout. This is
+        // the in-place equivalent of the native app's OnDisplayChanged rebuild
+        // and keeps the swap chain / blade layout matched to the live monitor
+        // geometry after a resolution or DPI change.
+        try { SaveCurrentState(); } catch { }
+
+        _rebuilding = true;
+        try
+        {
+            foreach (var w in _windows)
+            {
+                try { w.Dispose(); } catch { }
+            }
+            _windows.Clear();
+
+            CreatePerMonitorWindows();
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+    }
+
     private void LoadPersistedState()
     {
         _persistedState = Persistence.Load();
@@ -310,12 +349,18 @@ internal sealed class App : IDisposable
                 return (IntPtr)Win32.HTTRANSPARENT;
 
             case Win32.WM_DPICHANGED:
-                // For v1, ignore: monitors get rebuilt on WM_DISPLAYCHANGE
-                // which covers the typical resolution/DPI change scenario.
+                // The monitor's scale changed (or the window moved to a
+                // different-DPI monitor). Rebuild so the window, swap chain and
+                // blade layout are regenerated for the new DPI. Returning zero
+                // suppresses the default resize; RebuildWindows replaces the
+                // window outright.
+                Win32App.RequestRebuild();
                 return IntPtr.Zero;
 
             case Win32.WM_DISPLAYCHANGE:
-                Win32App.SignalQuit(); // simplest: rebuild on next launch
+                // Resolution / monitor topology changed. Rebuild the per-monitor
+                // windows in place (matches the native app) instead of quitting.
+                Win32App.RequestRebuild();
                 return IntPtr.Zero;
 
             case Win32.WM_CLOSE:
@@ -323,7 +368,10 @@ internal sealed class App : IDisposable
                 return IntPtr.Zero;
 
             case Win32.WM_DESTROY:
-                Win32.PostQuitMessage(0);
+                // A grass window is also destroyed during an in-place rebuild
+                // (RebuildWindows); only treat destruction as an app-quit signal
+                // when we are not rebuilding.
+                if (!_rebuilding) Win32.PostQuitMessage(0);
                 return IntPtr.Zero;
         }
         return Win32.DefWindowProcW(hwnd, msg, wparam, lparam);
@@ -353,6 +401,11 @@ internal sealed class App : IDisposable
                 Win32.DispatchMessageW(in msg);
             }
             if (Win32App.QuitRequested) break;
+
+            if (Win32App.ConsumePendingRebuild())
+            {
+                RebuildWindows();
+            }
 
             Win32.QueryPerformanceCounter(out long now);
             double dt = (now - lastTick) / (double)_qpcFreq;

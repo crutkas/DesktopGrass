@@ -12,6 +12,22 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Fix: Win2D grass goes stale / partial after a display change
+
+### Fixed
+- **Win2D (`d2d`) overlay no longer renders only part of the screen width after a
+  resolution or DPI change.** Previously the Win2D app quit on `WM_DISPLAYCHANGE`
+  and ignored `WM_DPICHANGED`, so after a live display change the window, swap
+  chain and blade layout went stale and the grass covered only part of the
+  monitor. The app now rebuilds its per-monitor windows in place on both
+  messages (matching the native app's `OnDisplayChanged` behavior). A guard
+  (`_rebuilding`) prevents the per-window `WM_DESTROY` fired while tearing down
+  the old windows from being mistaken for an app-quit signal. Verified by
+  toggling the primary monitor between 3270×2180 and 2560×1440: the app stays
+  alive and the grass window tracks the new full width each time.
+
+---
+
 ## 2026-06-05 — Performance: 30 fps cap + cheaper blade rendering
 
 ### Changed
