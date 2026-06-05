@@ -29,8 +29,7 @@ no engagement loops, no toys.
 - **Butterflies by day, fireflies by night** — ambient flyers above the strip.
   Crossfade during dawn and dusk for a "magic hour" overlap.
 - **V-formation bird flybys** — occasional flocks of 3-7 birds cross overhead
-  during daytime, far above the critters and weather.
-- **Light rain** weather with thin blue-grey raindrops.
+  during daytime, far above the critters.
 
 **Desert scene**
 - Shorter grass; cacti dominate; rolling tumbleweeds.
@@ -128,7 +127,7 @@ you want the C# build.
 
 - **Unit tests** — pure-logic suites for each impl in [`tests/`](tests). They
   cover PRNG determinism, blade generation, sway, gusts, cuts, regrowth, stroke
-  geometry, flowers, mushrooms, scenes, weather (rain, snow), critters (sheep,
+  geometry, flowers, mushrooms, scenes, weather (snow), critters (sheep,
   cat, bunny), butterflies, fireflies, persistence, and click-through window
   styles. The two impls share a `Sim` / `Constants` core so they assert against
   the same numerical contract.
@@ -161,7 +160,7 @@ Both implementations use:
 - The same canonical test seed (`0x6B6173746F`).
 - The same per-feature PRNG salt for each independent stream (blades, regrowth,
   flowers, mushrooms, tumbleweeds, snowflakes, ambient gusts, critters,
-  raindrops, butterflies, fireflies).
+  butterflies, fireflies).
 - The same sway / gust / cut / regrowth / chord-bend / weather / critter math
   from [`docs/architecture.md`](docs/architecture.md).
 
@@ -175,7 +174,6 @@ Possible next directions, in no particular order:
 
 - More critter species (deer, ducks crossing the strip).
 - Auto-rotation of scenes by date (e.g. Autumn in October, Winter in December).
-- Brief rainbow arc after rain bursts end (requires modeling rain in bursts first).
 - Multi-monitor smoke tests in CI.
 - A settings UI (currently held off — passive philosophy prefers tray-only
   controls; revisit if the tray menu starts feeling cluttered).

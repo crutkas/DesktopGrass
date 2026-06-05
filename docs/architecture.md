@@ -997,7 +997,7 @@ enum EntityKind : uint8_t {
     EntitySnowflake  = 2,
     EntitySheep      = 3,
     EntityCat        = 4,
-    EntityRaindrop   = 5,
+    // 5 retired (Raindrop — rain effect removed); discriminant left as a gap.
     EntityBunny      = 6,
     EntityButterfly  = 7,
     EntityFirefly    = 8,
@@ -1054,7 +1054,7 @@ The emitter and respawn paths are the only places entities are added/removed dur
 
 ### Cross-impl conformance for entities
 
-- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Raindrop=5, Bunny=6, Butterfly=7, Firefly=8, Bird=9, Hedgehog=10, Leaf=11}` match exactly.
+- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Bunny=6, Butterfly=7, Firefly=8, Bird=9, Hedgehog=10, Leaf=11}` match exactly (value `5`, formerly `Raindrop`, is a retired gap).
 - Entity-stream PRNG salts (`TUMBLEWEED_PRNG_SALT`, `SNOWFLAKE_PRNG_SALT`, `RAINDROP_PRNG_SALT`, `CACTUS_PRNG_SALT`, `LEAF_PRNG_SALT`, `MAPLE_PRNG_SALT`) are global constants — both impls draw entity parameters from streams seeded `seed XOR salt`.
 - A new conformance test class (`entity_tests.cpp` / `EntityTests.cs`) asserts the first tumbleweed for `CANONICAL_TEST_SEED + Desert + monitorWidth=1920` matches a pinned (`x`, `y`, `vx`, `size`) snapshot derivable from the spec, and the first snowflake at `t = 0.5s` (after exactly one tick at 0.5s) matches a pinned snapshot.
 - Blade conformance (§12) is unchanged: `sim.blades` for any seed is bit-identical regardless of `currentScene`.
@@ -1498,7 +1498,7 @@ constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Raindrop = 5`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, `EntityKind::Firefly = 8`, `EntityKind::Bird = 9`, `EntityKind::Hedgehog = 10`, and `EntityKind::Leaf = 11`; existing discriminants MUST NOT be renumbered. Bunny and Hedgehog introduce no new PRNG salt; butterflies, fireflies, birds, and leaves use independent salts documented in their sections.
+Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, `EntityKind::Firefly = 8`, `EntityKind::Bird = 9`, `EntityKind::Hedgehog = 10`, and `EntityKind::Leaf = 11`; existing discriminants MUST NOT be renumbered (value `5`, formerly `Raindrop`, is a retired gap and must not be reused). Bunny and Hedgehog introduce no new PRNG salt; butterflies, fireflies, birds, and leaves use independent salts documented in their sections.
 
 ### Sim state
 
@@ -2361,7 +2361,18 @@ DesktopGrass renders a passive, full-strip day-night ambient tint as the final d
 
 Current builds keep the tint enabled by default (`DAYTINT_ENABLED_DEFAULT = true`) and do not add a tray toggle; therefore day tint has no `state.json` impact.
 
-## 20. Weather — Light rain
+## 20. Weather — Light rain (REMOVED)
+
+> **Removed.** The Grass-scene light-rain effect was removed. The raindrop
+> emitter, `EntityKind::Raindrop` discriminant (value `5`, now a retired gap),
+> the `raindropPrng` / `nextRaindropSpawnTime` state, the per-drop renderer, and
+> all `RAINDROP_*` constants no longer exist in either implementation. Scene
+> transitions now clear all roaming entities outright (there is no longer any
+> entity preserved for a soft fade-out). The historical specification below is
+> retained only for context.
+
+<details>
+<summary>Historical specification (no longer implemented)</summary>
 
 Grass scene weather is a passive drizzle: small muted blue-gray drops drift down through the strip and disappear by lifetime expiry after passing the bottom. The effect is intentionally calm background atmosphere, not a downpour.
 
@@ -2393,4 +2404,6 @@ Per raindrop, both implementations MUST draw fields in this exact order: `size`,
 ### Rendering and scene changes
 
 Render each raindrop as a slim line from `(x, y)` to `(x - vx * 0.03, y + size)` using `RAINDROP_COLOR` and `RAINDROP_THICKNESS`; the horizontal tail suggests subtle motion blur. Switching away from Grass stops new emission but preserves existing raindrops so they softly fade out through normal lifetime expiry rather than hard-cutting.
+
+</details>
 

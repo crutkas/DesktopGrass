@@ -1021,13 +1021,8 @@ void remove_critters(Sim& sim) noexcept {
         sim.entities.end());
 }
 
-void remove_scene_transition_entities(Sim& sim, Scene destination) noexcept {
-    sim.entities.erase(
-        std::remove_if(sim.entities.begin(), sim.entities.end(),
-            [destination](const Entity& e) {
-                return destination == Scene::Autumn || e.kind != EntityKind::Raindrop;
-            }),
-        sim.entities.end());
+void remove_scene_transition_entities(Sim& sim) noexcept {
+    sim.entities.clear();
 }
 
 void generate_critters_sheep(Sim& sim, bool allowOverride) noexcept {
@@ -1326,8 +1321,9 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         sim.snowDepth = 0.0;
     }
     sim.currentScene = s;
-    // Soft-fade Grass rain for existing scenes; Autumn is intentionally weather-free except leaves.
-    remove_scene_transition_entities(sim, s);
+    // Scene transitions clear all roaming entities; each scene repopulates its
+    // own below.
+    remove_scene_transition_entities(sim);
 
     // Every scene transition starts from a clean blade-variant slate so that
     // e.g. Desert→Winter doesn't leave cacti on screen. Desert then promotes
@@ -1338,7 +1334,6 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
 
     switch (s) {
     case Scene::Grass:
-        sim.nextRaindropSpawnTime = sim.globalTime;
         break;
     case Scene::Desert:
         generate_cacti_for_desert(sim);
@@ -1367,8 +1362,8 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
 
 void sim_set_critter(Sim& sim, CritterKind c) noexcept {
     sim.currentCritter = c;
-    // Erase only critter entities — scene entities (tumbleweeds, snowflakes,
-    // raindrops) are preserved across critter toggles.
+    // Erase only critter entities — scene entities (tumbleweeds, snowflakes)
+    // are preserved across critter toggles.
     remove_critters(sim);
     generate_critters_for_kind(sim);
 }
@@ -1869,29 +1864,6 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             sim.nextLeafSpawnTime += prng_exponential(sim.leafPrng, lambda);
         }
     }
-
-    if (sim.currentScene == Scene::Grass && sim.monitorWidth > 0.0) {
-        const double lambda = RAINDROP_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
-        while (sim.globalTime >= sim.nextRaindropSpawnTime
-               && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
-            Entity e{};
-            e.kind          = EntityKind::Raindrop;
-            // Draw order: size, x, fallSpeed, vx, seed, then next-spawn exponential.
-            e.size          = prng_uniform(sim.raindropPrng, RAINDROP_LENGTH_MIN, RAINDROP_LENGTH_MAX);
-            e.x             = prng_uniform(sim.raindropPrng, -10.0, sim.monitorWidth + 10.0);
-            const double fallSpeed = prng_uniform(sim.raindropPrng, RAINDROP_FALL_SPEED_MIN, RAINDROP_FALL_SPEED_MAX);
-            e.y             = -e.size - 2.0;
-            e.vx            = prng_uniform(sim.raindropPrng, RAINDROP_DRIFT_MIN, RAINDROP_DRIFT_MAX);
-            e.vy            = fallSpeed;
-            e.rotation      = 0.0;
-            e.rotationSpeed = 0.0;
-            e.age           = 0.0;
-            e.lifetime      = (groundY + e.size) / fallSpeed + RAINDROP_LIFETIME_PADDING_SEC;
-            e.seed          = prng_next_u32(sim.raindropPrng);
-            sim.entities.push_back(e);
-            sim.nextRaindropSpawnTime += prng_exponential(sim.raindropPrng, lambda);
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1963,8 +1935,6 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
                                          AMBIENT_GUST_INTERVAL_MIN,
                                          AMBIENT_GUST_INTERVAL_MAX);
 
-    prng_init(s.raindropPrng, s.entitySeed ^ RAINDROP_PRNG_SALT);
-    s.nextRaindropSpawnTime = s.globalTime;
     prng_init(s.leafPrng, s.entitySeed ^ LEAF_PRNG_SALT);
     s.nextLeafSpawnTime = s.globalTime;
     prng_init(s.leafPuffPrng, s.entitySeed ^ LEAF_PUFF_PRNG_SALT);
@@ -1995,8 +1965,6 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
                                            AMBIENT_GUST_INTERVAL_MIN,
                                            AMBIENT_GUST_INTERVAL_MAX);
 
-    prng_init(sim.raindropPrng, sim.entitySeed ^ RAINDROP_PRNG_SALT);
-    sim.nextRaindropSpawnTime = sim.globalTime;
     prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
     sim.nextLeafSpawnTime = sim.globalTime;
     prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);

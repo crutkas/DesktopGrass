@@ -417,11 +417,6 @@ TEST_CASE("Autumn is critter-free", "[autumn][critter][gating]") {
     REQUIRE(count_kind(sim, EntityKind::Hedgehog) == 0);
 }
 
-TEST_CASE("Autumn does not spawn raindrops", "[autumn][weather]") {
-    Sim sim = make_autumn_sim();
-    for (int i = 0; i < 500; ++i) sim_tick(sim, 0.05, nullptr, 0);
-    REQUIRE(count_kind(sim, EntityKind::Raindrop) == 0);
-}
 
 TEST_CASE("Autumn does not spawn snowflakes", "[autumn][weather]") {
     Sim sim = make_autumn_sim();
@@ -598,7 +593,6 @@ TEST_CASE("Autumn PRNG salts are unique", "[autumn][prng]") {
         FIREFLY_PRNG_SALT,
         BIRD_FLYBY_PRNG_SALT,
         SNOWFLAKE_PRNG_SALT,
-        RAINDROP_PRNG_SALT,
         PINE_PRNG_SALT,
         LEAF_PRNG_SALT,
         MAPLE_PRNG_SALT,

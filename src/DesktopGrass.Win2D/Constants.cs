@@ -684,20 +684,6 @@ internal static class Constants
     public const double SNOW_BANK_MIN_DEPTH          = 3.0;
     public const ulong  SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEul;
 
-    // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
-    // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
-    public const ulong RAINDROP_PRNG_SALT = 0xD40F0A1DD40F0A1Dul;
-    public const double RAINDROP_EMIT_RATE_PER_1920DIP = 6.0;
-    public const double RAINDROP_LENGTH_MIN = 4.0;
-    public const double RAINDROP_LENGTH_MAX = 7.0;
-    public const double RAINDROP_THICKNESS = 0.9;
-    public const double RAINDROP_FALL_SPEED_MIN = 240.0;
-    public const double RAINDROP_FALL_SPEED_MAX = 360.0;
-    public const double RAINDROP_DRIFT_MIN = -8.0;
-    public const double RAINDROP_DRIFT_MAX = 8.0;
-    public const uint RAINDROP_COLOR = 0x88B0C4D0u;
-    public const double RAINDROP_LIFETIME_PADDING_SEC = 0.3;
-
     // Falling leaves (§16.5). Autumn-only transient particles.
     public const double LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;
     public const double LEAF_FALL_SPEED_MIN = 14.0;

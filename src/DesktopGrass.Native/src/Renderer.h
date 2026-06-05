@@ -103,7 +103,6 @@ private:
     ComPtr<ID2D1StrokeStyle>               roundStrokeStyle_;
     ComPtr<ID2D1SolidColorBrush>           tumbleweedBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowflakeBrush_;
-    ComPtr<ID2D1SolidColorBrush>           raindropBrush_;
     ComPtr<ID2D1SolidColorBrush>           leafBrushes_[LEAF_COLOR_COUNT];
     ComPtr<ID2D1SolidColorBrush>           snowTipBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerTopBrush_;

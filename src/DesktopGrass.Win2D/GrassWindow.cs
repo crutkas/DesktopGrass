@@ -70,7 +70,6 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _cactusBrush;
     private ID2D1SolidColorBrush? _tumbleweedBrush;
     private ID2D1SolidColorBrush? _snowflakeBrush;
-    private ID2D1SolidColorBrush? _raindropBrush;
     private ID2D1SolidColorBrush[]? _leafBrushes;
     private ID2D1SolidColorBrush? _snowTipBrush;
     private ID2D1SolidColorBrush? _snowLayerTopBrush;
@@ -247,7 +246,6 @@ internal sealed class GrassWindow : IDisposable
         _cactusBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.CACTUS_COLOR));
         _tumbleweedBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.TUMBLEWEED_COLOR));
         _snowflakeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOWFLAKE_COLOR));
-        _raindropBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RAINDROP_COLOR));
         _leafBrushes = new ID2D1SolidColorBrush[Constants.LEAF_COLOR_COUNT];
         for (int i = 0; i < Constants.LEAF_COLOR_COUNT; i++)
         {
@@ -596,17 +594,6 @@ internal sealed class GrassWindow : IDisposable
             if (e.Kind == EntityKind.Firefly)
             {
                 DrawFirefly(in e, hourFloat);
-                continue;
-            }
-
-            if (e.Kind == EntityKind.Raindrop)
-            {
-                float x1 = (float)e.X;
-                float y1 = (float)e.Y;
-                float x2 = (float)(e.X - e.Vx * 0.03);
-                float y2 = (float)(e.Y + e.Size);
-                _dc!.DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), _raindropBrush!,
-                              (float)Constants.RAINDROP_THICKNESS);
                 continue;
             }
 
@@ -1867,7 +1854,6 @@ internal sealed class GrassWindow : IDisposable
         try { _cactusBrush?.Dispose(); } catch { }
         try { _tumbleweedBrush?.Dispose(); } catch { }
         try { _snowflakeBrush?.Dispose(); } catch { }
-        try { _raindropBrush?.Dispose(); } catch { }
         if (_leafBrushes is not null)
         {
             foreach (var br in _leafBrushes)

@@ -229,11 +229,6 @@ bool Renderer::CreateDeviceResources() {
                                             snowflakeBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    raindropBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RAINDROP_COLOR),
-                                            raindropBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
     for (int i = 0; i < LEAF_COLOR_COUNT; ++i) {
         leafBrushes_[i].Reset();
         hr = d2dContext_->CreateSolidColorBrush(FromArgb(LEAF_COLORS[i]),
@@ -532,7 +527,6 @@ void Renderer::DiscardDeviceResources() {
     cactusBrush_.Reset();
     tumbleweedBrush_.Reset();
     snowflakeBrush_.Reset();
-    raindropBrush_.Reset();
     for (auto& b : leafBrushes_) b.Reset();
     snowTipBrush_.Reset();
     snowLayerTopBrush_.Reset();
@@ -1894,18 +1888,6 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
 
         if (e.kind == EntityKind::Firefly) {
             DrawFirefly(e, hourFloat);
-            continue;
-        }
-
-        if (e.kind == EntityKind::Raindrop) {
-            const float x1 = static_cast<float>(e.x);
-            const float y1 = static_cast<float>(e.y);
-            const float x2 = static_cast<float>(e.x - e.vx * 0.03);
-            const float y2 = static_cast<float>(e.y + e.size);
-            d2dContext_->DrawLine(D2D1::Point2F(x1, y1),
-                                  D2D1::Point2F(x2, y2),
-                                  raindropBrush_.Get(),
-                                  static_cast<float>(RAINDROP_THICKNESS));
             continue;
         }
 

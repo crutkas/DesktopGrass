@@ -12,6 +12,16 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Removed the rain effect
+
+### Removed
+- **Removed the Grass-scene light rain.** The raindrop emitter, renderer, brush,
+  `EntityKind::Raindrop` discriminant (value `5`, now a retired gap), the
+  `raindropPrng` / `nextRaindropSpawnTime` state, and all `RAINDROP_*` constants
+  are gone from both the Native and Win2D implementations. Scene transitions now
+  simply clear all roaming entities. Fireflies, butterflies, snow, and falling
+  leaves are unaffected. Test counts drop accordingly (292 native / 300 Win2D).
+
 ## 2026-06-04 — Snow that actually looks like snow drifts
 
 ### Changed

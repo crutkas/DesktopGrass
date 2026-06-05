@@ -403,14 +403,6 @@ public sealed class AutumnTests
     }
 
     [Fact]
-    public void AutumnDoesNotSpawnRaindrops()
-    {
-        Sim sim = BuildAutumnSim();
-        for (int i = 0; i < 500; i++) sim.Tick(0.05, ReadOnlySpan<InputEvent>.Empty);
-        Assert.Equal(0, CountKind(sim, EntityKind.Raindrop));
-    }
-
-    [Fact]
     public void AutumnDoesNotSpawnSnowflakes()
     {
         Sim sim = BuildAutumnSim();
@@ -454,7 +446,6 @@ public sealed class AutumnTests
             Constants.FIREFLY_PRNG_SALT,
             Constants.BIRD_FLYBY_PRNG_SALT,
             Constants.SNOWFLAKE_PRNG_SALT,
-            Constants.RAINDROP_PRNG_SALT,
             Constants.PINE_PRNG_SALT,
             Constants.LEAF_PRNG_SALT,
             Constants.MAPLE_PRNG_SALT,

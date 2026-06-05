@@ -313,7 +313,7 @@ public class WinterTests
             Constants.REGROW_PRNG_SALT, Constants.FLOWER_PRNG_SALT, Constants.MUSHROOM_PRNG_SALT,
             Constants.AMBIENT_GUST_PRNG_SALT, Constants.CACTUS_PRNG_SALT, Constants.TUMBLEWEED_PRNG_SALT,
             Constants.CRITTER_PRNG_SALT, Constants.BUTTERFLY_PRNG_SALT, Constants.FIREFLY_PRNG_SALT,
-            Constants.BIRD_FLYBY_PRNG_SALT, Constants.SNOWFLAKE_PRNG_SALT, Constants.RAINDROP_PRNG_SALT,
+            Constants.BIRD_FLYBY_PRNG_SALT, Constants.SNOWFLAKE_PRNG_SALT,
             Constants.PINE_PRNG_SALT, Constants.LEAF_PUFF_PRNG_SALT,
         };
         foreach (ulong s in otherSalts)
