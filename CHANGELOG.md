@@ -12,7 +12,34 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-04 — Removed the rain effect
+## 2026-06-04 — Snow footprints: carve-and-settle interaction
+
+### Added
+- **Clicking the winter snowbank now presses a soft footprint dent** that slowly
+  settles back over ~6 seconds, mirroring the grass cut-and-regrow loop so winter
+  has a tactile ground interaction like the other scenes (not just the snow puff).
+  Clicks both kick up powder *and* press a dent at the cursor.
+  - New transient carve heightfield `snowCarve` / `SnowCarve` (`SNOW_CARVE_BUCKETS`
+    = 192 columns across the monitor). Never persisted; cleared on every scene
+    change, sim init, and regenerate.
+  - New constants `SNOW_CARVE_RADIUS_DIP` (24), `SNOW_CARVE_DEPTH_PER_CLICK` (7),
+    `SNOW_CARVE_MAX_DEPTH` (11, the bank never inverts), `SNOW_CARVE_REFILL_RATE`
+    (1.8 DIP/s).
+  - New Sim API (both impls): `sim_apply_snow_carve`/`ApplySnowCarve` (raised-cosine
+    falloff, clamped), `sim_decay_snow_carve`/`DecaySnowCarve` (settle-back, never
+    negative), `snow_carve_depth_at`/`SnowCarveDepthAt` (interpolated query).
+  - Carve decays *before* per-frame input is processed, so a same-frame click lands
+    its full dent (pinned by an ordering test).
+  - Renderer: the snowbank silhouette dips at carved columns (effective depth
+    clamped to `SNOW_BANK_MIN_DEPTH`), with a cool recessed interior and a thin
+    raised-rim highlight along steep carve gradients so the dent reads as a scooped
+    trench rather than just a lower ridge.
+
+### Notes
+- Carve is **click-only** (no hover/Move carving) to keep the scene calm and make
+  the interaction input-rate independent.
+
+---
 
 ### Removed
 - **Removed the Grass-scene light rain.** The raindrop emitter, renderer, brush,

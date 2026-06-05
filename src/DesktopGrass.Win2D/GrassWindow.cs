@@ -477,7 +477,12 @@ internal sealed class GrassWindow : IDisposable
         }
 
         const float step = 2.0f;
-        float TopYAt(float sx) => groundY - (float)SnowBankDepthAt(sx, Sim.SnowDepth, phase);
+        float TopYAt(float sx)
+        {
+            double d = SnowBankDepthAt(sx, Sim.SnowDepth, phase) - Sim.SnowCarveDepthAt(sx);
+            if (d < Constants.SNOW_BANK_MIN_DEPTH) d = Constants.SNOW_BANK_MIN_DEPTH;
+            return groundY - (float)d;
+        }
 
         var prevTop = new Vector2(0.0f, TopYAt(0.0f));
         for (float x = 0.0f; x <= widthDip + step; x += step)
@@ -485,6 +490,7 @@ internal sealed class GrassWindow : IDisposable
             float sampleX = Math.Min(x, widthDip);
             float topY = TopYAt(sampleX);
             float depth = groundY - topY;
+            double carveHere = Sim.SnowCarveDepthAt(sampleX);
             if (depth > 0.0f)
             {
                 float crestY = topY + depth * (float)Constants.SNOW_BANK_CREST_BAND_FRAC;
@@ -496,6 +502,32 @@ internal sealed class GrassWindow : IDisposable
                              _driftBaseBrush, step + 0.5f, _strokeStyle);
                 _dc.DrawLine(new Vector2(sampleX, bodyBot), new Vector2(sampleX, groundY),
                              _snowBankShadowBrush, step + 0.5f, _strokeStyle);
+
+                // Carved columns get a cool recessed interior so the dent reads as
+                // a scooped trench rather than just a lower ridge.
+                if (carveHere > 0.8)
+                {
+                    float fill = Math.Min(depth, (float)carveHere * 1.4f);
+                    float a = Math.Min(0.7f, (float)(carveHere / Constants.SNOW_CARVE_MAX_DEPTH) * 0.7f);
+                    _snowBankShadowBrush.Opacity = a;
+                    _dc.DrawLine(new Vector2(sampleX, topY), new Vector2(sampleX, topY + fill),
+                                 _snowBankShadowBrush, step + 0.5f, _strokeStyle);
+                    _snowBankShadowBrush.Opacity = 1.0f;
+                }
+            }
+
+            // Raised rim: where the carve gradient is steep (a dent edge), the
+            // pushed-up snow catches the light — a thin bright dab on the rim side.
+            double carveL = Sim.SnowCarveDepthAt(Math.Max(0.0f, sampleX - step));
+            double carveR = Sim.SnowCarveDepthAt(Math.Min(widthDip, sampleX + step));
+            double grad = Math.Abs(carveR - carveL);
+            if (grad > 0.6 && carveHere < Constants.SNOW_CARVE_MAX_DEPTH)
+            {
+                float a = Math.Min(0.6f, (float)grad * 0.4f);
+                _snowLayerHighlightBrush.Opacity = a;
+                _dc.FillEllipse(new Ellipse(new Vector2(sampleX, topY - 0.6f), 1.3f, 1.3f),
+                                _snowLayerHighlightBrush);
+                _snowLayerHighlightBrush.Opacity = 1.0f;
             }
 
             var currentTop = new Vector2(sampleX, topY);

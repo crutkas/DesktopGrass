@@ -237,6 +237,10 @@ internal sealed class Sim
     public double SnowDepth;
     public ulong SnowPhaseSeed;
 
+    // §21.2 transient snow carve heightfield (footprints). NOT persisted; cleared
+    // on every scene change. Length SNOW_CARVE_BUCKETS once initialized.
+    public double[] SnowCarve = new double[Constants.SNOW_CARVE_BUCKETS];
+
     // §16.5 leaf emitter (Autumn scene only).
     public Prng LeafPrng;
     public double NextLeafSpawnTime;
@@ -331,6 +335,55 @@ internal sealed class Sim
         return Math.Min(top, WindowHeight);
     }
 
+    // §21.2 snow carve (footprints). Click presses a soft dent into the winter
+    // snowbank; it settles back over a few seconds. All no-ops outside Winter.
+    public void ApplySnowCarve(double x)
+    {
+        if (CurrentScene != Scene.Winter) return;
+        if (!double.IsFinite(x)) return;
+        if (MonitorWidth <= 0.0) return;
+        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return;
+        double bucketWidth = MonitorWidth / Constants.SNOW_CARVE_BUCKETS;
+        if (bucketWidth <= 0.0) return;
+        double pi = (2.0 * Math.PI) * 0.5;
+        for (int b = 0; b < Constants.SNOW_CARVE_BUCKETS; ++b)
+        {
+            double centerX = (b + 0.5) * bucketWidth;
+            double dist = Math.Abs(centerX - x);
+            if (dist >= Constants.SNOW_CARVE_RADIUS_DIP) continue;
+            double falloff = 0.5 * (1.0 + Math.Cos(pi * dist / Constants.SNOW_CARVE_RADIUS_DIP));
+            double v = SnowCarve[b] + Constants.SNOW_CARVE_DEPTH_PER_CLICK * falloff;
+            if (v > Constants.SNOW_CARVE_MAX_DEPTH) v = Constants.SNOW_CARVE_MAX_DEPTH;
+            SnowCarve[b] = v;
+        }
+    }
+
+    public void DecaySnowCarve(double dt)
+    {
+        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return;
+        if (!double.IsFinite(dt) || dt <= 0.0) return;
+        double d = Constants.SNOW_CARVE_REFILL_RATE * dt;
+        for (int b = 0; b < SnowCarve.Length; ++b)
+        {
+            double c = SnowCarve[b] - d;
+            SnowCarve[b] = c < 0.0 ? 0.0 : c;
+        }
+    }
+
+    public double SnowCarveDepthAt(double x)
+    {
+        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return 0.0;
+        if (!double.IsFinite(x) || MonitorWidth <= 0.0) return 0.0;
+        double bucketWidth = MonitorWidth / Constants.SNOW_CARVE_BUCKETS;
+        if (bucketWidth <= 0.0) return 0.0;
+        double f = x / bucketWidth - 0.5;
+        if (f <= 0.0) return SnowCarve[0];
+        if (f >= Constants.SNOW_CARVE_BUCKETS - 1) return SnowCarve[Constants.SNOW_CARVE_BUCKETS - 1];
+        int i = (int)Math.Floor(f);
+        double t = f - i;
+        return SnowCarve[i] * (1.0 - t) + SnowCarve[i + 1] * t;
+    }
+
     public double SnowTreeBaseYOffset => SnowDepth <= 0.0
         ? 0.0
         : Math.Clamp(SnowDepth - Constants.SNOW_TOP_UNDULATION_AMP,
@@ -420,6 +473,9 @@ internal sealed class Sim
         {
             SnowDepth = 0.0;
         }
+        // Snow footprints are transient and scene-local: clear them on every
+        // transition so a dent never carries across to another scene.
+        Array.Clear(SnowCarve, 0, SnowCarve.Length);
         CurrentScene = s;
         // Scene transitions clear all roaming entities; each scene repopulates
         // its own below.
@@ -2018,6 +2074,8 @@ internal sealed class Sim
                     Entities.Add(puff);
                 }
             }
+            // Press a soft footprint dent into the snowbank that settles back.
+            ApplySnowCarve(clickX);
         }
 
         for (int i = 0; i < Blades.Length; i++)
@@ -2263,6 +2321,9 @@ internal sealed class Sim
         if (CurrentScene == Scene.Winter)
         {
             SetSnowDepth(SnowDepth + Constants.SNOW_ACCUMULATION_RATE * Math.Max(0.0, dt));
+            // Footprints settle back before this frame's clicks are processed, so
+            // a same-frame click lands its full dent (verified by ordering tests).
+            DecaySnowCarve(dt);
         }
         else
         {

@@ -751,6 +751,15 @@ constexpr uint32_t SNOW_BANK_SHADOW_COLOR       = 0xFFBFCDE4u; // cool blue base
 constexpr double   SNOW_BANK_MIN_DEPTH          = 3.0;    // floor so the strip is always filled
 constexpr uint64_t SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEull;
 
+// Snow carve / footprints (§21.2). Clicking the winter snowbank presses a soft
+// dent that slowly settles back over a few seconds (mirrors grass cut+regrow).
+// Transient interaction state — never persisted, cleared on every scene change.
+constexpr int      SNOW_CARVE_BUCKETS           = 192;   // heightfield resolution across the monitor
+constexpr double   SNOW_CARVE_RADIUS_DIP        = 24.0;  // dent half-width
+constexpr double   SNOW_CARVE_DEPTH_PER_CLICK   = 7.0;   // depth pressed per click at the center
+constexpr double   SNOW_CARVE_MAX_DEPTH         = 11.0;  // clamp so the bank never inverts
+constexpr double   SNOW_CARVE_REFILL_RATE       = 1.8;   // DIP/sec settle-back (~6s full refill)
+
 // Falling leaves (§16.5). Autumn-only transient particles.
 constexpr double   LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;
 constexpr double   LEAF_FALL_SPEED_MIN             = 14.0;

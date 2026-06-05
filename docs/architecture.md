@@ -1381,6 +1381,42 @@ Persistence schema bumps to v2. v2 monitor entries add `snowDepth`; v1 files loa
 
 ---
 
+## 15.3 Snow carve (Winter footprints)
+
+Winter's tactile ground interaction, mirroring the grass cut-and-regrow loop. Clicking the snowbank presses a soft dent at the cursor that slowly settles back, so Winter has the same "leave a passing mark" feel as cut grass, desert cacti, and the autumn leaf-puff. A click both kicks up a snow puff (§21) **and** presses a dent.
+
+State is a per-monitor transient heightfield `snowCarve` / `SnowCarve` — a fixed-length `SNOW_CARVE_BUCKETS` array of non-negative carved depths in DIP, mapped uniformly across `[0, monitorWidth]`. It is **never persisted**: it is zero-filled at sim init/regenerate and cleared on **every** scene change (including Winter→Winter re-entry).
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `SNOW_CARVE_BUCKETS` | `192` | heightfield resolution across the monitor |
+| `SNOW_CARVE_RADIUS_DIP` | `24.0` | dent half-width |
+| `SNOW_CARVE_DEPTH_PER_CLICK` | `7.0` | depth pressed per click at the center |
+| `SNOW_CARVE_MAX_DEPTH` | `11.0` | clamp so the bank never inverts |
+| `SNOW_CARVE_REFILL_RATE` | `1.8` | DIP/sec settle-back (~6 s full refill) |
+
+Apply (click-only; no hover/Move carving, to keep the scene calm and input-rate independent). Guarded to `currentScene == Winter`, finite `x`, `monitorWidth > 0`, and an initialized field:
+
+```text
+bucketWidth = monitorWidth / SNOW_CARVE_BUCKETS
+for each bucket b:
+    centerX = (b + 0.5) * bucketWidth
+    dist    = |centerX - x|
+    if dist < SNOW_CARVE_RADIUS_DIP:
+        falloff   = 0.5 * (1 + cos(π * dist / SNOW_CARVE_RADIUS_DIP))   # raised cosine
+        carve[b]  = min(carve[b] + SNOW_CARVE_DEPTH_PER_CLICK * falloff, SNOW_CARVE_MAX_DEPTH)
+```
+
+Decay runs in the Winter tick branch **before** per-frame input is processed, so a click delivered in the same frame lands its full dent (pinned by a cross-impl ordering test):
+
+```text
+carve[b] = max(0, carve[b] - SNOW_CARVE_REFILL_RATE * dt)   # never negative
+```
+
+Query interpolates between neighbouring bucket centers (`f = x / bucketWidth - 0.5`, clamped to the end buckets). The renderer subtracts the carve from the bank depth and clamps to `SNOW_BANK_MIN_DEPTH` so the bank never inverts; carved columns also get a cool recessed interior plus a thin raised-rim highlight along steep carve gradients so the dent reads as a scooped trench rather than just a lower ridge. The carve heightfield is input-only, so the no-input snapshot tests are unaffected.
+
+---
+
 ## 16.5 Autumn scene
 
 Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn; day-night tint still applies uniformly.

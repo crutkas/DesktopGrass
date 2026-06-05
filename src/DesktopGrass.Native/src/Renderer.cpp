@@ -762,7 +762,9 @@ void Renderer::DrawSnowLayer() {
 
     constexpr float kStep = 2.0f;
     auto topYAt = [&](float sx) {
-        return groundY - static_cast<float>(SnowBankDepthAt(sx, sim_.snowDepth, phase));
+        double d = SnowBankDepthAt(sx, sim_.snowDepth, phase) - snow_carve_depth_at(sim_, sx);
+        if (d < SNOW_BANK_MIN_DEPTH) d = SNOW_BANK_MIN_DEPTH;
+        return groundY - static_cast<float>(d);
     };
 
     // Body fill: three vertical tone bands per column — bright lit crest, soft
@@ -772,6 +774,7 @@ void Renderer::DrawSnowLayer() {
         const float sampleX = std::min(x, width);
         const float topY    = topYAt(sampleX);
         const float depth   = groundY - topY;
+        const double carveHere = snow_carve_depth_at(sim_, sampleX);
         if (depth > 0.0f) {
             const float crestY  = topY + depth * static_cast<float>(SNOW_BANK_CREST_BAND_FRAC);
             const float shadowY = groundY - depth * static_cast<float>(SNOW_BANK_SHADOW_BAND_FRAC);
@@ -783,6 +786,32 @@ void Renderer::DrawSnowLayer() {
                                   driftBaseBrush_.Get(), kStep + 0.5f);
             d2dContext_->DrawLine(D2D1::Point2F(sampleX, bodyBot), D2D1::Point2F(sampleX, groundY),
                                   snowBankShadowBrush_.Get(), kStep + 0.5f);
+
+            // Carved columns get a cool recessed interior so the dent reads as a
+            // scooped trench rather than just a lower ridge.
+            if (carveHere > 0.8) {
+                const float fill = std::min(depth, static_cast<float>(carveHere) * 1.4f);
+                const float a = std::min(0.7f, static_cast<float>(carveHere) / static_cast<float>(SNOW_CARVE_MAX_DEPTH) * 0.7f);
+                snowBankShadowBrush_->SetOpacity(a);
+                d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY),
+                                      D2D1::Point2F(sampleX, topY + fill),
+                                      snowBankShadowBrush_.Get(), kStep + 0.5f);
+                snowBankShadowBrush_->SetOpacity(1.0f);
+            }
+        }
+
+        // Raised rim: where the carve gradient is steep (the edge of a dent), the
+        // pushed-up snow catches the light — a thin bright dab on the rim side.
+        const double carveL = snow_carve_depth_at(sim_, std::max(0.0f, sampleX - kStep));
+        const double carveR = snow_carve_depth_at(sim_, std::min(width, sampleX + kStep));
+        const double grad = std::fabs(carveR - carveL);
+        if (grad > 0.6 && carveHere < SNOW_CARVE_MAX_DEPTH) {
+            const float a = std::min(0.6f, static_cast<float>(grad) * 0.4f);
+            snowLayerHighlightBrush_->SetOpacity(a);
+            d2dContext_->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(sampleX, topY - 0.6f), 1.3f, 1.3f),
+                snowLayerHighlightBrush_.Get());
+            snowLayerHighlightBrush_->SetOpacity(1.0f);
         }
 
         const D2D1_POINT_2F currentTop = D2D1::Point2F(sampleX, topY);

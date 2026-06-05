@@ -684,6 +684,15 @@ internal static class Constants
     public const double SNOW_BANK_MIN_DEPTH          = 3.0;
     public const ulong  SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEul;
 
+    // Snow carve / footprints (§21.2). Clicking the winter snowbank presses a
+    // dent that slowly settles back over a few seconds (mirrors grass cut+regrow).
+    // Transient interaction state — never persisted, cleared on every scene change.
+    public const int    SNOW_CARVE_BUCKETS           = 192;
+    public const double SNOW_CARVE_RADIUS_DIP        = 24.0;
+    public const double SNOW_CARVE_DEPTH_PER_CLICK   = 7.0;
+    public const double SNOW_CARVE_MAX_DEPTH         = 11.0;
+    public const double SNOW_CARVE_REFILL_RATE       = 1.8;
+
     // Falling leaves (§16.5). Autumn-only transient particles.
     public const double LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;
     public const double LEAF_FALL_SPEED_MIN = 14.0;
