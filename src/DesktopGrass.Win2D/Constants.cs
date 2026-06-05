@@ -45,7 +45,7 @@ internal static class Constants
     public const double CURSOR_REINIT_GAP_SEC = 0.25;  // sec
 
     // Cut (§9)
-    public const double CUT_RADIUS = 30.0;             // DIP
+    public const double CUT_RADIUS = 15.0;             // DIP
     public const double CUT_DURATION_SEC = 0.2;        // sec
 
     // Regrowth (§9 "Regrowth"). Per-blade jitter values sampled at generation

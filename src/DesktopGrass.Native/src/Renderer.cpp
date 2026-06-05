@@ -731,7 +731,7 @@ void Renderer::DrawGrass(bool treesOnly) {
     auto drawCactusArm = [&](float baseX, float gy, float h, float width, int side) {
         const float sx = baseX;
         const float sy = gy - h * 0.4f;
-        const float ex = baseX + static_cast<float>(side) * width * 1.5f;
+        const float ex = baseX + static_cast<float>(side) * width * 1.2f;
         const float ey = gy - h * 0.7f;
         const float cx = ex;
         const float cy = sy;
@@ -744,7 +744,7 @@ void Renderer::DrawGrass(bool treesOnly) {
         sink->BeginFigure(D2D1::Point2F(sx, sy), D2D1_FIGURE_BEGIN_HOLLOW);
         sink->AddQuadraticBezier(D2D1::QuadraticBezierSegment(
             D2D1::Point2F(cx, cy), D2D1::Point2F(ex, ey)));
-        sink->AddLine(D2D1::Point2F(ex, ey - h * 0.15f));
+        sink->AddLine(D2D1::Point2F(ex, ey - h * 0.10f));
         sink->EndFigure(D2D1_FIGURE_END_OPEN);
         if (FAILED(sink->Close())) return;
         d2dContext_->DrawGeometry(path.Get(), cactusBrush_.Get(), armWidth,

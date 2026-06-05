@@ -1372,7 +1372,7 @@ internal sealed class GrassWindow : IDisposable
     {
         float sx = baseX;
         float sy = gy - h * 0.4f;
-        float ex = baseX + side * width * 1.5f;
+        float ex = baseX + side * width * 1.2f;
         float ey = gy - h * 0.7f;
         float cx = ex;
         float cy = sy;
@@ -1383,7 +1383,7 @@ internal sealed class GrassWindow : IDisposable
         {
             sink.BeginFigure(new Vector2(sx, sy), FigureBegin.Hollow);
             sink.AddQuadraticBezier(new QuadraticBezierSegment { Point1 = new Vector2(cx, cy), Point2 = new Vector2(ex, ey) });
-            sink.AddLine(new Vector2(ex, ey - h * 0.15f));
+            sink.AddLine(new Vector2(ex, ey - h * 0.10f));
             sink.EndFigure(FigureEnd.Open);
             sink.Close();
         }

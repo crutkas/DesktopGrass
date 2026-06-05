@@ -43,7 +43,7 @@ constexpr double GUST_RADIUS           = 150.0;
 constexpr double CURSOR_REINIT_GAP_SEC = 0.25;
 
 // Cut ------------------------------------------------------------------------
-constexpr double CUT_RADIUS            = 30.0;
+constexpr double CUT_RADIUS            = 15.0;
 constexpr double CUT_DURATION_SEC      = 0.2;
 constexpr double CUT_STUMP_THRESHOLD   = 0.05;
 constexpr double STUMP_HEIGHT          = 2.0;

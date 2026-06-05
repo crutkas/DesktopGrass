@@ -8,6 +8,17 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Shorter cactus arms & a finer mow
+
+### Changed
+- **Cactus arms are a bit shorter** — the arm's sideways reach drops from
+  `width × 1.5` to `width × 1.2` and the upward tip from `h × 0.15` to `h × 0.10`,
+  so arms read as stubbier and better proportioned.
+- **Mowing swath halved** — `CUT_RADIUS` reduced 30 → 15 DIP, so a click/drag
+  cuts a finer band of grass.
+
+---
+
 ## 2026-06-04 — Bouncier, slower tumbleweeds
 
 ### Changed
