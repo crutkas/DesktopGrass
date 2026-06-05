@@ -8,29 +8,23 @@ entries are grouped by date instead.
 
 ---
 
----
+## 2026-06-06 — Reverted: decoration (tip-cap) batching — it regressed Winter CPU
 
----
+### Reverted
+- **Reverted the deferred tip-cap batching (commit `63beb6f`).** That change had
+  replaced the per-cap `FillEllipse` calls (flower heads + snow caps) with a
+  single constructed arc-path `FillGeometry` per brush group. Profiling showed it
+  nearly **doubled Winter CPU** (~47% → ~92% of one core), because Winter draws a
+  snow cap on *every* blade (~2,500 caps). `FillEllipse` is a cheap D2D
+  intrinsic, whereas building an arc/Bézier path geometry hits the same
+  per-frame geometry-**construction** bottleneck that already dominates blade
+  rendering. Caps are back to per-cap `FillEllipse` in both impls. Net effect:
+  Winter drops back to ~2–3% Task Manager (from ~5.75%).
+- Lesson recorded: do **not** swap `FillEllipse`/`FillRectangle` intrinsics for
+  constructed path geometry — geometry construction (not draw-call count) is the
+  hot path here.
 
----
-
-## 2026-06-05 — Perf: batch tip-cap decorations (Winter snow caps)
-
-### Changed
-- **Tip-cap decorations (flower heads + Winter snow caps) are now batched into a
-  single filled geometry per brush instead of one `FillEllipse` per cap.** In
-  Winter every standing blade carries a snow cap, so the renderer was issuing
-  hundreds of individual `FillEllipse` draw calls per frame on a wide monitor.
-  The deferred caps are now grouped by brush and filled with one `FillGeometry`
-  call each (flower-head palette brushes first, the snow brush last so a tip
-  carrying both still shows the snow cap on top). Each cap is a closed circle —
-  two arcs in the Native renderer, four cubic Béziers in Win2D (Vortice exposes
-  no arc segment) — and `WINDING` fill keeps overlapping caps solid. This is the
-  Winter-focused follow-up to the Batch A blade-stroke batching; it's render-only
-  so the Sim, PRNG, and all determinism/conformance tests are unaffected
-  (283 native + 283 Win2D still pass).
-
----
+## 2026-06-05 — Removed: day/night concept (tint + time-of-day behavior)
 
 ### Removed
 - **The entire day-night concept.** Removed the subtle day-night ambient color

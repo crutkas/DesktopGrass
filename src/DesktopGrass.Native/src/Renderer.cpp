@@ -1148,47 +1148,8 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
     }
 
     // Phase 3: draw deferred tip caps (flower heads, snow caps) on top.
-    // §CPU Batch: caps sharing a brush are filled with ONE geometry + ONE
-    // FillGeometry instead of one FillEllipse each, so Winter (a snow cap per
-    // blade — hundreds/frame) collapses to a single fill. Each cap is a closed
-    // two-arc ellipse figure; WINDING fill keeps overlapping caps solid. Flower
-    // brushes are drawn first and the snow brush last, preserving the prior
-    // on-top order where a tip carries both a flower head and a snow cap.
-    if (!deferredCaps.empty()) {
-        auto fillCapGroup = [&](ID2D1SolidColorBrush* brush) {
-            if (!brush) return;
-            ComPtr<ID2D1PathGeometry> geom;
-            if (FAILED(d2dFactory_->CreatePathGeometry(geom.GetAddressOf()))) return;
-            ComPtr<ID2D1GeometrySink> sink;
-            if (FAILED(geom->Open(sink.GetAddressOf()))) return;
-            sink->SetFillMode(D2D1_FILL_MODE_WINDING);
-            bool any = false;
-            for (const DeferredEllipse& d : deferredCaps) {
-                if (d.brush != brush) continue;
-                const float cx = d.ellipse.point.x;
-                const float cy = d.ellipse.point.y;
-                const float rx = d.ellipse.radiusX;
-                const float ry = d.ellipse.radiusY;
-                sink->BeginFigure(D2D1::Point2F(cx - rx, cy), D2D1_FIGURE_BEGIN_FILLED);
-                sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(cx + rx, cy),
-                                              D2D1::SizeF(rx, ry), 0.0f,
-                                              D2D1_SWEEP_DIRECTION_CLOCKWISE,
-                                              D2D1_ARC_SIZE_SMALL));
-                sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(cx - rx, cy),
-                                              D2D1::SizeF(rx, ry), 0.0f,
-                                              D2D1_SWEEP_DIRECTION_CLOCKWISE,
-                                              D2D1_ARC_SIZE_SMALL));
-                sink->EndFigure(D2D1_FIGURE_END_CLOSED);
-                any = true;
-            }
-            if (SUCCEEDED(sink->Close()) && any) {
-                d2dContext_->FillGeometry(geom.Get(), brush);
-            }
-        };
-        for (int i = 0; i < FLOWER_PALETTE_SIZE; ++i) {
-            fillCapGroup(flowerHeadBrushes_[i].Get());
-        }
-        fillCapGroup(snowTipBrush_.Get());
+    for (const DeferredEllipse& d : deferredCaps) {
+        d2dContext_->FillEllipse(d.ellipse, d.brush);
     }
 }
 
