@@ -12,6 +12,16 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Trees sway with the wind & cursor
+
+### Changed
+- **Fall maples and winter pines/birches now sway ever so slightly** — like the
+  grass, the trees already carried an ambient lean plus a nudge from the nearby
+  cursor; the renderer now leans each tree about its trunk base by a small,
+  clamped fraction of that lean. The result is a subtle drift of the canopy with
+  the wind and the mouse, while the trunk stays rooted. Purely a render effect;
+  the sway is damped well below the grass so it never reads as wobbling.
+
 ## 2026-06-04 — Winter snow pivot: drifts, click puffs & sparkle
 
 ### Changed

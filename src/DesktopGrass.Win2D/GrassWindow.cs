@@ -1411,6 +1411,17 @@ internal sealed class GrassWindow : IDisposable
         _dc!.DrawGeometry(path, _cactusBrush!, armWidth, _strokeStyle);
     }
 
+    private static System.Numerics.Matrix3x2 TreeSwayTransform(in Blade b, double totalH, double pivotGy)
+    {
+        if (!(totalH > 0.0)) return System.Numerics.Matrix3x2.Identity;
+        double apexLean = b.EffectiveLean * Constants.TREE_SWAY_LEAN_FACTOR;
+        double maxApex = Constants.TREE_SWAY_MAX_HEIGHT_FRACTION * totalH;
+        if (apexLean > maxApex) apexLean = maxApex;
+        if (apexLean < -maxApex) apexLean = -maxApex;
+        float k = (float)(apexLean / totalH);
+        return new System.Numerics.Matrix3x2(1f, 0f, -k, 1f, (float)(k * pivotGy), 0f);
+    }
+
     private void DrawBlade(in Blade b, float groundY, bool treesOnly = false)
     {
         if (treesOnly)
@@ -1478,6 +1489,8 @@ internal sealed class GrassWindow : IDisposable
                 float trunkW = (float)b.PineWidth;
                 float trunkTopY = gy - totalH;
 
+                _dc!.Transform = TreeSwayTransform(b, totalH, gy);
+
                 _dc!.DrawLine(new Vector2(baseX, gy),
                               new Vector2(baseX, trunkTopY),
                               _birchBarkBrush!, trunkW, _strokeStyle);
@@ -1523,12 +1536,15 @@ internal sealed class GrassWindow : IDisposable
                 // Small snow puff right at the top of the trunk.
                 float capR = Math.Max(2.0f, trunkW * 0.9f);
                 _dc.FillEllipse(new Ellipse(new Vector2(baseX, trunkTopY), capR, capR * 0.6f), _snowTipBrush!);
+                _dc.Transform = System.Numerics.Matrix3x2.Identity;
                 return;
             }
 
             int tierCount = b.PineTierCount > 0 ? b.PineTierCount : Constants.PINE_TIER_COUNT_MIN;
             double totalHd = b.PineHeight * b.CutHeight;
             double tierH = totalHd / tierCount;
+
+            _dc!.Transform = TreeSwayTransform(b, totalHd, gy);
 
             for (int i = 0; i < tierCount; i++)
             {
@@ -1558,6 +1574,7 @@ internal sealed class GrassWindow : IDisposable
                 double capHalfW = widthAt * 0.5 * Constants.PINE_SNOW_CAP_FRACTION * 1.4;
                 DrawFilledPineTri(baseX, (float)capBaseY, (float)topY, (float)capHalfW, _snowTipBrush!);
             }
+            _dc.Transform = System.Numerics.Matrix3x2.Identity;
             return;
         }
 
@@ -1577,6 +1594,7 @@ internal sealed class GrassWindow : IDisposable
             float totalH = (float)(b.MapleHeight * b.CutHeight);
             float topY = gy - totalH;
             float canopyR = (float)(b.MapleCanopyRadius * b.CutHeight);
+            _dc!.Transform = TreeSwayTransform(b, totalH, gy);
             _dc!.DrawLine(new Vector2(baseX, gy), new Vector2(baseX, topY), _mapleTrunkBrush!, trunkW, _strokeStyle);
             _dc.DrawLine(new Vector2(baseX + trunkW * 0.18f, gy - totalH * 0.08f),
                          new Vector2(baseX + trunkW * 0.12f, topY + totalH * 0.15f),
@@ -1642,6 +1660,7 @@ internal sealed class GrassWindow : IDisposable
                     _dc.FillEllipse(new Ellipse(tips[i], 1.8f, 1.8f), _leafBrushes![i % Constants.LEAF_COLOR_COUNT]);
                 }
             }
+            _dc.Transform = System.Numerics.Matrix3x2.Identity;
             return;
         }
 

@@ -734,6 +734,12 @@ internal static class Constants
     public const float  PINE_HIGHLIGHT_OPACITY       = 0.5f;
     public const ulong  PINE_PRNG_SALT          = 0x50494E4550494E45ul;
 
+    // Tree sway (§15.2): render-only shear that leans fall/winter trees about
+    // their trunk base by a damped, clamped fraction of the blade's
+    // effectiveLean, so canopies drift slightly with the wind and the cursor.
+    public const double TREE_SWAY_LEAN_FACTOR         = 0.6;
+    public const double TREE_SWAY_MAX_HEIGHT_FRACTION = 0.05;
+
     // Birch tree variant (§15.1). Second tree style — vertical white trunk
     // with dark bark marks and short bare branches.
     public const double BIRCH_VARIANT_PROBABILITY = 0.30;

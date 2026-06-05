@@ -795,6 +795,16 @@ constexpr double   PINE_HIGHLIGHT_WIDTH_FRAC       = 0.50;
 constexpr float    PINE_HIGHLIGHT_OPACITY          = 0.5f;
 constexpr uint64_t PINE_PRNG_SALT                  = 0x50494E4550494E45ull;
 
+// Tree sway (§15.2). Fall maples and winter pines/birches are blades, so they
+// already carry effectiveLean (ambient sway + nearby-cursor gusts). The renderer
+// shears each tree about its trunk base by a fraction of that lean so the canopy
+// drifts ever so slightly with the wind and the mouse — the same life the grass
+// has, scaled way down. TREE_SWAY_LEAN_FACTOR damps the grass-calibrated lean;
+// TREE_SWAY_MAX_HEIGHT_FRACTION clamps the apex shift to a fraction of tree
+// height so a hard gust can never visibly snap the trunk.
+constexpr double   TREE_SWAY_LEAN_FACTOR           = 0.6;
+constexpr double   TREE_SWAY_MAX_HEIGHT_FRACTION   = 0.05;
+
 // Birch tree variant (§15.1). Second tree style — vertical white trunk
 // with dark bark marks and short bare branches. Selected per-slot via
 // an additional PRNG draw on tree promotion.

@@ -42,6 +42,19 @@ double CurrentLocalHourFractional() noexcept {
          + static_cast<double>(st.wSecond) / 3600.0;
 }
 
+// Render-only shear that leans a tree about its trunk base (pivotGy) by a
+// damped, clamped fraction of the blade's effectiveLean. Returns identity for
+// degenerate heights so the matrix is always well-formed.
+D2D1_MATRIX_3X2_F TreeSwayTransform(const Blade& b, double totalH, double pivotGy) noexcept {
+    if (!(totalH > 0.0)) return D2D1::Matrix3x2F::Identity();
+    double apexLean = b.effectiveLean * TREE_SWAY_LEAN_FACTOR;
+    const double maxApex = TREE_SWAY_MAX_HEIGHT_FRACTION * totalH;
+    if (apexLean >  maxApex) apexLean =  maxApex;
+    if (apexLean < -maxApex) apexLean = -maxApex;
+    const float k = static_cast<float>(apexLean / totalH);
+    return D2D1::Matrix3x2F(1.0f, 0.0f, -k, 1.0f, k * static_cast<float>(pivotGy), 0.0f);
+}
+
 } // anonymous
 
 Renderer::~Renderer() {
@@ -854,6 +867,8 @@ void Renderer::DrawGrass(bool treesOnly) {
                 const float trunkW    = static_cast<float>(b.pineWidth);
                 const float trunkTopY = gy - totalH;
 
+                d2dContext_->SetTransform(TreeSwayTransform(b, totalH, gy));
+
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
                     D2D1::Point2F(baseX, trunkTopY),
@@ -910,6 +925,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                 d2dContext_->FillEllipse(
                     D2D1::Ellipse(D2D1::Point2F(baseX, trunkTopY), capR, capR * 0.6f),
                     snowTipBrush_.Get());
+                d2dContext_->SetTransform(D2D1::Matrix3x2F::Identity());
                 continue;
             }
 
@@ -917,6 +933,8 @@ void Renderer::DrawGrass(bool treesOnly) {
             const int    tierCount  = b.pineTierCount > 0 ? b.pineTierCount : PINE_TIER_COUNT_MIN;
             const double totalH     = b.pineHeight * b.cutHeight;
             const double tierH      = totalH / tierCount;
+
+            d2dContext_->SetTransform(TreeSwayTransform(b, totalH, gy));
 
             for (int i = 0; i < tierCount; ++i) {
                 const double tFrac    = (tierCount == 1) ? 0.0
@@ -961,6 +979,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                               static_cast<float>(capHalfW),
                               snowTipBrush_.Get());
             }
+            d2dContext_->SetTransform(D2D1::Matrix3x2F::Identity());
             continue;
         }
 
@@ -980,6 +999,7 @@ void Renderer::DrawGrass(bool treesOnly) {
             const float totalH = static_cast<float>(b.mapleHeight * b.cutHeight);
             const float topY = gy - totalH;
             const float canopyR = static_cast<float>(b.mapleCanopyRadius * b.cutHeight);
+            d2dContext_->SetTransform(TreeSwayTransform(b, totalH, gy));
             d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, topY),
                                   mapleTrunkBrush_.Get(), trunkW);
             d2dContext_->DrawLine(D2D1::Point2F(baseX + trunkW * 0.18f, gy - totalH * 0.08f),
@@ -1045,6 +1065,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                     d2dContext_->FillEllipse(D2D1::Ellipse(tips[i], 1.8f, 1.8f), leafBrush);
                 }
             }
+            d2dContext_->SetTransform(D2D1::Matrix3x2F::Identity());
             continue;
         }
 
