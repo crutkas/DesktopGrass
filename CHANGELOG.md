@@ -12,7 +12,27 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-04 — Winter reverts to snow-tipped grass (snowbank render removed)
+## 2026-06-05 — Performance: 30 fps cap + cheaper blade rendering
+
+### Changed
+- **Frame rate capped at 30 fps** (was 60). The scene is calm, time-based
+  ambient motion, so halving the sample rate roughly halves per-frame CPU with
+  no change to the animation itself. The native loop now paces authoritatively
+  by QPC (subtracting render/present time from the frame budget) so the cadence
+  holds regardless of how Present blocks; Win2D already paced via its QPC gate.
+- **Native blades no longer build a path geometry per blade every frame.** The
+  native renderer was allocating/opening/closing an `ID2D1PathGeometry` and
+  stroking a quadratic Bezier for *every* grass/flower blade *every* frame
+  (~700 COM allocations + curved-stroke tessellations per frame on a wide
+  monitor). It now tessellates each blade into straight `DrawLine` segments with
+  round caps — matching what the Win2D renderer already did.
+- **Blade tessellation reduced from 6 to 4 segments** in both renderers. Draw
+  calls are the dominant per-frame cost (CPU scales nearly linearly with segment
+  count); 4 segments keeps short grass looking smooth. Measured steady-state on a
+  single 2180-px monitor: ~38% → ~25% of one core. (Tunable: raise to 6 for
+  smoother curves, lower to 2–3 for even less CPU.)
+
+
 
 ### Changed
 - **Winter goes back to the snow-tipped grass look.** The sculpted snowbank /

@@ -1269,31 +1269,35 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
 
         const Stroke s = compute_blade_stroke(b, groundY, sim_.currentScene);
 
-        // Path: line from base, quadratic Bezier to tip via control.
-        ComPtr<ID2D1PathGeometry> path;
-        if (FAILED(d2dFactory_->CreatePathGeometry(&path))) continue;
-
-        ComPtr<ID2D1GeometrySink> sink;
-        if (FAILED(path->Open(&sink))) continue;
-
-        sink->BeginFigure(
-            D2D1::Point2F(static_cast<float>(s.base.x),
-                          static_cast<float>(s.base.y)),
-            D2D1_FIGURE_BEGIN_HOLLOW);
-
-        D2D1_QUADRATIC_BEZIER_SEGMENT seg{};
-        seg.point1 = D2D1::Point2F(static_cast<float>(s.control.x),
-                                   static_cast<float>(s.control.y));
-        seg.point2 = D2D1::Point2F(static_cast<float>(s.tip.x),
-                                   static_cast<float>(s.tip.y));
-        sink->AddQuadraticBezier(seg);
-
-        sink->EndFigure(D2D1_FIGURE_END_OPEN);
-        if (FAILED(sink->Close())) continue;
-
         ID2D1SolidColorBrush* brush = brushes_[sceneIdx][b.hue].Get();
-        d2dContext_->DrawGeometry(path.Get(), brush,
-                                  static_cast<float>(s.thickness + BLADE_THICKNESS_RENDER_BONUS));
+        const float thickness = static_cast<float>(s.thickness + BLADE_THICKNESS_RENDER_BONUS);
+
+        // Tessellate the quadratic Bezier into N line segments and stroke them
+        // with DrawLine (round caps/joins). D2D batches DrawLine internally, so
+        // this is far cheaper than allocating/opening/closing a path geometry
+        // per blade every frame, and matches the Win2D renderer's tessellation.
+        const float bx = static_cast<float>(s.base.x);
+        const float by = static_cast<float>(s.base.y);
+        const float cx = static_cast<float>(s.control.x);
+        const float cy = static_cast<float>(s.control.y);
+        const float tx = static_cast<float>(s.tip.x);
+        const float ty = static_cast<float>(s.tip.y);
+        constexpr int kBladeSegments = 4;
+        float prevX = bx;
+        float prevY = by;
+        for (int i = 1; i <= kBladeSegments; ++i) {
+            const float t   = static_cast<float>(i) / static_cast<float>(kBladeSegments);
+            const float u   = 1.0f - t;
+            const float u2  = u * u;
+            const float t2  = t * t;
+            const float ut2 = 2.0f * u * t;
+            const float px  = u2 * bx + ut2 * cx + t2 * tx;
+            const float py  = u2 * by + ut2 * cy + t2 * ty;
+            d2dContext_->DrawLine(D2D1::Point2F(prevX, prevY), D2D1::Point2F(px, py),
+                                  brush, thickness, roundStrokeStyle_.Get());
+            prevX = px;
+            prevY = py;
+        }
 
         if (b.isFlower && b.cutHeight >= CUT_STUMP_THRESHOLD) {
             const D2D1_ELLIPSE ellipse = D2D1::Ellipse(

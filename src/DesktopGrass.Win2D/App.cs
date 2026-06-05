@@ -333,7 +333,10 @@ internal sealed class App : IDisposable
     {
         long lastTick;
         Win32.QueryPerformanceCounter(out lastTick);
-        const double TargetFrameSec = 1.0 / 60.0;
+        // Calm ambient content renders at 30 fps to roughly halve per-frame CPU
+        // vs 60 fps. Motion is dt-based, so this only reduces sampling rate. Use
+        // 1.0/60.0 for 60 fps if smoother motion is preferred over lower CPU.
+        const double TargetFrameSec = 1.0 / 30.0;
 
         var moveBuffer = new List<InputEvent>(64);
 

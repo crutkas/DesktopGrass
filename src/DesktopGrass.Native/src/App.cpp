@@ -436,7 +436,11 @@ void App::SaveCurrentState() {
 
 int App::Run() {
     MSG msg{};
-    constexpr double kTargetFrameSec = 1.0 / 60.0;
+    // Calm ambient content renders at 30 fps to roughly halve per-frame CPU vs
+    // 60 fps; motion is time-based (dt), so lowering the rate only reduces how
+    // often the same animation is sampled. Bump back to 1.0/60.0 + Present1(1,0)
+    // for 60 fps if smoother motion is preferred over lower CPU.
+    constexpr double kTargetFrameSec = 1.0 / 30.0;
 
     while (!quitRequested_) {
         // Drain pending messages without blocking.
@@ -463,8 +467,18 @@ int App::Run() {
             SaveCurrentState();
         }
 
-        // Yield to the OS / wait for either input or a frame interval.
-        const DWORD waitMs = static_cast<DWORD>(kTargetFrameSec * 1000.0);
+        // Pace to the target frame interval, accounting for the time already
+        // spent rendering/presenting this iteration so the cadence holds at the
+        // target fps regardless of how long Present blocked. Returns early if
+        // input arrives, keeping the app responsive.
+        LARGE_INTEGER after;
+        QueryPerformanceCounter(&after);
+        const double elapsedSec = static_cast<double>(after.QuadPart - now.QuadPart) /
+                                  static_cast<double>(qpcFreq_.QuadPart);
+        const double remainingSec = kTargetFrameSec - elapsedSec;
+        const DWORD waitMs = remainingSec > 0.0
+            ? static_cast<DWORD>(remainingSec * 1000.0)
+            : 0;
         MsgWaitForMultipleObjectsEx(0, nullptr, waitMs, QS_ALLINPUT,
                                     MWMO_INPUTAVAILABLE);
     }

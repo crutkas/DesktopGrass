@@ -1877,10 +1877,12 @@ internal sealed class GrassWindow : IDisposable
         float ty = (float)stroke.TipY;
         float thickness = (float)(stroke.Thickness + Constants.BLADE_THICKNESS_RENDER_BONUS);
 
-        // Tessellate the quadratic Bezier into 6 line segments. D2D batches
+        // Tessellate the quadratic Bezier into line segments. D2D batches
         // DrawLine calls internally so this is cheaper than constructing a
-        // path geometry per blade per frame.
-        const int N = 6;
+        // path geometry per blade per frame. Segment count trades smoothness
+        // for draw-call count (the dominant per-frame CPU cost); 4 is a good
+        // balance for short grass. Keep in sync with the native renderer.
+        const int N = 4;
         var prevX = bx;
         var prevY = by;
         for (int i = 1; i <= N; i++)
