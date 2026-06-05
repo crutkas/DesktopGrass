@@ -121,6 +121,7 @@ internal struct Blade
     public byte   TreeVariant;     // 0 = pine, 1 = birch
     public double PineHeight;      // DIP
     public double PineWidth;       // DIP (pine base-tier width OR birch trunk width)
+    public bool   TreeBackground;  // §15.4 depth layer: true = small/hazy, drawn behind the snowbank
 
     // Maple (§16.5). Autumn-only slot-bound blade variant.
     public bool   IsMaple;
@@ -931,6 +932,7 @@ internal sealed class Sim
         b.TreeVariant = 0;
         b.PineHeight = 0.0;
         b.PineWidth = 0.0;
+        b.TreeBackground = false;
         b.IsMaple = false;
         b.MapleHeight = 0.0;
         b.MapleTrunkWidth = 0.0;
@@ -984,6 +986,12 @@ internal sealed class Sim
             if (tiers < Constants.PINE_TIER_COUNT_MIN) tiers = Constants.PINE_TIER_COUNT_MIN;
             if (tiers > Constants.PINE_TIER_COUNT_MAX) tiers = Constants.PINE_TIER_COUNT_MAX;
             b.PineTierCount = (byte)tiers;
+
+            // Depth layer (§15.4): drawn last in the locked per-tree sequence so the
+            // earlier attributes stay bit-identical. Background trees render smaller
+            // and hazier, behind the snowbank, for a sense of fore/background depth.
+            double depthDraw = pinePrng.Uniform(0.0, 1.0);
+            b.TreeBackground = depthDraw < Constants.TREE_BACKGROUND_PROBABILITY;
         }
     }
 

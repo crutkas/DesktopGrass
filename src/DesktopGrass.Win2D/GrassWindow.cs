@@ -377,7 +377,18 @@ internal sealed class GrassWindow : IDisposable
         for (int i = 0; i < Sim.Blades.Length; i++)
         {
             ref Blade b = ref Sim.Blades[i];
-            DrawBlade(in b, groundY, treesOnly: false);
+            DrawBlade(in b, groundY, treesOnly: false, backgroundTrees: false);
+        }
+
+        // §15.4 background treeline: drawn behind the snowbank so the bank
+        // occludes their base, reading as a set-back row.
+        if (Sim.CurrentScene == Scene.Winter)
+        {
+            for (int i = 0; i < Sim.Blades.Length; i++)
+            {
+                ref Blade b = ref Sim.Blades[i];
+                DrawBlade(in b, groundY, treesOnly: true, backgroundTrees: true);
+            }
         }
 
         DrawSnowLayer(groundY);
@@ -387,7 +398,7 @@ internal sealed class GrassWindow : IDisposable
             for (int i = 0; i < Sim.Blades.Length; i++)
             {
                 ref Blade b = ref Sim.Blades[i];
-                DrawBlade(in b, groundY, treesOnly: true);
+                DrawBlade(in b, groundY, treesOnly: true, backgroundTrees: false);
             }
         }
 
@@ -1501,11 +1512,15 @@ internal sealed class GrassWindow : IDisposable
         return new System.Numerics.Matrix3x2(1f, 0f, -k, 1f, (float)(k * pivotGy), 0f);
     }
 
-    private void DrawBlade(in Blade b, float groundY, bool treesOnly = false)
+    private void DrawBlade(in Blade b, float groundY, bool treesOnly = false, bool backgroundTrees = false)
     {
         if (treesOnly)
         {
             if (!b.IsPine && !b.IsMaple) return;
+            // bg pass draws only background pines; fg pass draws the rest
+            // (foreground pines + all maples, which are never background).
+            bool isBg = b.IsPine && b.TreeBackground;
+            if (backgroundTrees != isBg) return;
         }
         else if (b.IsPine || b.IsMaple)
         {
@@ -1552,12 +1567,30 @@ internal sealed class GrassWindow : IDisposable
             float baseX = (float)b.BaseX;
             float gy = groundY - (float)Sim.SnowTreeBaseYOffset;
 
+            // §15.4 depth: background trees shrink toward their base and fade.
+            bool bgTree = b.TreeBackground;
+            float treeScale = bgTree ? (float)Constants.TREE_BG_SCALE : 1.0f;
+            float treeAlpha = bgTree ? Constants.TREE_BG_OPACITY : 1.0f;
+            System.Numerics.Matrix3x2 DepthXform(System.Numerics.Matrix3x2 sway) => bgTree
+                ? System.Numerics.Matrix3x2.CreateScale(treeScale, treeScale, new Vector2(baseX, gy)) * sway
+                : sway;
+            void SetTreeAlpha(float a)
+            {
+                _pineBrush!.Opacity = a;
+                _pineShadowBrush!.Opacity = a;
+                _snowTipBrush!.Opacity = a;
+                _birchBarkBrush!.Opacity = a;
+                _birchMarkBrush!.Opacity = a;
+            }
+            SetTreeAlpha(treeAlpha);
+
             if (b.CutHeight < Constants.CUT_STUMP_THRESHOLD)
             {
-                float stumpW = (float)Math.Max(2.0, b.PineWidth * 0.25);
+                float stumpW = (float)Math.Max(2.0, b.PineWidth * 0.25) * treeScale;
                 _dc!.DrawLine(new Vector2(baseX, gy),
-                              new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT),
+                              new Vector2(baseX, gy - (float)Constants.STUMP_HEIGHT * treeScale),
                               _pineBrush!, stumpW, _strokeStyle);
+                SetTreeAlpha(1.0f);
                 return;
             }
 
@@ -1568,7 +1601,7 @@ internal sealed class GrassWindow : IDisposable
                 float trunkW = (float)b.PineWidth;
                 float trunkTopY = gy - totalH;
 
-                _dc!.Transform = TreeSwayTransform(b, totalH, gy);
+                _dc!.Transform = DepthXform(TreeSwayTransform(b, totalH, gy));
 
                 _dc!.DrawLine(new Vector2(baseX, gy),
                               new Vector2(baseX, trunkTopY),
@@ -1616,6 +1649,7 @@ internal sealed class GrassWindow : IDisposable
                 float capR = Math.Max(2.0f, trunkW * 0.9f);
                 _dc.FillEllipse(new Ellipse(new Vector2(baseX, trunkTopY), capR, capR * 0.6f), _snowTipBrush!);
                 _dc.Transform = System.Numerics.Matrix3x2.Identity;
+                SetTreeAlpha(1.0f);
                 return;
             }
 
@@ -1623,7 +1657,7 @@ internal sealed class GrassWindow : IDisposable
             double totalHd = b.PineHeight * b.CutHeight;
             double tierH = totalHd / tierCount;
 
-            _dc!.Transform = TreeSwayTransform(b, totalHd, gy);
+            _dc!.Transform = DepthXform(TreeSwayTransform(b, totalHd, gy));
 
             for (int i = 0; i < tierCount; i++)
             {
@@ -1641,7 +1675,7 @@ internal sealed class GrassWindow : IDisposable
                 DrawFilledPineTri(baseX + shadowDX, (float)baseY + shadowDY, (float)topY + shadowDY,
                                   halfW, _pineShadowBrush!);
                 DrawFilledPineTri(baseX, (float)baseY, (float)topY, halfW, _pineBrush!);
-                _pineHighlightBrush!.Opacity = Constants.PINE_HIGHLIGHT_OPACITY;
+                _pineHighlightBrush!.Opacity = Constants.PINE_HIGHLIGHT_OPACITY * treeAlpha;
                 DrawFilledPineTri(baseX - (float)(halfW * Constants.PINE_HIGHLIGHT_OFFSET_X_FRAC),
                                   (float)baseY, (float)topY,
                                   (float)(halfW * Constants.PINE_HIGHLIGHT_WIDTH_FRAC),
@@ -1654,6 +1688,7 @@ internal sealed class GrassWindow : IDisposable
                 DrawFilledPineTri(baseX, (float)capBaseY, (float)topY, (float)capHalfW, _snowTipBrush!);
             }
             _dc.Transform = System.Numerics.Matrix3x2.Identity;
+            SetTreeAlpha(1.0f);
             return;
         }
 

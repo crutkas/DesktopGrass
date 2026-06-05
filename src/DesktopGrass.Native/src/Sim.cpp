@@ -357,6 +357,7 @@ void restore_original_variants(Blade& b) noexcept {
     b.treeVariant    = 0;
     b.pineHeight     = 0.0;
     b.pineWidth      = 0.0;
+    b.treeBackground = false;
     b.isMaple        = false;
     b.mapleHeight    = 0.0;
     b.mapleTrunkWidth = 0.0;
@@ -608,6 +609,12 @@ void generate_pines_for_winter(Sim& sim) noexcept {
         if (tiers < PINE_TIER_COUNT_MIN) tiers = PINE_TIER_COUNT_MIN;
         if (tiers > PINE_TIER_COUNT_MAX) tiers = PINE_TIER_COUNT_MAX;
         b.pineTierCount = static_cast<uint8_t>(tiers);
+
+        // Depth layer (§15.4): drawn last in the locked per-tree sequence so the
+        // earlier attributes stay bit-identical. Background trees render smaller
+        // and hazier, behind the snowbank, for a sense of fore/background depth.
+        const double depthDraw = prng_uniform(pinePrng, 0.0, 1.0);
+        b.treeBackground = depthDraw < TREE_BACKGROUND_PROBABILITY;
     }
 }
 

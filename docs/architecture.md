@@ -1417,6 +1417,20 @@ Query interpolates between neighbouring bucket centers (`f = x / bucketWidth - 0
 
 ---
 
+## 15.4 Winter treeline depth (foreground / background pines)
+
+Winter pines and birches are split into two depth layers so the treeline reads with dimension instead of one flat row. At generation, after the locked per-tree PRNG draws (`r` gate, variant, height, width, `tierCount`), **one final draw `depthDraw`** sets `treeBackground = depthDraw < TREE_BACKGROUND_PROBABILITY`. Because the draw is appended *last* in the locked order, all earlier per-tree attributes are unchanged and the pine snapshot tests still pass unmodified. The flag is reset to `false` in `restore_original_variants` / `RestoreOriginalVariants`, so non-winter scenes never carry it.
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `TREE_BACKGROUND_PROBABILITY` | `0.45` | share of winter trees pushed to the background |
+| `TREE_BG_SCALE` | `0.62` | background tree scale about its trunk base |
+| `TREE_BG_OPACITY` | `0.78` | background tree haze (per-brush alpha) |
+
+Render order becomes: blades → **background trees** → snowbank → **foreground trees** → entities. The tree pass takes `(treesOnly, backgroundTrees)`: background trees are scaled toward their trunk base (`Scale(TREE_BG_SCALE, …, center=(baseX, groundY)) * sway`) and every tree brush is dimmed to `TREE_BG_OPACITY` (reset to 1.0 before the next blade). Drawing the background pass *before* the snowbank lets the bank occlude the shorter trees' bases, selling the recession. Maples are never flagged background, so they always render in the foreground pass. All of this is render/generation-only aside from the appended PRNG draw, leaving deterministic snapshot behaviour intact.
+
+---
+
 ## 16.5 Autumn scene
 
 Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn; day-night tint still applies uniformly.

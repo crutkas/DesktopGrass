@@ -216,4 +216,62 @@ public class PineTests
         Assert.Equal(before.SwayPhaseOffset, after.SwayPhaseOffset, 12);
         Assert.Equal(before.Stiffness, after.Stiffness, 12);
     }
+
+    [Fact]
+    public void TreeDepthConstantsArePinned()
+    {
+        Assert.Equal(0.45, Constants.TREE_BACKGROUND_PROBABILITY);
+        Assert.Equal(0.62, Constants.TREE_BG_SCALE);
+        Assert.Equal(0.78f, Constants.TREE_BG_OPACITY);
+    }
+
+    [Fact]
+    public void WinterMixesForegroundAndBackgroundTrees()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        int fg = 0;
+        int bg = 0;
+        foreach (Blade b in sim.Blades)
+        {
+            if (!b.IsPine) continue;
+            if (b.TreeBackground) bg++; else fg++;
+        }
+        Assert.True(fg >= 1);
+        Assert.True(bg >= 1);
+    }
+
+    [Fact]
+    public void TreeDepthAssignmentIsDeterministicAcrossReentry()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        var firstPass = new System.Collections.Generic.List<bool>();
+        foreach (Blade b in sim.Blades)
+            if (b.IsPine) firstPass.Add(b.TreeBackground);
+
+        sim.SetScene(Scene.Grass);
+        sim.SetScene(Scene.Winter);
+
+        int idx = 0;
+        foreach (Blade b in sim.Blades)
+        {
+            if (!b.IsPine) continue;
+            Assert.True(idx < firstPass.Count);
+            Assert.Equal(firstPass[idx], b.TreeBackground);
+            idx++;
+        }
+        Assert.Equal(firstPass.Count, idx);
+    }
+
+    [Fact]
+    public void NonWinterScenesClearTreeBackgroundFlag()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+        sim.SetScene(Scene.Grass);
+        foreach (Blade b in sim.Blades) Assert.False(b.TreeBackground);
+    }
 }

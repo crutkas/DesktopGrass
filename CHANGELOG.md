@@ -12,6 +12,19 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Winter treeline depth: foreground & background pines
+
+### Added
+- **Winter pines and birches are now split into foreground and background layers**
+  so the treeline reads with real depth instead of a single flat row. About 45% of
+  trees are pushed to the background: drawn smaller (`TREE_BG_SCALE` 0.62), hazier
+  (`TREE_BG_OPACITY` 0.78), and *behind* the snowbank so the bank occludes their
+  base. Foreground trees stay full-size and in front of the bank.
+- Depth assignment is a single locked PRNG draw at generation (deterministic across
+  scene re-entry); non-winter scenes clear the flag.
+
+---
+
 ## 2026-06-04 — Snow footprints: carve-and-settle interaction
 
 ### Added

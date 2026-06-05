@@ -822,6 +822,15 @@ constexpr uint64_t PINE_PRNG_SALT                  = 0x50494E4550494E45ull;
 constexpr double   TREE_SWAY_LEAN_FACTOR           = 0.6;
 constexpr double   TREE_SWAY_MAX_HEIGHT_FRACTION   = 0.05;
 
+// Tree depth layering (§15.4). Winter pines/birches are split into a foreground
+// layer (full size, drawn in front of the snowbank) and a background layer
+// (scaled down, hazier, drawn behind the snowbank) so the treeline reads with
+// real fore/background depth instead of a single flat row. The depth is chosen
+// by one locked PRNG draw per tree at generation time. Render-only scale/opacity.
+constexpr double   TREE_BACKGROUND_PROBABILITY     = 0.45;  // share of trees pushed to the back
+constexpr double   TREE_BG_SCALE                   = 0.62;  // background trees are ~62% size
+constexpr float    TREE_BG_OPACITY                 = 0.78f; // atmospheric haze on background trees
+
 // Birch tree variant (§15.1). Second tree style — vertical white trunk
 // with dark bark marks and short bare branches. Selected per-slot via
 // an additional PRNG draw on tree promotion.

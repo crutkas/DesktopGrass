@@ -752,6 +752,14 @@ internal static class Constants
     public const double TREE_SWAY_LEAN_FACTOR         = 0.6;
     public const double TREE_SWAY_MAX_HEIGHT_FRACTION = 0.05;
 
+    // Tree depth layering (§15.4). Winter pines/birches split into a foreground
+    // layer (full size, in front of the snowbank) and a background layer (scaled
+    // down, hazier, behind the snowbank) for real fore/background depth. Depth is
+    // chosen by one locked PRNG draw per tree at generation. Render-only scale/opacity.
+    public const double TREE_BACKGROUND_PROBABILITY   = 0.45;
+    public const double TREE_BG_SCALE                 = 0.62;
+    public const float  TREE_BG_OPACITY               = 0.78f;
+
     // Birch tree variant (§15.1). Second tree style — vertical white trunk
     // with dark bark marks and short bare branches.
     public const double BIRCH_VARIANT_PROBABILITY = 0.30;

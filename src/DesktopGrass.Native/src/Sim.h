@@ -112,6 +112,7 @@ struct Blade {
     uint8_t treeVariant             = 0;     // 0 = pine, 1 = birch
     double  pineHeight              = 0.0;   // DIP
     double  pineWidth               = 0.0;   // DIP, base-tier width (pine) or trunk width (birch)
+    bool    treeBackground          = false; // §15.4 depth layer: true = small/hazy, drawn behind the snowbank
 
     // Maple (§16.5). Autumn-only slot-bound blade variant.
     bool    isMaple                 = false;

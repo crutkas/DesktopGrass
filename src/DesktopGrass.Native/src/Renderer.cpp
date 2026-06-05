@@ -705,9 +705,10 @@ void Renderer::RenderFrame(double dt,
         ? &cursorPosition
         : nullptr;
 
-    DrawGrass(false);
+    DrawGrass(false, false);
+    DrawGrass(true, true);   // background treeline, occluded by the snowbank below
     DrawSnowLayer();
-    DrawGrass(true);
+    DrawGrass(true, false);  // foreground treeline, in front of the snowbank
     DrawEntities(cursorForRender);
     DrawDayTint();
 
@@ -843,12 +844,22 @@ void Renderer::DrawSnowLayer() {
     }
 }
 
-void Renderer::DrawGrass(bool treesOnly) {
+void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
     if (treesOnly && sim_.currentScene != Scene::Winter && sim_.currentScene != Scene::Autumn) return;
     const double groundY = sim_.windowHeight;
     const int sceneIdx = static_cast<int>(sim_.currentScene);
     ComPtr<ID2D1Factory> factoryGeneric;
     d2dFactory_.As(&factoryGeneric);
+
+    // §15.4 depth layer: background trees draw smaller and hazier behind the
+    // snowbank. Apply a uniform haze to every tree brush for the current tree.
+    auto applyTreeAlpha = [&](float a) {
+        if (pineBrush_)      pineBrush_->SetOpacity(a);
+        if (pineShadowBrush_) pineShadowBrush_->SetOpacity(a);
+        if (snowTipBrush_)   snowTipBrush_->SetOpacity(a);
+        if (birchBarkBrush_) birchBarkBrush_->SetOpacity(a);
+        if (birchMarkBrush_) birchMarkBrush_->SetOpacity(a);
+    };
 
     auto drawCactusArm = [&](float baseX, float gy, float h, float width, int side) {
         const float sx = baseX;
@@ -876,6 +887,10 @@ void Renderer::DrawGrass(bool treesOnly) {
     for (const Blade& b : sim_.blades) {
         if (treesOnly) {
             if (!b.isPine && !b.isMaple) continue;
+            // bg pass draws only background pines; fg pass draws the rest
+            // (foreground pines + all maples, which are never background).
+            const bool isBg = b.isPine && b.treeBackground;
+            if (backgroundTrees != isBg) continue;
         } else if (b.isPine || b.isMaple) {
             continue;
         }
@@ -921,12 +936,24 @@ void Renderer::DrawGrass(bool treesOnly) {
             const float baseX = static_cast<float>(b.baseX);
             const float gy    = static_cast<float>(groundY - snow_tree_base_y_offset(sim_));
 
+            // §15.4 depth: background trees shrink toward their base and fade.
+            const bool  bgTree    = b.treeBackground;
+            const float treeScale = bgTree ? static_cast<float>(TREE_BG_SCALE) : 1.0f;
+            const float treeAlpha = bgTree ? TREE_BG_OPACITY : 1.0f;
+            const auto  depthXform = [&](const D2D1_MATRIX_3X2_F& sway) {
+                return bgTree
+                    ? D2D1::Matrix3x2F::Scale(treeScale, treeScale, D2D1::Point2F(baseX, gy)) * sway
+                    : sway;
+            };
+            applyTreeAlpha(treeAlpha);
+
             if (b.cutHeight < CUT_STUMP_THRESHOLD) {
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
-                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                    D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT) * treeScale),
                     pineBrush_.Get(),
-                    static_cast<float>(std::max(2.0, b.pineWidth * 0.25)));
+                    static_cast<float>(std::max(2.0, b.pineWidth * 0.25)) * treeScale);
+                applyTreeAlpha(1.0f);
                 continue;
             }
 
@@ -952,7 +979,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                 const float trunkW    = static_cast<float>(b.pineWidth);
                 const float trunkTopY = gy - totalH;
 
-                d2dContext_->SetTransform(TreeSwayTransform(b, totalH, gy));
+                d2dContext_->SetTransform(depthXform(TreeSwayTransform(b, totalH, gy)));
 
                 d2dContext_->DrawLine(
                     D2D1::Point2F(baseX, gy),
@@ -1011,6 +1038,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                     D2D1::Ellipse(D2D1::Point2F(baseX, trunkTopY), capR, capR * 0.6f),
                     snowTipBrush_.Get());
                 d2dContext_->SetTransform(D2D1::Matrix3x2F::Identity());
+                applyTreeAlpha(1.0f);
                 continue;
             }
 
@@ -1019,7 +1047,7 @@ void Renderer::DrawGrass(bool treesOnly) {
             const double totalH     = b.pineHeight * b.cutHeight;
             const double tierH      = totalH / tierCount;
 
-            d2dContext_->SetTransform(TreeSwayTransform(b, totalH, gy));
+            d2dContext_->SetTransform(depthXform(TreeSwayTransform(b, totalH, gy)));
 
             for (int i = 0; i < tierCount; ++i) {
                 const double tFrac    = (tierCount == 1) ? 0.0
@@ -1044,7 +1072,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                               static_cast<float>(topY),
                               halfW,
                               pineBrush_.Get());
-                pineHighlightBrush_->SetOpacity(PINE_HIGHLIGHT_OPACITY);
+                pineHighlightBrush_->SetOpacity(PINE_HIGHLIGHT_OPACITY * treeAlpha);
                 drawFilledTri(baseX - static_cast<float>(halfW * PINE_HIGHLIGHT_OFFSET_X_FRAC),
                               static_cast<float>(baseY),
                               static_cast<float>(topY),
@@ -1065,6 +1093,7 @@ void Renderer::DrawGrass(bool treesOnly) {
                               snowTipBrush_.Get());
             }
             d2dContext_->SetTransform(D2D1::Matrix3x2F::Identity());
+            applyTreeAlpha(1.0f);
             continue;
         }
 

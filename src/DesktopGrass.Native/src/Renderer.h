@@ -66,7 +66,7 @@ private:
     bool CreateDeviceResources();
     bool CreateSwapChainResources(int widthPx, int heightPx);
     void DiscardDeviceResources();
-    void DrawGrass(bool treesOnly);
+    void DrawGrass(bool treesOnly, bool backgroundTrees);
     void DrawSnowLayer();
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawDayTint();

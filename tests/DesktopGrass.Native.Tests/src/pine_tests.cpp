@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <vector>
 
 using namespace desktopgrass;
 
@@ -185,6 +186,56 @@ TEST_CASE("Winter scene suppresses mushrooms on every slot", "[pine][winter][mus
 
 TEST_CASE("Winter grass height scale is pinned", "[pine][winter][scale]") {
     REQUIRE(WINTER_GRASS_HEIGHT_SCALE == Approx(0.5));
+}
+
+TEST_CASE("Tree depth constants are pinned", "[pine][depth][constants]") {
+    REQUIRE(TREE_BACKGROUND_PROBABILITY == Approx(0.45));
+    REQUIRE(TREE_BG_SCALE == Approx(0.62));
+    REQUIRE(TREE_BG_OPACITY == Approx(0.78f));
+}
+
+TEST_CASE("Winter mixes foreground and background trees", "[pine][depth]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Winter);
+
+    std::size_t fg = 0;
+    std::size_t bg = 0;
+    for (const Blade& b : sim.blades) {
+        if (!b.isPine) continue;
+        if (b.treeBackground) ++bg; else ++fg;
+    }
+    REQUIRE(fg >= 1);
+    REQUIRE(bg >= 1);
+}
+
+TEST_CASE("Tree depth assignment is deterministic across re-entry", "[pine][depth]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Winter);
+
+    std::vector<bool> firstPass;
+    for (const Blade& b : sim.blades) {
+        if (b.isPine) firstPass.push_back(b.treeBackground);
+    }
+
+    // Leaving and re-entering Winter must reproduce the same depth layout.
+    sim_set_scene(sim, Scene::Grass);
+    sim_set_scene(sim, Scene::Winter);
+
+    std::size_t idx = 0;
+    for (const Blade& b : sim.blades) {
+        if (!b.isPine) continue;
+        REQUIRE(idx < firstPass.size());
+        REQUIRE(b.treeBackground == firstPass[idx]);
+        ++idx;
+    }
+    REQUIRE(idx == firstPass.size());
+}
+
+TEST_CASE("Non-winter scenes clear the tree background flag", "[pine][depth][restore]") {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
+    sim_set_scene(sim, Scene::Winter);
+    sim_set_scene(sim, Scene::Grass);
+    for (const Blade& b : sim.blades) REQUIRE_FALSE(b.treeBackground);
 }
 
 TEST_CASE("Winter scene leaves the canonical first blade geometry bit-identical", "[pine][snapshot]") {
