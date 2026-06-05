@@ -723,6 +723,23 @@ internal static class Constants
         MAPLE_CANOPY_COLOR_2, MAPLE_CANOPY_COLOR_3,
     };
 
+    // Leaf puff (§16.6). Hovering the cursor over a leafy maple canopy in
+    // Autumn shakes a small flurry of leaves loose, like a gust caught the
+    // crown. Each puff draws from an independent salted PRNG stream so it never
+    // perturbs the ambient leaf emitter. A per-tree cooldown keeps re-hovers
+    // calm. Puff leaves reuse the ordinary Leaf entity but carry an outward
+    // burst velocity (Vx) that decays via LEAF_PUFF_DRAG before they settle.
+    public const int    LEAF_PUFF_COUNT_MIN         = 4;
+    public const int    LEAF_PUFF_COUNT_MAX         = 7;
+    public const double LEAF_PUFF_BURST_SPEED_MIN   = 18.0;   // DIP/s outward
+    public const double LEAF_PUFF_BURST_SPEED_MAX   = 42.0;   // DIP/s outward
+    public const double LEAF_PUFF_DRAG              = 2.2;     // exp decay (1/s) on burst Vx
+    public const double LEAF_PUFF_COOLDOWN_SEC      = 1.5;     // per-tree re-puff gate
+    public const double LEAF_PUFF_HOVER_RADIUS_MUL  = 1.15;    // × canopy radius
+    public const double LEAF_PUFF_MIN_CUT_HEIGHT    = 0.5;     // tree must be reasonably leafy
+    public const double LEAF_PUFF_START_OFFSET_FRAC = 0.4;     // spawn spread within canopy
+    public const ulong  LEAF_PUFF_PRNG_SALT         = 0x9E3779B97F4A7C15ul;
+
     // Day-night ambient tint (§19). Pure render overlay; no simulation state.
     public readonly record struct DayTintPhase(float StartHour, byte R, byte G, byte B, byte Alpha);
 

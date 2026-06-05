@@ -458,10 +458,140 @@ public sealed class AutumnTests
             Constants.PINE_PRNG_SALT,
             Constants.LEAF_PRNG_SALT,
             Constants.MAPLE_PRNG_SALT,
+            Constants.LEAF_PUFF_PRNG_SALT,
         ];
 
         for (int i = 0; i < salts.Length; i++)
         for (int j = i + 1; j < salts.Length; j++)
             Assert.NotEqual(salts[i], salts[j]);
+    }
+
+    private static Sim BuildAutumnSimWithLeafyMaple()
+    {
+        for (ulong offset = 0; offset < 2048; offset++)
+        {
+            Sim sim = BuildAutumnSim(Constants.CANONICAL_TEST_SEED + offset);
+            if (sim.Blades.Any(b => b.IsMaple && !b.MapleIsBare)) return sim;
+        }
+
+        throw new InvalidOperationException("Unable to find deterministic seed with a leafy maple");
+    }
+
+    private static Blade FirstLeafyMaple(Sim sim) =>
+        sim.Blades.First(b => b.IsMaple && !b.MapleIsBare);
+
+    [Fact]
+    public void LeafPuffConstantsArePinned()
+    {
+        Assert.Equal(4, Constants.LEAF_PUFF_COUNT_MIN);
+        Assert.Equal(7, Constants.LEAF_PUFF_COUNT_MAX);
+        Assert.Equal(18.0, Constants.LEAF_PUFF_BURST_SPEED_MIN, 9);
+        Assert.Equal(42.0, Constants.LEAF_PUFF_BURST_SPEED_MAX, 9);
+        Assert.Equal(2.2, Constants.LEAF_PUFF_DRAG, 9);
+        Assert.Equal(1.5, Constants.LEAF_PUFF_COOLDOWN_SEC, 9);
+        Assert.Equal(1.15, Constants.LEAF_PUFF_HOVER_RADIUS_MUL, 9);
+        Assert.Equal(0.5, Constants.LEAF_PUFF_MIN_CUT_HEIGHT, 9);
+        Assert.Equal(0.4, Constants.LEAF_PUFF_START_OFFSET_FRAC, 9);
+    }
+
+    [Fact]
+    public void HoveringLeafyMapleShedsPuff()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        double cx = maple.BaseX;
+        double cy = sim.GroundY - maple.MapleHeight * maple.CutHeight;
+
+        int before = CountKind(sim, EntityKind.Leaf);
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+
+        int puffed = CountKind(sim, EntityKind.Leaf) - before;
+        Assert.True(puffed >= Constants.LEAF_PUFF_COUNT_MIN);
+        Assert.True(puffed <= Constants.LEAF_PUFF_COUNT_MAX);
+        Assert.Contains(sim.Entities, e => e.Kind == EntityKind.Leaf && e.Vx != 0.0);
+    }
+
+    [Fact]
+    public void LeafPuffRespectsCooldown()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        double cx = maple.BaseX;
+        double cy = sim.GroundY - maple.MapleHeight * maple.CutHeight;
+
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+        int afterFirst = CountKind(sim, EntityKind.Leaf);
+        Assert.True(afterFirst > 0);
+
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+        Assert.Equal(afterFirst, CountKind(sim, EntityKind.Leaf));
+
+        sim.GlobalTime += Constants.LEAF_PUFF_COOLDOWN_SEC + 0.1;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+        Assert.True(CountKind(sim, EntityKind.Leaf) > afterFirst);
+    }
+
+    [Fact]
+    public void LeafPuffIgnoresCursorAwayFromCanopy()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        int before = CountKind(sim, EntityKind.Leaf);
+
+        double awayX = maple.BaseX + 400.0;
+        double cy = sim.GroundY - maple.MapleHeight * maple.CutHeight;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, awayX, cy, sim.GlobalTime));
+        Assert.Equal(before, CountKind(sim, EntityKind.Leaf));
+    }
+
+    [Fact]
+    public void LeafPuffDoesNotFireOutsideAutumn()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        double cx = maple.BaseX;
+        double cy = sim.GroundY - maple.MapleHeight * maple.CutHeight;
+        sim.CurrentScene = Scene.Grass;
+
+        int before = CountKind(sim, EntityKind.Leaf);
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+        Assert.Equal(before, CountKind(sim, EntityKind.Leaf));
+    }
+
+    [Fact]
+    public void PuffBurstDecaysSoLeavesSettle()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        double cx = maple.BaseX;
+        double cy = sim.GroundY - maple.MapleHeight * maple.CutHeight;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, cx, cy, sim.GlobalTime));
+        Assert.True(CountKind(sim, EntityKind.Leaf) > 0);
+
+        for (int i = 0; i < 40; i++) sim.Tick(0.05, ReadOnlySpan<InputEvent>.Empty);
+        foreach (var e in sim.Entities)
+            if (e.Kind == EntityKind.Leaf)
+                Assert.Equal(0.0, e.Vx, 9);
+    }
+
+    [Fact]
+    public void ReEnteringAutumnClearsPuffCooldown()
+    {
+        Sim sim = BuildAutumnSimWithLeafyMaple();
+        Blade maple = FirstLeafyMaple(sim);
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, maple.BaseX,
+            sim.GroundY - maple.MapleHeight * maple.CutHeight, sim.GlobalTime));
+        Assert.True(CountKind(sim, EntityKind.Leaf) > 0);
+
+        // Leaving and re-entering Autumn regenerates the deterministic maples and
+        // must reset their puff cooldown so the fresh scene can puff immediately.
+        sim.SetScene(Scene.Grass);
+        sim.SetScene(Scene.Autumn);
+        Blade maple2 = FirstLeafyMaple(sim);
+
+        int before = CountKind(sim, EntityKind.Leaf);
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, maple2.BaseX,
+            sim.GroundY - maple2.MapleHeight * maple2.CutHeight, sim.GlobalTime));
+        Assert.True(CountKind(sim, EntityKind.Leaf) > before);
     }
 }

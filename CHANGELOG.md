@@ -8,6 +8,23 @@ entries are grouped by date instead.
 
 ---
 
+---
+
+## 2026-06-04 — Fuller fall trees & leaves that scatter on hover
+
+### Changed
+- **Redesigned the autumn maple canopy** — the flat single-oval crown is replaced
+  by a fuller layered crown built from several overlapping autumn-shaded leaf
+  clumps with a couple of lighter highlight dabs, so the fall trees read as soft,
+  rounded foliage instead of a lollipop.
+
+### Added
+- **Leaf puff on hover** — moving the cursor over a leafy maple now sheds a small
+  outward burst of 4–7 leaves, like a gust catching the foliage. The burst drifts
+  outward and decays so the leaves settle naturally. Bare (already-shed) trees and
+  trees on cooldown stay calm, and the effect uses its own deterministic PRNG
+  stream so it never perturbs the ambient falling-leaf animation.
+
 ## 2026-06-04 — Shorter cactus arms & a finer mow
 
 ### Changed

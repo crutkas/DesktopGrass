@@ -320,6 +320,7 @@ void restore_original_variants(Blade& b) noexcept {
     b.mapleCanopyRadius = 0.0;
     b.mapleCanopyColorIdx = 0;
     b.mapleIsBare    = false;
+    b.leafPuffCooldownEnd = 0.0;
     b.isFlower       = b.originalIsFlower;
     b.isMushroom     = b.originalIsMushroom;
 }
@@ -417,6 +418,35 @@ Entity make_leaf(Prng& prng, double monitorWidth) noexcept {
     e.vx = 0.0;
     e.vy = fallSpeed;
     e.baseSpeed = fallSpeed;
+    e.age = 0.0;
+    e.lifetime = -1.0;
+    return e;
+}
+
+// Leaf shaken loose by a cursor hover (§16.6). Same visual leaf, but spawned at
+// the canopy with an outward burst velocity (vx) that decays in the tick before
+// it settles into the usual sinusoidal flutter-down. Draw order is locked to
+// the Win2D mirror so both impls stay bit-identical.
+Entity make_puff_leaf(Prng& prng, double cx, double cy, double canopyR) noexcept {
+    Entity e{};
+    e.kind = EntityKind::Leaf;
+    e.phaseX = prng_uniform(prng, 0.0, TWO_PI);
+    const double rotationSpeedMag = prng_uniform(prng, LEAF_ROTATION_SPEED_MIN, LEAF_ROTATION_SPEED_MAX);
+    const double rotationSign = (prng_next_u64(prng) & 1ull) != 0ull ? 1.0 : -1.0;
+    e.rotationSpeed = rotationSpeedMag * rotationSign;
+    e.rotation = prng_uniform(prng, 0.0, TWO_PI);
+    e.size = prng_uniform(prng, LEAF_SIZE_MIN, LEAF_SIZE_MAX);
+    e.colorVariant = static_cast<uint8_t>(prng_index(prng, LEAF_COLOR_COUNT));
+    const double ang = prng_uniform(prng, 0.0, TWO_PI);
+    const double speed = prng_uniform(prng, LEAF_PUFF_BURST_SPEED_MIN, LEAF_PUFF_BURST_SPEED_MAX);
+    const double offFrac = prng_uniform(prng, 0.0, LEAF_PUFF_START_OFFSET_FRAC);
+    const double fallSpeed = prng_uniform(prng, LEAF_FALL_SPEED_MIN, LEAF_FALL_SPEED_MAX);
+    e.x0 = cx + std::cos(ang) * canopyR * offFrac;
+    e.y  = cy + std::sin(ang) * canopyR * offFrac;
+    e.vx = std::cos(ang) * speed;
+    e.vy = fallSpeed;
+    e.baseSpeed = fallSpeed;
+    e.x = e.x0 + LEAF_HORIZONTAL_DRIFT_AMP * std::sin(e.phaseX);
     e.age = 0.0;
     e.lifetime = -1.0;
     return e;
@@ -684,6 +714,36 @@ void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) n
 // ---------------------------------------------------------------------------
 
 void sim_apply_move(Sim& sim, const InputEvent& e) noexcept {
+    // §16.6 leaf puff: hovering a leafy maple canopy shakes leaves loose.
+    // Independent of the gust band so it fires even directly over the crown.
+    if (sim.currentScene == Scene::Autumn && std::isfinite(e.x) && std::isfinite(e.y)) {
+        const double groundY2 = sim.windowHeight;
+        for (Blade& b : sim.blades) {
+            if (!b.isMaple || b.mapleIsBare) continue;
+            if (b.cutHeight < LEAF_PUFF_MIN_CUT_HEIGHT) continue;
+            if (sim.globalTime < b.leafPuffCooldownEnd) continue;
+            const double cx = b.baseX;
+            const double cy = groundY2 - b.mapleHeight * b.cutHeight;
+            const double canopyR = b.mapleCanopyRadius * b.cutHeight;
+            const double hoverR = canopyR * LEAF_PUFF_HOVER_RADIUS_MUL;
+            const double dx = e.x - cx;
+            const double dy = e.y - cy;
+            if (dx * dx + dy * dy > hoverR * hoverR) continue;
+            const int count = LEAF_PUFF_COUNT_MIN
+                + static_cast<int>(prng_index(sim.leafPuffPrng,
+                                              LEAF_PUFF_COUNT_MAX - LEAF_PUFF_COUNT_MIN + 1));
+            bool emittedAny = false;
+            for (int i = 0; i < count; ++i) {
+                if (sim.entities.size() >= static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) break;
+                sim.entities.push_back(make_puff_leaf(sim.leafPuffPrng, cx, cy, canopyR));
+                emittedAny = true;
+            }
+            // Only arm the cooldown when leaves actually shed; if the entity cap
+            // was full the hover was a visual no-op and may retry next move.
+            if (emittedAny) b.leafPuffCooldownEnd = sim.globalTime + LEAF_PUFF_COOLDOWN_SEC;
+        }
+    }
+
     const double groundY        = sim.windowHeight;
     const double gustBandTop    = groundY - STRIP_HEIGHT - HEADROOM;
     const double gustBandBottom = groundY;
@@ -1249,6 +1309,7 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
     case Scene::Autumn:
         generate_maples_for_autumn(sim);
         prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
+        prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
         sim.nextLeafSpawnTime = sim.globalTime;
         break;
     }
@@ -1403,6 +1464,14 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Leaf) {
+            // Puff leaves carry an outward burst (vx) that drifts the anchor
+            // out, then decays so they settle into the ordinary flutter. Ambient
+            // leaves have vx == 0 and so are completely unaffected.
+            if (e.vx != 0.0) {
+                e.x0 += e.vx * dt;
+                e.vx *= std::exp(-LEAF_PUFF_DRAG * dt);
+                if (std::fabs(e.vx) < 0.5) e.vx = 0.0;
+            }
             e.x = e.x0 + LEAF_HORIZONTAL_DRIFT_AMP
                 * std::sin(e.age * LEAF_HORIZONTAL_DRIFT_FREQ + e.phaseX);
         }
@@ -1840,6 +1909,7 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     s.nextRaindropSpawnTime = s.globalTime;
     prng_init(s.leafPrng, s.entitySeed ^ LEAF_PRNG_SALT);
     s.nextLeafSpawnTime = s.globalTime;
+    prng_init(s.leafPuffPrng, s.entitySeed ^ LEAF_PUFF_PRNG_SALT);
     prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
@@ -1870,6 +1940,7 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.nextRaindropSpawnTime = sim.globalTime;
     prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
     sim.nextLeafSpawnTime = sim.globalTime;
+    prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
     prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }

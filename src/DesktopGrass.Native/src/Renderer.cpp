@@ -967,11 +967,35 @@ void Renderer::DrawGrass(bool treesOnly) {
             if (!b.mapleIsBare) {
                 uint8_t idx = b.mapleCanopyColorIdx;
                 if (idx >= MAPLE_CANOPY_COLOR_COUNT) idx = 0;
-                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX, topY), canopyR, canopyR * 0.92f),
-                                         mapleCanopyBrushes_[idx].Get());
-                ID2D1SolidColorBrush* hi0 = mapleCanopyBrushes_[(idx + 1) % MAPLE_CANOPY_COLOR_COUNT].Get();
-                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX - canopyR * 0.32f, topY - canopyR * 0.12f), canopyR * 0.28f, canopyR * 0.22f), hi0);
-                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX + canopyR * 0.22f, topY + canopyR * 0.18f), canopyR * 0.22f, canopyR * 0.18f), hi0);
+                const float cx = baseX;
+                const float cy = topY;
+                // Layered crown (§16.5): a broad base disc plus several
+                // overlapping leaf clumps in staggered autumn tones, giving a
+                // full, organic canopy instead of a single flat oval. dx/dy are
+                // fractions of canopyR; colorOff cycles the warm palette.
+                struct MapleClump { float dx; float dy; float r; int colorOff; };
+                static const MapleClump kClumps[] = {
+                    { 0.00f, -0.15f, 1.05f, 0 },  // back base
+                    {-0.50f, -0.05f, 0.60f, 1 },
+                    { 0.50f, -0.10f, 0.58f, 2 },
+                    {-0.28f, -0.48f, 0.54f, 1 },
+                    { 0.30f, -0.45f, 0.52f, 2 },
+                    { 0.00f, -0.62f, 0.48f, 1 },  // top
+                    {-0.15f,  0.30f, 0.55f, 0 },  // lower-left fill
+                    { 0.22f,  0.28f, 0.50f, 2 },  // lower-right fill
+                };
+                for (const auto& c : kClumps) {
+                    ID2D1SolidColorBrush* brush =
+                        mapleCanopyBrushes_[(idx + c.colorOff) % MAPLE_CANOPY_COLOR_COUNT].Get();
+                    d2dContext_->FillEllipse(
+                        D2D1::Ellipse(D2D1::Point2F(cx + canopyR * c.dx, cy + canopyR * c.dy),
+                                      canopyR * c.r, canopyR * c.r * 0.95f),
+                        brush);
+                }
+                // Two light dabs near the upper-left for a soft sense of light.
+                ID2D1SolidColorBrush* hi = mapleCanopyBrushes_[(idx + 3) % MAPLE_CANOPY_COLOR_COUNT].Get();
+                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx - canopyR * 0.34f, cy - canopyR * 0.34f), canopyR * 0.24f, canopyR * 0.20f), hi);
+                d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx - canopyR * 0.05f, cy - canopyR * 0.58f), canopyR * 0.18f, canopyR * 0.16f), hi);
             } else {
                 for (int i = 0; i < 3; ++i) {
                     ID2D1SolidColorBrush* leafBrush = leafBrushes_[i % LEAF_COLOR_COUNT].Get();

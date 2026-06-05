@@ -130,6 +130,11 @@ internal struct Blade
     public byte   MapleCanopyColorIdx;
     public bool   MapleIsBare;
 
+    // Leaf puff cooldown (§16.6). Absolute GlobalTime before which this maple
+    // will not shed another hover-triggered leaf flurry. Runtime-only; default
+    // 0.0 keeps default-constructed Blade fixtures ready to puff immediately.
+    public double LeafPuffCooldownEnd;
+
     public double EffectiveLean;
 }
 
@@ -238,6 +243,10 @@ internal sealed class Sim
     // §16.5 leaf emitter (Autumn scene only).
     public Prng LeafPrng;
     public double NextLeafSpawnTime;
+
+    // §16.6 leaf-puff emitter (Autumn scene only). Independent salted stream so
+    // cursor-triggered puffs never perturb the ambient leaf emitter's draws.
+    public Prng LeafPuffPrng;
 
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
@@ -440,6 +449,7 @@ internal sealed class Sim
             case Scene.Autumn:
                 GenerateMaplesForAutumn(this);
                 LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
+                LeafPuffPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PUFF_PRNG_SALT);
                 NextLeafSpawnTime = GlobalTime;
                 break;
         }
@@ -847,6 +857,7 @@ internal sealed class Sim
         NextRaindropSpawnTime = GlobalTime;
         LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
         NextLeafSpawnTime = GlobalTime;
+        LeafPuffPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PUFF_PRNG_SALT);
         BirdFlybyPrng = Prng.Init(EntitySeed ^ Constants.BIRD_FLYBY_PRNG_SALT);
         NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
     }
@@ -869,6 +880,7 @@ internal sealed class Sim
         b.MapleCanopyRadius = 0.0;
         b.MapleCanopyColorIdx = 0;
         b.MapleIsBare = false;
+        b.LeafPuffCooldownEnd = 0.0;
         b.IsFlower = b.OriginalIsFlower;
         b.IsMushroom = b.OriginalIsMushroom;
     }
@@ -1208,6 +1220,15 @@ internal sealed class Sim
             Entity e = Entities[i];
             if (e.Kind == EntityKind.Leaf)
             {
+                // Puff leaves carry an outward burst (Vx) that drifts the anchor
+                // out, then decays so they settle into the ordinary flutter.
+                // Ambient leaves have Vx == 0 and so are completely unaffected.
+                if (e.Vx != 0.0)
+                {
+                    e.X0 += e.Vx * dt;
+                    e.Vx *= Math.Exp(-Constants.LEAF_PUFF_DRAG * dt);
+                    if (Math.Abs(e.Vx) < 0.5) e.Vx = 0.0;
+                }
                 e.X = e.X0 + Constants.LEAF_HORIZONTAL_DRIFT_AMP
                     * Math.Sin(e.Age * Constants.LEAF_HORIZONTAL_DRIFT_FREQ + e.PhaseX);
                 Entities[i] = e;
@@ -1848,9 +1869,72 @@ internal sealed class Sim
         b.EffectiveLean = baseLean + b.GustVelocity * Constants.GUST_TO_LEAN_FACTOR;
     }
 
+    // §16.6 leaf shaken loose by a cursor hover. Same visual leaf, but spawned
+    // at the canopy with an outward burst (Vx) that decays in the tick before it
+    // settles into the usual flutter. Draw order locked to the native mirror.
+    private Entity MakePuffLeaf(double cx, double cy, double canopyR)
+    {
+        double twoPi = 2.0 * Math.PI;
+        Entity e = default;
+        e.Kind = EntityKind.Leaf;
+        e.PhaseX = LeafPuffPrng.Uniform(0.0, twoPi);
+        double rotationSpeedMag = LeafPuffPrng.Uniform(Constants.LEAF_ROTATION_SPEED_MIN, Constants.LEAF_ROTATION_SPEED_MAX);
+        double rotationSign = (LeafPuffPrng.NextU64() & 1UL) != 0UL ? 1.0 : -1.0;
+        e.RotationSpeed = rotationSpeedMag * rotationSign;
+        e.Rotation = LeafPuffPrng.Uniform(0.0, twoPi);
+        e.Size = LeafPuffPrng.Uniform(Constants.LEAF_SIZE_MIN, Constants.LEAF_SIZE_MAX);
+        e.ColorVariant = (byte)LeafPuffPrng.Index((uint)Constants.LEAF_COLOR_COUNT);
+        double ang = LeafPuffPrng.Uniform(0.0, twoPi);
+        double speed = LeafPuffPrng.Uniform(Constants.LEAF_PUFF_BURST_SPEED_MIN, Constants.LEAF_PUFF_BURST_SPEED_MAX);
+        double offFrac = LeafPuffPrng.Uniform(0.0, Constants.LEAF_PUFF_START_OFFSET_FRAC);
+        double fallSpeed = LeafPuffPrng.Uniform(Constants.LEAF_FALL_SPEED_MIN, Constants.LEAF_FALL_SPEED_MAX);
+        e.X0 = cx + Math.Cos(ang) * canopyR * offFrac;
+        e.Y = cy + Math.Sin(ang) * canopyR * offFrac;
+        e.Vx = Math.Cos(ang) * speed;
+        e.Vy = fallSpeed;
+        e.BaseSpeed = fallSpeed;
+        e.X = e.X0 + Constants.LEAF_HORIZONTAL_DRIFT_AMP * Math.Sin(e.PhaseX);
+        e.Age = 0.0;
+        e.Lifetime = -1.0;
+        return e;
+    }
+
     // §8 cursor-move impulse.
     public void ApplyCursorMove(in InputEvent e)
     {
+        // §16.6 leaf puff: hovering a leafy maple canopy shakes leaves loose.
+        // Independent of the gust band so it fires even directly over the crown.
+        if (CurrentScene == Scene.Autumn && double.IsFinite(e.X) && double.IsFinite(e.Y))
+        {
+            double groundY2 = GroundY;
+            for (int i = 0; i < Blades.Length; i++)
+            {
+                ref Blade b = ref Blades[i];
+                if (!b.IsMaple || b.MapleIsBare) continue;
+                if (b.CutHeight < Constants.LEAF_PUFF_MIN_CUT_HEIGHT) continue;
+                if (GlobalTime < b.LeafPuffCooldownEnd) continue;
+                double cx = b.BaseX;
+                double cy = groundY2 - b.MapleHeight * b.CutHeight;
+                double canopyR = b.MapleCanopyRadius * b.CutHeight;
+                double hoverR = canopyR * Constants.LEAF_PUFF_HOVER_RADIUS_MUL;
+                double dxh = e.X - cx;
+                double dyh = e.Y - cy;
+                if (dxh * dxh + dyh * dyh > hoverR * hoverR) continue;
+                int count = Constants.LEAF_PUFF_COUNT_MIN
+                    + (int)LeafPuffPrng.Index((uint)(Constants.LEAF_PUFF_COUNT_MAX - Constants.LEAF_PUFF_COUNT_MIN + 1));
+                bool emittedAny = false;
+                for (int k = 0; k < count; k++)
+                {
+                    if (Entities.Count >= Constants.MAX_ENTITIES_PER_MONITOR) break;
+                    Entities.Add(MakePuffLeaf(cx, cy, canopyR));
+                    emittedAny = true;
+                }
+                // Only arm the cooldown when leaves actually shed; if the entity
+                // cap was full the hover was a visual no-op and may retry.
+                if (emittedAny) b.LeafPuffCooldownEnd = GlobalTime + Constants.LEAF_PUFF_COOLDOWN_SEC;
+            }
+        }
+
         double gustBandTop = GroundY - Constants.STRIP_HEIGHT - Constants.HEADROOM;
         double gustBandBottom = GroundY;
         if (e.Y < gustBandTop || e.Y > gustBandBottom)

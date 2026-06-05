@@ -782,6 +782,23 @@ constexpr uint32_t MAPLE_CANOPY_COLORS[MAPLE_CANOPY_COLOR_COUNT] = {
     MAPLE_CANOPY_COLOR_2, MAPLE_CANOPY_COLOR_3,
 };
 
+// Leaf puff (§16.6). Hovering the cursor over a leafy maple canopy in Autumn
+// shakes a small flurry of leaves loose, like a gust caught the crown. Each
+// puff draws from an independent salted PRNG stream so it never perturbs the
+// ambient leaf emitter. A per-tree cooldown keeps re-hovers calm. Puff leaves
+// reuse the ordinary Leaf entity but carry an outward burst velocity (vx) that
+// decays via LEAF_PUFF_DRAG before they settle into the usual flutter-down.
+constexpr int      LEAF_PUFF_COUNT_MIN          = 4;
+constexpr int      LEAF_PUFF_COUNT_MAX          = 7;
+constexpr double   LEAF_PUFF_BURST_SPEED_MIN    = 18.0;   // DIP/s outward
+constexpr double   LEAF_PUFF_BURST_SPEED_MAX    = 42.0;   // DIP/s outward
+constexpr double   LEAF_PUFF_DRAG               = 2.2;    // exp decay rate (1/s) on burst vx
+constexpr double   LEAF_PUFF_COOLDOWN_SEC       = 1.5;    // per-tree re-puff gate
+constexpr double   LEAF_PUFF_HOVER_RADIUS_MUL   = 1.15;   // × canopy radius
+constexpr double   LEAF_PUFF_MIN_CUT_HEIGHT     = 0.5;    // tree must be reasonably leafy
+constexpr double   LEAF_PUFF_START_OFFSET_FRAC  = 0.4;    // spawn spread within canopy
+constexpr uint64_t LEAF_PUFF_PRNG_SALT          = 0x9E3779B97F4A7C15ull;
+
 // Day-night ambient tint (§19). Pure render overlay; no simulation state.
 struct DayTintPhase {
     float   startHour;

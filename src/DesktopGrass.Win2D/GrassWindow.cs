@@ -1572,10 +1572,33 @@ internal sealed class GrassWindow : IDisposable
             {
                 int idx = b.MapleCanopyColorIdx;
                 if ((uint)idx >= (uint)Constants.MAPLE_CANOPY_COLOR_COUNT) idx = 0;
-                _dc.FillEllipse(new Ellipse(new Vector2(baseX, topY), canopyR, canopyR * 0.92f), _mapleCanopyBrushes![idx]);
-                var hi0 = _mapleCanopyBrushes[(idx + 1) % Constants.MAPLE_CANOPY_COLOR_COUNT];
-                _dc.FillEllipse(new Ellipse(new Vector2(baseX - canopyR * 0.32f, topY - canopyR * 0.12f), canopyR * 0.28f, canopyR * 0.22f), hi0);
-                _dc.FillEllipse(new Ellipse(new Vector2(baseX + canopyR * 0.22f, topY + canopyR * 0.18f), canopyR * 0.22f, canopyR * 0.18f), hi0);
+                float ccx = baseX;
+                float ccy = topY;
+                // Layered crown (§16.5): a broad base disc plus several
+                // overlapping leaf clumps in staggered autumn tones, giving a
+                // full, organic canopy instead of a single flat oval. dx/dy are
+                // fractions of canopyR; colorOff cycles the warm palette.
+                (float dx, float dy, float r, int colorOff)[] clumps =
+                {
+                    ( 0.00f, -0.15f, 1.05f, 0),  // back base
+                    (-0.50f, -0.05f, 0.60f, 1),
+                    ( 0.50f, -0.10f, 0.58f, 2),
+                    (-0.28f, -0.48f, 0.54f, 1),
+                    ( 0.30f, -0.45f, 0.52f, 2),
+                    ( 0.00f, -0.62f, 0.48f, 1),  // top
+                    (-0.15f,  0.30f, 0.55f, 0),  // lower-left fill
+                    ( 0.22f,  0.28f, 0.50f, 2),  // lower-right fill
+                };
+                foreach (var c in clumps)
+                {
+                    var clumpBrush = _mapleCanopyBrushes![(idx + c.colorOff) % Constants.MAPLE_CANOPY_COLOR_COUNT];
+                    _dc.FillEllipse(new Ellipse(new Vector2(ccx + canopyR * c.dx, ccy + canopyR * c.dy),
+                                                canopyR * c.r, canopyR * c.r * 0.95f), clumpBrush);
+                }
+                // Two light dabs near the upper-left for a soft sense of light.
+                var hi = _mapleCanopyBrushes![(idx + 3) % Constants.MAPLE_CANOPY_COLOR_COUNT];
+                _dc.FillEllipse(new Ellipse(new Vector2(ccx - canopyR * 0.34f, ccy - canopyR * 0.34f), canopyR * 0.24f, canopyR * 0.20f), hi);
+                _dc.FillEllipse(new Ellipse(new Vector2(ccx - canopyR * 0.05f, ccy - canopyR * 0.58f), canopyR * 0.18f, canopyR * 0.16f), hi);
             }
             else
             {

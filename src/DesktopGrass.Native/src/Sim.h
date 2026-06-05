@@ -121,6 +121,11 @@ struct Blade {
     uint8_t mapleCanopyColorIdx     = 0;
     bool    mapleIsBare             = false;
 
+    // Leaf puff cooldown (§16.6). Absolute globalTime before which this maple
+    // will not shed another hover-triggered leaf flurry. Runtime-only; default
+    // 0.0 keeps `Blade b{}` fixtures ready to puff immediately.
+    double  leafPuffCooldownEnd     = 0.0;
+
     // Derived per-frame. Stored on the blade for the renderer to consume; not
     // part of the persistent state and ignored by snapshot tests.
     double  effectiveLean;
@@ -252,6 +257,10 @@ struct Sim {
     // §16.5 leaf emitter (Autumn scene only).
     Prng               leafPrng            = { 0 };
     double             nextLeafSpawnTime   = 0.0;
+
+    // §16.6 leaf-puff emitter (Autumn scene only). Independent salted stream so
+    // cursor-triggered puffs never perturb the ambient leaf emitter's draws.
+    Prng               leafPuffPrng        = { 0 };
 
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.

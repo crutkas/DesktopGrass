@@ -86,6 +86,24 @@ Sim make_autumn_sim_with_maple(uint64_t* outSeed = nullptr) {
     return make_autumn_sim();
 }
 
+// Find an Autumn sim that contains at least one leafy (non-bare) maple, and
+// return a pointer to it. The returned pointer is valid for the lifetime of
+// the returned-by-out sim.
+inline const Blade* first_leafy_maple(const Sim& sim) {
+    auto it = std::find_if(sim.blades.begin(), sim.blades.end(),
+        [](const Blade& b) { return b.isMaple && !b.mapleIsBare; });
+    return it == sim.blades.end() ? nullptr : &*it;
+}
+
+Sim make_autumn_sim_with_leafy_maple() {
+    for (uint64_t offset = 0; offset < 2048; ++offset) {
+        Sim sim = make_autumn_sim(CANONICAL_TEST_SEED + offset);
+        if (first_leafy_maple(sim) != nullptr) return sim;
+    }
+    FAIL("Unable to find deterministic seed with a leafy maple");
+    return make_autumn_sim();
+}
+
 std::filesystem::path autumn_state_path() {
     std::filesystem::path dir = std::filesystem::current_path()
         / ".copilot-scratch"
@@ -431,8 +449,144 @@ TEST_CASE("Autumn scene persists round-trip", "[autumn][persistence]") {
     REQUIRE(actual.scene == Scene::Autumn);
 }
 
+TEST_CASE("Leaf puff constants are pinned", "[autumn][leaf][puff][constants]") {
+    REQUIRE(LEAF_PUFF_COUNT_MIN == 4);
+    REQUIRE(LEAF_PUFF_COUNT_MAX == 7);
+    REQUIRE(LEAF_PUFF_BURST_SPEED_MIN == Approx(18.0));
+    REQUIRE(LEAF_PUFF_BURST_SPEED_MAX == Approx(42.0));
+    REQUIRE(LEAF_PUFF_DRAG == Approx(2.2));
+    REQUIRE(LEAF_PUFF_COOLDOWN_SEC == Approx(1.5));
+    REQUIRE(LEAF_PUFF_HOVER_RADIUS_MUL == Approx(1.15));
+    REQUIRE(LEAF_PUFF_MIN_CUT_HEIGHT == Approx(0.5));
+    REQUIRE(LEAF_PUFF_START_OFFSET_FRAC == Approx(0.4));
+}
+
+TEST_CASE("Hovering a leafy maple sheds a leaf puff", "[autumn][leaf][puff]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    REQUIRE(maple != nullptr);
+    const double cx = maple->baseX;
+    const double cy = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+
+    const int before = count_kind(sim, EntityKind::Leaf);
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = cx;
+    mv.y = cy;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+
+    const int puffed = count_kind(sim, EntityKind::Leaf) - before;
+    REQUIRE(puffed >= LEAF_PUFF_COUNT_MIN);
+    REQUIRE(puffed <= LEAF_PUFF_COUNT_MAX);
+
+    const bool anyBurst = std::any_of(sim.entities.begin(), sim.entities.end(),
+        [](const Entity& e) { return e.kind == EntityKind::Leaf && e.vx != 0.0; });
+    REQUIRE(anyBurst);
+}
+
+TEST_CASE("Leaf puff respects a per-tree cooldown", "[autumn][leaf][puff]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    const double cx = maple->baseX;
+    const double cy = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = cx;
+    mv.y = cy;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    const int afterFirst = count_kind(sim, EntityKind::Leaf);
+    REQUIRE(afterFirst > 0);
+
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) == afterFirst);
+
+    sim.globalTime += LEAF_PUFF_COOLDOWN_SEC + 0.1;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) > afterFirst);
+}
+
+TEST_CASE("Leaf puff ignores cursor away from canopy", "[autumn][leaf][puff]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    const int before = count_kind(sim, EntityKind::Leaf);
+
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = maple->baseX + 400.0;
+    mv.y = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) == before);
+}
+
+TEST_CASE("Leaf puff does not fire outside Autumn", "[autumn][leaf][puff][gating]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    const double cx = maple->baseX;
+    const double cy = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+    sim.currentScene = Scene::Grass;
+
+    const int before = count_kind(sim, EntityKind::Leaf);
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = cx;
+    mv.y = cy;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) == before);
+}
+
+TEST_CASE("Puff burst decays so leaves settle into flutter", "[autumn][leaf][puff]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = maple->baseX;
+    mv.y = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) > 0);
+
+    for (int i = 0; i < 40; ++i) sim_tick(sim, 0.05, nullptr, 0);
+    for (const Entity& e : sim.entities) {
+        if (e.kind == EntityKind::Leaf) REQUIRE(e.vx == Approx(0.0).margin(kEpsilon));
+    }
+}
+
+TEST_CASE("Re-entering Autumn clears the puff cooldown", "[autumn][leaf][puff]") {
+    Sim sim = make_autumn_sim_with_leafy_maple();
+    const Blade* maple = first_leafy_maple(sim);
+    InputEvent mv{};
+    mv.type = EventType::Move;
+    mv.x = maple->baseX;
+    mv.y = sim.windowHeight - maple->mapleHeight * maple->cutHeight;
+    mv.time = sim.globalTime;
+    sim_apply_move(sim, mv);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) > 0);
+
+    // Leaving and re-entering Autumn regenerates the (deterministic) maples and
+    // must reset their puff cooldown so the fresh scene can puff immediately.
+    sim_set_scene(sim, Scene::Grass);
+    sim_set_scene(sim, Scene::Autumn);
+    const Blade* maple2 = first_leafy_maple(sim);
+    REQUIRE(maple2 != nullptr);
+
+    const int before = count_kind(sim, EntityKind::Leaf);
+    InputEvent mv2{};
+    mv2.type = EventType::Move;
+    mv2.x = maple2->baseX;
+    mv2.y = sim.windowHeight - maple2->mapleHeight * maple2->cutHeight;
+    mv2.time = sim.globalTime;
+    sim_apply_move(sim, mv2);
+    REQUIRE(count_kind(sim, EntityKind::Leaf) > before);
+}
+
 TEST_CASE("Autumn PRNG salts are unique", "[autumn][prng]") {
-    constexpr std::array<uint64_t, 15> salts = {
+    constexpr std::array<uint64_t, 16> salts = {
         REGROW_PRNG_SALT,
         FLOWER_PRNG_SALT,
         MUSHROOM_PRNG_SALT,
@@ -448,6 +602,7 @@ TEST_CASE("Autumn PRNG salts are unique", "[autumn][prng]") {
         PINE_PRNG_SALT,
         LEAF_PRNG_SALT,
         MAPLE_PRNG_SALT,
+        LEAF_PUFF_PRNG_SALT,
     };
 
     for (std::size_t i = 0; i < salts.size(); ++i) {
