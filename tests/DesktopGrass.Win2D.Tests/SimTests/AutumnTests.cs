@@ -411,15 +411,6 @@ public sealed class AutumnTests
     }
 
     [Fact]
-    public void AutumnDoesNotAccumulateSnow()
-    {
-        Sim sim = BuildAutumnSim();
-        sim.SetSnowDepth(5.0);
-        sim.Tick(10.0, ReadOnlySpan<InputEvent>.Empty);
-        Assert.Equal(0.0, sim.SnowDepth);
-    }
-
-    [Fact]
     public void AutumnScenePersistsRoundTrip()
     {
         UseStatePath();

@@ -682,19 +682,7 @@ constexpr double   SNOWFLAKE_LIFETIME_PADDING_SEC  = 2.0;
 constexpr uint32_t SNOWFLAKE_COLOR                 = 0xFFFFFFFFu;
 constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
 
-// Snow accumulation (§15.2). Passive Winter-only layer on the strip baseline.
-// Capped low so a long-running session never piles the bank up over the trees.
-constexpr double   SNOW_ACCUMULATION_RATE           = 0.012;  // DIP/sec
-constexpr double   SNOW_DEPTH_MAX                   = 6.0;    // DIP
-constexpr double   SNOW_DEPTH_MIN_RENDER            = 0.3;    // DIP
-constexpr uint32_t SNOW_LAYER_COLOR_TOP             = 0xFFFFFFFFu;
-constexpr uint32_t SNOW_LAYER_COLOR_BOTTOM          = 0xFFE8E8F0u;
-constexpr uint32_t SNOW_LAYER_HIGHLIGHT             = 0xFFFFFFFFu;
-constexpr double   SNOW_TOP_UNDULATION_AMP          = 2.5;    // DIP
-constexpr double   SNOW_TOP_UNDULATION_WAVELENGTH   = 90.0;   // DIP
-constexpr uint64_t SNOW_TOP_UNDULATION_PHASE_SALT   = 0x5E0A1ull;
-
-// Snow puff (§21). A click on the Winter snowbank kicks up a short-lived burst
+// Snow puff (§21). A click in the Winter scene kicks up a short-lived burst
 // of powder. Dedicated PRNG stream (salted) so the burst never perturbs the
 // snowflake emitter; it only fires on click input. y is screen-down, so an
 // upward launch is negative vy and SNOW_PUFF_GRAVITY pulls back toward ground.
@@ -731,70 +719,9 @@ constexpr double   SNOW_DRIFT_SIZE_SCALE        = 0.9;    // a touch smaller tha
 constexpr double   SNOW_DRIFT_SPEED_SCALE       = 0.85;   // a touch gentler kick
 constexpr uint64_t SNOW_DRIFT_PRNG_SALT         = 0x5D81F77D5D81F77Dull;
 
-// Winter snowbank (§21). Render-only: non-pine blades draw as low rounded snow
-// mounds instead of grass, so dense neighbors overlap into an undulating drift.
-// Mound height follows blade.height * cutHeight so a click-cut still dents it.
-constexpr double   WINTER_DRIFT_HEIGHT_SCALE    = 0.42;
-constexpr double   WINTER_DRIFT_HEIGHT_MIN      = 3.0;    // DIP
-constexpr double   WINTER_DRIFT_HEIGHT_MAX      = 11.0;
-constexpr double   WINTER_DRIFT_WIDTH_MIN       = 7.0;    // DIP
-constexpr double   WINTER_DRIFT_WIDTH_FACTOR    = 1.7;    // width = height * factor
-constexpr uint32_t WINTER_DRIFT_BASE_COLOR      = 0xFFE8EEF6u; // cool off-white
-constexpr uint32_t WINTER_DRIFT_HILITE_COLOR    = 0xFFFFFFFFu; // pure-white cap
-
-// Snow sparkle (§21). Render-only: a sparse, slow twinkle on the drift tops,
-// computed deterministically from globalTime + baseX (no PRNG). The high
-// threshold keeps only a few glints lit at once so it stays calm.
-constexpr double   SNOW_SPARKLE_SPEED           = 1.7;    // rad/sec
-constexpr double   SNOW_SPARKLE_PHASE_MUL       = 0.21;   // phase per DIP of x
-constexpr double   SNOW_SPARKLE_THRESHOLD       = 0.986;  // 0..1, higher = fewer
-constexpr double   SNOW_SPARKLE_RADIUS          = 1.1;    // DIP
-
-// Wind-blown spindrift (§21.3). Render-only: a few faint streaks of snow skim
-// horizontally just above the bank crest, scrolling with globalTime so the
-// surface reads as wind-blown and alive rather than a static white mound. Fully
-// deterministic from globalTime + lane index (no PRNG, no entities, no state).
-constexpr int      SNOW_WIND_LANES              = 7;      // concurrent streaks across the strip
-constexpr double   SNOW_WIND_SPEED             = 130.0;  // DIP/sec horizontal scroll
-constexpr double   SNOW_WIND_LENGTH_MIN        = 26.0;   // DIP streak length
-constexpr double   SNOW_WIND_LENGTH_MAX        = 64.0;
-constexpr double   SNOW_WIND_THICKNESS         = 2.2;    // DIP streak thickness
-constexpr double   SNOW_WIND_HEIGHT_MIN        = 3.0;    // DIP above the crest
-constexpr double   SNOW_WIND_HEIGHT_MAX        = 16.0;
-constexpr double   SNOW_WIND_BOB_AMP           = 3.0;    // DIP vertical waft
-constexpr double   SNOW_WIND_BOB_SPEED         = 1.1;    // rad/sec
-constexpr double   SNOW_WIND_OPACITY           = 0.5;    // peak streak alpha
-constexpr uint32_t SNOW_WIND_COLOR             = 0xFFFFFFFFu;
-
-// Sculpted winter snowbank (§21.1). Render-only continuous drift that replaces
-// the per-blade snow mounds: a multi-harmonic crest (rolling dunes + ripples +
-// fine texture + occasional wind-piled cornices) filled with a lit-crest ->
-// soft-body -> cool-shadow tone stack, a bright crest edge, and a cool sub-crest
-// lip line for cornice definition. snowDepth still adds to the base so snow
-// visibly piles up over time. Phases derive from the per-monitor snowPhaseSeed.
-constexpr double   SNOW_BANK_BASE_DEPTH         = 9.0;    // DIP, always-present height
-constexpr double   SNOW_BANK_ROLL_AMP           = 5.0;
-constexpr double   SNOW_BANK_ROLL_WAVELENGTH    = 280.0;
-constexpr double   SNOW_BANK_RIPPLE_AMP         = 3.0;
-constexpr double   SNOW_BANK_RIPPLE_WAVELENGTH  = 76.0;
-constexpr double   SNOW_BANK_MICRO_AMP          = 1.2;
-constexpr double   SNOW_BANK_MICRO_WAVELENGTH   = 23.0;
-constexpr double   SNOW_BANK_CORNICE_AMP        = 5.0;
-constexpr double   SNOW_BANK_CORNICE_WAVELENGTH = 540.0;
-constexpr double   SNOW_BANK_CREST_BAND_FRAC    = 0.34;   // top fraction painted bright
-constexpr double   SNOW_BANK_SHADOW_BAND_FRAC   = 0.30;   // bottom fraction painted cool
+// Cool shadow tint reused by the live snow-puff to give white powder an edge
+// against light backgrounds (despite the legacy "bank" name).
 constexpr uint32_t SNOW_BANK_SHADOW_COLOR       = 0xFFBFCDE4u; // cool blue base/trough shadow
-constexpr double   SNOW_BANK_MIN_DEPTH          = 3.0;    // floor so the strip is always filled
-constexpr uint64_t SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEull;
-
-// Snow carve / footprints (§21.2). Clicking the winter snowbank presses a soft
-// dent that slowly settles back over a few seconds (mirrors grass cut+regrow).
-// Transient interaction state — never persisted, cleared on every scene change.
-constexpr int      SNOW_CARVE_BUCKETS           = 192;   // heightfield resolution across the monitor
-constexpr double   SNOW_CARVE_RADIUS_DIP        = 24.0;  // dent half-width
-constexpr double   SNOW_CARVE_DEPTH_PER_CLICK   = 7.0;   // depth pressed per click at the center
-constexpr double   SNOW_CARVE_MAX_DEPTH         = 11.0;  // clamp so the bank never inverts
-constexpr double   SNOW_CARVE_REFILL_RATE       = 1.8;   // DIP/sec settle-back (~6s full refill)
 
 // Falling leaves (§16.5). Autumn-only transient particles.
 constexpr double   LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;

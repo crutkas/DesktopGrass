@@ -246,14 +246,6 @@ struct Sim {
     Prng               snowflakePrng       = { 0 };
     double             nextSnowflakeSpawnTime = 0.0;
 
-    // §15.2 passive snow accumulation, persisted per monitor.
-    double             snowDepth           = 0.0;
-    uint64_t           snowPhaseSeed       = 0;
-
-    // §21.2 transient snow carve heightfield (footprints). NOT persisted; cleared
-    // on every scene change. Length SNOW_CARVE_BUCKETS once initialized.
-    std::vector<double> snowCarve;
-
     // §16.5 leaf emitter (Autumn scene only).
     Prng               leafPrng            = { 0 };
     double             nextLeafSpawnTime   = 0.0;
@@ -327,17 +319,6 @@ void sim_set_scene(Sim& sim, Scene s) noexcept;
 // tumbleweed off-edge respawn, snowflake culling. Currently a no-op when
 // sim.entities is empty (which is always until §14/§15 generators run).
 void sim_tick_entities(Sim& sim, double dt) noexcept;
-
-uint64_t snow_phase_seed_from_monitor(int width, int height, int left, int top) noexcept;
-void sim_set_snow_depth(Sim& sim, double depth) noexcept;
-double snow_top_y_at(const Sim& sim, double x) noexcept;
-
-// §21.2 snow carve (footprints). Click presses a soft dent into the winter
-// snowbank; it settles back over a few seconds. All no-ops outside Winter.
-void   sim_apply_snow_carve(Sim& sim, double x) noexcept;
-void   sim_decay_snow_carve(Sim& sim, double dt) noexcept;
-double snow_carve_depth_at(const Sim& sim, double x) noexcept;
-double snow_tree_base_y_offset(const Sim& sim) noexcept;
 
 // Critter selection (§16-§18). Removes existing critter-kind entities
 // (preserving scene entities like tumbleweeds/snowflakes), then re-runs the

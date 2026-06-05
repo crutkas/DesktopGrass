@@ -395,7 +395,6 @@ void App::ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBo
             && monitor.height == height
             && monitor.left == monitorBounds.left
             && monitor.top == monitorBounds.top) {
-            sim_set_snow_depth(sim, currentScene_ == Scene::Winter ? monitor.snowDepth : 0.0);
             sim_apply_cuts(sim, monitor.cuts);
             return;
         }
@@ -419,7 +418,6 @@ persistence::AppState App::BuildAppState() {
         monitor.left = bounds.left;
         monitor.top = bounds.top;
         const Sim& sim = w->GetRenderer().GetSim();
-        monitor.snowDepth = sim.snowDepth;
         monitor.cuts = sim_get_cuts(sim);
         state.monitors.push_back(std::move(monitor));
     }

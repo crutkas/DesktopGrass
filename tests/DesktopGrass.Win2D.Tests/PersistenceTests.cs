@@ -55,7 +55,6 @@ public sealed class PersistenceTests
             Assert.Equal(e.Height, a.Height);
             Assert.Equal(e.Left, a.Left);
             Assert.Equal(e.Top, a.Top);
-            Assert.Equal(e.SnowDepth, a.SnowDepth, 9);
             Assert.Equal(e.Cuts.Count, a.Cuts.Count);
             for (int j = 0; j < e.Cuts.Count; j++)
             {

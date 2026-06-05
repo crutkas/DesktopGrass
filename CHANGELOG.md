@@ -12,6 +12,38 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Cleanup: remove dead winter snowbank machinery
+
+### Removed
+- **Deleted the dormant "snowbank" code left over from the reverted sculpted-snow
+  experiment, in both implementations.** Winter renders as snow-tipped grass
+  blades (commit `40d4235`), but the sculpted-snowbank heightfield, per-tick snow
+  depth accumulation, carve footprints, and the uncalled `DrawSnowLayer` render
+  (plus its snow-wind and sparkle passes) were still compiled and persisted.
+  Removed across Native (C++) and Win2D (C#):
+  - Sim: `snowDepth` / `snowPhaseSeed` / `snowCarve` state and the depth/carve
+    helpers (`snow_phase_seed_from_monitor`, `sim_set_snow_depth`, `snow_top_y_at`,
+    `sim_apply_snow_carve`, `sim_decay_snow_carve`, `snow_carve_depth_at`,
+    `snow_tree_base_y_offset` and their C# equivalents), accumulation block, and
+    the snowflake snowbank-cull clause.
+  - Constants: snow accumulation / layer / undulation / carve / sparkle / wind /
+    drift-coloring / snowbank-geometry values. Kept `SNOW_BANK_SHADOW_COLOR`,
+    which the live snow-puff shadow still uses.
+  - Renderer: `DrawSnowLayer`, `SnowBankDepthAt`, and the snowbank-only brushes.
+  - Persistence: dropped the `snowDepth` monitor field (file `version` stays `2`;
+    old saves still load — the unknown field is ignored, so cuts are preserved).
+- **Kept** all live winter visuals: falling snowflakes, snow-tipped grass blades,
+  pine/birch snow caps, the click snow-puff burst, and the cursor-move snow drift
+  puff.
+
+### Notes
+- Determinism preserved — none of the removed state touched a PRNG stream; the
+  snowflake/puff/drift streams are unchanged. Native 289 test cases and Win2D 297
+  tests pass; removed the snow-accumulation/carve/depth tests that exercised the
+  deleted code.
+
+---
+
 ## 2026-06-05 — Fix: Win2D grass only covered part of the screen at startup
 
 ### Fixed

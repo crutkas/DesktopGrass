@@ -424,13 +424,6 @@ TEST_CASE("Autumn does not spawn snowflakes", "[autumn][weather]") {
     REQUIRE(count_kind(sim, EntityKind::Snowflake) == 0);
 }
 
-TEST_CASE("Autumn does not accumulate snow", "[autumn][weather]") {
-    Sim sim = make_autumn_sim();
-    sim_set_snow_depth(sim, 5.0);
-    sim_tick(sim, 10.0, nullptr, 0);
-    REQUIRE(sim.snowDepth == Approx(0.0));
-}
-
 TEST_CASE("Autumn scene persists round-trip", "[autumn][persistence]") {
     const auto path = autumn_state_path();
     persistence::SetStateFilePathForTest(path.wstring());

@@ -275,11 +275,6 @@ std::optional<std::string> ReadString(const JsonValue& object, const std::string
     return value->stringValue;
 }
 
-double ClampSnowDepth(double depth) noexcept {
-    if (!std::isfinite(depth) || depth <= 0.0) return 0.0;
-    return std::min(depth, SNOW_DEPTH_MAX);
-}
-
 std::string JsonEscape(std::string_view text) {
     std::string out;
     for (char c : text) {
@@ -376,7 +371,6 @@ std::string Serialize(const AppState& state) {
     for (std::size_t i = 0; i < state.monitors.size(); ++i) {
         const MonitorState& monitor = state.monitors[i];
         out << "    \"" << JsonEscape(MonitorKey(monitor)) << "\": {\n";
-        out << "      \"snowDepth\": " << ClampSnowDepth(monitor.snowDepth) << ",\n";
         out << "      \"cuts\": [";
         if (!monitor.cuts.empty()) {
             out << "\n";
@@ -434,10 +428,6 @@ bool ParseAppState(const JsonValue& root, AppState& out) {
             MonitorState monitor;
             if (!TryParseMonitorKey(key, monitor)) {
                 continue;
-            }
-
-            if (version >= 2) {
-                monitor.snowDepth = ClampSnowDepth(ReadDouble(value, "snowDepth").value_or(0.0));
             }
 
             const JsonValue* cuts = FindMember(value, "cuts");

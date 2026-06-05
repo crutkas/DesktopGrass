@@ -55,21 +55,6 @@ D2D1_MATRIX_3X2_F TreeSwayTransform(const Blade& b, double totalH, double pivotG
     return D2D1::Matrix3x2F(1.0f, 0.0f, -k, 1.0f, k * static_cast<float>(pivotGy), 0.0f);
 }
 
-// Sculpted snowbank crest depth (DIP above the ground line) at horizontal x.
-// Multi-harmonic so the bank rolls and ripples; the cubed cornice term raises
-// occasional wind-piled peaks. snowDepth adds on top so snow piles up over time.
-double SnowBankDepthAt(double x, double snowDepth, const double phase[4]) noexcept {
-    constexpr double kTwoPi = 6.28318530717958647692;
-    double d = SNOW_BANK_BASE_DEPTH + snowDepth;
-    d += std::sin(x * (kTwoPi / SNOW_BANK_ROLL_WAVELENGTH)   + phase[0]) * SNOW_BANK_ROLL_AMP;
-    d += std::sin(x * (kTwoPi / SNOW_BANK_RIPPLE_WAVELENGTH) + phase[1]) * SNOW_BANK_RIPPLE_AMP;
-    d += std::sin(x * (kTwoPi / SNOW_BANK_MICRO_WAVELENGTH)  + phase[2]) * SNOW_BANK_MICRO_AMP;
-    double c = std::sin(x * (kTwoPi / SNOW_BANK_CORNICE_WAVELENGTH) + phase[3]);
-    if (c < 0.0) c = 0.0;
-    d += c * c * c * SNOW_BANK_CORNICE_AMP;
-    return d < SNOW_BANK_MIN_DEPTH ? SNOW_BANK_MIN_DEPTH : d;
-}
-
 } // anonymous
 
 Renderer::~Renderer() {
@@ -239,31 +224,6 @@ bool Renderer::CreateDeviceResources() {
     snowTipBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_TIP_COLOR),
                                             snowTipBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
-    snowLayerTopBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_COLOR_TOP),
-                                            snowLayerTopBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
-    snowLayerBottomBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_COLOR_BOTTOM),
-                                            snowLayerBottomBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
-    snowLayerHighlightBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_LAYER_HIGHLIGHT),
-                                            snowLayerHighlightBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
-    driftBaseBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(WINTER_DRIFT_BASE_COLOR),
-                                            driftBaseBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
-    driftHiliteBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(WINTER_DRIFT_HILITE_COLOR),
-                                            driftHiliteBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
     snowBankShadowBrush_.Reset();
@@ -529,11 +489,6 @@ void Renderer::DiscardDeviceResources() {
     snowflakeBrush_.Reset();
     for (auto& b : leafBrushes_) b.Reset();
     snowTipBrush_.Reset();
-    snowLayerTopBrush_.Reset();
-    snowLayerBottomBrush_.Reset();
-    snowLayerHighlightBrush_.Reset();
-    driftBaseBrush_.Reset();
-    driftHiliteBrush_.Reset();
     snowBankShadowBrush_.Reset();
     pineBrush_.Reset();
     pineShadowBrush_.Reset();
@@ -738,145 +693,6 @@ void Renderer::RenderFrame(double dt,
         }
     } else if (FAILED(hr)) {
         LogHR("Present1", hr);
-    }
-}
-
-void Renderer::DrawSnowLayer() {
-    if (sim_.currentScene != Scene::Winter) return;
-    if (!snowLayerTopBrush_ || !driftBaseBrush_ || !snowBankShadowBrush_
-        || !snowLayerHighlightBrush_) return;
-
-    const float groundY = static_cast<float>(sim_.windowHeight);
-    const double widthFallback = (dpi_ == 0) ? widthPx_ : static_cast<double>(widthPx_) * 96.0 / static_cast<double>(dpi_);
-    const float width = static_cast<float>(sim_.monitorWidth > 0.0 ? sim_.monitorWidth : widthFallback);
-    if (width <= 0.0f) return;
-
-    // Per-monitor crest phases from the snow phase seed — same seed the rest of
-    // the winter scene uses, so the bank shape is stable per display.
-    double phase[4];
-    for (int i = 0; i < 4; ++i) {
-        const uint64_t bits = splitmix64(sim_.snowPhaseSeed
-                                         ^ (SNOW_BANK_PHASE_SALT + static_cast<uint64_t>(i) * 0x9E3779B97F4A7C15ull));
-        phase[i] = (static_cast<double>(bits >> 11) / 9007199254740992.0) * 6.28318530717958647692;
-    }
-
-    constexpr float kStep = 2.0f;
-    auto topYAt = [&](float sx) {
-        double d = SnowBankDepthAt(sx, sim_.snowDepth, phase) - snow_carve_depth_at(sim_, sx);
-        if (d < SNOW_BANK_MIN_DEPTH) d = SNOW_BANK_MIN_DEPTH;
-        return groundY - static_cast<float>(d);
-    };
-
-    // Body fill: three vertical tone bands per column — bright lit crest, soft
-    // body, cool shadow at the base — so the bank reads as rounded volume.
-    D2D1_POINT_2F prevTop = D2D1::Point2F(0.0f, topYAt(0.0f));
-    for (float x = 0.0f; x <= width + kStep; x += kStep) {
-        const float sampleX = std::min(x, width);
-        const float topY    = topYAt(sampleX);
-        const float depth   = groundY - topY;
-        const double carveHere = snow_carve_depth_at(sim_, sampleX);
-        if (depth > 0.0f) {
-            const float crestY  = topY + depth * static_cast<float>(SNOW_BANK_CREST_BAND_FRAC);
-            const float shadowY = groundY - depth * static_cast<float>(SNOW_BANK_SHADOW_BAND_FRAC);
-            const float bodyTop = crestY;
-            const float bodyBot = std::max(shadowY, crestY);
-            d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY), D2D1::Point2F(sampleX, crestY),
-                                  snowLayerTopBrush_.Get(), kStep + 0.5f);
-            d2dContext_->DrawLine(D2D1::Point2F(sampleX, bodyTop), D2D1::Point2F(sampleX, bodyBot),
-                                  driftBaseBrush_.Get(), kStep + 0.5f);
-            d2dContext_->DrawLine(D2D1::Point2F(sampleX, bodyBot), D2D1::Point2F(sampleX, groundY),
-                                  snowBankShadowBrush_.Get(), kStep + 0.5f);
-
-            // Carved columns get a cool recessed interior so the dent reads as a
-            // scooped trench rather than just a lower ridge.
-            if (carveHere > 0.8) {
-                const float fill = std::min(depth, static_cast<float>(carveHere) * 1.4f);
-                const float a = std::min(0.7f, static_cast<float>(carveHere) / static_cast<float>(SNOW_CARVE_MAX_DEPTH) * 0.7f);
-                snowBankShadowBrush_->SetOpacity(a);
-                d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY),
-                                      D2D1::Point2F(sampleX, topY + fill),
-                                      snowBankShadowBrush_.Get(), kStep + 0.5f);
-                snowBankShadowBrush_->SetOpacity(1.0f);
-            }
-        }
-
-        // Raised rim: where the carve gradient is steep (the edge of a dent), the
-        // pushed-up snow catches the light — a thin bright dab on the rim side.
-        const double carveL = snow_carve_depth_at(sim_, std::max(0.0f, sampleX - kStep));
-        const double carveR = snow_carve_depth_at(sim_, std::min(width, sampleX + kStep));
-        const double grad = std::fabs(carveR - carveL);
-        if (grad > 0.6 && carveHere < SNOW_CARVE_MAX_DEPTH) {
-            const float a = std::min(0.6f, static_cast<float>(grad) * 0.4f);
-            snowLayerHighlightBrush_->SetOpacity(a);
-            d2dContext_->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(sampleX, topY - 0.6f), 1.3f, 1.3f),
-                snowLayerHighlightBrush_.Get());
-            snowLayerHighlightBrush_->SetOpacity(1.0f);
-        }
-
-        const D2D1_POINT_2F currentTop = D2D1::Point2F(sampleX, topY);
-        if (x > 0.0f) {
-            // Bright lit crest edge, with a cool sub-crest lip just below it so
-            // the cornice reads as a rounded, slightly overhanging lip.
-            d2dContext_->DrawLine(prevTop, currentTop, snowLayerHighlightBrush_.Get(), 1.6f);
-            d2dContext_->DrawLine(D2D1::Point2F(prevTop.x, prevTop.y + 2.2f),
-                                  D2D1::Point2F(currentTop.x, currentTop.y + 2.2f),
-                                  snowBankShadowBrush_.Get(), 1.0f);
-        }
-        prevTop = currentTop;
-        if (sampleX >= width) break;
-    }
-
-    // Sparse crest sparkle: a slow, deterministic twinkle (globalTime + x) so a
-    // few glints catch the light along the ridge without ever looking busy.
-    for (float x = 0.0f; x <= width; x += 9.0f) {
-        const double tw = std::sin(sim_.globalTime * SNOW_SPARKLE_SPEED + x * SNOW_SPARKLE_PHASE_MUL);
-        if (tw <= SNOW_SPARKLE_THRESHOLD) continue;
-        const float a = static_cast<float>((tw - SNOW_SPARKLE_THRESHOLD) / (1.0 - SNOW_SPARKLE_THRESHOLD));
-        const float topY = topYAt(x);
-        snowLayerHighlightBrush_->SetOpacity(a);
-        d2dContext_->FillEllipse(
-            D2D1::Ellipse(D2D1::Point2F(x, topY + 1.2f),
-                          static_cast<float>(SNOW_SPARKLE_RADIUS), static_cast<float>(SNOW_SPARKLE_RADIUS)),
-            snowLayerHighlightBrush_.Get());
-        snowLayerHighlightBrush_->SetOpacity(1.0f);
-    }
-
-    // Wind-blown spindrift (§21.3): a few faint streaks skim horizontally just
-    // above the crest, scrolling with globalTime so the surface looks wind-blown
-    // and alive. Each lane has a stable pseudo-random length/height/phase from a
-    // cheap hash of its index; the streak wraps around the strip width.
-    if (snowflakeBrush_) {
-        const double t = sim_.globalTime;
-        for (int lane = 0; lane < SNOW_WIND_LANES; ++lane) {
-            const uint64_t h = splitmix64(0x57494E44ull + static_cast<uint64_t>(lane) * 0x9E3779B97F4A7C15ull);
-            const double u0 = static_cast<double>(h >> 11) / 9007199254740992.0;
-            const double u1 = static_cast<double>((h >> 23) & 0xFFFFF) / 1048576.0;
-            const double u2 = static_cast<double>((h >> 43) & 0xFFFFF) / 1048576.0;
-
-            const double len    = SNOW_WIND_LENGTH_MIN + u0 * (SNOW_WIND_LENGTH_MAX - SNOW_WIND_LENGTH_MIN);
-            const double height = SNOW_WIND_HEIGHT_MIN + u1 * (SNOW_WIND_HEIGHT_MAX - SNOW_WIND_HEIGHT_MIN);
-            const double laneSpeed = SNOW_WIND_SPEED * (0.7 + 0.6 * u2);
-            const double span   = static_cast<double>(width) + len * 2.0;
-            // Scroll left→right, wrapping; stagger lanes by their phase.
-            double headX = std::fmod(u0 * span + t * laneSpeed, span) - len;
-            const float bob = static_cast<float>(std::sin(t * SNOW_WIND_BOB_SPEED + u1 * 6.28318530717958647692) * SNOW_WIND_BOB_AMP);
-
-            const float x1 = static_cast<float>(headX);
-            const float x0 = static_cast<float>(headX - len);
-            const float midX = (x0 + x1) * 0.5f;
-            if (midX < -static_cast<float>(len) || midX > width + static_cast<float>(len)) continue;
-            const float crestY = topYAt(std::min(std::max(midX, 0.0f), width));
-            const float yy = crestY - static_cast<float>(height) + bob;
-            // Fade in/out near the head so streaks don't pop at the wrap seam.
-            const float edgeFade = std::min(1.0f, std::min(x1, width - x0) / static_cast<float>(len));
-            const float a = static_cast<float>(SNOW_WIND_OPACITY) * std::max(0.0f, edgeFade);
-            if (a <= 0.01f) continue;
-            snowflakeBrush_->SetOpacity(a);
-            d2dContext_->DrawLine(D2D1::Point2F(x0, yy + 1.0f), D2D1::Point2F(x1, yy),
-                                  snowflakeBrush_.Get(), static_cast<float>(SNOW_WIND_THICKNESS));
-            snowflakeBrush_->SetOpacity(1.0f);
-        }
     }
 }
 

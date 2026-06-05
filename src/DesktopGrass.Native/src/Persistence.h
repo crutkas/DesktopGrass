@@ -17,7 +17,6 @@ struct MonitorState {
     int height = 0;
     int left = 0;
     int top = 0;
-    double snowDepth = 0.0;
     std::vector<CutRecord> cuts;
 };
 

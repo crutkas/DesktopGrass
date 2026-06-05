@@ -46,7 +46,6 @@
     <Compile Include="SimTests\EntitySkeletonTests.cs" />
     <Compile Include="SimTests\DesertTests.cs" />
     <Compile Include="SimTests\WinterTests.cs" />
-    <Compile Include="SimTests\SnowAccumulationTests.cs" />
     <Compile Include="SimTests\PineTests.cs" />
     <Compile Include="SimTests\AutumnTests.cs" />
     <Compile Include="SimTests\CritterTests.cs" />

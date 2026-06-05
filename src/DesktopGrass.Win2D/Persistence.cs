@@ -13,8 +13,7 @@ public sealed record MonitorState(
     [property: JsonPropertyName("height")] int Height,
     [property: JsonPropertyName("left")] int Left,
     [property: JsonPropertyName("top")] int Top,
-    [property: JsonPropertyName("cuts")] List<CutRecord> Cuts,
-    [property: JsonPropertyName("snowDepth")] double SnowDepth = 0.0);
+    [property: JsonPropertyName("cuts")] List<CutRecord> Cuts);
 
 public sealed record AppState(
     [property: JsonPropertyName("version")] int Version,
@@ -77,8 +76,7 @@ public static class Persistence
                         continue;
                     }
 
-                    double snowDepth = dto.Version >= 2 ? ClampSnowDepth(monitorDto?.SnowDepth ?? 0.0) : 0.0;
-                    monitors.Add(new MonitorState(width, height, left, top, monitorDto?.Cuts ?? [], snowDepth));
+                    monitors.Add(new MonitorState(width, height, left, top, monitorDto?.Cuts ?? []));
                 }
             }
 
@@ -124,7 +122,7 @@ public static class Persistence
             AutoStart = state.AutoStart,
             Monitors = state.Monitors.ToDictionary(
                 monitor => MonitorKey(monitor.Width, monitor.Height, monitor.Left, monitor.Top),
-                monitor => new MonitorDto { SnowDepth = ClampSnowDepth(monitor.SnowDepth), Cuts = monitor.Cuts })
+                monitor => new MonitorDto { Cuts = monitor.Cuts })
         };
 
         string json = JsonSerializer.Serialize(dto, Options) + Environment.NewLine;
@@ -132,10 +130,6 @@ public static class Persistence
         File.WriteAllText(tempPath, json);
         File.Move(tempPath, path, overwrite: true);
     }
-
-    private static double ClampSnowDepth(double depth) => double.IsFinite(depth)
-        ? Math.Clamp(depth, 0.0, Constants.SNOW_DEPTH_MAX)
-        : 0.0;
 
     public static string MonitorKey(int width, int height, int left, int top) => $"{width}x{height}@{left},{top}";
 
@@ -185,9 +179,6 @@ public static class Persistence
 
     private sealed class MonitorDto
     {
-        [JsonPropertyName("snowDepth")]
-        public double SnowDepth { get; set; }
-
         [JsonPropertyName("cuts")]
         public List<CutRecord> Cuts { get; set; } = [];
     }

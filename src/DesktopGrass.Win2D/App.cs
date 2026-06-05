@@ -287,7 +287,6 @@ internal sealed class App : IDisposable
             && m.Top == monitorBounds.Top);
         if (monitor is not null)
         {
-            window.Sim.SetSnowDepth(_currentScene == Scene.Winter ? monitor.SnowDepth : 0.0);
             window.Sim.ApplyCuts(monitor.Cuts);
         }
     }
@@ -303,8 +302,7 @@ internal sealed class App : IDisposable
                 bounds.Height,
                 bounds.Left,
                 bounds.Top,
-                window.Sim.GetCuts(),
-                window.Sim.SnowDepth));
+                window.Sim.GetCuts()));
         }
 
         return new AppState(2, _currentScene, _currentCritter, _currentCritterCount, _autoStart, monitors);

@@ -234,14 +234,6 @@ internal sealed class Sim
     public Prng SnowflakePrng;
     public double NextSnowflakeSpawnTime;
 
-    // §15.2 passive snow accumulation, persisted per monitor.
-    public double SnowDepth;
-    public ulong SnowPhaseSeed;
-
-    // §21.2 transient snow carve heightfield (footprints). NOT persisted; cleared
-    // on every scene change. Length SNOW_CARVE_BUCKETS once initialized.
-    public double[] SnowCarve = new double[Constants.SNOW_CARVE_BUCKETS];
-
     // §16.5 leaf emitter (Autumn scene only).
     public Prng LeafPrng;
     public double NextLeafSpawnTime;
@@ -282,120 +274,6 @@ internal sealed class Sim
 
     public static double BirdFlybySampleInterval(ref Prng p) =>
         p.Exponential(Constants.BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
-
-    public static ulong SnowPhaseSeedForMonitor(int width, int height, int left, int top)
-    {
-        unchecked
-        {
-            ulong h = 1469598103934665603UL;
-            void Mix(int value)
-            {
-                ulong v = (ulong)(long)value;
-                for (int i = 0; i < 8; i++)
-                {
-                    h ^= v & 0xFFUL;
-                    h *= 1099511628211UL;
-                    v >>= 8;
-                }
-            }
-
-            Mix(width);
-            Mix(height);
-            Mix(left);
-            Mix(top);
-            return h == 0UL ? 1UL : h;
-        }
-    }
-
-    private static ulong SplitMix64(ulong z)
-    {
-        unchecked
-        {
-            z += 0x9E3779B97F4A7C15UL;
-            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-            return z ^ (z >> 31);
-        }
-    }
-
-    public void SetSnowDepth(double depth)
-    {
-        if (!double.IsFinite(depth) || depth <= 0.0)
-        {
-            SnowDepth = 0.0;
-            return;
-        }
-        SnowDepth = Math.Min(depth, Constants.SNOW_DEPTH_MAX);
-    }
-
-    public double SnowTopYAt(double x)
-    {
-        if (SnowDepth <= 0.0) return WindowHeight;
-        ulong identity = SnowPhaseSeed != 0UL
-            ? SnowPhaseSeed
-            : SnowPhaseSeedForMonitor((int)Math.Round(MonitorWidth), (int)Math.Round(WindowHeight), 0, 0);
-        ulong phaseBits = SplitMix64(identity ^ Constants.SNOW_TOP_UNDULATION_PHASE_SALT);
-        double phase = (phaseBits >> 11) * (1.0 / 9007199254740992.0) * (2.0 * Math.PI);
-        double top = WindowHeight - SnowDepth
-                   + Math.Sin((x / Constants.SNOW_TOP_UNDULATION_WAVELENGTH) * (2.0 * Math.PI) + phase)
-                   * Constants.SNOW_TOP_UNDULATION_AMP;
-        return Math.Min(top, WindowHeight);
-    }
-
-    // §21.2 snow carve (footprints). Click presses a soft dent into the winter
-    // snowbank; it settles back over a few seconds. All no-ops outside Winter.
-    public void ApplySnowCarve(double x)
-    {
-        if (CurrentScene != Scene.Winter) return;
-        if (!double.IsFinite(x)) return;
-        if (MonitorWidth <= 0.0) return;
-        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return;
-        double bucketWidth = MonitorWidth / Constants.SNOW_CARVE_BUCKETS;
-        if (bucketWidth <= 0.0) return;
-        double pi = (2.0 * Math.PI) * 0.5;
-        for (int b = 0; b < Constants.SNOW_CARVE_BUCKETS; ++b)
-        {
-            double centerX = (b + 0.5) * bucketWidth;
-            double dist = Math.Abs(centerX - x);
-            if (dist >= Constants.SNOW_CARVE_RADIUS_DIP) continue;
-            double falloff = 0.5 * (1.0 + Math.Cos(pi * dist / Constants.SNOW_CARVE_RADIUS_DIP));
-            double v = SnowCarve[b] + Constants.SNOW_CARVE_DEPTH_PER_CLICK * falloff;
-            if (v > Constants.SNOW_CARVE_MAX_DEPTH) v = Constants.SNOW_CARVE_MAX_DEPTH;
-            SnowCarve[b] = v;
-        }
-    }
-
-    public void DecaySnowCarve(double dt)
-    {
-        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return;
-        if (!double.IsFinite(dt) || dt <= 0.0) return;
-        double d = Constants.SNOW_CARVE_REFILL_RATE * dt;
-        for (int b = 0; b < SnowCarve.Length; ++b)
-        {
-            double c = SnowCarve[b] - d;
-            SnowCarve[b] = c < 0.0 ? 0.0 : c;
-        }
-    }
-
-    public double SnowCarveDepthAt(double x)
-    {
-        if (SnowCarve == null || SnowCarve.Length != Constants.SNOW_CARVE_BUCKETS) return 0.0;
-        if (!double.IsFinite(x) || MonitorWidth <= 0.0) return 0.0;
-        double bucketWidth = MonitorWidth / Constants.SNOW_CARVE_BUCKETS;
-        if (bucketWidth <= 0.0) return 0.0;
-        double f = x / bucketWidth - 0.5;
-        if (f <= 0.0) return SnowCarve[0];
-        if (f >= Constants.SNOW_CARVE_BUCKETS - 1) return SnowCarve[Constants.SNOW_CARVE_BUCKETS - 1];
-        int i = (int)Math.Floor(f);
-        double t = f - i;
-        return SnowCarve[i] * (1.0 - t) + SnowCarve[i + 1] * t;
-    }
-
-    public double SnowTreeBaseYOffset => SnowDepth <= 0.0
-        ? 0.0
-        : Math.Clamp(SnowDepth - Constants.SNOW_TOP_UNDULATION_AMP,
-                     0.0,
-                     Constants.SNOW_DEPTH_MAX - Constants.SNOW_TOP_UNDULATION_AMP);
 
     internal static double SheepSleepProbForLocalHour(int hour)
     {
@@ -476,13 +354,6 @@ internal sealed class Sim
 
     public void SetScene(Scene s)
     {
-        if (s != Scene.Winter)
-        {
-            SnowDepth = 0.0;
-        }
-        // Snow footprints are transient and scene-local: clear them on every
-        // transition so a dent never carries across to another scene.
-        Array.Clear(SnowCarve, 0, SnowCarve.Length);
         // Reset the spindrift cooldown so re-entering Winter can kick up powder
         // immediately rather than waiting out a stale gate.
         SnowDriftCooldownEnd = 0.0;
@@ -1368,10 +1239,6 @@ internal sealed class Sim
                              || (e.Kind == EntityKind.Snowflake && e.Y > groundY)
                              || (e.Kind == EntityKind.Leaf && e.Y > groundY)
                              || (e.Kind == EntityKind.SnowPuff && e.Y > groundY)
-                             || (e.Kind == EntityKind.Snowflake
-                                 && CurrentScene == Scene.Winter
-                                 && SnowDepth > 0.0
-                                 && e.Y >= SnowTopYAt(e.X))
                              || (e.Kind == EntityKind.Bird
                                  && ((e.Vx >= 0.0 && e.X > MonitorWidth + 50.0)
                                   || (e.Vx < 0.0 && e.X < -50.0))));
@@ -1779,10 +1646,6 @@ internal sealed class Sim
     {
         AmbientPrng = Prng.Init(seed ^ Constants.AMBIENT_GUST_PRNG_SALT);
         MonitorWidth = monitorWidth;
-        if (SnowPhaseSeed == 0UL)
-        {
-            SnowPhaseSeed = SnowPhaseSeedForMonitor((int)Math.Round(monitorWidth), (int)Math.Round(WindowHeight), 0, 0);
-        }
         // First interval drawn immediately so the first puff never fires
         // at t=0 and every subsequent fire is exactly 4 PRNG draws.
         NextAmbientGustTime = GlobalTime
@@ -2134,8 +1997,6 @@ internal sealed class Sim
                     Entities.Add(puff);
                 }
             }
-            // Press a soft footprint dent into the snowbank that settles back.
-            ApplySnowCarve(clickX);
         }
 
         for (int i = 0; i < Blades.Length; i++)
@@ -2377,18 +2238,6 @@ internal sealed class Sim
     public void Tick(double dt, ReadOnlySpan<InputEvent> events)
     {
         GlobalTime += dt;
-
-        if (CurrentScene == Scene.Winter)
-        {
-            SetSnowDepth(SnowDepth + Constants.SNOW_ACCUMULATION_RATE * Math.Max(0.0, dt));
-            // Footprints settle back before this frame's clicks are processed, so
-            // a same-frame click lands its full dent (verified by ordering tests).
-            DecaySnowCarve(dt);
-        }
-        else
-        {
-            SnowDepth = 0.0;
-        }
 
         for (int i = 0; i < events.Length; i++)
         {

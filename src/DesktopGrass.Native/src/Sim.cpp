@@ -78,94 +78,6 @@ uint32_t prng_index(Prng& p, uint32_t n) noexcept {
     return static_cast<uint32_t>(prng_next_unit(p) * static_cast<double>(n));
 }
 
-uint64_t snow_phase_seed_from_monitor(int width, int height, int left, int top) noexcept {
-    uint64_t h = 1469598103934665603ull;
-    auto mix = [&h](int value) noexcept {
-        uint64_t v = static_cast<uint64_t>(static_cast<int64_t>(value));
-        for (int i = 0; i < 8; ++i) {
-            h ^= (v & 0xFFull);
-            h *= 1099511628211ull;
-            v >>= 8;
-        }
-    };
-    mix(width);
-    mix(height);
-    mix(left);
-    mix(top);
-    return h == 0 ? 1ull : h;
-}
-
-void sim_set_snow_depth(Sim& sim, double depth) noexcept {
-    if (!std::isfinite(depth) || depth <= 0.0) {
-        sim.snowDepth = 0.0;
-        return;
-    }
-    sim.snowDepth = std::min(depth, SNOW_DEPTH_MAX);
-}
-
-double snow_top_y_at(const Sim& sim, double x) noexcept {
-    if (sim.snowDepth <= 0.0) return sim.windowHeight;
-    const uint64_t identity = sim.snowPhaseSeed != 0
-        ? sim.snowPhaseSeed
-        : snow_phase_seed_from_monitor(static_cast<int>(sim.monitorWidth + 0.5),
-                                       static_cast<int>(sim.windowHeight + 0.5), 0, 0);
-    const uint64_t phaseBits = splitmix64(identity ^ SNOW_TOP_UNDULATION_PHASE_SALT);
-    const double phase = static_cast<double>(phaseBits >> 11) * (1.0 / 9007199254740992.0) * TWO_PI;
-    const double top = sim.windowHeight - sim.snowDepth
-        + std::sin((x / SNOW_TOP_UNDULATION_WAVELENGTH) * TWO_PI + phase) * SNOW_TOP_UNDULATION_AMP;
-    return std::min(top, sim.windowHeight);
-}
-
-void sim_apply_snow_carve(Sim& sim, double x) noexcept {
-    if (sim.currentScene != Scene::Winter) return;
-    if (!std::isfinite(x)) return;
-    if (sim.monitorWidth <= 0.0) return;
-    if (sim.snowCarve.size() != static_cast<size_t>(SNOW_CARVE_BUCKETS)) return;
-    const double bucketWidth = sim.monitorWidth / static_cast<double>(SNOW_CARVE_BUCKETS);
-    if (bucketWidth <= 0.0) return;
-    const double pi = TWO_PI * 0.5;
-    for (int b = 0; b < SNOW_CARVE_BUCKETS; ++b) {
-        const double centerX = (static_cast<double>(b) + 0.5) * bucketWidth;
-        const double dist = std::fabs(centerX - x);
-        if (dist >= SNOW_CARVE_RADIUS_DIP) continue;
-        const double falloff = 0.5 * (1.0 + std::cos(pi * dist / SNOW_CARVE_RADIUS_DIP));
-        double v = sim.snowCarve[b] + SNOW_CARVE_DEPTH_PER_CLICK * falloff;
-        if (v > SNOW_CARVE_MAX_DEPTH) v = SNOW_CARVE_MAX_DEPTH;
-        sim.snowCarve[b] = v;
-    }
-}
-
-void sim_decay_snow_carve(Sim& sim, double dt) noexcept {
-    if (sim.snowCarve.size() != static_cast<size_t>(SNOW_CARVE_BUCKETS)) return;
-    if (!std::isfinite(dt) || dt <= 0.0) return;
-    const double d = SNOW_CARVE_REFILL_RATE * dt;
-    for (double& c : sim.snowCarve) {
-        c -= d;
-        if (c < 0.0) c = 0.0;
-    }
-}
-
-double snow_carve_depth_at(const Sim& sim, double x) noexcept {
-    if (sim.snowCarve.size() != static_cast<size_t>(SNOW_CARVE_BUCKETS)) return 0.0;
-    if (!std::isfinite(x) || sim.monitorWidth <= 0.0) return 0.0;
-    const double bucketWidth = sim.monitorWidth / static_cast<double>(SNOW_CARVE_BUCKETS);
-    if (bucketWidth <= 0.0) return 0.0;
-    // Position in bucket-center space (bucket b is centered at index b).
-    const double f = x / bucketWidth - 0.5;
-    if (f <= 0.0) return sim.snowCarve.front();
-    if (f >= static_cast<double>(SNOW_CARVE_BUCKETS - 1)) return sim.snowCarve.back();
-    const int i = static_cast<int>(std::floor(f));
-    const double t = f - static_cast<double>(i);
-    return sim.snowCarve[i] * (1.0 - t) + sim.snowCarve[i + 1] * t;
-}
-
-double snow_tree_base_y_offset(const Sim& sim) noexcept {
-    if (sim.snowDepth <= 0.0) return 0.0;
-    return std::clamp(sim.snowDepth - SNOW_TOP_UNDULATION_AMP,
-                      0.0,
-                      SNOW_DEPTH_MAX - SNOW_TOP_UNDULATION_AMP);
-}
-
 double sheep_sleep_prob_for_local_hour(int hour) noexcept {
     if (hour < 0 || hour > 23) return SHEEP_SLEEP_PROB_DEFAULT;
     if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
@@ -927,8 +839,6 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
                 sim.entities.push_back(puff);
             }
         }
-        // Press a soft footprint dent into the snowbank that settles back.
-        sim_apply_snow_carve(sim, e.x);
     }
 
     for (Blade& b : sim.blades) {
@@ -1407,12 +1317,6 @@ double hedgehog_duration_for_state(Sim& sim, uint8_t state) noexcept {
 } // anonymous
 
 void sim_set_scene(Sim& sim, Scene s) noexcept {
-    if (s != Scene::Winter) {
-        sim.snowDepth = 0.0;
-    }
-    // Snow footprints are transient and scene-local: clear them on every
-    // transition so a dent never carries across to another scene.
-    sim.snowCarve.assign(SNOW_CARVE_BUCKETS, 0.0);
     // Reset the spindrift cooldown so re-entering Winter can kick up powder
     // immediately rather than waiting out a stale gate.
     sim.snowDriftCooldownEnd = 0.0;
@@ -1655,10 +1559,6 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                     || (e.kind == EntityKind::Snowflake && e.y > groundY)
                     || (e.kind == EntityKind::Leaf && e.y > groundY)
                     || (e.kind == EntityKind::SnowPuff && e.y > groundY)
-                    || (e.kind == EntityKind::Snowflake
-                        && sim.currentScene == Scene::Winter
-                        && sim.snowDepth > 0.0
-                        && e.y >= snow_top_y_at(sim, e.x))
                     || (e.kind == EntityKind::Bird
                         && ((e.vx >= 0.0 && e.x > sim.monitorWidth + 50.0)
                          || (e.vx < 0.0 && e.x < -50.0)));
@@ -2016,10 +1916,6 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     s.windowHeight = STRIP_HEIGHT + HEADROOM;
     s.monitorWidth = monitorWidth;
     s.entitySeed   = seed;
-    s.snowDepth    = 0.0;
-    s.snowPhaseSeed = snow_phase_seed_from_monitor(static_cast<int>(monitorWidth + 0.5),
-                                                    static_cast<int>(s.windowHeight + 0.5), 0, 0);
-    s.snowCarve.assign(SNOW_CARVE_BUCKETS, 0.0);
     s.entities.reserve(MAX_ENTITIES_PER_MONITOR);
     generate_blades(seed, monitorWidth, density, s.blades);
 
@@ -2049,10 +1945,6 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.prevCursorTime = -1.0;
     sim.monitorWidth   = monitorWidth;
     sim.entitySeed     = seed;
-    sim.snowDepth      = 0.0;
-    sim.snowPhaseSeed  = snow_phase_seed_from_monitor(static_cast<int>(monitorWidth + 0.5),
-                                                       static_cast<int>(sim.windowHeight + 0.5), 0, 0);
-    sim.snowCarve.assign(SNOW_CARVE_BUCKETS, 0.0);
     sim.entities.clear();
     if (sim.entities.capacity() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
         sim.entities.reserve(MAX_ENTITIES_PER_MONITOR);
@@ -2078,15 +1970,6 @@ void sim_tick(Sim& sim, double dt,
               const InputEvent* events, std::size_t numEvents) noexcept
 {
     sim.globalTime += dt;
-
-    if (sim.currentScene == Scene::Winter) {
-        sim_set_snow_depth(sim, sim.snowDepth + SNOW_ACCUMULATION_RATE * std::max(0.0, dt));
-        // Footprints settle back before this frame's clicks are processed, so a
-        // same-frame click lands its full dent (verified by ordering tests).
-        sim_decay_snow_carve(sim, dt);
-    } else {
-        sim.snowDepth = 0.0;
-    }
 
     for (std::size_t i = 0; i < numEvents; ++i) {
         const InputEvent& e = events[i];

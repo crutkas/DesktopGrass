@@ -78,7 +78,6 @@ void assert_state_equal(const persistence::AppState& expected, const persistence
         REQUIRE(a.height == e.height);
         REQUIRE(a.left == e.left);
         REQUIRE(a.top == e.top);
-        REQUIRE(a.snowDepth == Approx(e.snowDepth).margin(1e-9));
         REQUIRE(a.cuts.size() == e.cuts.size());
         for (std::size_t j = 0; j < e.cuts.size(); ++j) {
             REQUIRE(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);

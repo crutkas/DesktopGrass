@@ -620,18 +620,7 @@ internal static class Constants
     public const uint SNOWFLAKE_COLOR = 0xFFFFFFFFu;
     public const ulong SNOWFLAKE_PRNG_SALT = 0xC0FFEE1CECAFEBABul;
 
-    // Snow accumulation (§15.2). Passive Winter-only layer on the strip baseline.
-    public const double SNOW_ACCUMULATION_RATE = 0.012;
-    public const double SNOW_DEPTH_MAX = 6.0;
-    public const double SNOW_DEPTH_MIN_RENDER = 0.3;
-    public const uint SNOW_LAYER_COLOR_TOP = 0xFFFFFFFFu;
-    public const uint SNOW_LAYER_COLOR_BOTTOM = 0xFFE8E8F0u;
-    public const uint SNOW_LAYER_HIGHLIGHT = 0xFFFFFFFFu;
-    public const double SNOW_TOP_UNDULATION_AMP = 2.5;
-    public const double SNOW_TOP_UNDULATION_WAVELENGTH = 90.0;
-    public const ulong SNOW_TOP_UNDULATION_PHASE_SALT = 0x5E0A1ul;
-
-    // Snow puff (§21). A click on the Winter snowbank kicks up a short-lived
+    // Snow puff (§21). A click in the Winter scene kicks up a short-lived
     // burst of powder. Dedicated PRNG stream (salted) so the burst never
     // perturbs the snowflake emitter; it only fires on click input. y is
     // screen-down, so an upward launch is negative vy and SNOW_PUFF_GRAVITY
@@ -669,64 +658,9 @@ internal static class Constants
     public const double SNOW_DRIFT_SPEED_SCALE    = 0.85;
     public const ulong  SNOW_DRIFT_PRNG_SALT      = 0x5D81F77D5D81F77Dul;
 
-    // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded
-    // snow mounds instead of grass, so dense neighbors overlap into a drift.
-    public const double WINTER_DRIFT_HEIGHT_SCALE = 0.42;
-    public const double WINTER_DRIFT_HEIGHT_MIN   = 3.0;
-    public const double WINTER_DRIFT_HEIGHT_MAX   = 11.0;
-    public const double WINTER_DRIFT_WIDTH_MIN    = 7.0;
-    public const double WINTER_DRIFT_WIDTH_FACTOR = 1.7;
-    public const uint   WINTER_DRIFT_BASE_COLOR   = 0xFFE8EEF6u;
-    public const uint   WINTER_DRIFT_HILITE_COLOR = 0xFFFFFFFFu;
-
-    // Snow sparkle (§21). Render-only: a sparse, slow twinkle on the drift tops,
-    // computed deterministically from globalTime + baseX (no PRNG).
-    public const double SNOW_SPARKLE_SPEED        = 1.7;
-    public const double SNOW_SPARKLE_PHASE_MUL    = 0.21;
-    public const double SNOW_SPARKLE_THRESHOLD    = 0.986;
-    public const double SNOW_SPARKLE_RADIUS       = 1.1;
-
-    // Wind-blown spindrift (§21.3). Render-only: a few faint streaks of snow skim
-    // horizontally just above the bank crest, scrolling with globalTime so the
-    // surface reads as wind-blown and alive. Deterministic from globalTime + lane
-    // index (no PRNG, no entities, no state).
-    public const int    SNOW_WIND_LANES           = 7;
-    public const double SNOW_WIND_SPEED           = 130.0;
-    public const double SNOW_WIND_LENGTH_MIN      = 26.0;
-    public const double SNOW_WIND_LENGTH_MAX      = 64.0;
-    public const double SNOW_WIND_THICKNESS       = 2.2;
-    public const double SNOW_WIND_HEIGHT_MIN      = 3.0;
-    public const double SNOW_WIND_HEIGHT_MAX      = 16.0;
-    public const double SNOW_WIND_BOB_AMP         = 3.0;
-    public const double SNOW_WIND_BOB_SPEED       = 1.1;
-    public const double SNOW_WIND_OPACITY         = 0.5;
-    public const uint   SNOW_WIND_COLOR           = 0xFFFFFFFFu;
-
-    // Sculpted winter snowbank (§21.1). Render-only continuous drift replacing
-    // the per-blade snow mounds. See native Constants.h for the full rationale.
-    public const double SNOW_BANK_BASE_DEPTH         = 9.0;
-    public const double SNOW_BANK_ROLL_AMP           = 5.0;
-    public const double SNOW_BANK_ROLL_WAVELENGTH    = 280.0;
-    public const double SNOW_BANK_RIPPLE_AMP         = 3.0;
-    public const double SNOW_BANK_RIPPLE_WAVELENGTH  = 76.0;
-    public const double SNOW_BANK_MICRO_AMP          = 1.2;
-    public const double SNOW_BANK_MICRO_WAVELENGTH   = 23.0;
-    public const double SNOW_BANK_CORNICE_AMP        = 5.0;
-    public const double SNOW_BANK_CORNICE_WAVELENGTH = 540.0;
-    public const double SNOW_BANK_CREST_BAND_FRAC    = 0.34;
-    public const double SNOW_BANK_SHADOW_BAND_FRAC   = 0.30;
+    // Cool shadow tint reused by the live snow-puff to give white powder an edge
+    // against light backgrounds (despite the legacy "bank" name).
     public const uint   SNOW_BANK_SHADOW_COLOR       = 0xFFBFCDE4u;
-    public const double SNOW_BANK_MIN_DEPTH          = 3.0;
-    public const ulong  SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEul;
-
-    // Snow carve / footprints (§21.2). Clicking the winter snowbank presses a
-    // dent that slowly settles back over a few seconds (mirrors grass cut+regrow).
-    // Transient interaction state — never persisted, cleared on every scene change.
-    public const int    SNOW_CARVE_BUCKETS           = 192;
-    public const double SNOW_CARVE_RADIUS_DIP        = 24.0;
-    public const double SNOW_CARVE_DEPTH_PER_CLICK   = 7.0;
-    public const double SNOW_CARVE_MAX_DEPTH         = 11.0;
-    public const double SNOW_CARVE_REFILL_RATE       = 1.8;
 
     // Falling leaves (§16.5). Autumn-only transient particles.
     public const double LEAF_SPAWN_RATE_PER_SEC_1920DIP = 1.4;
