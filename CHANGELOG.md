@@ -14,7 +14,23 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-05 — Removed: day/night concept (tint + time-of-day behavior)
+## 2026-06-05 — Perf: batch tip-cap decorations (Winter snow caps)
+
+### Changed
+- **Tip-cap decorations (flower heads + Winter snow caps) are now batched into a
+  single filled geometry per brush instead of one `FillEllipse` per cap.** In
+  Winter every standing blade carries a snow cap, so the renderer was issuing
+  hundreds of individual `FillEllipse` draw calls per frame on a wide monitor.
+  The deferred caps are now grouped by brush and filled with one `FillGeometry`
+  call each (flower-head palette brushes first, the snow brush last so a tip
+  carrying both still shows the snow cap on top). Each cap is a closed circle —
+  two arcs in the Native renderer, four cubic Béziers in Win2D (Vortice exposes
+  no arc segment) — and `WINDING` fill keeps overlapping caps solid. This is the
+  Winter-focused follow-up to the Batch A blade-stroke batching; it's render-only
+  so the Sim, PRNG, and all determinism/conformance tests are unaffected
+  (283 native + 283 Win2D still pass).
+
+---
 
 ### Removed
 - **The entire day-night concept.** Removed the subtle day-night ambient color

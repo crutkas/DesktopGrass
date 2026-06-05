@@ -1779,9 +1779,47 @@ internal sealed class GrassWindow : IDisposable
             }
         }
 
-        foreach (DeferredCap d in _deferredCaps)
+        // §CPU Batch: caps sharing a brush are filled with ONE geometry + ONE
+        // FillGeometry instead of one FillEllipse each, so Winter (a snow cap per
+        // blade — hundreds/frame) collapses to a single fill. Each cap is a closed
+        // 4-Bezier circle; WINDING fill keeps overlapping caps solid. Flower
+        // brushes are drawn first and the snow brush last, preserving the prior
+        // on-top order where a tip carries both a flower head and a snow cap.
+        if (_deferredCaps.Count > 0)
         {
-            _dc!.FillEllipse(d.Ellipse, d.Brush);
+            void FillCapGroup(ID2D1SolidColorBrush brush)
+            {
+                if (brush is null) return;
+                using ID2D1PathGeometry geom = _d2dFactory!.CreatePathGeometry();
+                bool any = false;
+                using (ID2D1GeometrySink sink = geom.Open())
+                {
+                    sink.SetFillMode(Vortice.Direct2D1.FillMode.Winding);
+                    const float k = 0.5522847498307936f; // circle-via-cubic-Bezier control ratio
+                    foreach (DeferredCap d in _deferredCaps)
+                    {
+                        if (!ReferenceEquals(d.Brush, brush)) continue;
+                        float cx = d.Ellipse.Point.X, cy = d.Ellipse.Point.Y;
+                        float rx = d.Ellipse.RadiusX, ry = d.Ellipse.RadiusY;
+                        float kx = k * rx, ky = k * ry;
+                        sink.BeginFigure(new Vector2(cx + rx, cy), FigureBegin.Filled);
+                        sink.AddBezier(new BezierSegment { Point1 = new Vector2(cx + rx, cy + ky), Point2 = new Vector2(cx + kx, cy + ry), Point3 = new Vector2(cx, cy + ry) });
+                        sink.AddBezier(new BezierSegment { Point1 = new Vector2(cx - kx, cy + ry), Point2 = new Vector2(cx - rx, cy + ky), Point3 = new Vector2(cx - rx, cy) });
+                        sink.AddBezier(new BezierSegment { Point1 = new Vector2(cx - rx, cy - ky), Point2 = new Vector2(cx - kx, cy - ry), Point3 = new Vector2(cx, cy - ry) });
+                        sink.AddBezier(new BezierSegment { Point1 = new Vector2(cx + kx, cy - ry), Point2 = new Vector2(cx + rx, cy - ky), Point3 = new Vector2(cx + rx, cy) });
+                        sink.EndFigure(FigureEnd.Closed);
+                        any = true;
+                    }
+                    sink.Close();
+                }
+                if (any) _dc!.FillGeometry(geom, brush);
+            }
+
+            if (_flowerHeadBrushes is not null)
+            {
+                foreach (ID2D1SolidColorBrush fb in _flowerHeadBrushes) FillCapGroup(fb);
+            }
+            if (_snowTipBrush is not null) FillCapGroup(_snowTipBrush);
         }
         _deferredCaps.Clear();
     }
