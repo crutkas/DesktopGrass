@@ -1938,7 +1938,10 @@ internal sealed class Sim
                     + (int)SnowDriftPrng.Index((uint)(Constants.SNOW_DRIFT_COUNT_MAX - Constants.SNOW_DRIFT_COUNT_MIN + 1));
                 for (int i = 0; i < driftCount; i++)
                 {
-                    Entity puff = MakeSnowPuff(ref SnowDriftPrng, e.X, e.Y, GroundY,
+                    // Kick the powder up from the snow surface beneath the
+                    // cursor (X follows the cursor, Y anchored to the ground)
+                    // rather than from wherever the cursor floats in the band.
+                    Entity puff = MakeSnowPuff(ref SnowDriftPrng, e.X, GroundY, GroundY,
                                                Constants.SNOW_DRIFT_SIZE_SCALE, Constants.SNOW_DRIFT_SPEED_SCALE);
                     if (Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
                     {

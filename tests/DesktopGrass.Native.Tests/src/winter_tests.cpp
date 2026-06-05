@@ -345,6 +345,12 @@ TEST_CASE("Brushing the cursor across the snowbank kicks up a drift wisp", "[win
         if (e.kind != EntityKind::SnowPuff) continue;
         REQUIRE(e.vy < 0.0);
         REQUIRE(e.size <= SNOW_PUFF_SIZE_MAX * SNOW_DRIFT_SIZE_SCALE + 1e-9);
+        // Drift puffs originate at the snow surface beneath the cursor, not at
+        // the cursor's floating height: y sits within START_RADIUS of the
+        // ground even though the cursor is 5 DIP above it.
+        const double groundY = sim.windowHeight;
+        REQUIRE(e.y <= groundY + 1e-9);
+        REQUIRE(e.y >= groundY - SNOW_PUFF_START_RADIUS - 1e-9);
     }
 }
 

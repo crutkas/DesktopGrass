@@ -361,6 +361,11 @@ public class WinterTests
             if (e.Kind != EntityKind.SnowPuff) continue;
             Assert.True(e.Vy < 0.0);
             Assert.True(e.Size <= Constants.SNOW_PUFF_SIZE_MAX * Constants.SNOW_DRIFT_SIZE_SCALE + 1e-9);
+            // Drift puffs originate at the snow surface beneath the cursor, not
+            // at the cursor's floating height: Y sits within START_RADIUS of the
+            // ground even though the cursor is 5 DIP above it.
+            Assert.True(e.Y <= sim.GroundY + 1e-9);
+            Assert.True(e.Y >= sim.GroundY - Constants.SNOW_PUFF_START_RADIUS - 1e-9);
         }
     }
 

@@ -12,6 +12,21 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Fix: winter cursor-move snow puffs now kick up from the ground
+
+### Fixed
+- **The winter snow-drift puff (kicked up as the cursor brushes low across the
+  snow) now originates at the snow surface beneath the cursor instead of at the
+  cursor's floating height.** Previously the drift burst spawned at the cursor's
+  Y anywhere in the ~70 DIP band above the ground, so powder appeared mid-air
+  "randomly in the area." The emitter now anchors each puff's Y to the ground
+  line (X still follows the cursor), so the wisp rises from the snow. The gating
+  band, speed threshold, cooldown, and PRNG stream are unchanged — only the spawn
+  Y moved, so determinism and the drift cadence are preserved. Applied to both
+  the Native (C++) and Win2D (C#) implementations.
+
+---
+
 ## 2026-06-05 — Build: add native ARM64 configurations alongside x64
 
 ### Added

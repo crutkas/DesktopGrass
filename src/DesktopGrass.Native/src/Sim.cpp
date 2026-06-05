@@ -786,7 +786,10 @@ void sim_apply_move(Sim& sim, const InputEvent& e) noexcept {
                 + static_cast<int>(prng_index(sim.snowDriftPrng,
                                               SNOW_DRIFT_COUNT_MAX - SNOW_DRIFT_COUNT_MIN + 1));
             for (int i = 0; i < count; ++i) {
-                Entity puff = make_snow_puff(sim.snowDriftPrng, e.x, e.y, groundY,
+                // Kick the powder up from the snow surface beneath the cursor
+                // (x follows the cursor, y anchored to the ground) rather than
+                // from wherever the cursor floats in the band.
+                Entity puff = make_snow_puff(sim.snowDriftPrng, e.x, groundY, groundY,
                                              SNOW_DRIFT_SIZE_SCALE, SNOW_DRIFT_SPEED_SCALE);
                 if (sim.entities.size() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
                     sim.entities.push_back(puff);
