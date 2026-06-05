@@ -12,6 +12,33 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Build: add native ARM64 configurations alongside x64
+
+### Added
+- **Both apps and the native test project now build for ARM64 as well as x64.**
+  - Native (`DesktopGrass.Native.vcxproj`) and its test project gained
+    `Debug|ARM64` / `Release|ARM64` configurations mirroring the x64 settings
+    (toolset `v145`, `/MT` static CRT in app Release, whole-program optimization).
+  - Win2D (`DesktopGrass.Win2D.csproj`) now declares `<Platforms>x64;ARM64</Platforms>`
+    and `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` (dropped the
+    hard-pinned `<PlatformTarget>x64</PlatformTarget>`).
+
+### Changed
+- **Native build output is now nested per platform** so the two architectures no
+  longer overwrite each other: `out\<Platform>\<Config>\` and
+  `obj\<Platform>\<Config>\` (was `out\<Config>\`). Win2D likewise nests under
+  `bin\<Platform>\<Config>\<TFM>\`.
+- `tests\smoke\Run-SmokeTests.ps1` gained a `-Platform` parameter (defaults to the
+  host architecture) and resolves the native exe from the platform-nested path.
+- Updated `README.md` and `docs/manual-smoke.md` for the new paths and ARM64 builds.
+
+### Notes
+- Verified on an x64 host: x64 app + tests build and the 289-case native suite
+  passes; ARM64 app + tests cross-compile and link cleanly (can't execute on an
+  x64 host). Win2D builds clean for both x64 and ARM64.
+
+---
+
 ## 2026-06-05 — Cleanup: remove dead winter snowbank machinery
 
 ### Removed

@@ -13,13 +13,13 @@ Run commands from the repository root, `C:\Users\crutkas\source\DesktopGrass`.
     ```powershell
     msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64
     ```
-  - Release binary: `src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe`
+  - Release binary: `src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe` (ARM64 builds land under `out\ARM64\Release\`)
 - **Win2D — C# + Direct2D/Vortice track**
   - Build from scratch:
     ```powershell
-    dotnet build src\DesktopGrass.Win2D -c Release
+    dotnet build src\DesktopGrass.Win2D -c Release -p:Platform=x64
     ```
-  - Release binary: `src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe`
+  - Release binary: `src\DesktopGrass.Win2D\bin\x64\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe` (ARM64 builds land under `bin\ARM64\Release\...`)
 
 The expected output paths above match the project files and the current smoke harness resolution rules.
 

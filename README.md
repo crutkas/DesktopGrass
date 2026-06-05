@@ -88,28 +88,34 @@ The same feature set is implemented two ways, both sharing the same `Sim` /
 Pick an implementation and launch its release exe:
 
 ```powershell
-# Native — C++/Direct2D
-& "src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe"
+# Native — C++/Direct2D (x64; use Platform=ARM64 for native ARM64)
+msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64
+& "src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe"
 
 # Win2D — C#/Vortice
-dotnet build src\DesktopGrass.Win2D -c Release
-& "src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe"
+dotnet build src\DesktopGrass.Win2D -c Release -p:Platform=x64
+& "src\DesktopGrass.Win2D\bin\x64\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe"
 ```
 
 Right-click the tray icon for scene selection, pet count overrides, "Start with
 Windows", and quit.
 
+Both apps build for **x64** and **ARM64**. Build outputs are nested per platform
+(`out\<Platform>\<Config>\` for Native, `bin\<Platform>\<Config>\<TFM>\` for
+Win2D), so the two architectures can coexist side by side. Swap `x64` for `ARM64`
+(Win2D RID `win-arm64`) to produce native ARM64 binaries.
+
 The Native exe is built via MSBuild against `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj`
-(Release / x64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full
+(Release / x64 or ARM64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full
 build-from-scratch checklist.
 
 ## Portability — running on another computer
 
 | Build | What to copy | Size | Target requirements |
 | --- | --- | --- | --- |
-| **Native (Release)** | `src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe` | ~210 KB | Windows 10 1809+ x64. **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
-| **Win2D (framework-dependent)** | `src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\` (whole folder, 15 files) | ~26 MB | Windows 10 1809+ x64 **and** .NET 10 desktop runtime installed (`winget install Microsoft.DotNet.DesktopRuntime.10`). |
-| **Win2D (self-contained, single file)** | `publish\win2d-selfcontained\DesktopGrass.Win2D.exe` after the publish command below | ~143 MB | Windows 10 1809+ x64. **Nothing else** — .NET runtime + Vortice native DLLs are baked in. |
+| **Native (Release)** | `src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe` (`<Platform>` = `x64` or `ARM64`) | ~210 KB | Windows 10 1809+, matching arch (x64 or ARM64). **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
+| **Win2D (framework-dependent)** | `src\DesktopGrass.Win2D\bin\<Platform>\Release\net10.0-windows10.0.19041.0\` (whole folder, 15 files) | ~26 MB | Windows 10 1809+ (x64 or ARM64) **and** .NET 10 desktop runtime installed (`winget install Microsoft.DotNet.DesktopRuntime.10`). |
+| **Win2D (self-contained, single file)** | `publish\win2d-selfcontained\DesktopGrass.Win2D.exe` after the publish command below | ~143 MB | Windows 10 1809+ (x64 or ARM64, matching the `-r` RID). **Nothing else** — .NET runtime + Vortice native DLLs are baked in. |
 
 To produce the Win2D self-contained single-file build:
 
@@ -118,6 +124,8 @@ dotnet publish src\DesktopGrass.Win2D -c Release -r win-x64 `
   --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
   -o publish\win2d-selfcontained
 ```
+
+(Swap `-r win-x64` for `-r win-arm64` to publish a native ARM64 single-file build.)
 
 Tip: For a drop-and-run experience on a friend's box, Native is the way — one
 210 KB exe, no installer, no runtime. Win2D self-contained is the equivalent if
@@ -142,8 +150,8 @@ you want the C# build.
 Run everything:
 
 ```powershell
-# Native unit tests
-& ".\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe" --reporter compact
+# Native unit tests (x64; build with Platform=ARM64 for the ARM64 suite)
+& ".\tests\DesktopGrass.Native.Tests\out\x64\Release\DesktopGrass.Native.Tests.exe" --reporter compact
 
 # Win2D unit tests
 dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release

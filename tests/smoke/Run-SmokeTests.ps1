@@ -11,6 +11,8 @@ param(
 
     [string] $Configuration = 'Release',
 
+    [string] $Platform = $(if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'ARM64' } else { 'x64' }),
+
     [switch] $ContinueOnFailure
 )
 
@@ -20,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module "$PSScriptRoot\Smoke.Common.psm1" -Force
 
 # Relative paths follow the build-output convention from the plan:
-#   * Native (MSBuild C++):  src\DesktopGrass.Native\out\<Config>\DesktopGrass.Native.exe
+#   * Native (MSBuild C++):  src\DesktopGrass.Native\out\<Platform>\<Config>\DesktopGrass.Native.exe
 #   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Config>\<TFM>\DesktopGrass.Win2D.exe
 # TFM is resolved lazily at run time so we don't hardcode net8.0-windows10.0.*.
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
@@ -57,7 +59,7 @@ function Resolve-DotnetExe {
 
 $Targets = [ordered]@{
     'Native' = @{
-        ExePath     = Join-Path $RepoRoot "src\DesktopGrass.Native\out\$Configuration\DesktopGrass.Native.exe"
+        ExePath     = Join-Path $RepoRoot "src\DesktopGrass.Native\out\$Platform\$Configuration\DesktopGrass.Native.exe"
         WindowClass = 'DesktopGrass.Native.Window'
     }
     'Win2D'  = @{
