@@ -114,6 +114,29 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1StrokeStyle? _strokeStyle;
     private readonly Dictionary<ulong, double> _petNameLastHover = new();
 
+    // §CPU Batch A: per-frame grass-blade stroke batching. Plain grass blades are
+    // accumulated into a few grouped path geometries keyed by (hue, quantized
+    // thickness) and stroked with one DrawGeometry per group instead of ~4
+    // DrawLine calls each — collapsing thousands of draw calls into ~36. Tip
+    // decorations are deferred to draw on top after all strokes. Mirrors the
+    // native renderer (Renderer.cpp DrawGrass).
+    private const int BladeBucketCount = 32;
+    private const float BladeThicknessBucket = 0.25f;
+    private struct BladeGroup
+    {
+        public ID2D1PathGeometry? Geom;
+        public ID2D1GeometrySink? Sink;
+        public float Thickness;
+    }
+    private readonly BladeGroup[,] _bladeGroups =
+        new BladeGroup[Constants.PALETTE_SIZE, BladeBucketCount];
+    private struct DeferredCap
+    {
+        public Ellipse Ellipse;
+        public ID2D1SolidColorBrush Brush;
+    }
+    private readonly List<DeferredCap> _deferredCaps = new();
+
     private const float SheepCuriousVerticalRadiusDip = 120.0f;
 
     public Sim Sim { get; }
@@ -379,12 +402,15 @@ internal sealed class GrassWindow : IDisposable
             }
         }
 
-        // Ground cover (incl. Winter snow-tipped grass).
+        // Ground cover (incl. Winter snow-tipped grass). Plain grass blades are
+        // batched into grouped geometries; flushed after the loop.
+        _deferredCaps.Clear();
         for (int i = 0; i < Sim.Blades.Length; i++)
         {
             ref Blade b = ref Sim.Blades[i];
             DrawBlade(in b, groundY, treesOnly: false, backgroundTrees: false);
         }
+        FlushBladeBatch();
 
         if (Sim.CurrentScene == Scene.Winter || Sim.CurrentScene == Scene.Autumn)
         {
@@ -1700,7 +1726,6 @@ internal sealed class GrassWindow : IDisposable
         var stroke = Sim.ComputeBladeStroke(b, groundY, Sim.CurrentScene);
         int hue = b.Hue;
         if ((uint)hue >= (uint)Constants.PALETTE_SIZE) hue = 0;
-        var brush = _brushes![(int)Sim.CurrentScene, hue];
 
         float bx = (float)stroke.BaseX;
         float by = (float)stroke.BaseY;
@@ -1710,14 +1735,25 @@ internal sealed class GrassWindow : IDisposable
         float ty = (float)stroke.TipY;
         float thickness = (float)(stroke.Thickness + Constants.BLADE_THICKNESS_RENDER_BONUS);
 
-        // Tessellate the quadratic Bezier into line segments. D2D batches
-        // DrawLine calls internally so this is cheaper than constructing a
-        // path geometry per blade per frame. Segment count trades smoothness
-        // for draw-call count (the dominant per-frame CPU cost); 4 is a good
-        // balance for short grass. Keep in sync with the native renderer.
+        // Tessellate the quadratic Bezier into N segments and append them as one
+        // open figure (round joins/caps) into the geometry group sharing this
+        // blade's hue + quantized thickness. The whole group is stroked with a
+        // single DrawGeometry in FlushBladeBatch. Keep in sync with the native
+        // renderer.
+        int bucket = (int)MathF.Floor(thickness / BladeThicknessBucket + 0.5f);
+        if (bucket < 0) bucket = 0;
+        if (bucket >= BladeBucketCount) bucket = BladeBucketCount - 1;
+
+        ref BladeGroup g = ref _bladeGroups[hue, bucket];
+        if (g.Sink is null)
+        {
+            g.Geom = _d2dFactory!.CreatePathGeometry();
+            g.Sink = g.Geom.Open();
+            g.Thickness = bucket * BladeThicknessBucket;
+        }
+
         const int N = 4;
-        var prevX = bx;
-        var prevY = by;
+        g.Sink.BeginFigure(new Vector2(bx, by), FigureBegin.Hollow);
         for (int i = 1; i <= N; i++)
         {
             float t = i / (float)N;
@@ -1727,26 +1763,59 @@ internal sealed class GrassWindow : IDisposable
             float ut2 = 2f * u * t;
             float px = u2 * bx + ut2 * cx + t2 * tx;
             float py = u2 * by + ut2 * cy + t2 * ty;
-            _dc!.DrawLine(new Vector2(prevX, prevY), new Vector2(px, py), brush, thickness, _strokeStyle);
-            prevX = px;
-            prevY = py;
+            g.Sink.AddLine(new Vector2(px, py));
         }
+        g.Sink.EndFigure(FigureEnd.Open);
 
         if (b.IsFlower && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
         {
             int hi = b.FlowerHeadColorIdx;
             if ((uint)hi >= (uint)_flowerHeadBrushes!.Length) hi = 0;
             float r = (float)b.FlowerHeadRadius;
-            var ellipse = new Ellipse(new Vector2(tx, ty), r, r);
-            _dc!.FillEllipse(ellipse, _flowerHeadBrushes[hi]);
+            _deferredCaps.Add(new DeferredCap
+            {
+                Ellipse = new Ellipse(new Vector2(tx, ty), r, r),
+                Brush = _flowerHeadBrushes[hi],
+            });
         }
 
         if (Sim.CurrentScene == Scene.Winter && !b.IsCactus && !b.IsPine && b.CutHeight >= Constants.CUT_STUMP_THRESHOLD)
         {
             float r = (float)(b.Thickness * Constants.SNOW_TIP_RADIUS_FACTOR);
-            var cap = new Ellipse(new Vector2(tx, ty), r, r);
-            _dc!.FillEllipse(cap, _snowTipBrush!);
+            _deferredCaps.Add(new DeferredCap
+            {
+                Ellipse = new Ellipse(new Vector2(tx, ty), r, r),
+                Brush = _snowTipBrush!,
+            });
         }
+    }
+
+    // Strokes each accumulated grass-blade group with a single DrawGeometry, then
+    // draws deferred tip caps (flower heads, snow caps) on top, and releases the
+    // per-frame geometries. Mirrors the native renderer's phase 2 + phase 3.
+    private void FlushBladeBatch()
+    {
+        int sceneIdx = (int)Sim.CurrentScene;
+        for (int h = 0; h < Constants.PALETTE_SIZE; h++)
+        {
+            for (int k = 0; k < BladeBucketCount; k++)
+            {
+                ref BladeGroup g = ref _bladeGroups[h, k];
+                if (g.Sink is null) continue;
+                g.Sink.Close();
+                _dc!.DrawGeometry(g.Geom!, _brushes![sceneIdx, h], g.Thickness, _strokeStyle);
+                g.Sink.Dispose();
+                g.Geom!.Dispose();
+                g.Sink = null;
+                g.Geom = null;
+            }
+        }
+
+        foreach (DeferredCap d in _deferredCaps)
+        {
+            _dc!.FillEllipse(d.Ellipse, d.Brush);
+        }
+        _deferredCaps.Clear();
     }
 
     private static Color4 ArgbToColor4(uint argb)

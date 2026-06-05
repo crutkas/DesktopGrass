@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cwchar>
+#include <vector>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -736,6 +737,28 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
                                   roundStrokeStyle_.Get());
     };
 
+    // §CPU Batch A: instead of issuing ~4 DrawLine calls per plain grass blade
+    // (~2,800/frame, each with a per-blade brush that defeats D2D's internal
+    // batching), accumulate every blade's tessellated stroke into a small set of
+    // grouped path geometries keyed by (hue, quantized thickness). Each group is
+    // then stroked with a SINGLE DrawGeometry call sharing one brush + thickness,
+    // collapsing thousands of draw calls into ~36. Tip decorations (flower heads,
+    // snow caps) are deferred and drawn on top after all strokes so they read
+    // crisply and are never clipped by a later blade.
+    constexpr int kBucketCount = 32;
+    constexpr float kBladeThicknessBucket = 0.25f;
+    struct BladeGroup {
+        ComPtr<ID2D1PathGeometry> geom;
+        ComPtr<ID2D1GeometrySink> sink;
+        float thickness = 0.0f;
+    };
+    BladeGroup bladeGroups[PALETTE_SIZE][kBucketCount];
+    struct DeferredEllipse {
+        D2D1_ELLIPSE ellipse;
+        ID2D1SolidColorBrush* brush;
+    };
+    std::vector<DeferredEllipse> deferredCaps;
+
     for (const Blade& b : sim_.blades) {
         if (treesOnly) {
             if (!b.isPine && !b.isMaple) continue;
@@ -1085,55 +1108,88 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
 
         const Stroke s = compute_blade_stroke(b, groundY, sim_.currentScene);
 
-        ID2D1SolidColorBrush* brush = brushes_[sceneIdx][b.hue].Get();
         const float thickness = static_cast<float>(s.thickness + BLADE_THICKNESS_RENDER_BONUS);
 
-        // Tessellate the quadratic Bezier into N line segments and stroke them
-        // with DrawLine (round caps/joins). D2D batches DrawLine internally, so
-        // this is far cheaper than allocating/opening/closing a path geometry
-        // per blade every frame, and matches the Win2D renderer's tessellation.
+        // Tessellate the quadratic Bezier into N line segments and append them as
+        // one open figure (round joins/caps) into the geometry group that shares
+        // this blade's hue + quantized thickness. The whole group is stroked with
+        // a single DrawGeometry below, so this is far cheaper than per-blade
+        // DrawLine while looking identical.
         const float bx = static_cast<float>(s.base.x);
         const float by = static_cast<float>(s.base.y);
         const float cx = static_cast<float>(s.control.x);
         const float cy = static_cast<float>(s.control.y);
         const float tx = static_cast<float>(s.tip.x);
         const float ty = static_cast<float>(s.tip.y);
-        constexpr int kBladeSegments = 4;
-        float prevX = bx;
-        float prevY = by;
-        for (int i = 1; i <= kBladeSegments; ++i) {
-            const float t   = static_cast<float>(i) / static_cast<float>(kBladeSegments);
-            const float u   = 1.0f - t;
-            const float u2  = u * u;
-            const float t2  = t * t;
-            const float ut2 = 2.0f * u * t;
-            const float px  = u2 * bx + ut2 * cx + t2 * tx;
-            const float py  = u2 * by + ut2 * cy + t2 * ty;
-            d2dContext_->DrawLine(D2D1::Point2F(prevX, prevY), D2D1::Point2F(px, py),
-                                  brush, thickness, roundStrokeStyle_.Get());
-            prevX = px;
-            prevY = py;
+
+        int hue = b.hue;
+        if (hue < 0 || hue >= PALETTE_SIZE) hue = 0;
+        int bucket = static_cast<int>(std::floor(thickness / kBladeThicknessBucket + 0.5f));
+        if (bucket < 0) bucket = 0;
+        if (bucket >= kBucketCount) bucket = kBucketCount - 1;
+
+        BladeGroup& g = bladeGroups[hue][bucket];
+        if (!g.sink) {
+            if (SUCCEEDED(d2dFactory_->CreatePathGeometry(&g.geom))) {
+                if (SUCCEEDED(g.geom->Open(&g.sink))) {
+                    g.thickness = static_cast<float>(bucket) * kBladeThicknessBucket;
+                } else {
+                    g.geom.Reset();
+                }
+            }
+        }
+        if (g.sink) {
+            constexpr int kBladeSegments = 4;
+            g.sink->BeginFigure(D2D1::Point2F(bx, by), D2D1_FIGURE_BEGIN_HOLLOW);
+            for (int i = 1; i <= kBladeSegments; ++i) {
+                const float t   = static_cast<float>(i) / static_cast<float>(kBladeSegments);
+                const float u   = 1.0f - t;
+                const float u2  = u * u;
+                const float t2  = t * t;
+                const float ut2 = 2.0f * u * t;
+                const float px  = u2 * bx + ut2 * cx + t2 * tx;
+                const float py  = u2 * by + ut2 * cy + t2 * ty;
+                g.sink->AddLine(D2D1::Point2F(px, py));
+            }
+            g.sink->EndFigure(D2D1_FIGURE_END_OPEN);
         }
 
         if (b.isFlower && b.cutHeight >= CUT_STUMP_THRESHOLD) {
-            const D2D1_ELLIPSE ellipse = D2D1::Ellipse(
-                D2D1::Point2F(static_cast<float>(s.tip.x),
-                              static_cast<float>(s.tip.y)),
-                static_cast<float>(b.flowerHeadRadius),
-                static_cast<float>(b.flowerHeadRadius));
             uint8_t idx = b.flowerHeadColorIdx;
             if (idx >= FLOWER_PALETTE_SIZE) idx = 0;
-            d2dContext_->FillEllipse(ellipse, flowerHeadBrushes_[idx].Get());
+            deferredCaps.push_back({
+                D2D1::Ellipse(D2D1::Point2F(static_cast<float>(s.tip.x),
+                                            static_cast<float>(s.tip.y)),
+                              static_cast<float>(b.flowerHeadRadius),
+                              static_cast<float>(b.flowerHeadRadius)),
+                flowerHeadBrushes_[idx].Get()});
         }
 
         if (sim_.currentScene == Scene::Winter && !b.isCactus && !b.isPine && b.cutHeight >= CUT_STUMP_THRESHOLD) {
             const float r = static_cast<float>(b.thickness * SNOW_TIP_RADIUS_FACTOR);
-            const D2D1_ELLIPSE cap = D2D1::Ellipse(
-                D2D1::Point2F(static_cast<float>(s.tip.x), static_cast<float>(s.tip.y)),
-                r,
-                r);
-            d2dContext_->FillEllipse(cap, snowTipBrush_.Get());
+            deferredCaps.push_back({
+                D2D1::Ellipse(D2D1::Point2F(static_cast<float>(s.tip.x),
+                                            static_cast<float>(s.tip.y)),
+                              r, r),
+                snowTipBrush_.Get()});
         }
+    }
+
+    // Phase 2: stroke each non-empty blade group with a single DrawGeometry.
+    for (int h = 0; h < PALETTE_SIZE; ++h) {
+        for (int k = 0; k < kBucketCount; ++k) {
+            BladeGroup& g = bladeGroups[h][k];
+            if (!g.sink) continue;
+            if (SUCCEEDED(g.sink->Close())) {
+                d2dContext_->DrawGeometry(g.geom.Get(), brushes_[sceneIdx][h].Get(),
+                                          g.thickness, roundStrokeStyle_.Get());
+            }
+        }
+    }
+
+    // Phase 3: draw deferred tip caps (flower heads, snow caps) on top.
+    for (const DeferredEllipse& d : deferredCaps) {
+        d2dContext_->FillEllipse(d.ellipse, d.brush);
     }
 }
 

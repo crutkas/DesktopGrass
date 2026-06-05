@@ -12,6 +12,25 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Perf: batch grass-blade strokes (Batch A, ~60% less CPU)
+
+### Changed
+- **Plain grass blades are now drawn in a few grouped path geometries instead of
+  ~4 `DrawLine` calls per blade.** Each frame, every blade's tessellated stroke is
+  appended (as one open figure with round joins/caps) into a geometry group keyed
+  by `(hue, quantized thickness)`, and each non-empty group is stroked with a
+  single `DrawGeometry`. This collapses the ~2,800 per-blade draw calls/frame
+  (whose per-blade brushes defeated D2D's internal batching) down to ~36, the
+  dominant per-frame CPU cost. Measured on one monitor: **3.55% → ~1.4% total
+  CPU** (~60% reduction). Applied identically to the Native (`Renderer.cpp`) and
+  Win2D (`GrassWindow.cs`) renderers.
+- **Tip decorations (flower heads, winter snow caps) are deferred and drawn on
+  top after all blade strokes**, so they read crisply and are never clipped by a
+  later blade. Mushrooms/cactus/trees are unchanged and draw beneath the batched
+  grass (grass in front, the natural look). This is render-only — the Sim, PRNG,
+  and all determinism/conformance tests are unaffected (289 native + 297 Win2D
+  still pass).
+
 ## 2026-06-05 — Fix: winter cursor-move snow puffs now kick up from the ground
 
 ### Fixed
