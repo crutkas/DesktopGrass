@@ -73,6 +73,7 @@ internal sealed class App : IDisposable
     private int _currentCritterCount;
     private bool _autoStart;
     private AppState? _persistedState;
+    private AppConfig _config = Config.Default;
     private DateTimeOffset _lastPersistenceSave = DateTimeOffset.UtcNow;
     private bool _shutdownSaved;
     private bool _rebuilding;
@@ -89,6 +90,7 @@ internal sealed class App : IDisposable
         Win32.SetProcessDpiAwarenessContext(Win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
         LoadPersistedState();
+        _config = Config.Load();
         ReconcileAutoStartRegistry();
 
         RegisterWindowClass();
@@ -209,7 +211,7 @@ internal sealed class App : IDisposable
             var grass = new GrassWindow(
                 hwnd, widthPx, heightPx, perMonScale,
                 monitorBounds,
-                seed, monitorWidthDip);
+                seed, monitorWidthDip, _config.BladeDensity);
             ApplyPersistedStateToWindow(grass, monitorBounds);
 
             // Show without activating. Use NOACTIVATE-friendly path.
@@ -379,10 +381,14 @@ internal sealed class App : IDisposable
     {
         long lastTick;
         Win32.QueryPerformanceCounter(out lastTick);
-        // Calm ambient content renders at 30 fps to roughly halve per-frame CPU
-        // vs 60 fps. Motion is dt-based, so this only reduces sampling rate. Use
-        // 1.0/60.0 for 60 fps if smoother motion is preferred over lower CPU.
-        const double TargetFrameSec = 1.0 / 30.0;
+        // Calm ambient content renders at 30 fps by default to roughly halve
+        // per-frame CPU vs 60 fps. Motion is dt-based, so this only reduces the
+        // sampling rate. The user can override this in config.json (targetFps).
+        double TargetFrameSec = 1.0 / _config.TargetFps;
+        // Cap dt for stability. Use the larger of the target frame time and
+        // 1/30 s so that LOW target rates still advance motion at wall-clock
+        // speed (a flat 1/30 cap would make e.g. 10 fps play ~3x too slow).
+        double MaxFrameSec = Math.Max(TargetFrameSec, 1.0 / 30.0);
 
         var moveBuffer = new List<InputEvent>(64);
 
@@ -413,7 +419,7 @@ internal sealed class App : IDisposable
                 continue;
             }
             // Cap dt for stability (see §10).
-            if (dt > 1.0 / 30.0) dt = 1.0 / 30.0;
+            if (dt > MaxFrameSec) dt = MaxFrameSec;
             lastTick = now;
 
             // Drain hook events and route per-window.

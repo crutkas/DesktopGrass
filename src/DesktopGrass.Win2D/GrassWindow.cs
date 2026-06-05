@@ -151,7 +151,8 @@ internal sealed class GrassWindow : IDisposable
     public void SetCritterCount(int n) => Sim.SetCritterCount(n);
 
     public GrassWindow(IntPtr hwnd, int widthPx, int heightPx, float dpiScale,
-                       Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip)
+                       Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip,
+                       double density)
     {
         _hwnd = hwnd;
         _widthPx = widthPx;
@@ -161,7 +162,7 @@ internal sealed class GrassWindow : IDisposable
 
         Sim = new Sim
         {
-            Blades = Sim.GenerateBlades(seed, monitorWidthDip, Constants.DEFAULT_DENSITY),
+            Blades = Sim.GenerateBlades(seed, monitorWidthDip, density),
             GroundY = _heightPx / _dpiScale,
             WindowHeight = _heightPx / _dpiScale,
         };

@@ -68,6 +68,7 @@ App::~App() {
 bool App::Initialize(HINSTANCE hInst) {
     hInst_   = hInst;
     seed_    = make_seed_from_time();
+    config_  = config::LoadConfig();
 
     QueryPerformanceFrequency(&qpcFreq_);
     QueryPerformanceCounter(&qpcLast_);
@@ -300,7 +301,7 @@ bool App::EnumerateMonitorsAndCreateWindows() {
         // Each monitor gets its own seed derived from the base seed so blade
         // patterns differ across monitors but remain deterministic.
         const uint64_t mseed = seed_ ^ ((static_cast<uint64_t>(i) + 1) * 0x9E3779B97F4A7C15ull);
-        if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, DEFAULT_DENSITY)) {
+        if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity)) {
             ApplyPersistedStateToWindow(*w, ctx.bounds[i]);
             w->Show();
             windows_.push_back(std::move(w));
@@ -434,11 +435,11 @@ void App::SaveCurrentState() {
 
 int App::Run() {
     MSG msg{};
-    // Calm ambient content renders at 30 fps to roughly halve per-frame CPU vs
-    // 60 fps; motion is time-based (dt), so lowering the rate only reduces how
-    // often the same animation is sampled. Bump back to 1.0/60.0 + Present1(1,0)
-    // for 60 fps if smoother motion is preferred over lower CPU.
-    constexpr double kTargetFrameSec = 1.0 / 30.0;
+    // Calm ambient content renders at 30 fps by default to roughly halve
+    // per-frame CPU vs 60 fps; motion is time-based (dt), so the rate only
+    // changes how often the same animation is sampled. The user can override
+    // this in config.json (targetFps).
+    const double kTargetFrameSec = 1.0 / static_cast<double>(config_.targetFps);
 
     while (!quitRequested_) {
         // Drain pending messages without blocking.

@@ -60,6 +60,28 @@ See [`CHANGELOG.md`](CHANGELOG.md) for a chronological list of everything that
 has shipped, and [`docs/architecture.md`](docs/architecture.md) for the shared
 algorithm contract.
 
+## Settings (`config.json`)
+
+User-tunable knobs live in `%LOCALAPPDATA%\DesktopGrass\config.json`, separate
+from the app-owned `state.json`. The file is created with annotated defaults on
+first run and is **only ever read after that — never overwritten** — so your
+edits stick. It accepts `//` and `/* */` comments and trailing commas (JSONC).
+Edit it and restart the app to apply. Unknown keys are ignored; malformed files
+fall back to defaults without being clobbered.
+
+| Key            | Default  | Range     | Effect |
+|----------------|----------|-----------|--------|
+| `targetFps`    | `30`     | `5`–`144` | Animation frame rate. Lower = less CPU, choppier motion. |
+| `bladeDensity` | `2.8125` | `0.2`–`5.0` | Grass blade density. Lower = fewer blades (less CPU). |
+
+```jsonc
+{
+  "version": 1,
+  "targetFps": 30,
+  "bladeDensity": 2.8125
+}
+```
+
 ## Two implementations
 
 The same feature set is implemented two ways, both sharing the same `Sim` /

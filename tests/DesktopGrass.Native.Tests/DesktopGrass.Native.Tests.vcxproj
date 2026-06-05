@@ -143,9 +143,11 @@
     <ClCompile Include="src\bird_flyby_tests.cpp" />
     <ClCompile Include="src\day_tint_tests.cpp" />
     <ClCompile Include="src\persistence_tests.cpp" />
+    <ClCompile Include="src\config_tests.cpp" />
     <ClCompile Include="src\autostart_tests.cpp" />
     <ClCompile Include="src\click_through_smoke_test.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\Config.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Persistence.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
@@ -153,6 +155,8 @@
   <ItemGroup>
     <ClInclude Include="src\snapshot_data.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\AutoStart.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\Config.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\Json.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Persistence.h" />
     <ClInclude Include="third_party\catch2\catch.hpp" />
   </ItemGroup>

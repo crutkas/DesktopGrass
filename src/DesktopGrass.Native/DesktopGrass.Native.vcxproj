@@ -135,6 +135,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\App.cpp" />
     <ClCompile Include="src\AutoStart.cpp" />
+    <ClCompile Include="src\Config.cpp" />
     <ClCompile Include="src\GrassWindow.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\MouseHook.cpp" />
@@ -145,8 +146,10 @@
   <ItemGroup>
     <ClInclude Include="src\App.h" />
     <ClInclude Include="src\AutoStart.h" />
+    <ClInclude Include="src\Config.h" />
     <ClInclude Include="src\Constants.h" />
     <ClInclude Include="src\GrassWindow.h" />
+    <ClInclude Include="src\Json.h" />
     <ClInclude Include="src\MouseHook.h" />
     <ClInclude Include="src\Persistence.h" />
     <ClInclude Include="src\Renderer.h" />

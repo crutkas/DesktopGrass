@@ -12,6 +12,34 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Feature: user-editable config.json (targetFps, bladeDensity)
+
+### Added
+- **A user-editable `config.json` in `%LOCALAPPDATA%\DesktopGrass\`** for tuning
+  knobs, separate from the app-owned `state.json`. Created with annotated
+  defaults on first run and thereafter **only read, never overwritten**, so hand
+  edits are preserved. Accepts JSONC (`//` + `/* */` comments, trailing commas);
+  malformed files fall back to defaults without being clobbered; unknown keys are
+  ignored. Loaded once at startup — edit and restart to apply. This is the
+  foundation for exposing more knobs (and for eventual PowerToys integration).
+  - `targetFps` (default `30`, range `5`–`144`): animation frame rate. Lower =
+    less CPU, choppier motion.
+  - `bladeDensity` (default `2.8125`, range `0.2`–`5.0`): grass blade density.
+    Lower = fewer blades (less CPU).
+
+### Changed
+- The hardcoded 30 fps frame pacing and `DEFAULT_DENSITY` blade generation now
+  read from `config.json` in both the Native and Win2D apps.
+- **Win2D dt cap fix:** the per-frame `dt` stability cap was a flat `1/30 s`,
+  which made low `targetFps` values play motion in slow-motion. It is now
+  `max(targetFrameSec, 1/30 s)` so low frame rates still advance at wall-clock
+  speed. (Native already used raw wall-clock `dt`.)
+
+### Internal
+- Extracted the Native JSON reader out of `Persistence.cpp` into a shared
+  header-only `Json.h` (`desktopgrass::json`), now used by both persistence and
+  config loading, and taught it JSONC comments + trailing commas.
+
 ## 2026-06-05 — Perf: batch grass-blade strokes (Batch A, ~60% less CPU)
 
 ### Changed
