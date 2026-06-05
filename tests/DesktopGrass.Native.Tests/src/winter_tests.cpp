@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <vector>
 
 using namespace desktopgrass;
 using namespace desktopgrass::test;
@@ -287,15 +288,155 @@ TEST_CASE("Snow puff draw order matches a side PRNG stream", "[winter][puff][prn
 }
 
 TEST_CASE("Snow puff salt is unique among winter PRNG salts", "[winter][puff][prng]") {
-    const std::array<uint64_t, 14> otherSalts = {
+    const std::array<uint64_t, 15> otherSalts = {
         REGROW_PRNG_SALT, FLOWER_PRNG_SALT, MUSHROOM_PRNG_SALT,
         AMBIENT_GUST_PRNG_SALT, CACTUS_PRNG_SALT, TUMBLEWEED_PRNG_SALT,
         CRITTER_PRNG_SALT, BUTTERFLY_PRNG_SALT, FIREFLY_PRNG_SALT,
         BIRD_FLYBY_PRNG_SALT, SNOWFLAKE_PRNG_SALT,
-        PINE_PRNG_SALT, LEAF_PUFF_PRNG_SALT,
+        PINE_PRNG_SALT, LEAF_PUFF_PRNG_SALT, SNOW_DRIFT_PRNG_SALT,
     };
     for (uint64_t s : otherSalts) {
         REQUIRE(SNOW_PUFF_PRNG_SALT != s);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// §21.1 snow drift (cursor-move spindrift)
+// ---------------------------------------------------------------------------
+
+namespace {
+// Prime the cursor baseline, then brush across at `x0`→`x1` over `dt` seconds in
+// the low snow band. Returns the velocity-carrying second event already applied.
+void WinterDrift(Sim& sim, double x0, double x1, double dt) {
+    const double y = sim.windowHeight - 5.0;
+    InputEvent prime{};
+    prime.type = EventType::Move;
+    prime.x = x0; prime.y = y; prime.time = sim.globalTime;
+    sim_apply_move(sim, prime);
+
+    InputEvent move{};
+    move.type = EventType::Move;
+    move.x = x1; move.y = y; move.time = sim.globalTime + dt;
+    sim_apply_move(sim, move);
+}
+}
+
+TEST_CASE("Snow drift constants are pinned", "[winter][drift][constants]") {
+    REQUIRE(SNOW_DRIFT_COUNT_MIN == 3);
+    REQUIRE(SNOW_DRIFT_COUNT_MAX == 6);
+    REQUIRE(SNOW_DRIFT_REACH_DIP == Approx(70.0));
+    REQUIRE(SNOW_DRIFT_MIN_SPEED == Approx(90.0));
+    REQUIRE(SNOW_DRIFT_COOLDOWN_SEC == Approx(0.12));
+    REQUIRE(SNOW_DRIFT_SIZE_SCALE == Approx(0.75));
+    REQUIRE(SNOW_DRIFT_SPEED_SCALE == Approx(0.6));
+    REQUIRE(SNOW_DRIFT_PRNG_SALT == 0x5D81F77D5D81F77Dull);
+}
+
+TEST_CASE("Brushing the cursor across the snowbank kicks up a drift wisp", "[winter][drift]") {
+    Sim sim = MakeWinterTestSim();
+    sim_set_scene(sim, Scene::Winter);
+
+    WinterDrift(sim, 300.0, 360.0, 0.05); // 60 DIP / 0.05 s = 1200 DIP/s
+
+    const int puffs = count_snow_puffs(sim);
+    REQUIRE(puffs >= SNOW_DRIFT_COUNT_MIN);
+    REQUIRE(puffs <= SNOW_DRIFT_COUNT_MAX);
+
+    // Drift grains are smaller than a click burst and still launch upward.
+    for (const Entity& e : sim.entities) {
+        if (e.kind != EntityKind::SnowPuff) continue;
+        REQUIRE(e.vy < 0.0);
+        REQUIRE(e.size <= SNOW_PUFF_SIZE_MAX * SNOW_DRIFT_SIZE_SCALE + 1e-9);
+    }
+}
+
+TEST_CASE("Snow drift only fires in Winter", "[winter][drift][scene]") {
+    Sim sim = MakeWinterTestSim();
+    sim_set_scene(sim, Scene::Grass);
+
+    WinterDrift(sim, 300.0, 360.0, 0.05);
+
+    REQUIRE(count_snow_puffs(sim) == 0);
+}
+
+TEST_CASE("A slow cursor brush kicks up no drift", "[winter][drift][gate]") {
+    Sim sim = MakeWinterTestSim();
+    sim_set_scene(sim, Scene::Winter);
+
+    WinterDrift(sim, 300.0, 302.0, 0.05); // 2 DIP / 0.05 s = 40 DIP/s < 90
+
+    REQUIRE(count_snow_puffs(sim) == 0);
+}
+
+TEST_CASE("A high cursor brush above the snow band kicks up no drift", "[winter][drift][gate]") {
+    Sim sim = MakeWinterTestSim();
+    sim_set_scene(sim, Scene::Winter);
+
+    // Inside the gust band but far above the low drift band near the ground.
+    const double y = sim.windowHeight - SNOW_DRIFT_REACH_DIP - 20.0;
+    InputEvent prime{};
+    prime.type = EventType::Move; prime.x = 300.0; prime.y = y; prime.time = sim.globalTime;
+    sim_apply_move(sim, prime);
+    InputEvent move{};
+    move.type = EventType::Move; move.x = 360.0; move.y = y; move.time = sim.globalTime + 0.05;
+    sim_apply_move(sim, move);
+
+    REQUIRE(count_snow_puffs(sim) == 0);
+}
+
+TEST_CASE("Snow drift respects the global cooldown", "[winter][drift][cooldown]") {
+    Sim sim = MakeWinterTestSim();
+    sim_set_scene(sim, Scene::Winter);
+
+    WinterDrift(sim, 300.0, 360.0, 0.05);
+    const int first = count_snow_puffs(sim);
+    REQUIRE(first >= SNOW_DRIFT_COUNT_MIN);
+
+    // Same frame (globalTime unchanged): a second qualifying brush is gated.
+    InputEvent again{};
+    again.type = EventType::Move;
+    again.x = 420.0; again.y = sim.windowHeight - 5.0; again.time = sim.globalTime + 0.10;
+    sim_apply_move(sim, again);
+    REQUIRE(count_snow_puffs(sim) == first);
+
+    // Advance past the cooldown: a fresh brush kicks up another wisp.
+    sim.globalTime += SNOW_DRIFT_COOLDOWN_SEC + 0.01;
+    InputEvent later{};
+    later.type = EventType::Move;
+    later.x = 480.0; later.y = sim.windowHeight - 5.0; later.time = sim.globalTime + 0.05;
+    sim_apply_move(sim, later);
+    REQUIRE(count_snow_puffs(sim) > first);
+}
+
+TEST_CASE("Snow drift moves leave the click puff stream untouched", "[winter][drift][prng]") {
+    Sim a = MakeWinterTestSim();
+    sim_set_scene(a, Scene::Winter);
+    Sim b = MakeWinterTestSim();
+    sim_set_scene(b, Scene::Winter);
+
+    // a brushes up some drift wisps first; b does not.
+    WinterDrift(a, 300.0, 360.0, 0.05);
+    const std::size_t aPreClick = a.entities.size();
+
+    // Both click identically; the click puffs must match byte-for-byte because
+    // the click stream is a separate PRNG from the drift stream.
+    InputEvent ca = WinterClick(a, 800.0);
+    sim_apply_click(a, ca);
+    InputEvent cb = WinterClick(b, 800.0);
+    sim_apply_click(b, cb);
+
+    // Collect the click puffs from each (a's are those appended after the drift).
+    std::vector<Entity> aClick(a.entities.begin() + static_cast<std::ptrdiff_t>(aPreClick), a.entities.end());
+    std::vector<Entity> bClick;
+    for (const Entity& e : b.entities)
+        if (e.kind == EntityKind::SnowPuff) bClick.push_back(e);
+
+    REQUIRE(aClick.size() == bClick.size());
+    for (std::size_t i = 0; i < aClick.size(); ++i) {
+        REQUIRE(aClick[i].size == Approx(bClick[i].size).margin(1e-12));
+        REQUIRE(aClick[i].vx == Approx(bClick[i].vx).margin(1e-12));
+        REQUIRE(aClick[i].vy == Approx(bClick[i].vy).margin(1e-12));
+        REQUIRE(aClick[i].lifetime == Approx(bClick[i].lifetime).margin(1e-12));
     }
 }
 

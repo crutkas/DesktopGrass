@@ -254,6 +254,12 @@ internal sealed class Sim
     // click-triggered powder bursts never perturb the snowflake emitter's draws.
     public Prng SnowPuffPrng;
 
+    // §21.1 snow-drift emitter (Winter scene only). Cursor-move spindrift wisps
+    // share an independent salted stream so they never perturb the click puff or
+    // snowflake draws. A global cooldown keeps the kicked-up powder calm.
+    public Prng SnowDriftPrng;
+    public double SnowDriftCooldownEnd;
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     public Prng BirdFlybyPrng;
@@ -477,6 +483,9 @@ internal sealed class Sim
         // Snow footprints are transient and scene-local: clear them on every
         // transition so a dent never carries across to another scene.
         Array.Clear(SnowCarve, 0, SnowCarve.Length);
+        // Reset the spindrift cooldown so re-entering Winter can kick up powder
+        // immediately rather than waiting out a stale gate.
+        SnowDriftCooldownEnd = 0.0;
         CurrentScene = s;
         // Scene transitions clear all roaming entities; each scene repopulates
         // its own below.
@@ -502,6 +511,7 @@ internal sealed class Sim
                 GeneratePinesForWinter(this);
                 SnowflakePrng = Prng.Init(EntitySeed ^ Constants.SNOWFLAKE_PRNG_SALT);
                 SnowPuffPrng = Prng.Init(EntitySeed ^ Constants.SNOW_PUFF_PRNG_SALT);
+                SnowDriftPrng = Prng.Init(EntitySeed ^ Constants.SNOW_DRIFT_PRNG_SALT);
                 double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
                 NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
                 break;
@@ -916,6 +926,7 @@ internal sealed class Sim
         NextLeafSpawnTime = GlobalTime;
         LeafPuffPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PUFF_PRNG_SALT);
         SnowPuffPrng = Prng.Init(EntitySeed ^ Constants.SNOW_PUFF_PRNG_SALT);
+        SnowDriftPrng = Prng.Init(EntitySeed ^ Constants.SNOW_DRIFT_PRNG_SALT);
         BirdFlybyPrng = Prng.Init(EntitySeed ^ Constants.BIRD_FLYBY_PRNG_SALT);
         NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
     }
@@ -1960,22 +1971,27 @@ internal sealed class Sim
     // screen-down) pulls back to ground; Vx decays via drag in the tick and the
     // particle fades over its lifetime. Draw order locked to the native mirror:
     // size, theta, speed, offA, offR, lifetime.
-    private Entity MakeSnowPuff(double cx, double cy, double groundY)
+    private Entity MakeSnowPuff(ref Prng prng, double cx, double cy, double groundY,
+                                double sizeScale = 1.0, double speedScale = 1.0)
     {
         double twoPi = 2.0 * Math.PI;
         Entity e = default;
         e.Kind = EntityKind.SnowPuff;
-        e.Size = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_SIZE_MIN, Constants.SNOW_PUFF_SIZE_MAX);
-        double theta = SnowPuffPrng.Uniform(-Constants.SNOW_PUFF_SPREAD_RAD, Constants.SNOW_PUFF_SPREAD_RAD);
-        double speed = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_BURST_SPEED_MIN, Constants.SNOW_PUFF_BURST_SPEED_MAX);
-        double offA = SnowPuffPrng.Uniform(0.0, twoPi);
-        double offR = SnowPuffPrng.Uniform(0.0, Constants.SNOW_PUFF_START_RADIUS);
-        e.Lifetime = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_LIFETIME_MIN, Constants.SNOW_PUFF_LIFETIME_MAX);
+        e.Size = prng.Uniform(Constants.SNOW_PUFF_SIZE_MIN, Constants.SNOW_PUFF_SIZE_MAX);
+        double theta = prng.Uniform(-Constants.SNOW_PUFF_SPREAD_RAD, Constants.SNOW_PUFF_SPREAD_RAD);
+        double speed = prng.Uniform(Constants.SNOW_PUFF_BURST_SPEED_MIN, Constants.SNOW_PUFF_BURST_SPEED_MAX);
+        double offA = prng.Uniform(0.0, twoPi);
+        double offR = prng.Uniform(0.0, Constants.SNOW_PUFF_START_RADIUS);
+        e.Lifetime = prng.Uniform(Constants.SNOW_PUFF_LIFETIME_MIN, Constants.SNOW_PUFF_LIFETIME_MAX);
+        // Scales are applied AFTER every draw so the PRNG sequence is identical to
+        // the unscaled (click) puff — only the resulting magnitudes change.
+        e.Size *= sizeScale;
+        double scaledSpeed = speed * speedScale;
         e.X = cx + Math.Cos(offA) * offR;
         // Bias the start to at/above ground so a puff never spawns under the bank.
         e.Y = Math.Min(cy - Math.Abs(Math.Sin(offA)) * offR, groundY);
-        e.Vx = Math.Sin(theta) * speed;
-        e.Vy = -Math.Cos(theta) * speed;
+        e.Vx = Math.Sin(theta) * scaledSpeed;
+        e.Vy = -Math.Cos(theta) * scaledSpeed;
         e.Age = 0.0;
         return e;
     }
@@ -1983,6 +1999,12 @@ internal sealed class Sim
     // §8 cursor-move impulse.
     public void ApplyCursorMove(in InputEvent e)
     {
+        // Reject non-finite cursor coordinates before touching the baseline or
+        // emitting anything: NaN compares false, so an unguarded NaN would slip
+        // past the band checks below, poison PrevCursor, and (now that move can
+        // emit) spawn degenerate puffs.
+        if (!double.IsFinite(e.X) || !double.IsFinite(e.Y) || !double.IsFinite(e.Time)) return;
+
         // §16.6 leaf puff: hovering a leafy maple canopy shakes leaves loose.
         // Independent of the gust band so it fires even directly over the crown.
         if (CurrentScene == Scene.Autumn && double.IsFinite(e.X) && double.IsFinite(e.Y))
@@ -2036,6 +2058,36 @@ internal sealed class Sim
         PrevCursorX = e.X;
         PrevCursorTime = e.Time;
 
+        // §21.1 snow drift: brushing the cursor low and fast across the Winter
+        // snowbank kicks up a gentle wisp of powder (the move-driven analogue of
+        // the autumn leaf-puff). Gated by a low band near the ground, a minimum
+        // cursor speed, and a global cooldown so it stays calm. Like the click
+        // puff we draw the full locked PRNG sequence per intended grain and only
+        // append when capacity allows, so the stream is independent of the count.
+        if (CurrentScene == Scene.Winter)
+        {
+            double driftBandTop = GroundY - Constants.SNOW_DRIFT_REACH_DIP;
+            if (e.Y >= driftBandTop && e.Y <= GroundY
+                && Math.Abs(capped) >= Constants.SNOW_DRIFT_MIN_SPEED
+                && GlobalTime >= SnowDriftCooldownEnd)
+            {
+                int driftCount = Constants.SNOW_DRIFT_COUNT_MIN
+                    + (int)SnowDriftPrng.Index((uint)(Constants.SNOW_DRIFT_COUNT_MAX - Constants.SNOW_DRIFT_COUNT_MIN + 1));
+                for (int i = 0; i < driftCount; i++)
+                {
+                    Entity puff = MakeSnowPuff(ref SnowDriftPrng, e.X, e.Y, GroundY,
+                                               Constants.SNOW_DRIFT_SIZE_SCALE, Constants.SNOW_DRIFT_SPEED_SCALE);
+                    if (Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+                    {
+                        Entities.Add(puff);
+                    }
+                }
+                // Arm the cooldown on every qualifying burst (even if the cap was
+                // full) so a saturated entity pool can't spin at the OS move rate.
+                SnowDriftCooldownEnd = GlobalTime + Constants.SNOW_DRIFT_COOLDOWN_SEC;
+            }
+        }
+
         double impulseMagnitude = Math.Abs(capped) * Constants.IMPULSE_SCALE;
         double signDir = capped > 0.0 ? 1.0 : capped < 0.0 ? -1.0 : 0.0;
 
@@ -2076,7 +2128,7 @@ internal sealed class Sim
                 + (int)SnowPuffPrng.Index((uint)(Constants.SNOW_PUFF_COUNT_MAX - Constants.SNOW_PUFF_COUNT_MIN + 1));
             for (int i = 0; i < count; i++)
             {
-                Entity puff = MakeSnowPuff(clickX, clickY, GroundY);
+                Entity puff = MakeSnowPuff(ref SnowPuffPrng, clickX, clickY, GroundY);
                 if (Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
                 {
                     Entities.Add(puff);

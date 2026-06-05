@@ -12,6 +12,24 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Winter snow drift: cursor-move spindrift
+
+### Added
+- **Brushing the cursor low and fast across the Winter snowbank now kicks up a
+  gentle wisp of powder** — the move-driven analogue of the autumn leaf-puff,
+  giving Winter the same passing-cursor interaction as grass, desert, and fall
+  (it previously only reacted to clicks). Reuses the snow-puff particle with
+  fewer, smaller, slower grains (`SNOW_DRIFT_*`), gated by a low band near the
+  ground, a minimum cursor speed (90 DIP/s), and a 0.12 s global cooldown so it
+  stays calm. Uses an independent PRNG so it never perturbs the click-puff or
+  snowflake streams.
+
+### Fixed
+- The cursor-move handler now rejects non-finite coordinates up front (matching
+  the click handler), so a stray NaN can no longer poison the cursor baseline.
+
+---
+
 ## 2026-06-04 — Winter treeline depth: foreground & background pines
 
 ### Added

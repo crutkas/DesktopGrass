@@ -266,6 +266,12 @@ struct Sim {
     // click-triggered powder bursts never perturb the snowflake emitter's draws.
     Prng               snowPuffPrng        = { 0 };
 
+    // §21.1 snow-drift emitter (Winter scene only). Cursor-move spindrift wisps
+    // share an independent salted stream so they never perturb the click puff or
+    // snowflake draws. A global cooldown keeps the kicked-up powder calm.
+    Prng               snowDriftPrng       = { 0 };
+    double             snowDriftCooldownEnd = 0.0;
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     Prng               birdFlybyPrng       = { 0 };

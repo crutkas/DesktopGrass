@@ -1431,6 +1431,26 @@ Render order becomes: blades → **background trees** → snowbank → **foregro
 
 ---
 
+## 15.5 Winter snow drift (cursor-move spindrift)
+
+Winter's move-driven interaction, the analogue of the autumn leaf-puff hover. Brushing the cursor low and fast across the snowbank kicks up a small, gentle wisp of powder, so Winter responds to a passing cursor like grass (bend), desert (gust), and autumn (leaf-puff) — not only to clicks. It reuses the click snow-puff particle but with fewer, smaller, slower grains.
+
+It lives in `sim_apply_move` / `ApplyCursorMove`, after the first-event guard and gust-band check, right after the cursor velocity (`capped`) is computed. It fires only when **all** of: `currentScene == Winter`; the cursor is in a low band `[groundY - SNOW_DRIFT_REACH_DIP, groundY]` near the snow surface; `|capped| >= SNOW_DRIFT_MIN_SPEED` (so a resting cursor never emits); and `globalTime >= snowDriftCooldownEnd`. Like the click puff, the full locked PRNG sequence is drawn per intended grain and only appended when capacity allows, so the stream is independent of the live entity count. The cooldown is armed on every qualifying burst (even when the entity cap was full) so a saturated pool can't spin at the OS move rate.
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `SNOW_DRIFT_COUNT_MIN` / `MAX` | `3` / `6` | grains per wisp (vs 9–16 for a click) |
+| `SNOW_DRIFT_REACH_DIP` | `70.0` | how near the ground the cursor must be |
+| `SNOW_DRIFT_MIN_SPEED` | `90.0` | DIP/sec; only kicks up while moving |
+| `SNOW_DRIFT_COOLDOWN_SEC` | `0.12` | global gate (~8 wisps/sec max) |
+| `SNOW_DRIFT_SIZE_SCALE` | `0.75` | smaller grains than a click burst |
+| `SNOW_DRIFT_SPEED_SCALE` | `0.6` | gentler upward kick |
+| `SNOW_DRIFT_PRNG_SALT` | — | independent stream |
+
+`make_snow_puff` / `MakeSnowPuff` gained optional post-draw multipliers `sizeScale`/`speedScale` (default `1.0`) applied **after** every PRNG draw, so the click puff's byte sequence is unchanged; drift passes `0.75`/`0.6`. The drift uses its own `snowDriftPrng` (salted `SNOW_DRIFT_PRNG_SALT`), so it never perturbs the click-puff or snowflake streams. `snowDriftCooldownEnd` resets to `0` on every scene change. Because it only emits from move events, the no-input snapshot tests are unaffected. The move handler now also rejects non-finite cursor coordinates up front (mirroring the click handler), preventing a stray NaN from poisoning the cursor baseline.
+
+---
+
 ## 16.5 Autumn scene
 
 Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn; day-night tint still applies uniformly.

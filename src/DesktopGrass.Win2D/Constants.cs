@@ -650,6 +650,20 @@ internal static class Constants
     public const double SNOW_PUFF_LIFETIME_MAX    = 1.1;
     public const ulong  SNOW_PUFF_PRNG_SALT       = 0x5503FF1E5503FF1Eul;
 
+    // §21.1 Snow drift (Winter cursor-move spindrift). Brushing the cursor low
+    // and fast across the snowbank kicks up a small, gentle wisp of powder — the
+    // Winter analogue of the autumn leaf-puff hover, giving the scene a calm
+    // move-driven interaction to match grass/desert/fall. Reuses the snow-puff
+    // particle but with fewer, smaller, slower grains, gated by a global cooldown.
+    public const int    SNOW_DRIFT_COUNT_MIN      = 3;
+    public const int    SNOW_DRIFT_COUNT_MAX      = 6;
+    public const double SNOW_DRIFT_REACH_DIP      = 70.0;
+    public const double SNOW_DRIFT_MIN_SPEED      = 90.0;
+    public const double SNOW_DRIFT_COOLDOWN_SEC   = 0.12;
+    public const double SNOW_DRIFT_SIZE_SCALE     = 0.75;
+    public const double SNOW_DRIFT_SPEED_SCALE    = 0.6;
+    public const ulong  SNOW_DRIFT_PRNG_SALT      = 0x5D81F77D5D81F77Dul;
+
     // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded
     // snow mounds instead of grass, so dense neighbors overlap into a drift.
     public const double WINTER_DRIFT_HEIGHT_SCALE = 0.42;

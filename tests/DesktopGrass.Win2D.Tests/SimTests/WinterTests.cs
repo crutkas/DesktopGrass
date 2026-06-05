@@ -319,6 +319,133 @@ public class WinterTests
         };
         foreach (ulong s in otherSalts)
             Assert.NotEqual(Constants.SNOW_PUFF_PRNG_SALT, s);
+        Assert.NotEqual(Constants.SNOW_PUFF_PRNG_SALT, Constants.SNOW_DRIFT_PRNG_SALT);
+    }
+
+    // -----------------------------------------------------------------------
+    // §21.1 snow drift (cursor-move spindrift)
+    // -----------------------------------------------------------------------
+
+    private static void WinterDrift(Sim sim, double x0, double x1, double dt)
+    {
+        double y = sim.WindowHeight - 5.0;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, x0, y, sim.GlobalTime));
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, x1, y, sim.GlobalTime + dt));
+    }
+
+    [Fact]
+    public void SnowDriftConstantsArePinned()
+    {
+        Assert.Equal(3, Constants.SNOW_DRIFT_COUNT_MIN);
+        Assert.Equal(6, Constants.SNOW_DRIFT_COUNT_MAX);
+        Assert.Equal(70.0, Constants.SNOW_DRIFT_REACH_DIP);
+        Assert.Equal(90.0, Constants.SNOW_DRIFT_MIN_SPEED);
+        Assert.Equal(0.12, Constants.SNOW_DRIFT_COOLDOWN_SEC);
+        Assert.Equal(0.75, Constants.SNOW_DRIFT_SIZE_SCALE);
+        Assert.Equal(0.6, Constants.SNOW_DRIFT_SPEED_SCALE);
+        Assert.Equal(0x5D81F77D5D81F77Dul, Constants.SNOW_DRIFT_PRNG_SALT);
+    }
+
+    [Fact]
+    public void BrushingCursorAcrossSnowbankKicksUpDriftWisp()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        WinterDrift(sim, 300.0, 360.0, 0.05); // 1200 DIP/s
+
+        int puffs = CountSnowPuffs(sim);
+        Assert.True(puffs >= Constants.SNOW_DRIFT_COUNT_MIN);
+        Assert.True(puffs <= Constants.SNOW_DRIFT_COUNT_MAX);
+
+        foreach (Entity e in sim.Entities)
+        {
+            if (e.Kind != EntityKind.SnowPuff) continue;
+            Assert.True(e.Vy < 0.0);
+            Assert.True(e.Size <= Constants.SNOW_PUFF_SIZE_MAX * Constants.SNOW_DRIFT_SIZE_SCALE + 1e-9);
+        }
+    }
+
+    [Fact]
+    public void SnowDriftOnlyFiresInWinter()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Grass);
+
+        WinterDrift(sim, 300.0, 360.0, 0.05);
+
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void SlowCursorBrushKicksUpNoDrift()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        WinterDrift(sim, 300.0, 302.0, 0.05); // 40 DIP/s < 90
+
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void HighCursorBrushAboveSnowBandKicksUpNoDrift()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        double y = sim.WindowHeight - Constants.SNOW_DRIFT_REACH_DIP - 20.0;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 300.0, y, sim.GlobalTime));
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 360.0, y, sim.GlobalTime + 0.05));
+
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void SnowDriftRespectsGlobalCooldown()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        WinterDrift(sim, 300.0, 360.0, 0.05);
+        int first = CountSnowPuffs(sim);
+        Assert.True(first >= Constants.SNOW_DRIFT_COUNT_MIN);
+
+        // Same frame (GlobalTime unchanged): a second qualifying brush is gated.
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 420.0, sim.WindowHeight - 5.0, sim.GlobalTime + 0.10));
+        Assert.Equal(first, CountSnowPuffs(sim));
+
+        // Advance past the cooldown: a fresh brush kicks up another wisp.
+        sim.GlobalTime += Constants.SNOW_DRIFT_COOLDOWN_SEC + 0.01;
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 480.0, sim.WindowHeight - 5.0, sim.GlobalTime + 0.05));
+        Assert.True(CountSnowPuffs(sim) > first);
+    }
+
+    [Fact]
+    public void SnowDriftMovesLeaveClickPuffStreamUntouched()
+    {
+        var a = BuildSim();
+        a.SetScene(Scene.Winter);
+        var b = BuildSim();
+        b.SetScene(Scene.Winter);
+
+        WinterDrift(a, 300.0, 360.0, 0.05);
+        int aPreClick = a.Entities.Count;
+
+        a.ApplyClick(800.0, a.WindowHeight - 5.0, a.GlobalTime);
+        b.ApplyClick(800.0, b.WindowHeight - 5.0, b.GlobalTime);
+
+        var aClick = a.Entities.GetRange(aPreClick, a.Entities.Count - aPreClick);
+        var bClick = b.Entities.FindAll(e => e.Kind == EntityKind.SnowPuff);
+
+        Assert.Equal(bClick.Count, aClick.Count);
+        for (int i = 0; i < aClick.Count; i++)
+        {
+            Assert.Equal(bClick[i].Size, aClick[i].Size, 12);
+            Assert.Equal(bClick[i].Vx, aClick[i].Vx, 12);
+            Assert.Equal(bClick[i].Vy, aClick[i].Vy, 12);
+            Assert.Equal(bClick[i].Lifetime, aClick[i].Lifetime, 12);
+        }
     }
 
     // -----------------------------------------------------------------------

@@ -502,7 +502,8 @@ Entity make_puff_leaf(Prng& prng, double cx, double cy, double canopyR) noexcept
 // the particle fades out over its lifetime. Draw order is locked to the Win2D
 // mirror so both impls stay bit-identical: size, theta, speed, offA, offR,
 // lifetime.
-Entity make_snow_puff(Prng& prng, double cx, double cy, double groundY) noexcept {
+Entity make_snow_puff(Prng& prng, double cx, double cy, double groundY,
+                      double sizeScale = 1.0, double speedScale = 1.0) noexcept {
     Entity e{};
     e.kind = EntityKind::SnowPuff;
     e.size = prng_uniform(prng, SNOW_PUFF_SIZE_MIN, SNOW_PUFF_SIZE_MAX);
@@ -511,11 +512,15 @@ Entity make_snow_puff(Prng& prng, double cx, double cy, double groundY) noexcept
     const double offA = prng_uniform(prng, 0.0, TWO_PI);
     const double offR = prng_uniform(prng, 0.0, SNOW_PUFF_START_RADIUS);
     e.lifetime = prng_uniform(prng, SNOW_PUFF_LIFETIME_MIN, SNOW_PUFF_LIFETIME_MAX);
+    // Scales are applied AFTER every draw so the PRNG sequence is identical to
+    // the unscaled (click) puff — only the resulting magnitudes change.
+    e.size *= sizeScale;
+    const double scaledSpeed = speed * speedScale;
     e.x  = cx + std::cos(offA) * offR;
     // Bias the start to at/above ground so a puff never spawns under the bank.
     e.y  = std::min(cy - std::fabs(std::sin(offA)) * offR, groundY);
-    e.vx = std::sin(theta) * speed;
-    e.vy = -std::cos(theta) * speed;
+    e.vx = std::sin(theta) * scaledSpeed;
+    e.vy = -std::cos(theta) * scaledSpeed;
     e.age = 0.0;
     return e;
 }
@@ -788,6 +793,12 @@ void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) n
 // ---------------------------------------------------------------------------
 
 void sim_apply_move(Sim& sim, const InputEvent& e) noexcept {
+    // Reject non-finite cursor coordinates before touching the baseline or
+    // emitting anything: NaN compares false, so an unguarded NaN would slip past
+    // the band checks below, poison prevCursor, and (now that move can emit)
+    // spawn degenerate puffs.
+    if (!std::isfinite(e.x) || !std::isfinite(e.y) || !std::isfinite(e.time)) return;
+
     // §16.6 leaf puff: hovering a leafy maple canopy shakes leaves loose.
     // Independent of the gust band so it fires even directly over the crown.
     if (sim.currentScene == Scene::Autumn && std::isfinite(e.x) && std::isfinite(e.y)) {
@@ -847,6 +858,33 @@ void sim_apply_move(Sim& sim, const InputEvent& e) noexcept {
 
     sim.prevCursorX    = e.x;
     sim.prevCursorTime = e.time;
+
+    // §21.1 snow drift: brushing the cursor low and fast across the Winter
+    // snowbank kicks up a gentle wisp of powder (the move-driven analogue of the
+    // autumn leaf-puff). Gated by a low band near the ground, a minimum cursor
+    // speed, and a global cooldown so it stays calm. Like the click puff we draw
+    // the full locked PRNG sequence per intended grain and only append when
+    // capacity allows, so the stream is independent of the entity count.
+    if (sim.currentScene == Scene::Winter) {
+        const double driftBandTop = groundY - SNOW_DRIFT_REACH_DIP;
+        if (e.y >= driftBandTop && e.y <= groundY
+            && std::fabs(capped) >= SNOW_DRIFT_MIN_SPEED
+            && sim.globalTime >= sim.snowDriftCooldownEnd) {
+            const int count = SNOW_DRIFT_COUNT_MIN
+                + static_cast<int>(prng_index(sim.snowDriftPrng,
+                                              SNOW_DRIFT_COUNT_MAX - SNOW_DRIFT_COUNT_MIN + 1));
+            for (int i = 0; i < count; ++i) {
+                Entity puff = make_snow_puff(sim.snowDriftPrng, e.x, e.y, groundY,
+                                             SNOW_DRIFT_SIZE_SCALE, SNOW_DRIFT_SPEED_SCALE);
+                if (sim.entities.size() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
+                    sim.entities.push_back(puff);
+                }
+            }
+            // Arm the cooldown on every qualifying burst (even if the cap was
+            // full) so a saturated entity pool can't spin at the OS move rate.
+            sim.snowDriftCooldownEnd = sim.globalTime + SNOW_DRIFT_COOLDOWN_SEC;
+        }
+    }
 
     const double impulseMagnitude = std::fabs(capped) * IMPULSE_SCALE;
     const double signDir = (capped > 0.0) ? 1.0 : (capped < 0.0 ? -1.0 : 0.0);
@@ -1375,6 +1413,9 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
     // Snow footprints are transient and scene-local: clear them on every
     // transition so a dent never carries across to another scene.
     sim.snowCarve.assign(SNOW_CARVE_BUCKETS, 0.0);
+    // Reset the spindrift cooldown so re-entering Winter can kick up powder
+    // immediately rather than waiting out a stale gate.
+    sim.snowDriftCooldownEnd = 0.0;
     sim.currentScene = s;
     // Scene transitions clear all roaming entities; each scene repopulates its
     // own below.
@@ -1398,6 +1439,7 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         generate_pines_for_winter(sim);
         prng_init(sim.snowflakePrng, sim.entitySeed ^ SNOWFLAKE_PRNG_SALT);
         prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
+        prng_init(sim.snowDriftPrng, sim.entitySeed ^ SNOW_DRIFT_PRNG_SALT);
         const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         sim.nextSnowflakeSpawnTime = sim.globalTime + prng_exponential(sim.snowflakePrng, lambda);
         break;
@@ -1995,6 +2037,7 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     s.nextLeafSpawnTime = s.globalTime;
     prng_init(s.leafPuffPrng, s.entitySeed ^ LEAF_PUFF_PRNG_SALT);
     prng_init(s.snowPuffPrng, s.entitySeed ^ SNOW_PUFF_PRNG_SALT);
+    prng_init(s.snowDriftPrng, s.entitySeed ^ SNOW_DRIFT_PRNG_SALT);
     prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
@@ -2026,6 +2069,7 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     sim.nextLeafSpawnTime = sim.globalTime;
     prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
     prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
+    prng_init(sim.snowDriftPrng, sim.entitySeed ^ SNOW_DRIFT_PRNG_SALT);
     prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }
