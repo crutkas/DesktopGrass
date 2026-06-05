@@ -8,6 +8,19 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-06 — Perf: Winter renders ~25% fewer grass blades
+
+### Changed
+- **Winter now deterministically culls ~25% of plain grass blades** (and their
+  snow caps). Winter draws a snow cap on *every* blade, making it the heaviest
+  scene; thinning the blade field is the cheapest large win. The cull is a pure
+  hash of each blade's stable array index (`Constants.winter_blade_culled` /
+  `WinterBladeCulled`), so the thinning is steady frame-to-frame, identical
+  across the Native and Win2D renderers, and survives cuts (slot model keeps
+  indices stable). Other scenes are unaffected. Pinned bitmask test added to
+  both suites to keep the two impls in lockstep. Measured Winter ~2.6% → ~1.7%
+  Task Manager (and well below the pre-revert ~5.75% regression).
+
 ## 2026-06-06 — Reverted: decoration (tip-cap) batching — it regressed Winter CPU
 
 ### Reverted

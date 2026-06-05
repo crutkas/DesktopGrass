@@ -40,6 +40,24 @@ TEST_CASE("Winter constants are pinned", "[winter][constants]") {
     REQUIRE(SNOW_TIP_COLOR == 0xFFFFFFFFu);
 }
 
+TEST_CASE("Winter blade cull is deterministic and ~25%", "[winter][cull]") {
+    // Pinned bitmask for indices 0..31 — must match the Win2D renderer exactly so
+    // both impls thin the same blades. '1' == culled (skipped in Winter).
+    const char* kExpected = "10100111000100000000000010000000";
+    for (uint32_t i = 0; i < 32; ++i) {
+        const bool expected = kExpected[i] == '1';
+        REQUIRE(winter_blade_culled(i) == expected);
+    }
+
+    REQUIRE(WINTER_CULL_MASK == 3u);
+
+    int culled = 0;
+    for (uint32_t i = 0; i < 2500; ++i) {
+        if (winter_blade_culled(i)) ++culled;
+    }
+    REQUIRE(culled == 624); // 24.96% of 2500 — effectively the target 25%
+}
+
 TEST_CASE("SetScene Winter initializes snowflake scheduler", "[winter][scene]") {
     Sim sim = MakeWinterTestSim();
     sim_set_scene(sim, Scene::Winter);

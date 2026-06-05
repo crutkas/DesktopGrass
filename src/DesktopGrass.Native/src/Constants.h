@@ -838,6 +838,22 @@ inline double ambient_smoothstep01(double value) noexcept {
     return t * t * (3.0 - 2.0 * t);
 }
 
+// §CPU: Winter draws a snow cap on every plain grass blade, which is the scene's
+// dominant render cost (~2,500 extra fills/frame). To lighten it, deterministically
+// cull a fixed fraction of plain blades (and their caps) in Winter only. The
+// decision is a pure hash of the blade's stable array index, so it is identical
+// across frames and across the Native/Win2D renderers, and survives cuts (the slot
+// model keeps indices stable). (hash & 3)==0 drops ~25% of blades.
+constexpr uint32_t WINTER_CULL_MASK = 3u;
+
+inline bool winter_blade_culled(uint32_t bladeIndex) noexcept {
+    uint32_t h = bladeIndex * 2654435761u;
+    h ^= h >> 13;
+    h *= 0x85ebca6bu;
+    h ^= h >> 16;
+    return (h & WINTER_CULL_MASK) == 0u;
+}
+
 inline double butterfly_wing_scale(double timeSeconds, double phaseY) noexcept {
     const double raw = std::cos(timeSeconds * BUTTERFLY_FLUTTER_FREQ + phaseY);
     if (raw < BUTTERFLY_FLUTTER_MIN_SCALE) return BUTTERFLY_FLUTTER_MIN_SCALE;

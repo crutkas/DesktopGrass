@@ -48,6 +48,27 @@ public class WinterTests
     }
 
     [Fact]
+    public void WinterBladeCullIsDeterministicAnd25Percent()
+    {
+        // Pinned bitmask for indices 0..31 — must match the native renderer
+        // exactly so both impls thin the same blades. '1' == culled.
+        const string expected = "10100111000100000000000010000000";
+        for (uint i = 0; i < 32; i++)
+        {
+            Assert.Equal(expected[(int)i] == '1', Constants.WinterBladeCulled(i));
+        }
+
+        Assert.Equal(3u, Constants.WINTER_CULL_MASK);
+
+        int culled = 0;
+        for (uint i = 0; i < 2500; i++)
+        {
+            if (Constants.WinterBladeCulled(i)) culled++;
+        }
+        Assert.Equal(624, culled); // 24.96% of 2500 — effectively the target 25%
+    }
+
+    [Fact]
     public void SetSceneWinterInitializesSnowflakeScheduler()
     {
         var sim = BuildSim();

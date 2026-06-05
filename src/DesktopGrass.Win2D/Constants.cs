@@ -672,6 +672,25 @@ internal static class Constants
     public const double SNOW_TIP_RADIUS_FACTOR = 1.25;
     public const uint SNOW_TIP_COLOR = 0xFFFFFFFFu;
 
+    // §CPU: Winter draws a snow cap on every plain grass blade, the scene's
+    // dominant render cost (~2,500 extra fills/frame). Deterministically cull a
+    // fixed fraction of plain blades (and their caps) in Winter only, keyed on the
+    // blade's stable array index — identical across frames and the Native/Win2D
+    // renderers, and survives cuts. (hash & 3)==0 drops ~25% of blades.
+    public const uint WINTER_CULL_MASK = 3u;
+
+    public static bool WinterBladeCulled(uint bladeIndex)
+    {
+        unchecked
+        {
+            uint h = bladeIndex * 2654435761u;
+            h ^= h >> 13;
+            h *= 0x85ebca6bu;
+            h ^= h >> 16;
+            return (h & WINTER_CULL_MASK) == 0u;
+        }
+    }
+
     // Pine trees (§15.1). Winter biome anchor — slot-bound, mirrors §14 cacti.
     public const double PINE_PROBABILITY        = 0.0075;
     public const double PINE_HEIGHT_MIN         = 45.0;

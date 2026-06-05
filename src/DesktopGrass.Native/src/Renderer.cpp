@@ -1066,6 +1066,14 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
         // blades (handled by the shared blade path below + the snow-tip cap), so
         // no early-out here.
 
+        // §CPU: in Winter, deterministically cull ~25% of plain blades (and their
+        // snow caps) to cut the scene's dominant per-frame cost. Keyed on the
+        // blade's stable array index so the thinning is steady, not shimmering.
+        if (sim_.currentScene == Scene::Winter &&
+            winter_blade_culled(static_cast<uint32_t>(&b - sim_.blades.data()))) {
+            continue;
+        }
+
         const Stroke s = compute_blade_stroke(b, groundY, sim_.currentScene);
 
         const float thickness = static_cast<float>(s.thickness + BLADE_THICKNESS_RENDER_BONUS);

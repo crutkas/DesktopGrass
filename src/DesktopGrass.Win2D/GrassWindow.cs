@@ -397,7 +397,7 @@ internal sealed class GrassWindow : IDisposable
             for (int i = 0; i < Sim.Blades.Length; i++)
             {
                 ref Blade b = ref Sim.Blades[i];
-                DrawBlade(in b, groundY, treesOnly: true, backgroundTrees: true);
+                DrawBlade(in b, groundY, i, treesOnly: true, backgroundTrees: true);
             }
         }
 
@@ -407,7 +407,7 @@ internal sealed class GrassWindow : IDisposable
         for (int i = 0; i < Sim.Blades.Length; i++)
         {
             ref Blade b = ref Sim.Blades[i];
-            DrawBlade(in b, groundY, treesOnly: false, backgroundTrees: false);
+            DrawBlade(in b, groundY, i, treesOnly: false, backgroundTrees: false);
         }
         FlushBladeBatch();
 
@@ -416,7 +416,7 @@ internal sealed class GrassWindow : IDisposable
             for (int i = 0; i < Sim.Blades.Length; i++)
             {
                 ref Blade b = ref Sim.Blades[i];
-                DrawBlade(in b, groundY, treesOnly: true, backgroundTrees: false);
+                DrawBlade(in b, groundY, i, treesOnly: true, backgroundTrees: false);
             }
         }
 
@@ -1386,7 +1386,7 @@ internal sealed class GrassWindow : IDisposable
         return new System.Numerics.Matrix3x2(1f, 0f, -k, 1f, (float)(k * pivotGy), 0f);
     }
 
-    private void DrawBlade(in Blade b, float groundY, bool treesOnly = false, bool backgroundTrees = false)
+    private void DrawBlade(in Blade b, float groundY, int bladeIndex, bool treesOnly = false, bool backgroundTrees = false)
     {
         if (treesOnly)
         {
@@ -1690,6 +1690,12 @@ internal sealed class GrassWindow : IDisposable
 
         // Winter renders ordinary (non-tree) ground cover as snow-tipped grass
         // blades (shared blade path below + the snow-tip cap), so no early-out.
+
+        // §CPU: in Winter, deterministically cull ~25% of plain blades (and their
+        // snow caps) to cut the scene's dominant per-frame cost. Keyed on the
+        // blade's stable array index so the thinning is steady, not shimmering.
+        if (Sim.CurrentScene == Scene.Winter && Constants.WinterBladeCulled((uint)bladeIndex))
+            return;
 
         var stroke = Sim.ComputeBladeStroke(b, groundY, Sim.CurrentScene);
         int hue = b.Hue;
