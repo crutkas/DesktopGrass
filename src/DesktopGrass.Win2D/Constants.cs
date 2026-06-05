@@ -667,6 +667,23 @@ internal static class Constants
     public const double SNOW_SPARKLE_THRESHOLD    = 0.986;
     public const double SNOW_SPARKLE_RADIUS       = 1.1;
 
+    // Sculpted winter snowbank (§21.1). Render-only continuous drift replacing
+    // the per-blade snow mounds. See native Constants.h for the full rationale.
+    public const double SNOW_BANK_BASE_DEPTH         = 13.0;
+    public const double SNOW_BANK_ROLL_AMP           = 7.0;
+    public const double SNOW_BANK_ROLL_WAVELENGTH    = 280.0;
+    public const double SNOW_BANK_RIPPLE_AMP         = 3.0;
+    public const double SNOW_BANK_RIPPLE_WAVELENGTH  = 76.0;
+    public const double SNOW_BANK_MICRO_AMP          = 1.2;
+    public const double SNOW_BANK_MICRO_WAVELENGTH   = 23.0;
+    public const double SNOW_BANK_CORNICE_AMP        = 11.0;
+    public const double SNOW_BANK_CORNICE_WAVELENGTH = 540.0;
+    public const double SNOW_BANK_CREST_BAND_FRAC    = 0.34;
+    public const double SNOW_BANK_SHADOW_BAND_FRAC   = 0.30;
+    public const uint   SNOW_BANK_SHADOW_COLOR       = 0xFFBFCDE4u;
+    public const double SNOW_BANK_MIN_DEPTH          = 3.0;
+    public const ulong  SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEul;
+
     // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
     // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
     public const ulong RAINDROP_PRNG_SALT = 0xD40F0A1DD40F0A1Dul;

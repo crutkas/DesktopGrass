@@ -12,6 +12,18 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Snow that actually looks like snow drifts
+
+### Changed
+- **Reworked the winter snow from repeated white half-circles into a single
+  continuous, wind-sculpted snowbank.** Instead of one bump per blade, the ground
+  is now a rolling drift with a multi-harmonic crest (big dunes + ripples + fine
+  texture + occasional wind-piled cornices) and real tonal depth: a bright lit
+  crest, a soft body, and a cool-blue shadow at the base, finished with a crisp
+  highlighted crest edge and a cool sub-crest lip. Sparse sparkle still glints
+  along the ridge, and accumulated snow still piles the bank higher over time.
+  Purely a render change. The click snow puff is unchanged.
+
 ## 2026-06-04 — Bigger winter snow puff
 
 ### Changed

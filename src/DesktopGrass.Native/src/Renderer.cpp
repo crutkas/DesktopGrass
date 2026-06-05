@@ -55,6 +55,21 @@ D2D1_MATRIX_3X2_F TreeSwayTransform(const Blade& b, double totalH, double pivotG
     return D2D1::Matrix3x2F(1.0f, 0.0f, -k, 1.0f, k * static_cast<float>(pivotGy), 0.0f);
 }
 
+// Sculpted snowbank crest depth (DIP above the ground line) at horizontal x.
+// Multi-harmonic so the bank rolls and ripples; the cubed cornice term raises
+// occasional wind-piled peaks. snowDepth adds on top so snow piles up over time.
+double SnowBankDepthAt(double x, double snowDepth, const double phase[4]) noexcept {
+    constexpr double kTwoPi = 6.28318530717958647692;
+    double d = SNOW_BANK_BASE_DEPTH + snowDepth;
+    d += std::sin(x * (kTwoPi / SNOW_BANK_ROLL_WAVELENGTH)   + phase[0]) * SNOW_BANK_ROLL_AMP;
+    d += std::sin(x * (kTwoPi / SNOW_BANK_RIPPLE_WAVELENGTH) + phase[1]) * SNOW_BANK_RIPPLE_AMP;
+    d += std::sin(x * (kTwoPi / SNOW_BANK_MICRO_WAVELENGTH)  + phase[2]) * SNOW_BANK_MICRO_AMP;
+    double c = std::sin(x * (kTwoPi / SNOW_BANK_CORNICE_WAVELENGTH) + phase[3]);
+    if (c < 0.0) c = 0.0;
+    d += c * c * c * SNOW_BANK_CORNICE_AMP;
+    return d < SNOW_BANK_MIN_DEPTH ? SNOW_BANK_MIN_DEPTH : d;
+}
+
 } // anonymous
 
 Renderer::~Renderer() {
@@ -254,6 +269,11 @@ bool Renderer::CreateDeviceResources() {
     driftHiliteBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(WINTER_DRIFT_HILITE_COLOR),
                                             driftHiliteBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    snowBankShadowBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(SNOW_BANK_SHADOW_COLOR),
+                                            snowBankShadowBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
     pineBrush_.Reset();
@@ -520,6 +540,7 @@ void Renderer::DiscardDeviceResources() {
     snowLayerHighlightBrush_.Reset();
     driftBaseBrush_.Reset();
     driftHiliteBrush_.Reset();
+    snowBankShadowBrush_.Reset();
     pineBrush_.Reset();
     pineShadowBrush_.Reset();
     pineHighlightBrush_.Reset();
@@ -727,34 +748,75 @@ void Renderer::RenderFrame(double dt,
 }
 
 void Renderer::DrawSnowLayer() {
-    if (sim_.currentScene != Scene::Winter || sim_.snowDepth < SNOW_DEPTH_MIN_RENDER) return;
-    if (!snowLayerTopBrush_ || !snowLayerBottomBrush_ || !snowLayerHighlightBrush_) return;
+    if (sim_.currentScene != Scene::Winter) return;
+    if (!snowLayerTopBrush_ || !driftBaseBrush_ || !snowBankShadowBrush_
+        || !snowLayerHighlightBrush_) return;
 
     const float groundY = static_cast<float>(sim_.windowHeight);
     const double widthFallback = (dpi_ == 0) ? widthPx_ : static_cast<double>(widthPx_) * 96.0 / static_cast<double>(dpi_);
     const float width = static_cast<float>(sim_.monitorWidth > 0.0 ? sim_.monitorWidth : widthFallback);
     if (width <= 0.0f) return;
 
+    // Per-monitor crest phases from the snow phase seed — same seed the rest of
+    // the winter scene uses, so the bank shape is stable per display.
+    double phase[4];
+    for (int i = 0; i < 4; ++i) {
+        const uint64_t bits = splitmix64(sim_.snowPhaseSeed
+                                         ^ (SNOW_BANK_PHASE_SALT + static_cast<uint64_t>(i) * 0x9E3779B97F4A7C15ull));
+        phase[i] = (static_cast<double>(bits >> 11) / 9007199254740992.0) * 6.28318530717958647692;
+    }
+
     constexpr float kStep = 2.0f;
-    D2D1_POINT_2F prevTop = D2D1::Point2F(0.0f, static_cast<float>(snow_top_y_at(sim_, 0.0)));
+    auto topYAt = [&](float sx) {
+        return groundY - static_cast<float>(SnowBankDepthAt(sx, sim_.snowDepth, phase));
+    };
+
+    // Body fill: three vertical tone bands per column — bright lit crest, soft
+    // body, cool shadow at the base — so the bank reads as rounded volume.
+    D2D1_POINT_2F prevTop = D2D1::Point2F(0.0f, topYAt(0.0f));
     for (float x = 0.0f; x <= width + kStep; x += kStep) {
         const float sampleX = std::min(x, width);
-        const float topY = static_cast<float>(snow_top_y_at(sim_, sampleX));
-        const float bandH = groundY - topY;
-        if (bandH > 0.0f) {
-            const float midY = topY + bandH * 0.45f;
-            d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY), D2D1::Point2F(sampleX, midY),
+        const float topY    = topYAt(sampleX);
+        const float depth   = groundY - topY;
+        if (depth > 0.0f) {
+            const float crestY  = topY + depth * static_cast<float>(SNOW_BANK_CREST_BAND_FRAC);
+            const float shadowY = groundY - depth * static_cast<float>(SNOW_BANK_SHADOW_BAND_FRAC);
+            const float bodyTop = crestY;
+            const float bodyBot = std::max(shadowY, crestY);
+            d2dContext_->DrawLine(D2D1::Point2F(sampleX, topY), D2D1::Point2F(sampleX, crestY),
                                   snowLayerTopBrush_.Get(), kStep + 0.5f);
-            d2dContext_->DrawLine(D2D1::Point2F(sampleX, midY), D2D1::Point2F(sampleX, groundY),
-                                  snowLayerBottomBrush_.Get(), kStep + 0.5f);
+            d2dContext_->DrawLine(D2D1::Point2F(sampleX, bodyTop), D2D1::Point2F(sampleX, bodyBot),
+                                  driftBaseBrush_.Get(), kStep + 0.5f);
+            d2dContext_->DrawLine(D2D1::Point2F(sampleX, bodyBot), D2D1::Point2F(sampleX, groundY),
+                                  snowBankShadowBrush_.Get(), kStep + 0.5f);
         }
 
         const D2D1_POINT_2F currentTop = D2D1::Point2F(sampleX, topY);
         if (x > 0.0f) {
-            d2dContext_->DrawLine(prevTop, currentTop, snowLayerHighlightBrush_.Get(), 1.0f);
+            // Bright lit crest edge, with a cool sub-crest lip just below it so
+            // the cornice reads as a rounded, slightly overhanging lip.
+            d2dContext_->DrawLine(prevTop, currentTop, snowLayerHighlightBrush_.Get(), 1.6f);
+            d2dContext_->DrawLine(D2D1::Point2F(prevTop.x, prevTop.y + 2.2f),
+                                  D2D1::Point2F(currentTop.x, currentTop.y + 2.2f),
+                                  snowBankShadowBrush_.Get(), 1.0f);
         }
         prevTop = currentTop;
         if (sampleX >= width) break;
+    }
+
+    // Sparse crest sparkle: a slow, deterministic twinkle (globalTime + x) so a
+    // few glints catch the light along the ridge without ever looking busy.
+    for (float x = 0.0f; x <= width; x += 9.0f) {
+        const double tw = std::sin(sim_.globalTime * SNOW_SPARKLE_SPEED + x * SNOW_SPARKLE_PHASE_MUL);
+        if (tw <= SNOW_SPARKLE_THRESHOLD) continue;
+        const float a = static_cast<float>((tw - SNOW_SPARKLE_THRESHOLD) / (1.0 - SNOW_SPARKLE_THRESHOLD));
+        const float topY = topYAt(x);
+        snowLayerHighlightBrush_->SetOpacity(a);
+        d2dContext_->FillEllipse(
+            D2D1::Ellipse(D2D1::Point2F(x, topY + 1.2f),
+                          static_cast<float>(SNOW_SPARKLE_RADIUS), static_cast<float>(SNOW_SPARKLE_RADIUS)),
+            snowLayerHighlightBrush_.Get());
+        snowLayerHighlightBrush_->SetOpacity(1.0f);
     }
 }
 
@@ -1113,47 +1175,10 @@ void Renderer::DrawGrass(bool treesOnly) {
             continue;
         }
 
-        // Winter snowbank (§21): ordinary (non-pine) blades render as low snow
-        // mounds instead of grass, so dense neighbors overlap into a drift. The
-        // mound height tracks blade.height * cutHeight, so a click-cut visibly
-        // dents the bank before it refills.
+        // Winter snowbank (§21.1): ordinary (non-tree) ground cover is buried by
+        // the continuous sculpted snowbank drawn in DrawSnowLayer, so winter
+        // grass/flower blades render nothing here.
         if (sim_.currentScene == Scene::Winter) {
-            const float bx = static_cast<float>(b.baseX);
-            const float gy = static_cast<float>(groundY);
-            double mh = b.height * b.cutHeight * WINTER_DRIFT_HEIGHT_SCALE;
-            mh = std::max(WINTER_DRIFT_HEIGHT_MIN, std::min(WINTER_DRIFT_HEIGHT_MAX, mh));
-            const double mw = std::max(WINTER_DRIFT_WIDTH_MIN, mh * WINTER_DRIFT_WIDTH_FACTOR);
-
-            // Base mound centered on the ground line: only the top half shows as
-            // a bump (the lower half is off-window below the strip baseline).
-            d2dContext_->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(bx, gy),
-                              static_cast<float>(mw), static_cast<float>(mh)),
-                driftBaseBrush_.Get());
-            // Soft white highlight dab offset up-left for a sense of light.
-            d2dContext_->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(bx - static_cast<float>(mw) * 0.18f,
-                                            gy - static_cast<float>(mh) * 0.30f),
-                              static_cast<float>(mw) * 0.55f, static_cast<float>(mh) * 0.60f),
-                driftHiliteBrush_.Get());
-
-            // Calm sparkle: a sparse, slow twinkle keyed off globalTime + baseX
-            // (deterministic, no PRNG). Only the rare crest above the threshold
-            // lights up, so just a few glints shimmer at once.
-            const double tw = std::sin(sim_.globalTime * SNOW_SPARKLE_SPEED
-                                       + b.baseX * SNOW_SPARKLE_PHASE_MUL);
-            if (tw > SNOW_SPARKLE_THRESHOLD) {
-                const float a = static_cast<float>((tw - SNOW_SPARKLE_THRESHOLD)
-                                                   / (1.0 - SNOW_SPARKLE_THRESHOLD));
-                driftHiliteBrush_->SetOpacity(a);
-                d2dContext_->FillEllipse(
-                    D2D1::Ellipse(D2D1::Point2F(bx + static_cast<float>(mw) * 0.10f,
-                                                gy - static_cast<float>(mh) * 0.65f),
-                                  static_cast<float>(SNOW_SPARKLE_RADIUS),
-                                  static_cast<float>(SNOW_SPARKLE_RADIUS)),
-                    driftHiliteBrush_.Get());
-                driftHiliteBrush_->SetOpacity(1.0f);
-            }
             continue;
         }
 

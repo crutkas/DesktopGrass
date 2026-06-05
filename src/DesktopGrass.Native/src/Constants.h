@@ -729,6 +729,27 @@ constexpr double   SNOW_SPARKLE_PHASE_MUL       = 0.21;   // phase per DIP of x
 constexpr double   SNOW_SPARKLE_THRESHOLD       = 0.986;  // 0..1, higher = fewer
 constexpr double   SNOW_SPARKLE_RADIUS          = 1.1;    // DIP
 
+// Sculpted winter snowbank (§21.1). Render-only continuous drift that replaces
+// the per-blade snow mounds: a multi-harmonic crest (rolling dunes + ripples +
+// fine texture + occasional wind-piled cornices) filled with a lit-crest ->
+// soft-body -> cool-shadow tone stack, a bright crest edge, and a cool sub-crest
+// lip line for cornice definition. snowDepth still adds to the base so snow
+// visibly piles up over time. Phases derive from the per-monitor snowPhaseSeed.
+constexpr double   SNOW_BANK_BASE_DEPTH         = 13.0;   // DIP, always-present height
+constexpr double   SNOW_BANK_ROLL_AMP           = 7.0;
+constexpr double   SNOW_BANK_ROLL_WAVELENGTH    = 280.0;
+constexpr double   SNOW_BANK_RIPPLE_AMP         = 3.0;
+constexpr double   SNOW_BANK_RIPPLE_WAVELENGTH  = 76.0;
+constexpr double   SNOW_BANK_MICRO_AMP          = 1.2;
+constexpr double   SNOW_BANK_MICRO_WAVELENGTH   = 23.0;
+constexpr double   SNOW_BANK_CORNICE_AMP        = 11.0;
+constexpr double   SNOW_BANK_CORNICE_WAVELENGTH = 540.0;
+constexpr double   SNOW_BANK_CREST_BAND_FRAC    = 0.34;   // top fraction painted bright
+constexpr double   SNOW_BANK_SHADOW_BAND_FRAC   = 0.30;   // bottom fraction painted cool
+constexpr uint32_t SNOW_BANK_SHADOW_COLOR       = 0xFFBFCDE4u; // cool blue base/trough shadow
+constexpr double   SNOW_BANK_MIN_DEPTH          = 3.0;    // floor so the strip is always filled
+constexpr uint64_t SNOW_BANK_PHASE_SALT         = 0x5B0A4C0FFEE51EEull;
+
 // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
 // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
 constexpr uint64_t RAINDROP_PRNG_SALT              = 0xD40F0A1DD40F0A1Dull;

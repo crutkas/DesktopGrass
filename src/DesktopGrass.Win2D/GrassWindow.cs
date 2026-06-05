@@ -78,6 +78,7 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _snowLayerHighlightBrush;
     private ID2D1SolidColorBrush? _driftBaseBrush;
     private ID2D1SolidColorBrush? _driftHiliteBrush;
+    private ID2D1SolidColorBrush? _snowBankShadowBrush;
     private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1SolidColorBrush? _pineShadowBrush;
     private ID2D1SolidColorBrush? _pineHighlightBrush;
@@ -258,6 +259,7 @@ internal sealed class GrassWindow : IDisposable
         _snowLayerHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_HIGHLIGHT));
         _driftBaseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.WINTER_DRIFT_BASE_COLOR));
         _driftHiliteBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.WINTER_DRIFT_HILITE_COLOR));
+        _snowBankShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_BANK_SHADOW_COLOR));
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
         _pineShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_SHADOW_COLOR));
         _pineHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_HIGHLIGHT_COLOR));
@@ -433,37 +435,95 @@ internal sealed class GrassWindow : IDisposable
         return true;
     }
 
+    private static ulong SnowBankSplitMix64(ulong z)
+    {
+        unchecked
+        {
+            z += 0x9E3779B97F4A7C15UL;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+            return z ^ (z >> 31);
+        }
+    }
+
+    // Sculpted snowbank crest depth (DIP above ground) at horizontal x. See
+    // native Renderer.cpp SnowBankDepthAt for the rationale.
+    private static double SnowBankDepthAt(double x, double snowDepth, double[] phase)
+    {
+        const double twoPi = 6.28318530717958647692;
+        double d = Constants.SNOW_BANK_BASE_DEPTH + snowDepth;
+        d += Math.Sin(x * (twoPi / Constants.SNOW_BANK_ROLL_WAVELENGTH)   + phase[0]) * Constants.SNOW_BANK_ROLL_AMP;
+        d += Math.Sin(x * (twoPi / Constants.SNOW_BANK_RIPPLE_WAVELENGTH) + phase[1]) * Constants.SNOW_BANK_RIPPLE_AMP;
+        d += Math.Sin(x * (twoPi / Constants.SNOW_BANK_MICRO_WAVELENGTH)  + phase[2]) * Constants.SNOW_BANK_MICRO_AMP;
+        double c = Math.Sin(x * (twoPi / Constants.SNOW_BANK_CORNICE_WAVELENGTH) + phase[3]);
+        if (c < 0.0) c = 0.0;
+        d += c * c * c * Constants.SNOW_BANK_CORNICE_AMP;
+        return d < Constants.SNOW_BANK_MIN_DEPTH ? Constants.SNOW_BANK_MIN_DEPTH : d;
+    }
+
     private void DrawSnowLayer(float groundY)
     {
-        if (Sim.CurrentScene != Scene.Winter || Sim.SnowDepth < Constants.SNOW_DEPTH_MIN_RENDER) return;
-        if (_dc is null || _snowLayerTopBrush is null || _snowLayerBottomBrush is null || _snowLayerHighlightBrush is null) return;
+        if (Sim.CurrentScene != Scene.Winter) return;
+        if (_dc is null || _snowLayerTopBrush is null || _driftBaseBrush is null
+            || _snowBankShadowBrush is null || _snowLayerHighlightBrush is null) return;
 
         float widthDip = (float)(Sim.MonitorWidth > 0.0 ? Sim.MonitorWidth : _widthPx / _dpiScale);
         if (widthDip <= 0.0f) return;
 
+        double[] phase = new double[4];
+        for (int i = 0; i < 4; i++)
+        {
+            ulong bits = SnowBankSplitMix64(Sim.SnowPhaseSeed
+                ^ (Constants.SNOW_BANK_PHASE_SALT + (ulong)i * 0x9E3779B97F4A7C15UL));
+            phase[i] = (bits >> 11) / 9007199254740992.0 * 6.28318530717958647692;
+        }
+
         const float step = 2.0f;
-        var prevTop = new Vector2(0.0f, (float)Sim.SnowTopYAt(0.0));
+        float TopYAt(float sx) => groundY - (float)SnowBankDepthAt(sx, Sim.SnowDepth, phase);
+
+        var prevTop = new Vector2(0.0f, TopYAt(0.0f));
         for (float x = 0.0f; x <= widthDip + step; x += step)
         {
             float sampleX = Math.Min(x, widthDip);
-            float topY = (float)Sim.SnowTopYAt(sampleX);
-            float bandH = groundY - topY;
-            if (bandH > 0.0f)
+            float topY = TopYAt(sampleX);
+            float depth = groundY - topY;
+            if (depth > 0.0f)
             {
-                float midY = topY + bandH * 0.45f;
-                _dc.DrawLine(new Vector2(sampleX, topY), new Vector2(sampleX, midY),
+                float crestY = topY + depth * (float)Constants.SNOW_BANK_CREST_BAND_FRAC;
+                float shadowY = groundY - depth * (float)Constants.SNOW_BANK_SHADOW_BAND_FRAC;
+                float bodyBot = Math.Max(shadowY, crestY);
+                _dc.DrawLine(new Vector2(sampleX, topY), new Vector2(sampleX, crestY),
                              _snowLayerTopBrush, step + 0.5f, _strokeStyle);
-                _dc.DrawLine(new Vector2(sampleX, midY), new Vector2(sampleX, groundY),
-                             _snowLayerBottomBrush, step + 0.5f, _strokeStyle);
+                _dc.DrawLine(new Vector2(sampleX, crestY), new Vector2(sampleX, bodyBot),
+                             _driftBaseBrush, step + 0.5f, _strokeStyle);
+                _dc.DrawLine(new Vector2(sampleX, bodyBot), new Vector2(sampleX, groundY),
+                             _snowBankShadowBrush, step + 0.5f, _strokeStyle);
             }
 
             var currentTop = new Vector2(sampleX, topY);
             if (x > 0.0f)
             {
-                _dc.DrawLine(prevTop, currentTop, _snowLayerHighlightBrush, 1.0f, _strokeStyle);
+                _dc.DrawLine(prevTop, currentTop, _snowLayerHighlightBrush, 1.6f, _strokeStyle);
+                _dc.DrawLine(new Vector2(prevTop.X, prevTop.Y + 2.2f),
+                             new Vector2(currentTop.X, currentTop.Y + 2.2f),
+                             _snowBankShadowBrush, 1.0f, _strokeStyle);
             }
             prevTop = currentTop;
             if (sampleX >= widthDip) break;
+        }
+
+        // Sparse crest sparkle.
+        for (float x = 0.0f; x <= widthDip; x += 9.0f)
+        {
+            double tw = Math.Sin(Sim.GlobalTime * Constants.SNOW_SPARKLE_SPEED + x * Constants.SNOW_SPARKLE_PHASE_MUL);
+            if (tw <= Constants.SNOW_SPARKLE_THRESHOLD) continue;
+            float a = (float)((tw - Constants.SNOW_SPARKLE_THRESHOLD) / (1.0 - Constants.SNOW_SPARKLE_THRESHOLD));
+            float topY = TopYAt(x);
+            _snowLayerHighlightBrush.Opacity = a;
+            _dc.FillEllipse(new Ellipse(new Vector2(x, topY + 1.2f),
+                                        (float)Constants.SNOW_SPARKLE_RADIUS, (float)Constants.SNOW_SPARKLE_RADIUS),
+                            _snowLayerHighlightBrush);
+            _snowLayerHighlightBrush.Opacity = 1.0f;
         }
     }
 
@@ -1700,37 +1760,11 @@ internal sealed class GrassWindow : IDisposable
             return;
         }
 
-        // Winter snowbank (§21): ordinary (non-pine) blades render as low snow
-        // mounds instead of grass, so dense neighbors overlap into a drift. The
-        // mound height tracks blade.Height * CutHeight, so a click-cut visibly
-        // dents the bank before it refills.
+        // Winter snowbank (§21.1): ordinary (non-tree) ground cover is buried by
+        // the continuous sculpted snowbank drawn in DrawSnowLayer, so winter
+        // grass/flower blades render nothing here.
         if (Sim.CurrentScene == Scene.Winter)
         {
-            float dbx = (float)b.BaseX;
-            float dgy = (float)groundY;
-            double mh = b.Height * b.CutHeight * Constants.WINTER_DRIFT_HEIGHT_SCALE;
-            mh = Math.Clamp(mh, Constants.WINTER_DRIFT_HEIGHT_MIN, Constants.WINTER_DRIFT_HEIGHT_MAX);
-            double mw = Math.Max(Constants.WINTER_DRIFT_WIDTH_MIN, mh * Constants.WINTER_DRIFT_WIDTH_FACTOR);
-
-            _dc!.FillEllipse(new Ellipse(new Vector2(dbx, dgy), (float)mw, (float)mh), _driftBaseBrush!);
-            _dc.FillEllipse(
-                new Ellipse(new Vector2(dbx - (float)mw * 0.18f, dgy - (float)mh * 0.30f),
-                            (float)mw * 0.55f, (float)mh * 0.60f),
-                _driftHiliteBrush!);
-
-            double tw = Math.Sin(Sim.GlobalTime * Constants.SNOW_SPARKLE_SPEED
-                                 + b.BaseX * Constants.SNOW_SPARKLE_PHASE_MUL);
-            if (tw > Constants.SNOW_SPARKLE_THRESHOLD)
-            {
-                float a = (float)((tw - Constants.SNOW_SPARKLE_THRESHOLD)
-                                  / (1.0 - Constants.SNOW_SPARKLE_THRESHOLD));
-                _driftHiliteBrush!.Opacity = a;
-                _dc.FillEllipse(
-                    new Ellipse(new Vector2(dbx + (float)mw * 0.10f, dgy - (float)mh * 0.65f),
-                                (float)Constants.SNOW_SPARKLE_RADIUS, (float)Constants.SNOW_SPARKLE_RADIUS),
-                    _driftHiliteBrush!);
-                _driftHiliteBrush!.Opacity = 1.0f;
-            }
             return;
         }
 
@@ -1847,6 +1881,7 @@ internal sealed class GrassWindow : IDisposable
         try { _snowLayerHighlightBrush?.Dispose(); } catch { }
         try { _driftBaseBrush?.Dispose(); } catch { }
         try { _driftHiliteBrush?.Dispose(); } catch { }
+        try { _snowBankShadowBrush?.Dispose(); } catch { }
         try { _pineBrush?.Dispose(); } catch { }
         try { _pineShadowBrush?.Dispose(); } catch { }
         try { _pineHighlightBrush?.Dispose(); } catch { }
