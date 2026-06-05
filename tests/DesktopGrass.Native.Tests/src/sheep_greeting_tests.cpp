@@ -100,24 +100,6 @@ TEST_CASE("Sheep curious constants are pinned to spec values", "[sheep][curious]
     REQUIRE(SHEEP_CURIOUS_HEAD_TURN_MAX == Approx(0.55));
 }
 
-TEST_CASE("Sheep sleep probability follows local hour bands", "[sheep][sleep][time]") {
-    struct Case { int hour; double expected; };
-    const Case cases[] = {
-        { 2,  0.70 },
-        { 5,  0.70 },
-        { 6,  0.10 },
-        { 9,  0.10 },
-        { 10, 0.30 },
-        { 15, 0.30 },
-        { 21, 0.30 },
-        { 22, 0.70 },
-        { 23, 0.70 },
-    };
-
-    for (const Case& c : cases) {
-        REQUIRE(sheep_sleep_prob_for_local_hour(c.hour) == Approx(c.expected));
-    }
-}
 
 TEST_CASE("Eligible nearby sheep enter Greeting facing each other", "[sheep][greeting]") {
     Sim sim = build_sheep_sim();

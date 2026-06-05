@@ -147,8 +147,7 @@ TEST_CASE("Hedgehog constants are pinned to spec values", "[hedgehog][constants]
     REQUIRE(HEDGEHOG_CURL_DURATION_MAX == Approx(5.5));
     REQUIRE(HEDGEHOG_SNUFFLE_PROBABILITY == Approx(0.55));
     REQUIRE(HEDGEHOG_IDLE_PROBABILITY == Approx(0.30));
-    REQUIRE(HEDGEHOG_SLEEP_PROB_DAY == Approx(0.50));
-    REQUIRE(HEDGEHOG_SLEEP_PROB_NIGHT == Approx(0.05));
+    REQUIRE(HEDGEHOG_SLEEP_PROB == Approx(0.50));
     REQUIRE(HEDGEHOG_STARTLE_RADIUS == Approx(70.0));
     REQUIRE(HEDGEHOG_SNUFFLE_HEAD_FREQ == Approx(5.0));
     REQUIRE(HEDGEHOG_SNUFFLE_HEAD_AMP == Approx(0.7));
@@ -325,13 +324,13 @@ TEST_CASE("Hedgehog state transition probabilities are stable", "[hedgehog][stat
     int idle = 0;
     int sleep = 0;
     for (int i = 0; i < N; ++i) {
-        const uint8_t state = hedgehog_choose_rest_state(p, 12);
+        const uint8_t state = hedgehog_choose_rest_state(p);
         if (state == HEDGEHOG_STATE_SNUFFLING) ++snuffle;
         else if (state == HEDGEHOG_STATE_IDLE) ++idle;
         else if (state == HEDGEHOG_STATE_SLEEPING) ++sleep;
     }
 
-    const double sleepProb = HEDGEHOG_SLEEP_PROB_DAY;
+    const double sleepProb = HEDGEHOG_SLEEP_PROB;
     const double activeWeight = HEDGEHOG_SNUFFLE_PROBABILITY + HEDGEHOG_IDLE_PROBABILITY;
     const double expectedSnuffle = (1.0 - sleepProb) * HEDGEHOG_SNUFFLE_PROBABILITY / activeWeight;
     const double expectedIdle = (1.0 - sleepProb) * HEDGEHOG_IDLE_PROBABILITY / activeWeight;
@@ -340,30 +339,22 @@ TEST_CASE("Hedgehog state transition probabilities are stable", "[hedgehog][stat
     REQUIRE(static_cast<double>(idle) / N == Approx(expectedIdle).margin(0.02));
 }
 
-TEST_CASE("Hedgehog time-of-day sleep bias is nocturnal", "[hedgehog][time]") {
-    REQUIRE(hedgehog_sleep_prob_for_local_hour(12) == Approx(HEDGEHOG_SLEEP_PROB_DAY));
-    REQUIRE(hedgehog_sleep_prob_for_local_hour(0) == Approx(HEDGEHOG_SLEEP_PROB_NIGHT));
-
-    constexpr int N = 10000;
-    Prng noon;
-    Prng midnight;
-    prng_init(noon, CANONICAL_TEST_SEED ^ 0x1234ull);
-    prng_init(midnight, CANONICAL_TEST_SEED ^ 0x5678ull);
-    int noonSleep = 0;
-    int midnightSleep = 0;
+TEST_CASE("Hedgehog sleep probability is stable", "[hedgehog][state]") {
+    constexpr int N = 20000;
+    Prng p;
+    prng_init(p, CANONICAL_TEST_SEED ^ 0x1234ull);
+    int sleep = 0;
     for (int i = 0; i < N; ++i) {
-        if (hedgehog_choose_rest_state(noon, 12) == HEDGEHOG_STATE_SLEEPING) ++noonSleep;
-        if (hedgehog_choose_rest_state(midnight, 0) == HEDGEHOG_STATE_SLEEPING) ++midnightSleep;
+        if (hedgehog_choose_rest_state(p) == HEDGEHOG_STATE_SLEEPING) ++sleep;
     }
-    REQUIRE(static_cast<double>(noonSleep) / N == Approx(HEDGEHOG_SLEEP_PROB_DAY).margin(0.02));
-    REQUIRE(static_cast<double>(midnightSleep) / N == Approx(HEDGEHOG_SLEEP_PROB_NIGHT).margin(0.02));
+    REQUIRE(static_cast<double>(sleep) / N == Approx(HEDGEHOG_SLEEP_PROB).margin(0.02));
 }
 
 TEST_CASE("Hedgehog has no active interaction states", "[hedgehog][state]") {
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ 0xCAFEull);
     for (int i = 0; i < 1000; ++i) {
-        const uint8_t state = hedgehog_choose_rest_state(p, 0);
+        const uint8_t state = hedgehog_choose_rest_state(p);
         REQUIRE((state == HEDGEHOG_STATE_SNUFFLING
               || state == HEDGEHOG_STATE_IDLE
               || state == HEDGEHOG_STATE_SLEEPING));

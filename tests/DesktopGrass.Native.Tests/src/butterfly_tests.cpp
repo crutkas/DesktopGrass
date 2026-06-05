@@ -54,9 +54,6 @@ TEST_CASE("Butterfly constants are pinned to spec values", "[butterfly][constant
     REQUIRE(BUTTERFLY_ALTITUDE_MAX == Approx(70.0));
     REQUIRE(BUTTERFLY_BODY_COLOR == 0xFF2A2018u);
     REQUIRE(BUTTERFLY_COLOR_COUNT == 5);
-    REQUIRE(BUTTERFLY_HOUR_START == 6);
-    REQUIRE(BUTTERFLY_HOUR_END == 19);
-    REQUIRE(BUTTERFLY_FADE_DURATION_HOUR == 1);
     REQUIRE(BUTTERFLY_PRNG_SALT == 0xB07DEF1E0001ull);
 }
 
@@ -181,9 +178,3 @@ TEST_CASE("Butterfly wing scale stays within flutter bounds", "[butterfly][rende
     }
 }
 
-TEST_CASE("Butterfly fade is day-only with dawn and dusk ramps", "[butterfly][time]") {
-    REQUIRE(butterfly_fade(0.0) == Approx(0.0));
-    REQUIRE(butterfly_fade(12.0) == Approx(1.0));
-    REQUIRE(butterfly_fade(5.5) == Approx(0.5));
-    REQUIRE(butterfly_fade(19.5) == Approx(0.5));
-}

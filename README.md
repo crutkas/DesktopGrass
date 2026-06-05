@@ -26,10 +26,9 @@ no engagement loops, no toys.
   hedgehogs curl into a defensive spiky ball. Cats come in 6 coat variants.
   Hedgehog sightings are probabilistic (~55% per session). Pet count is
   configurable from the tray.
-- **Butterflies by day, fireflies by night** — ambient flyers above the strip.
-  Crossfade during dawn and dusk for a "magic hour" overlap.
-- **V-formation bird flybys** — occasional flocks of 3-7 birds cross overhead
-  during daytime, far above the critters.
+- **Butterflies and fireflies** — gentle ambient flyers drifting above the strip.
+- **V-formation bird flybys** — occasional flocks of 3-7 birds cross overhead,
+  far above the critters.
 
 **Desert scene**
 - Shorter grass; cacti dominate; rolling tumbleweeds.
@@ -49,7 +48,6 @@ no engagement loops, no toys.
   and trees.
 
 **Always-on touches**
-- Subtle day-night ambient color tint keyed to the local hour (peak alpha 36/255).
 - App state (scene, cuts, pet counts, snow depth, auto-start preference)
   persists across sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
 - Optional "Start with Windows" toggle in the tray menu.

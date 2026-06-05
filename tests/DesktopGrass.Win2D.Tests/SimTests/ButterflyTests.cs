@@ -62,9 +62,6 @@ public class ButterflyTests
         Assert.Equal(70.0, Constants.BUTTERFLY_ALTITUDE_MAX);
         Assert.Equal(0xFF2A2018u, Constants.BUTTERFLY_BODY_COLOR);
         Assert.Equal(5, Constants.BUTTERFLY_COLOR_COUNT);
-        Assert.Equal(6, Constants.BUTTERFLY_HOUR_START);
-        Assert.Equal(19, Constants.BUTTERFLY_HOUR_END);
-        Assert.Equal(1, Constants.BUTTERFLY_FADE_DURATION_HOUR);
         Assert.Equal(0xB07DEF1E0001ul, Constants.BUTTERFLY_PRNG_SALT);
     }
 
@@ -202,12 +199,4 @@ public class ButterflyTests
         }
     }
 
-    [Fact]
-    public void ButterflyFadeIsDayOnlyWithDawnAndDuskRamps()
-    {
-        Assert.Equal(0.0, Constants.ButterflyFade(0.0), 9);
-        Assert.Equal(1.0, Constants.ButterflyFade(12.0), 9);
-        Assert.Equal(0.5, Constants.ButterflyFade(5.5), 9);
-        Assert.Equal(0.5, Constants.ButterflyFade(19.5), 9);
-    }
 }

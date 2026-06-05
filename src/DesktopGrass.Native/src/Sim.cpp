@@ -13,19 +13,6 @@ namespace desktopgrass {
 
 namespace {
 constexpr double TWO_PI = 6.28318530717958647692;
-
-bool hour_in_half_open_range(int hour, int start, int end) noexcept {
-    if (start <= end) return hour >= start && hour < end;
-    return hour >= start || hour < end;
-}
-
-int current_local_hour() noexcept {
-    const std::time_t now = std::chrono::system_clock::to_time_t(
-        std::chrono::system_clock::now());
-    std::tm local{};
-    if (localtime_s(&local, &now) != 0) return SHEEP_MORNING_END_HOUR;
-    return local.tm_hour;
-}
 }
 
 // ---------------------------------------------------------------------------
@@ -78,42 +65,6 @@ uint32_t prng_index(Prng& p, uint32_t n) noexcept {
     return static_cast<uint32_t>(prng_next_unit(p) * static_cast<double>(n));
 }
 
-double sheep_sleep_prob_for_local_hour(int hour) noexcept {
-    if (hour < 0 || hour > 23) return SHEEP_SLEEP_PROB_DEFAULT;
-    if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
-        return SHEEP_SLEEP_PROB_MORNING;
-    }
-    if (hour_in_half_open_range(hour, SHEEP_NIGHT_START_HOUR, SHEEP_NIGHT_END_HOUR)) {
-        return SHEEP_SLEEP_PROB_NIGHT;
-    }
-    return SHEEP_SLEEP_PROB_DEFAULT;
-}
-
-double cat_sleep_prob_for_local_hour(int hour) noexcept {
-    if (hour < 0 || hour > 23) return CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
-    if (hour_in_half_open_range(hour, SHEEP_MORNING_START_HOUR, SHEEP_MORNING_END_HOUR)) {
-        return CAT_SLEEP_FROM_IDLE_PROB_MORNING;
-    }
-    if (hour_in_half_open_range(hour, SHEEP_NIGHT_START_HOUR, SHEEP_NIGHT_END_HOUR)) {
-        return CAT_SLEEP_FROM_IDLE_PROB_NIGHT;
-    }
-    return CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
-}
-
-double bunny_sleep_prob_for_local_hour(int hour) noexcept {
-    if (hour < 0 || hour > 23) return BUNNY_SLEEP_PROB_DAY;
-    return hour_in_half_open_range(hour, 10, 20)
-        ? BUNNY_SLEEP_PROB_DAY
-        : BUNNY_SLEEP_PROB_NIGHT;
-}
-
-double hedgehog_sleep_prob_for_local_hour(int hour) noexcept {
-    if (hour < 0 || hour > 23) return HEDGEHOG_SLEEP_PROB_DAY;
-    return hour_in_half_open_range(hour, 6, 18)
-        ? HEDGEHOG_SLEEP_PROB_DAY
-        : HEDGEHOG_SLEEP_PROB_NIGHT;
-}
-
 double bunny_hop_y_offset(double age, bool startled) noexcept {
     const double height = startled ? BUNNY_STARTLE_HOP_HEIGHT : BUNNY_HOP_HEIGHT;
     double t = age / BUNNY_HOP_DURATION;
@@ -122,8 +73,8 @@ double bunny_hop_y_offset(double age, bool startled) noexcept {
     return 4.0 * height * t * (1.0 - t);
 }
 
-uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept {
-    const double sleepProb = bunny_sleep_prob_for_local_hour(hour);
+uint8_t bunny_choose_rest_state(Prng& p) noexcept {
+    const double sleepProb = BUNNY_SLEEP_PROB;
     const double r = prng_uniform(p, 0.0, 1.0);
     if (r < sleepProb) return BUNNY_STATE_SLEEPING;
 
@@ -136,8 +87,8 @@ uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept {
         : BUNNY_STATE_IDLE;
 }
 
-uint8_t hedgehog_choose_rest_state(Prng& p, int hour) noexcept {
-    const double sleepProb = hedgehog_sleep_prob_for_local_hour(hour);
+uint8_t hedgehog_choose_rest_state(Prng& p) noexcept {
+    const double sleepProb = HEDGEHOG_SLEEP_PROB;
     const double r = prng_uniform(p, 0.0, 1.0);
     if (r < sleepProb) return HEDGEHOG_STATE_SLEEPING;
 
@@ -1283,7 +1234,7 @@ void start_bunny_hopping(Sim& sim, Entity& e, bool includeGap) noexcept {
 }
 
 void enter_bunny_rest_state(Sim& sim, Entity& e) noexcept {
-    const uint8_t next = bunny_choose_rest_state(sim.critterPrng, current_local_hour());
+    const uint8_t next = bunny_choose_rest_state(sim.critterPrng);
     e.state = next;
     if (next == BUNNY_STATE_GRAZING) {
         e.stateTimer = prng_uniform(sim.critterPrng,
@@ -1378,11 +1329,6 @@ void sim_set_critter_count(Sim& sim, int n) noexcept {
     generate_critters_for_kind(sim);
 }
 
-bool bird_flyby_is_day_hour(int hour) noexcept {
-    if (hour < 0 || hour > 23) return false;
-    return hour_in_half_open_range(hour, BIRD_FLYBY_HOUR_START, BIRD_FLYBY_HOUR_END);
-}
-
 double bird_flyby_sample_interval(Prng& p) noexcept {
     return prng_exponential(p, BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
 }
@@ -1443,9 +1389,8 @@ void sim_spawn_bird_flyby(Sim& sim) noexcept {
     }
 }
 
-void sim_tick_bird_flybys(Sim& sim, int hour) noexcept {
+void sim_tick_bird_flybys(Sim& sim) noexcept {
     if (sim.currentScene != Scene::Grass || sim.monitorWidth <= 0.0) return;
-    if (!bird_flyby_is_day_hour(hour)) return;
     if (sim.globalTime < sim.nextBirdFlybyAtTime) return;
 
     sim_spawn_bird_flyby(sim);
@@ -1625,7 +1570,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                 }
             } else if (oldState == SHEEP_STATE_IDLE) {
                 const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
-                const double sleepProb = sheep_sleep_prob_for_local_hour(current_local_hour());
+                const double sleepProb = SHEEP_SLEEP_FROM_IDLE_PROB;
                 if (r < sleepProb) {
                     e.state = SHEEP_STATE_SLEEPING;
                     e.stateTimer = prng_uniform(sim.critterPrng,
@@ -1730,7 +1675,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                                                 CAT_WALK_DURATION_MAX);
                 }
             } else if (e.state == CAT_STATE_IDLE) {
-                const double sleepProb = cat_sleep_prob_for_local_hour(current_local_hour());
+                const double sleepProb = CAT_SLEEP_FROM_IDLE_PROB;
                 const double r = prng_uniform(sim.critterPrng, 0.0, 1.0);
                 if (r < sleepProb) {
                     e.state = CAT_STATE_SLEEPING;
@@ -1809,7 +1754,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         if (e.stateTimer <= 0.0) {
             const uint8_t oldState = e.state;
             if (oldState == HEDGEHOG_STATE_WALKING) {
-                const uint8_t next = hedgehog_choose_rest_state(sim.critterPrng, current_local_hour());
+                const uint8_t next = hedgehog_choose_rest_state(sim.critterPrng);
                 e.state = next;
                 e.stateTimer = hedgehog_duration_for_state(sim, next);
             } else if (oldState == HEDGEHOG_STATE_CURLED) {
@@ -1853,7 +1798,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         }
     }
 
-    sim_tick_bird_flybys(sim, current_local_hour());
+    sim_tick_bird_flybys(sim);
 
     if (sim.currentScene == Scene::Autumn && sim.monitorWidth > 0.0) {
         const double lambda = LEAF_SPAWN_RATE_PER_SEC_1920DIP * sim.monitorWidth / 1920.0;

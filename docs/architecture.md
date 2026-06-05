@@ -1479,7 +1479,7 @@ A pass to make Winter read as a calm snowscape rather than a tall white wall tha
 
 ## 16.5 Autumn scene
 
-Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn; day-night tint still applies uniformly.
+Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn.
 
 ### Autumn blade palette
 
@@ -1617,7 +1617,7 @@ Bunny → generate all four in sheep → cat → bunny → hedgehog order
 then always append generate_butterflies(sim); generate_fireflies(sim)
 ```
 
-The all-species (Bunny) path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero. Hedgehog is ambient-only (no tray toggle) and shares the critter stream. Butterflies and fireflies ignore tray critter selection and use independent side streams seeded from `entitySeed XOR BUTTERFLY_PRNG_SALT` and `entitySeed XOR FIREFLY_PRNG_SALT`.
+The all-species (Bunny) path ignores `critterCountOverride`; the legacy Sheep/Cat single-species paths honor it and skip that species' count draw when non-zero. Hedgehog is ambient-only (no tray toggle) and shares the critter stream. Butterflies and fireflies ignore tray critter selection and use independent side streams seeded from `entitySeed XOR BUTTERFLY_PRNG_SALT` and `entitySeed XOR FIREFLY_PRNG_SALT`; both can be visible at the same time because neither has a time gate.
 
 ### Ordering invariant
 
@@ -1725,9 +1725,9 @@ Walking expires → r = critterPrng.uniform(0,1):
   0.60 ≤ r < 0.85                       → Idle     (duration uniform[1.5, 3]s)
   r ≥ 0.85                              → Hopping  (duration 0.55s, no extra draw)
 
-Idle expires → r = critterPrng.uniform(0,1), sleepProb = sheep_sleep_prob_for_local_hour(localHour):
-  r < sleepProb                         → Sleeping (duration uniform[8, 16]s)
-  r ≥ sleepProb                         → Walking  (duration uniform[8, 14]s)
+Idle expires → r = critterPrng.uniform(0,1):
+  r < SHEEP_SLEEP_FROM_IDLE_PROB         → Sleeping (duration uniform[8, 16]s)
+  r ≥ SHEEP_SLEEP_FROM_IDLE_PROB         → Walking  (duration uniform[8, 14]s)
 
 Walking / Grazing / Idle pair in range → Greeting (shared duration uniform[1.6, 2.8]s)
 Grazing / Sleeping / Hopping expire    → Walking  (duration uniform[8, 14]s)
@@ -1736,17 +1736,9 @@ Greeting expires                       → Walking  (duration uniform[8, 14]s, v
 
 `e.age` is reset to `0.0` on **every** state transition so animations (hop arc, sleep Z's, walk cycle, greeting bob) start at phase 0 every time. Greeting is the only timer-expiry transition that flips `vx`; Walking/Idle exits keep their current `vx` sign.
 
-### Time-of-day sleep bias
+### Sleep probability
 
-The Idle→Sleep roll uses the same single `critterPrng.uniform(0,1)` draw as before, compared against a probability derived from the system local hour. This changes only the threshold; it adds zero PRNG draws and preserves cross-impl draw-count invariance.
-
-| Local hour range | Sleep probability |
-| --- | ---: |
-| 06:00 ≤ hour < 10:00 | `SHEEP_SLEEP_PROB_MORNING = 0.10` |
-| 10:00 ≤ hour < 22:00 | `SHEEP_SLEEP_PROB_DEFAULT = 0.30` |
-| 22:00 ≤ hour or hour < 06:00 | `SHEEP_SLEEP_PROB_NIGHT = 0.70` |
-
-`SHEEP_SLEEP_FROM_IDLE_PROB` remains an alias for the default 0.30 probability.
+The Idle→Sleep roll uses a single `critterPrng.uniform(0,1)` draw compared against `SHEEP_SLEEP_FROM_IDLE_PROB = 0.30`. There are no time bands or wall-clock inputs.
 
 ### Click startle
 
@@ -1828,9 +1820,7 @@ Procedural calm color-varied cat. Cat exists to prove the Critter framework is s
 | `CAT_POUNCE_DURATION` | `0.45` | one arc |
 | `CAT_IDLE_PROBABILITY` | `0.65` | Walking expiry |
 | `CAT_SLEEP_PROBABILITY` | `0.30` | Walking expiry |
-| `CAT_SLEEP_FROM_IDLE_PROB_MORNING` | `0.20` | 06:00-10:00 |
-| `CAT_SLEEP_FROM_IDLE_PROB_DEFAULT` | `0.50` | 10:00-22:00 |
-| `CAT_SLEEP_FROM_IDLE_PROB_NIGHT` | `0.85` | 22:00-06:00 |
+| `CAT_SLEEP_FROM_IDLE_PROB` | `0.50` | Idle expiry |
 | `CAT_POUNCE_RADIUS` | `80.0` | click x-distance |
 | `CAT_POUNCE_HEIGHT` | `9.0` | parabolic rise |
 | `CAT_CURIOUS_RADIUS` | `100.0` | render-only idle head turn |
@@ -1868,9 +1858,9 @@ Walking expires → r = critterPrng.uniform(0,1):
   0.65 ≤ r < 0.95             → Sleeping (duration uniform[20, 40]s)
   r ≥ 0.95                    → Walking  (duration uniform[6, 10]s)
 
-Idle expires → r = critterPrng.uniform(0,1), sleepProb = cat_sleep_prob_for_local_hour(localHour):
-  r < sleepProb               → Sleeping (duration uniform[20, 40]s)
-  r ≥ sleepProb               → Walking  (duration uniform[6, 10]s)
+Idle expires → r = critterPrng.uniform(0,1):
+  r < CAT_SLEEP_FROM_IDLE_PROB → Sleeping (duration uniform[20, 40]s)
+  r ≥ CAT_SLEEP_FROM_IDLE_PROB → Walking  (duration uniform[6, 10]s)
 
 Sleeping / Pouncing expire     → Walking  (duration uniform[6, 10]s)
 Click within radius            → Pouncing (duration 0.45s, vx toward click)
@@ -1934,7 +1924,7 @@ Geometry is distinct from sheep: one long flattened body ellipse, smaller circul
 
 * No grazing state.
 * No greeting — cats do not greet cats or sheep.
-* Longer sleeps and higher Idle→Sleep probabilities, especially at night (`0.85`).
+* Longer sleeps and a single `CAT_SLEEP_FROM_IDLE_PROB = 0.50` Idle→Sleep probability.
 * Click pounce moves **toward** the click; sheep startle moves **away**.
 * Passive by design: no proximity-triggered chase or pounce.
 
@@ -1974,7 +1964,7 @@ Procedural calm woodland bunny. Bunnies are passive and skittish: they never cha
 | `BUNNY_SLEEP_DURATION_MIN/MAX` | `6.0 / 12.0` | sec |
 | `BUNNY_GRAZE_PROBABILITY` | `0.55` | non-sleep active weight |
 | `BUNNY_IDLE_PROBABILITY` | `0.30` | non-sleep active weight |
-| `BUNNY_SLEEP_PROB_DAY/NIGHT` | `0.05 / 0.40` | absolute sleep probability |
+| `BUNNY_SLEEP_PROB` | `0.05` | absolute sleep probability |
 | `BUNNY_STARTLE_RADIUS` | `90.0` | DIP, click center distance |
 | `BUNNY_STARTLE_BOOST` | `2.0` | base speed multiplier |
 | `BUNNY_STARTLE_HOP_HEIGHT` | `14.0` | boosted arc |
@@ -2020,16 +2010,9 @@ generate_critters_bunny(sim):
 
 Initial `x = margin + xFrac * (monitorWidth - 2*margin)` with `margin = BUNNY_BODY_RADIUS + 8`; `vx = sign * speed`; `rotationSpeed` stores the normal base speed for restoring after a startle. No coat variant and no PRNG seed draw are consumed in v1.
 
-### Time-of-day sleep bias
+### Sleep probability
 
-Bunnies use a 2-band day/night helper:
-
-| Local hour range | Sleep probability |
-| --- | ---: |
-| `10:00 ≤ hour < 20:00` | `BUNNY_SLEEP_PROB_DAY = 0.05` |
-| `20:00 ≤ hour or hour < 10:00` | `BUNNY_SLEEP_PROB_NIGHT = 0.40` |
-
-Sleep probability is absolute. The remaining non-sleep probability is split between Grazing and Idle using `BUNNY_GRAZE_PROBABILITY : BUNNY_IDLE_PROBABILITY` as weights, preserving the crepuscular sleep bias without adding another PRNG draw.
+`bunny_choose_rest_state(Prng&)` uses a single absolute sleep probability, `BUNNY_SLEEP_PROB = 0.05`. The remaining non-sleep probability is split between Grazing and Idle using `BUNNY_GRAZE_PROBABILITY : BUNNY_IDLE_PROBABILITY` as weights, without adding another PRNG draw.
 
 ### Click startle
 
@@ -2064,13 +2047,13 @@ Facing mirrors horizontally from `vx` sign: head, ears, eye, and nose are on the
 
 ### Scene gating and conformance
 
-Bunnies are Grass-only. `generate_critters_for_kind` returns without bunnies in Desert and Winter. Native `bunny_tests.cpp` and Win2D `BunnyTests.cs` pin constants, scene gating, count/speed/name ranges, side-stream PRNG identity after sheep+cat draws, edge bounce, startle behavior, wake-from-sleep, hop arc bounds, transition probabilities, and day/night sleep bias.
+Bunnies are Grass-only. `generate_critters_for_kind` returns without bunnies in Desert and Winter. Native `bunny_tests.cpp` and Win2D `BunnyTests.cs` pin constants, scene gating, count/speed/name ranges, side-stream PRNG identity after sheep+cat draws, edge bounce, startle behavior, wake-from-sleep, hop arc bounds, and transition probabilities.
 
 ---
 
 ## 17.6 Butterflies
 
-Tiny daytime ambient butterflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle.
+Tiny ambient butterflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle. Butterflies always render at full opacity.
 
 ### Constants
 
@@ -2088,8 +2071,6 @@ Tiny daytime ambient butterflies. They are purely visual: no click handling, no 
 | `BUTTERFLY_ALTITUDE_MIN/MAX` | `18.0 / 70.0` | DIP above tallest grass top (`groundY - BLADE_HEIGHT_MAX`) |
 | `BUTTERFLY_BODY_COLOR` | `0xFF2A2018` | dark brown |
 | `BUTTERFLY_COLOR_COUNT` | `5` | monarch, swallowtail, cabbage, morpho, pink |
-| `BUTTERFLY_HOUR_START/END` | `6 / 19` | full visibility window `[6,19)` |
-| `BUTTERFLY_FADE_DURATION_HOUR` | `1` | dawn/dusk fades |
 | `BUTTERFLY_PRNG_SALT` | `0xB07DEF1E0001` | independent butterfly stream |
 
 Palette is `{wingColor, accentColor}` for variants: Monarch orange+black, Swallowtail yellow+black, Cabbage white+dark dots, Morpho sky-blue+deep blue, Pink soft pink+rose.
@@ -2122,25 +2103,15 @@ y  = (groundY - BLADE_HEIGHT_MAX) - altitudeAnchor
 
 If `x > monitorWidth + (WING_OFFSET + WING_RADIUS)`, wrap to the same negative margin; if `x < -margin`, wrap to `monitorWidth + margin`. The `altitudeAnchor` is preserved.
 
-### Day fade function
-
-```
-butterflyFade(hour):
-  [05:00,06:00) -> linear 0→1
-  [06:00,19:00) -> 1
-  [19:00,20:00) -> linear 1→0
-  otherwise     -> 0
-```
-
 ### Render order
 
-Draw after grass as part of `DrawEntities`: left/right wing ovals first, small accent dots/tips on the wings, then the dark body ellipse. Wing X-scale is `clamp(cos(age * BUTTERFLY_FLUTTER_FREQ + phaseY), BUTTERFLY_FLUTTER_MIN_SCALE, 1.0)`. Entity opacity is multiplied by `butterflyFade(currentLocalHourFractional)`.
+Draw after grass as part of `DrawEntities`: left/right wing ovals first, small accent dots/tips on the wings, then the dark body ellipse. Wing X-scale is `clamp(cos(age * BUTTERFLY_FLUTTER_FREQ + phaseY), BUTTERFLY_FLUTTER_MIN_SCALE, 1.0)`. Entity opacity is always full.
 
 ---
 
 ## 17.7 Fireflies
 
-Tiny nighttime ambient fireflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle.
+Tiny ambient fireflies. They are purely visual: no click handling, no cut state, no pet proximity logic, no collisions, Grass scene only, and no tray toggle. Fireflies always render at full opacity, with blink brightness still applied.
 
 ### Constants
 
@@ -2160,8 +2131,6 @@ Tiny nighttime ambient fireflies. They are purely visual: no click handling, no 
 | `FIREFLY_GLOW_COLOR_RGB` | `0xEEDD66` | halo RGB |
 | `FIREFLY_GLOW_ALPHA_MAX` | `110` | peak halo alpha |
 | `FIREFLY_BODY_ALPHA_MAX` | `255` | peak body alpha |
-| `FIREFLY_NIGHT_START/END_HOUR` | `20 / 6` | full visibility wraps midnight |
-| `FIREFLY_FADE_DURATION_HOUR` | `1` | dusk/dawn fades |
 | `FIREFLY_PRNG_SALT` | `0xF13EF1E7777` | independent firefly stream |
 
 ### Generation (PRNG draw order — LOCKED)
@@ -2202,34 +2171,23 @@ else:
   brightness = 0
 ```
 
-Body and glow alpha are multiplied by `brightness * fireflyFade(currentHour)`.
-
-### Night fade function
-
-```
-fireflyFade(hour):
-  [20:00,06:00) -> 1  // wraps midnight
-  [19:00,20:00) -> linear 0→1
-  [06:00,07:00) -> linear 1→0
-  otherwise     -> 0
-```
+Body and glow alpha are multiplied by `brightness` only.
 
 ### Render order
 
-Draw after grass as part of `DrawEntities`: glow halo first using `GLOW_RADIUS * brightness`, then body dot using `BODY_RADIUS`. The halo opacity peaks at `FIREFLY_GLOW_ALPHA_MAX`; the body peaks at `FIREFLY_BODY_ALPHA_MAX`. Both are multiplied by the night fade. No interaction, no cut detection, no tray toggle.
+Draw after grass as part of `DrawEntities`: glow halo first using `GLOW_RADIUS * brightness`, then body dot using `BODY_RADIUS`. The halo opacity peaks at `FIREFLY_GLOW_ALPHA_MAX`; the body peaks at `FIREFLY_BODY_ALPHA_MAX`. No interaction, no cut detection, no tray toggle.
 
 ---
 
 ## 17.8 Bird flybys
 
-Rare daytime-only Grass-scene bird flybys. A flyby is a transient flock of tiny dark silhouettes that crosses the strip far above the grass and pets. Birds are pure ambient: click-through, not cuttable, no pet proximity logic, no collision, no tray toggle, and no persistence.
+Rare Grass-scene bird flybys. A flyby is a transient flock of tiny dark silhouettes that crosses the strip far above the grass and pets. Birds are pure ambient: click-through, not cuttable, no pet proximity logic, no collision, no tray toggle, and no persistence.
 
 ### Constants
 
 | Constant | Value | Notes |
 | --- | ---: | --- |
-| `BIRD_FLYBY_SPAWN_RATE_PER_HOUR` | `15.0` | Poisson mean events/hour during day window (~4 min mean interval) |
-| `BIRD_FLYBY_HOUR_START/END` | `7 / 19` | spawn window `[7,19)` local hour |
+| `BIRD_FLYBY_SPAWN_RATE_PER_HOUR` | `15.0` | Poisson mean events/hour (~4 min mean interval) |
 | `BIRD_FLOCK_SIZE_MIN/MAX` | `3 / 7` | birds per flyby |
 | `BIRD_FLOCK_FORMATION_SPACING` | `9.0` | DIP between consecutive birds along the flight axis |
 | `BIRD_FLOCK_V_ANGLE_DEG` | `22.0` | arm angle used for perpendicular offsets |
@@ -2247,7 +2205,7 @@ Rare daytime-only Grass-scene bird flybys. A flyby is a transient flock of tiny 
 
 ### Poisson spawn model
 
-Each `Sim` owns `birdFlybyPrng` and `nextBirdFlybyAtTime` (seconds in sim time). Initialization seeds the stream with `entitySeed XOR BIRD_FLYBY_PRNG_SALT` and sets `nextBirdFlybyAtTime = globalTime + exponential(rate = BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600)`. Each Grass-scene daytime tick (`[BIRD_FLYBY_HOUR_START, BIRD_FLYBY_HOUR_END)`) checks `globalTime >= nextBirdFlybyAtTime`; when true it spawns exactly one flock, then schedules the next interval from the same stream. Non-Grass scenes and non-day hours do not spawn; in-flight birds continue until off-screen despawn.
+Each `Sim` owns `birdFlybyPrng` and `nextBirdFlybyAtTime` (seconds in sim time). Initialization seeds the stream with `entitySeed XOR BIRD_FLYBY_PRNG_SALT` and sets `nextBirdFlybyAtTime = globalTime + exponential(rate = BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600)`. Each Grass-scene tick checks `globalTime >= nextBirdFlybyAtTime`; when true it spawns exactly one flock, then schedules the next interval from the same stream. Non-Grass scenes do not spawn; in-flight birds continue until off-screen despawn.
 
 ### Flock PRNG draw order — LOCKED
 
@@ -2286,7 +2244,7 @@ Birds despawn individually after crossing the opposite off-screen boundary (`x >
 
 ### Render order and interaction
 
-Birds render in the sky layer after critters, weather, butterflies, and fireflies, and before the day-night tint. The renderer draws a tiny filled body ellipse plus two wing strokes/triangles scaled by `wingScale`, with alpha fading over the first/last `8%` of the visible cross distance. Birds are not included in cut detection or any critter interaction path.
+Birds render as the last sky-layer draw after critters, weather, butterflies, and fireflies. The renderer draws a tiny filled body ellipse plus two wing strokes/triangles scaled by `wingScale`, with alpha fading over the first/last `8%` of the visible cross distance. Birds are not included in cut detection or any critter interaction path.
 
 ---
 
@@ -2320,7 +2278,7 @@ Slow, solitary Grass-scene woodland critter. Hedgehog is passive defense by desi
 | `HEDGEHOG_CURL_DURATION_MIN/MAX` | `3.0 / 5.5` | sec defensive curl |
 | `HEDGEHOG_SNUFFLE_PROBABILITY` | `0.55` | non-sleep active weight |
 | `HEDGEHOG_IDLE_PROBABILITY` | `0.30` | non-sleep active weight |
-| `HEDGEHOG_SLEEP_PROB_DAY/NIGHT` | `0.50 / 0.05` | nocturnal sleep bias; day is `[06,18)` |
+| `HEDGEHOG_SLEEP_PROB` | `0.50` | absolute sleep probability |
 | `HEDGEHOG_STARTLE_RADIUS` | `70.0` | DIP click radius |
 | `HEDGEHOG_SNUFFLE_HEAD_FREQ` / `AMP` | `5.0 / 0.7` | rad/sec and DIP x-offset |
 | `HEDGEHOG_WADDLE_FREQ` / `AMP` | `4.0 / 0.8` | rad/sec and DIP vertical bob |
@@ -2336,7 +2294,7 @@ HEDGEHOG_STATE_IDLE      = 2   // stationary, body shifted up 1 DIP (alert pose)
 HEDGEHOG_STATE_SLEEPING  = 3   // curled ball form, no face/legs, small ZZZ puffs
 HEDGEHOG_STATE_CURLED    = 4   // defensive ball after startle, no ZZZ puffs
 
-Walking expires → choose Snuffling / Idle / Sleeping using local-hour sleep probability
+Walking expires → choose Snuffling / Idle / Sleeping using `HEDGEHOG_SLEEP_PROB`
 Snuffling / Idle / Sleeping expire → Walking
 Click within startle radius → Curled
 Curled expires → previous non-sleep state; if startled from Sleeping, return to Walking
@@ -2344,9 +2302,9 @@ Curled expires → previous non-sleep state; if startled from Sleeping, return t
 
 `e.age` is reset on every state transition. Walking uses `y_offset = HEDGEHOG_WADDLE_AMP * sin(age * HEDGEHOG_WADDLE_FREQ)`. Snuffling uses `head_x_offset = HEDGEHOG_SNUFFLE_HEAD_AMP * sin(age * HEDGEHOG_SNUFFLE_HEAD_FREQ)`. All non-Walking hedgehog states undo the generic `vx * dt` integration so the critter stays planted.
 
-### Time-of-day sleep bias
+### Sleep probability
 
-Hedgehogs are nocturnal. `hedgehog_sleep_prob_for_local_hour(hour)` returns `HEDGEHOG_SLEEP_PROB_DAY = 0.50` for `06:00 ≤ hour < 18:00` and `HEDGEHOG_SLEEP_PROB_NIGHT = 0.05` otherwise. On Walking expiry, sleep is an absolute probability; if the hedgehog does not sleep, Snuffling vs Idle is selected from the active weights `0.55 / 0.30`.
+`hedgehog_choose_rest_state(Prng&)` uses a single absolute sleep probability, `HEDGEHOG_SLEEP_PROB = 0.50`. If the hedgehog does not sleep, Snuffling vs Idle is selected from the active weights `0.55 / 0.30`.
 
 ### Generation (PRNG draw order — LOCKED)
 
@@ -2437,25 +2395,9 @@ Example: `1920x1080@0,0`. If a saved monitor key does not match any current moni
 
 The JSON field is named `cutTime`, but saved values are shifted relative to the sim time at save: `cutTime = originalCutTime - currentGlobalTime`. A cut made 20 seconds ago is saved as `-20.0`. Loading into a fresh sim with `globalTime = 0` applies that as `cutTime = -20.0`, preserving elapsed time and allowing regrowth to resume from the correct point without storing per-monitor global clocks.
 
-## 19. Day-night ambient tint
+## 19. Day-night ambient tint (removed)
 
-DesktopGrass renders a passive, full-strip day-night ambient tint as the final draw of each frame, after blades, scene entities, and critters. It is render-only: no PRNG draws, no simulation state, and no entity behavior changes.
-
-| Phase | Hour key | RGB | Alpha |
-|---|---:|---|---:|
-| Night | 0.0 | (40, 50, 90) | 36 |
-| Predawn | 4.0 | (60, 70, 110) | 32 |
-| Sunrise | 6.0 | (255, 180, 140) | 28 |
-| Morning | 8.0 | (255, 220, 160) | 16 |
-| Day | 10.0 | (255, 255, 255) | 0 |
-| Late afternoon | 17.0 | (240, 170, 110) | 22 |
-| Sunset | 19.0 | (220, 110, 90) | 30 |
-| Dusk | 20.0 | (90, 80, 130) | 28 |
-| Night | 22.0 | (40, 50, 90) | 36 |
-
-`hourFloat = localHour + localMinute / 60.0`, using the same local clock source as critter sleep bias. Normalize into `[0, 24)`, find the bracketing hour keys (wrapping at 24), and linearly interpolate RGB and alpha with `t = (hourFloat - current.startHour) / (next.startHour - current.startHour)`, using wrap-aware span math. Bands longer than two hours are calm plateaus: Night 00-04 and Day 10-17 hold their start color/alpha, so noon is truly no-tint. `DAYTINT_MAX_ALPHA` is 36 and clamps the result so the effect remains subtle.
-
-Current builds keep the tint enabled by default (`DAYTINT_ENABLED_DEFAULT = true`) and do not add a tray toggle; therefore day tint has no `state.json` impact.
+Removed — the app no longer has any day-night tint or time-of-day behavior. No frame draws a tint, no simulation path reads the wall clock, and Grass-scene flyers/critters use deterministic rules independent of local time.
 
 ## 20. Weather — Light rain (REMOVED)
 

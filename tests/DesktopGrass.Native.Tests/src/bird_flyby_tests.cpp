@@ -77,8 +77,6 @@ uint64_t find_v_seed(int minSize) {
 
 TEST_CASE("Bird flyby constants are pinned to spec values", "[bird][constants]") {
     REQUIRE(BIRD_FLYBY_SPAWN_RATE_PER_HOUR == Approx(15.0));
-    REQUIRE(BIRD_FLYBY_HOUR_START == 7);
-    REQUIRE(BIRD_FLYBY_HOUR_END == 19);
     REQUIRE(BIRD_FLOCK_SIZE_MIN == 3);
     REQUIRE(BIRD_FLOCK_SIZE_MAX == 7);
     REQUIRE(BIRD_FLOCK_FORMATION_SPACING == Approx(9.0));
@@ -213,31 +211,23 @@ TEST_CASE("Bird flybys are Grass scene only", "[bird][scene]") {
         reset_bird_schedule(sim, CANONICAL_TEST_SEED);
         for (int i = 0; i < 8 * 3600; ++i) {
             sim.globalTime += 1.0;
-            sim_tick_bird_flybys(sim, 12);
+            sim_tick_bird_flybys(sim);
         }
         REQUIRE(count_birds(sim) == 0);
     }
 }
 
-TEST_CASE("Bird flyby day gating controls Poisson spawns", "[bird][time]") {
-    Sim night = build_sim();
-    reset_bird_schedule(night, CANONICAL_TEST_SEED);
-    for (int i = 0; i < 10 * 3600; ++i) {
-        night.globalTime += 1.0;
-        sim_tick_bird_flybys(night, 2);
-    }
-    REQUIRE(count_birds(night) == 0);
-
-    Sim day = build_sim(0xDAD1B17Dull);
-    reset_bird_schedule(day, 0xDAD1B17Dull);
+TEST_CASE("Bird flyby Poisson spawns when schedule elapses", "[bird][time]") {
+    Sim sim = build_sim(0xDAD1B17Dull);
+    reset_bird_schedule(sim, 0xDAD1B17Dull);
     int flybys = 0;
     for (int i = 0; i < 10 * 3600; ++i) {
-        day.globalTime += 1.0;
-        const int before = count_birds(day);
-        sim_tick_bird_flybys(day, 12);
-        if (count_birds(day) > before) {
+        sim.globalTime += 1.0;
+        const int before = count_birds(sim);
+        sim_tick_bird_flybys(sim);
+        if (count_birds(sim) > before) {
             ++flybys;
-            day.entities.clear();
+            sim.entities.clear();
         }
     }
 
@@ -366,7 +356,7 @@ TEST_CASE("Bird flyby Poisson inter-arrivals keep expected mean", "[bird][poisso
         sim.globalTime = sim.nextBirdFlybyAtTime;
         totalInterval += sim.globalTime - prev;
         prev = sim.globalTime;
-        sim_tick_bird_flybys(sim, 12);
+        sim_tick_bird_flybys(sim);
         sim.entities.clear();
     }
 

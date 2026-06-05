@@ -131,8 +131,7 @@ TEST_CASE("Bunny constants are pinned to spec values", "[bunny][constants]") {
     REQUIRE(BUNNY_SLEEP_DURATION_MAX == Approx(12.0));
     REQUIRE(BUNNY_GRAZE_PROBABILITY == Approx(0.55));
     REQUIRE(BUNNY_IDLE_PROBABILITY == Approx(0.30));
-    REQUIRE(BUNNY_SLEEP_PROB_DAY == Approx(0.05));
-    REQUIRE(BUNNY_SLEEP_PROB_NIGHT == Approx(0.40));
+    REQUIRE(BUNNY_SLEEP_PROB == Approx(0.05));
     REQUIRE(BUNNY_STARTLE_RADIUS == Approx(90.0));
     REQUIRE(BUNNY_STARTLE_BOOST == Approx(2.0));
     REQUIRE(BUNNY_STARTLE_HOP_HEIGHT == Approx(14.0));
@@ -285,13 +284,13 @@ TEST_CASE("Bunny state transition probabilities are stable", "[bunny][state]") {
     int idle = 0;
     int sleep = 0;
     for (int i = 0; i < N; ++i) {
-        const uint8_t state = bunny_choose_rest_state(p, 12);
+        const uint8_t state = bunny_choose_rest_state(p);
         if (state == BUNNY_STATE_GRAZING) ++graze;
         else if (state == BUNNY_STATE_IDLE) ++idle;
         else if (state == BUNNY_STATE_SLEEPING) ++sleep;
     }
 
-    const double sleepProb = BUNNY_SLEEP_PROB_DAY;
+    const double sleepProb = BUNNY_SLEEP_PROB;
     const double activeWeight = BUNNY_GRAZE_PROBABILITY + BUNNY_IDLE_PROBABILITY;
     const double expectedGraze = (1.0 - sleepProb) * BUNNY_GRAZE_PROBABILITY / activeWeight;
     const double expectedIdle = (1.0 - sleepProb) * BUNNY_IDLE_PROBABILITY / activeWeight;
@@ -300,21 +299,13 @@ TEST_CASE("Bunny state transition probabilities are stable", "[bunny][state]") {
     REQUIRE(static_cast<double>(idle) / N == Approx(expectedIdle).margin(0.02));
 }
 
-TEST_CASE("Bunny time-of-day sleep bias is day night", "[bunny][time]") {
-    REQUIRE(bunny_sleep_prob_for_local_hour(12) == Approx(BUNNY_SLEEP_PROB_DAY));
-    REQUIRE(bunny_sleep_prob_for_local_hour(0) == Approx(BUNNY_SLEEP_PROB_NIGHT));
-
-    constexpr int N = 10000;
-    Prng noon;
-    Prng midnight;
-    prng_init(noon, CANONICAL_TEST_SEED ^ 0x1234ull);
-    prng_init(midnight, CANONICAL_TEST_SEED ^ 0x5678ull);
-    int noonSleep = 0;
-    int midnightSleep = 0;
+TEST_CASE("Bunny sleep probability is stable", "[bunny][state]") {
+    constexpr int N = 20000;
+    Prng p;
+    prng_init(p, CANONICAL_TEST_SEED ^ 0x1234ull);
+    int sleep = 0;
     for (int i = 0; i < N; ++i) {
-        if (bunny_choose_rest_state(noon, 12) == BUNNY_STATE_SLEEPING) ++noonSleep;
-        if (bunny_choose_rest_state(midnight, 0) == BUNNY_STATE_SLEEPING) ++midnightSleep;
+        if (bunny_choose_rest_state(p) == BUNNY_STATE_SLEEPING) ++sleep;
     }
-    REQUIRE(static_cast<double>(noonSleep) / N == Approx(BUNNY_SLEEP_PROB_DAY).margin(0.02));
-    REQUIRE(static_cast<double>(midnightSleep) / N == Approx(BUNNY_SLEEP_PROB_NIGHT).margin(0.02));
+    REQUIRE(static_cast<double>(sleep) / N == Approx(BUNNY_SLEEP_PROB).margin(0.02));
 }

@@ -128,8 +128,7 @@ public class BunnyTests
         Assert.Equal(12.0, Constants.BUNNY_SLEEP_DURATION_MAX);
         Assert.Equal(0.55, Constants.BUNNY_GRAZE_PROBABILITY);
         Assert.Equal(0.30, Constants.BUNNY_IDLE_PROBABILITY);
-        Assert.Equal(0.05, Constants.BUNNY_SLEEP_PROB_DAY);
-        Assert.Equal(0.40, Constants.BUNNY_SLEEP_PROB_NIGHT);
+        Assert.Equal(0.05, Constants.BUNNY_SLEEP_PROB);
         Assert.Equal(90.0, Constants.BUNNY_STARTLE_RADIUS);
         Assert.Equal(2.0, Constants.BUNNY_STARTLE_BOOST);
         Assert.Equal(14.0, Constants.BUNNY_STARTLE_HOP_HEIGHT);
@@ -299,13 +298,13 @@ public class BunnyTests
         int sleep = 0;
         for (int i = 0; i < n; i++)
         {
-            byte state = Sim.BunnyChooseRestState(ref p, 12);
+            byte state = Sim.BunnyChooseRestState(ref p);
             if (state == Constants.BUNNY_STATE_GRAZING) graze++;
             else if (state == Constants.BUNNY_STATE_IDLE) idle++;
             else if (state == Constants.BUNNY_STATE_SLEEPING) sleep++;
         }
 
-        double sleepProb = Constants.BUNNY_SLEEP_PROB_DAY;
+        double sleepProb = Constants.BUNNY_SLEEP_PROB;
         double activeWeight = Constants.BUNNY_GRAZE_PROBABILITY + Constants.BUNNY_IDLE_PROBABILITY;
         double expectedGraze = (1.0 - sleepProb) * Constants.BUNNY_GRAZE_PROBABILITY / activeWeight;
         double expectedIdle = (1.0 - sleepProb) * Constants.BUNNY_IDLE_PROBABILITY / activeWeight;
@@ -315,26 +314,18 @@ public class BunnyTests
     }
 
     [Fact]
-    public void BunnyTimeOfDaySleepBiasIsDayNight()
+    public void BunnySleepProbabilityMatchesSingleConstant()
     {
-        Assert.Equal(Constants.BUNNY_SLEEP_PROB_DAY, Sim.BunnySleepProbForLocalHour(12));
-        Assert.Equal(Constants.BUNNY_SLEEP_PROB_NIGHT, Sim.BunnySleepProbForLocalHour(0));
-
-        const int n = 10000;
-        var noon = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x1234UL);
-        var midnight = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x5678UL);
-        int noonSleep = 0;
-        int midnightSleep = 0;
+        const int n = 20000;
+        var p = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x1234UL);
+        int sleep = 0;
         for (int i = 0; i < n; i++)
         {
-            if (Sim.BunnyChooseRestState(ref noon, 12) == Constants.BUNNY_STATE_SLEEPING) noonSleep++;
-            if (Sim.BunnyChooseRestState(ref midnight, 0) == Constants.BUNNY_STATE_SLEEPING) midnightSleep++;
+            if (Sim.BunnyChooseRestState(ref p) == Constants.BUNNY_STATE_SLEEPING) sleep++;
         }
-        Assert.InRange(noonSleep / (double)n,
-                       Constants.BUNNY_SLEEP_PROB_DAY - 0.02,
-                       Constants.BUNNY_SLEEP_PROB_DAY + 0.02);
-        Assert.InRange(midnightSleep / (double)n,
-                       Constants.BUNNY_SLEEP_PROB_NIGHT - 0.02,
-                       Constants.BUNNY_SLEEP_PROB_NIGHT + 0.02);
+
+        Assert.InRange(sleep / (double)n,
+                       Constants.BUNNY_SLEEP_PROB - 0.02,
+                       Constants.BUNNY_SLEEP_PROB + 0.02);
     }
 }

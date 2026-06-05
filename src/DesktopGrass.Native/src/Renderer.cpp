@@ -35,13 +35,6 @@ void LogHR(const char* tag, HRESULT hr) {
 
 constexpr float SHEEP_CURIOUS_VERTICAL_RADIUS_DIP = 120.0f;
 
-double CurrentLocalHourFractional() noexcept {
-    SYSTEMTIME st{};
-    GetLocalTime(&st);
-    return static_cast<double>(st.wHour)
-         + static_cast<double>(st.wMinute) / 60.0
-         + static_cast<double>(st.wSecond) / 3600.0;
-}
 
 // Render-only shear that leans a tree about its trunk base (pivotGy) by a
 // damped, clamped fraction of the blade's effectiveLean. Returns identity for
@@ -424,11 +417,6 @@ bool Renderer::CreateDeviceResources() {
                                             petNameShadowBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
-    dayTintBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f),
-                                            dayTintBrush_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-
     return true;
 }
 
@@ -525,7 +513,6 @@ void Renderer::DiscardDeviceResources() {
     fireflyGlowBrush_.Reset();
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
-    dayTintBrush_.Reset();
     petNameTextFormat_.Reset();
     roundStrokeStyle_.Reset();
     dwriteFactory_.Reset();
@@ -618,32 +605,6 @@ void Renderer::Tick(double dt,
     sim_tick(sim_, clamp_dt(dt), events, numEvents);
 }
 
-void Renderer::DrawDayTint() {
-    if (!DAYTINT_ENABLED_DEFAULT || !dayTintBrush_) return;
-
-    const double hourFloat = CurrentLocalHourFractional();
-
-    uint8_t r = 0;
-    uint8_t g = 0;
-    uint8_t b = 0;
-    uint8_t a = 0;
-    compute_day_tint(hourFloat, r, g, b, a);
-    if (a == 0) return;
-
-    dayTintBrush_->SetColor(D2D1::ColorF(
-        static_cast<float>(r) / 255.0f,
-        static_cast<float>(g) / 255.0f,
-        static_cast<float>(b) / 255.0f,
-        static_cast<float>(a) / 255.0f));
-
-    const D2D1_RECT_F fullStrip = D2D1::RectF(
-        0.0f,
-        0.0f,
-        static_cast<float>(sim_.monitorWidth),
-        static_cast<float>(sim_.windowHeight));
-    d2dContext_->FillRectangle(fullStrip, dayTintBrush_.Get());
-}
-
 void Renderer::RenderFrame(double dt,
                            const InputEvent* events,
                            std::size_t numEvents)
@@ -665,7 +626,6 @@ void Renderer::RenderFrame(double dt,
     DrawGrass(false, false); // ground cover incl. Winter snow-tipped grass
     DrawGrass(true, false);  // foreground treeline
     DrawEntities(cursorForRender);
-    DrawDayTint();
 
     HRESULT hr = d2dContext_->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {
@@ -1193,20 +1153,14 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
     }
 }
 
-void Renderer::DrawButterfly(const Entity& e, double hourFloat) {
-    const double fade = butterfly_fade(hourFloat);
-    if (fade <= 0.0 || !butterflyBodyBrush_) return;
+void Renderer::DrawButterfly(const Entity& e) {
+    if (!butterflyBodyBrush_) return;
 
     uint8_t idx = e.colorVariant;
     if (idx >= BUTTERFLY_COLOR_COUNT) idx = 0;
     ID2D1SolidColorBrush* wingBrush = butterflyWingBrushes_[idx].Get();
     ID2D1SolidColorBrush* accentBrush = butterflyAccentBrushes_[idx].Get();
     if (!wingBrush || !accentBrush) return;
-
-    const float opacity = static_cast<float>(fade);
-    wingBrush->SetOpacity(opacity);
-    accentBrush->SetOpacity(opacity);
-    butterflyBodyBrush_->SetOpacity(opacity);
 
     const float cx = static_cast<float>(e.x);
     const float cy = static_cast<float>(e.y);
@@ -1231,17 +1185,12 @@ void Renderer::DrawButterfly(const Entity& e, double hourFloat) {
     d2dContext_->FillEllipse(
         D2D1::Ellipse(D2D1::Point2F(cx, cy), 0.3f, static_cast<float>(BUTTERFLY_BODY_LENGTH * 0.5)),
         butterflyBodyBrush_.Get());
-
-    wingBrush->SetOpacity(1.0f);
-    accentBrush->SetOpacity(1.0f);
-    butterflyBodyBrush_->SetOpacity(1.0f);
 }
 
-void Renderer::DrawFirefly(const Entity& e, double hourFloat) {
-    const double fade = firefly_fade(hourFloat);
-    if (fade <= 0.0 || !fireflyBodyBrush_ || !fireflyGlowBrush_) return;
+void Renderer::DrawFirefly(const Entity& e) {
+    if (!fireflyBodyBrush_ || !fireflyGlowBrush_) return;
 
-    const double brightness = firefly_blink_brightness(e.age, e.blinkPeriod, e.blinkPhase) * fade;
+    const double brightness = firefly_blink_brightness(e.age, e.blinkPeriod, e.blinkPhase);
     if (brightness <= 0.0) return;
 
     const float cx = static_cast<float>(e.x);
@@ -1805,7 +1754,6 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
     if (sim_.entities.empty()) return;
 
     constexpr double TWO_PI_LOCAL = 6.28318530717958647692;
-    const double hourFloat = CurrentLocalHourFractional();
 
     for (const Entity& e : sim_.entities) {
         if (e.kind == EntityKind::Tumbleweed) {
@@ -1849,12 +1797,12 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
         }
 
         if (e.kind == EntityKind::Butterfly) {
-            DrawButterfly(e, hourFloat);
+            DrawButterfly(e);
             continue;
         }
 
         if (e.kind == EntityKind::Firefly) {
-            DrawFirefly(e, hourFloat);
+            DrawFirefly(e);
             continue;
         }
 

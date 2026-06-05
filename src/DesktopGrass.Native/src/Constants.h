@@ -374,14 +374,7 @@ constexpr double   SHEEP_CURIOUS_HEAD_TURN_MAX = 0.55;  // radians, max head rot
 constexpr double   SHEEP_GRAZE_PROBABILITY  = 0.60;
 constexpr double   SHEEP_IDLE_PROBABILITY   = 0.25;
 // Idle-expiry: chance of slipping into Sleeping vs returning to Walking.
-constexpr double   SHEEP_SLEEP_PROB_MORNING = 0.10;  // 06:00-10:00 local
-constexpr double   SHEEP_SLEEP_PROB_DEFAULT = 0.30;  // 10:00-22:00 local
-constexpr double   SHEEP_SLEEP_PROB_NIGHT   = 0.70;  // 22:00-06:00 local
-constexpr int      SHEEP_MORNING_START_HOUR = 6;     // inclusive
-constexpr int      SHEEP_MORNING_END_HOUR   = 10;    // exclusive
-constexpr int      SHEEP_NIGHT_START_HOUR   = 22;    // inclusive
-constexpr int      SHEEP_NIGHT_END_HOUR     = 6;     // exclusive, wraps midnight
-constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = SHEEP_SLEEP_PROB_DEFAULT;
+constexpr double   SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
 
 // Idle / Grazing / Greeting tiny animations.
 constexpr double   SHEEP_IDLE_SWEEP_FREQ      = 1.4;    // rad/sec for L/R head turn
@@ -464,9 +457,7 @@ constexpr double   CAT_POUNCE_DURATION    = 0.45;
 
 constexpr double   CAT_IDLE_PROBABILITY   = 0.65;
 constexpr double   CAT_SLEEP_PROBABILITY  = 0.30;
-constexpr double   CAT_SLEEP_FROM_IDLE_PROB_DEFAULT = 0.50;
-constexpr double   CAT_SLEEP_FROM_IDLE_PROB_MORNING = 0.20;
-constexpr double   CAT_SLEEP_FROM_IDLE_PROB_NIGHT   = 0.85;
+constexpr double   CAT_SLEEP_FROM_IDLE_PROB = 0.50;
 
 constexpr double   CAT_POUNCE_RADIUS      = 80.0;
 constexpr double   CAT_POUNCE_HEIGHT      = 9.0;
@@ -513,8 +504,7 @@ constexpr double   BUNNY_SLEEP_DURATION_MIN = 6.0;
 constexpr double   BUNNY_SLEEP_DURATION_MAX = 12.0;
 constexpr double   BUNNY_GRAZE_PROBABILITY  = 0.55;
 constexpr double   BUNNY_IDLE_PROBABILITY   = 0.30;
-constexpr double   BUNNY_SLEEP_PROB_DAY     = 0.05;
-constexpr double   BUNNY_SLEEP_PROB_NIGHT   = 0.40;
+constexpr double   BUNNY_SLEEP_PROB         = 0.05;
 
 constexpr double   BUNNY_STARTLE_RADIUS     = 90.0;
 constexpr double   BUNNY_STARTLE_BOOST      = 2.0;
@@ -571,8 +561,7 @@ constexpr double   HEDGEHOG_CURL_DURATION_MIN     = 3.0;
 constexpr double   HEDGEHOG_CURL_DURATION_MAX     = 5.5;
 constexpr double   HEDGEHOG_SNUFFLE_PROBABILITY   = 0.55;
 constexpr double   HEDGEHOG_IDLE_PROBABILITY      = 0.30;
-constexpr double   HEDGEHOG_SLEEP_PROB_DAY        = 0.50;
-constexpr double   HEDGEHOG_SLEEP_PROB_NIGHT      = 0.05;
+constexpr double   HEDGEHOG_SLEEP_PROB            = 0.50;
 constexpr double   HEDGEHOG_STARTLE_RADIUS        = 70.0;
 constexpr double   HEDGEHOG_SNUFFLE_HEAD_FREQ     = 5.0;
 constexpr double   HEDGEHOG_SNUFFLE_HEAD_AMP      = 0.7;
@@ -601,9 +590,6 @@ constexpr double   BUTTERFLY_ALTITUDE_MIN       = 18.0;
 constexpr double   BUTTERFLY_ALTITUDE_MAX       = 70.0;
 constexpr uint32_t BUTTERFLY_BODY_COLOR         = 0xFF2A2018u;
 constexpr int      BUTTERFLY_COLOR_COUNT        = 5;
-constexpr int      BUTTERFLY_HOUR_START         = 6;
-constexpr int      BUTTERFLY_HOUR_END           = 19;
-constexpr int      BUTTERFLY_FADE_DURATION_HOUR = 1;
 constexpr uint64_t BUTTERFLY_PRNG_SALT          = 0xB07DEF1E0001ull;
 
 struct ButterflyPalette {
@@ -619,7 +605,7 @@ constexpr ButterflyPalette BUTTERFLY_PALETTES[BUTTERFLY_COLOR_COUNT] = {
     { 0xFFFFA6C8u, 0xFFFF6EA8u }, // 4 Pink: soft pink + rose
 };
 
-// Fireflies (§17.7). Grass-only, passive nighttime ambient flyers.
+// Fireflies (§17.7). Grass-only, passive ambient flyers.
 constexpr int      FIREFLY_COUNT_MIN            = 3;
 constexpr int      FIREFLY_COUNT_MAX            = 6;
 constexpr double   FIREFLY_DRIFT_SPEED_MIN      = 4.0;
@@ -640,15 +626,10 @@ constexpr uint32_t FIREFLY_BODY_COLOR           = 0xFFFFEE88u;
 constexpr uint32_t FIREFLY_GLOW_COLOR_RGB       = 0xEEDD66u;
 constexpr int      FIREFLY_GLOW_ALPHA_MAX       = 110;
 constexpr int      FIREFLY_BODY_ALPHA_MAX       = 255;
-constexpr int      FIREFLY_NIGHT_START_HOUR     = 20;
-constexpr int      FIREFLY_NIGHT_END_HOUR       = 6;
-constexpr int      FIREFLY_FADE_DURATION_HOUR   = 1;
 constexpr uint64_t FIREFLY_PRNG_SALT            = 0xF13EF1E7777ull;
 
-// Bird flybys (§17.8). Grass-only daytime transient flocks.
+// Bird flybys (§17.8). Grass-only transient flocks.
 constexpr double   BIRD_FLYBY_SPAWN_RATE_PER_HOUR = 15.0;
-constexpr int      BIRD_FLYBY_HOUR_START           = 7;
-constexpr int      BIRD_FLYBY_HOUR_END             = 19;
 constexpr int      BIRD_FLOCK_SIZE_MIN             = 3;
 constexpr int      BIRD_FLOCK_SIZE_MAX             = 7;
 constexpr double   BIRD_FLOCK_FORMATION_SPACING    = 9.0;
@@ -846,37 +827,6 @@ constexpr double   LEAF_PUFF_MIN_CUT_HEIGHT     = 0.5;    // tree must be reason
 constexpr double   LEAF_PUFF_START_OFFSET_FRAC  = 0.4;    // spawn spread within canopy
 constexpr uint64_t LEAF_PUFF_PRNG_SALT          = 0x9E3779B97F4A7C15ull;
 
-// Day-night ambient tint (§19). Pure render overlay; no simulation state.
-struct DayTintPhase {
-    float   startHour;
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t alpha;
-};
-
-constexpr bool    DAYTINT_ENABLED_DEFAULT = false;
-constexpr uint8_t DAYTINT_MAX_ALPHA       = 36;
-
-constexpr DayTintPhase DAYTINT_PHASES[] = {
-    {  0.0f,  40,  50,  90, 36 },  // Night (wraps from prev night)
-    {  4.0f,  60,  70, 110, 32 },  // Predawn
-    {  6.0f, 255, 180, 140, 28 },  // Sunrise
-    {  8.0f, 255, 220, 160, 16 },  // Morning
-    { 10.0f, 255, 255, 255,  0 },  // Day - no tint
-    { 17.0f, 240, 170, 110, 22 },  // Late afternoon
-    { 19.0f, 220, 110,  90, 30 },  // Sunset
-    { 20.0f,  90,  80, 130, 28 },  // Dusk
-    { 22.0f,  40,  50,  90, 36 },  // Night
-};
-constexpr int DAYTINT_PHASE_COUNT = static_cast<int>(sizeof(DAYTINT_PHASES) / sizeof(DAYTINT_PHASES[0]));
-
-inline double normalize_day_tint_hour(double hourFloat) noexcept {
-    double hour = std::fmod(hourFloat, 24.0);
-    if (hour < 0.0) hour += 24.0;
-    return hour;
-}
-
 inline double ambient_clamp01(double value) noexcept {
     if (value <= 0.0) return 0.0;
     if (value >= 1.0) return 1.0;
@@ -886,32 +836,6 @@ inline double ambient_clamp01(double value) noexcept {
 inline double ambient_smoothstep01(double value) noexcept {
     const double t = ambient_clamp01(value);
     return t * t * (3.0 - 2.0 * t);
-}
-
-inline double butterfly_fade(double hourFloat) noexcept {
-    const double hour = normalize_day_tint_hour(hourFloat);
-    const double fadeStart = static_cast<double>(BUTTERFLY_HOUR_START - BUTTERFLY_FADE_DURATION_HOUR);
-    const double start = static_cast<double>(BUTTERFLY_HOUR_START);
-    const double end = static_cast<double>(BUTTERFLY_HOUR_END);
-    const double fadeEnd = static_cast<double>(BUTTERFLY_HOUR_END + BUTTERFLY_FADE_DURATION_HOUR);
-
-    if (hour >= fadeStart && hour < start) return ambient_clamp01((hour - fadeStart) / BUTTERFLY_FADE_DURATION_HOUR);
-    if (hour >= start && hour < end) return 1.0;
-    if (hour >= end && hour < fadeEnd) return ambient_clamp01((fadeEnd - hour) / BUTTERFLY_FADE_DURATION_HOUR);
-    return 0.0;
-}
-
-inline double firefly_fade(double hourFloat) noexcept {
-    const double hour = normalize_day_tint_hour(hourFloat);
-    const double nightStart = static_cast<double>(FIREFLY_NIGHT_START_HOUR);
-    const double nightEnd = static_cast<double>(FIREFLY_NIGHT_END_HOUR);
-    const double fadeInStart = nightStart - static_cast<double>(FIREFLY_FADE_DURATION_HOUR);
-    const double fadeOutEnd = nightEnd + static_cast<double>(FIREFLY_FADE_DURATION_HOUR);
-
-    if (hour >= nightStart || hour < nightEnd) return 1.0;
-    if (hour >= fadeInStart && hour < nightStart) return ambient_clamp01((hour - fadeInStart) / FIREFLY_FADE_DURATION_HOUR);
-    if (hour >= nightEnd && hour < fadeOutEnd) return ambient_clamp01((fadeOutEnd - hour) / FIREFLY_FADE_DURATION_HOUR);
-    return 0.0;
 }
 
 inline double butterfly_wing_scale(double timeSeconds, double phaseY) noexcept {
@@ -959,54 +883,6 @@ inline double firefly_blink_brightness(double timeSeconds, double blinkPeriod, d
         }
     }
     return ambient_clamp01(brightness);
-}
-
-inline uint8_t day_tint_lerp_channel(uint8_t from, uint8_t to, double t) noexcept {
-    const double value = static_cast<double>(from) +
-        (static_cast<double>(to) - static_cast<double>(from)) * t;
-    if (value <= 0.0) return 0;
-    if (value >= 255.0) return 255;
-    return static_cast<uint8_t>(value);
-}
-
-inline void compute_day_tint(double hourFloat,
-                             uint8_t& r,
-                             uint8_t& g,
-                             uint8_t& b,
-                             uint8_t& alpha) noexcept {
-    const double hour = normalize_day_tint_hour(hourFloat);
-
-    int currentIndex = DAYTINT_PHASE_COUNT - 1;
-    for (int i = 0; i < DAYTINT_PHASE_COUNT; ++i) {
-        if (hour >= static_cast<double>(DAYTINT_PHASES[i].startHour)) {
-            currentIndex = i;
-        } else {
-            break;
-        }
-    }
-
-    const DayTintPhase& current = DAYTINT_PHASES[currentIndex];
-    const DayTintPhase& next = DAYTINT_PHASES[(currentIndex + 1) % DAYTINT_PHASE_COUNT];
-
-    double currentStart = static_cast<double>(current.startHour);
-    double nextStart = static_cast<double>(next.startHour);
-    if (nextStart <= currentStart) nextStart += 24.0;
-
-    double hourForLerp = hour;
-    if (hourForLerp < currentStart) hourForLerp += 24.0;
-
-    double t = 0.0;
-    const double span = nextStart - currentStart;
-    if (span > 0.0) t = (hourForLerp - currentStart) / span;
-    if (t < 0.0) t = 0.0;
-    if (t > 1.0) t = 1.0;
-    if (span > 2.0) t = 0.0; // long Night/Day spans are plateaus; 1-2h bands blend.
-
-    r = day_tint_lerp_channel(current.r, next.r, t);
-    g = day_tint_lerp_channel(current.g, next.g, t);
-    b = day_tint_lerp_channel(current.b, next.b, t);
-    alpha = day_tint_lerp_channel(current.alpha, next.alpha, t);
-    if (alpha > DAYTINT_MAX_ALPHA) alpha = DAYTINT_MAX_ALPHA;
 }
 
 } // namespace desktopgrass

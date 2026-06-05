@@ -111,9 +111,7 @@ public class CatTests
 
         Assert.Equal(0.65, Constants.CAT_IDLE_PROBABILITY);
         Assert.Equal(0.30, Constants.CAT_SLEEP_PROBABILITY);
-        Assert.Equal(0.50, Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT);
-        Assert.Equal(0.20, Constants.CAT_SLEEP_FROM_IDLE_PROB_MORNING);
-        Assert.Equal(0.85, Constants.CAT_SLEEP_FROM_IDLE_PROB_NIGHT);
+        Assert.Equal(0.50, Constants.CAT_SLEEP_FROM_IDLE_PROB);
 
         Assert.Equal(80.0, Constants.CAT_POUNCE_RADIUS);
         Assert.Equal(9.0, Constants.CAT_POUNCE_HEIGHT);
@@ -364,12 +362,4 @@ public class CatTests
         Assert.All(sim.Entities, e => Assert.NotEqual(Constants.SHEEP_STATE_GREETING, e.State));
     }
 
-    [Fact]
-    public void CatTimeOfDaySleepBiasIsPinned()
-    {
-        Assert.Equal(0.85, Sim.CatSleepProbForLocalHour(2));
-        Assert.Equal(0.20, Sim.CatSleepProbForLocalHour(8));
-        Assert.Equal(0.50, Sim.CatSleepProbForLocalHour(15));
-        Assert.Equal(0.85, Sim.CatSleepProbForLocalHour(23));
-    }
 }

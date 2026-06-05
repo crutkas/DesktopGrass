@@ -266,54 +266,8 @@ internal sealed class Sim
     public Prng CritterPrng;
     public int CritterCountOverride;
 
-    private static bool HourInHalfOpenRange(int hour, int start, int end) =>
-        start <= end ? hour >= start && hour < end : hour >= start || hour < end;
-
-    public static bool BirdFlybyIsDayHour(int hour) =>
-        hour >= 0 && hour <= 23 && HourInHalfOpenRange(hour, Constants.BIRD_FLYBY_HOUR_START, Constants.BIRD_FLYBY_HOUR_END);
-
     public static double BirdFlybySampleInterval(ref Prng p) =>
         p.Exponential(Constants.BIRD_FLYBY_SPAWN_RATE_PER_HOUR / 3600.0);
-
-    internal static double SheepSleepProbForLocalHour(int hour)
-    {
-        if (hour < 0 || hour > 23) return Constants.SHEEP_SLEEP_PROB_DEFAULT;
-        if (HourInHalfOpenRange(hour, Constants.SHEEP_MORNING_START_HOUR,
-                                Constants.SHEEP_MORNING_END_HOUR))
-            return Constants.SHEEP_SLEEP_PROB_MORNING;
-        if (HourInHalfOpenRange(hour, Constants.SHEEP_NIGHT_START_HOUR,
-                                Constants.SHEEP_NIGHT_END_HOUR))
-            return Constants.SHEEP_SLEEP_PROB_NIGHT;
-        return Constants.SHEEP_SLEEP_PROB_DEFAULT;
-    }
-
-    internal static double CatSleepProbForLocalHour(int hour)
-    {
-        if (hour < 0 || hour > 23) return Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
-        if (HourInHalfOpenRange(hour, Constants.SHEEP_MORNING_START_HOUR,
-                                Constants.SHEEP_MORNING_END_HOUR))
-            return Constants.CAT_SLEEP_FROM_IDLE_PROB_MORNING;
-        if (HourInHalfOpenRange(hour, Constants.SHEEP_NIGHT_START_HOUR,
-                                Constants.SHEEP_NIGHT_END_HOUR))
-            return Constants.CAT_SLEEP_FROM_IDLE_PROB_NIGHT;
-        return Constants.CAT_SLEEP_FROM_IDLE_PROB_DEFAULT;
-    }
-
-    internal static double BunnySleepProbForLocalHour(int hour)
-    {
-        if (hour < 0 || hour > 23) return Constants.BUNNY_SLEEP_PROB_DAY;
-        return HourInHalfOpenRange(hour, 10, 20)
-            ? Constants.BUNNY_SLEEP_PROB_DAY
-            : Constants.BUNNY_SLEEP_PROB_NIGHT;
-    }
-
-    internal static double HedgehogSleepProbForLocalHour(int hour)
-    {
-        if (hour < 0 || hour > 23) return Constants.HEDGEHOG_SLEEP_PROB_DAY;
-        return HourInHalfOpenRange(hour, 6, 18)
-            ? Constants.HEDGEHOG_SLEEP_PROB_DAY
-            : Constants.HEDGEHOG_SLEEP_PROB_NIGHT;
-    }
 
     internal static double BunnyHopYOffset(double age, bool startled)
     {
@@ -322,9 +276,9 @@ internal sealed class Sim
         return 4.0 * height * t * (1.0 - t);
     }
 
-    internal static byte BunnyChooseRestState(ref Prng p, int hour)
+    internal static byte BunnyChooseRestState(ref Prng p)
     {
-        double sleepProb = BunnySleepProbForLocalHour(hour);
+        double sleepProb = Constants.BUNNY_SLEEP_PROB;
         double r = p.Uniform(0.0, 1.0);
         if (r < sleepProb) return Constants.BUNNY_STATE_SLEEPING;
 
@@ -337,9 +291,9 @@ internal sealed class Sim
             : Constants.BUNNY_STATE_IDLE;
     }
 
-    internal static byte HedgehogChooseRestState(ref Prng p, int hour)
+    internal static byte HedgehogChooseRestState(ref Prng p)
     {
-        double sleepProb = HedgehogSleepProbForLocalHour(hour);
+        double sleepProb = Constants.HEDGEHOG_SLEEP_PROB;
         double r = p.Uniform(0.0, 1.0);
         if (r < sleepProb) return Constants.HEDGEHOG_STATE_SLEEPING;
 
@@ -567,10 +521,9 @@ internal sealed class Sim
         }
     }
 
-    public void TickBirdFlybys(int hour)
+    public void TickBirdFlybys()
     {
         if (CurrentScene != Scene.Grass || MonitorWidth <= 0.0) return;
-        if (!BirdFlybyIsDayHour(hour)) return;
         if (GlobalTime < NextBirdFlybyAtTime) return;
 
         SpawnBirdFlyby();
@@ -1062,7 +1015,7 @@ internal sealed class Sim
 
     private void EnterBunnyRestState(ref Entity e)
     {
-        byte next = BunnyChooseRestState(ref CritterPrng, DateTime.Now.Hour);
+        byte next = BunnyChooseRestState(ref CritterPrng);
         e.State = next;
         if (next == Constants.BUNNY_STATE_GRAZING)
         {
@@ -1306,7 +1259,7 @@ internal sealed class Sim
                 else if (oldState == Constants.SHEEP_STATE_IDLE)
                 {
                     double r = CritterPrng.Uniform(0.0, 1.0);
-                    double sleepProb = SheepSleepProbForLocalHour(DateTime.Now.Hour);
+                    double sleepProb = Constants.SHEEP_SLEEP_FROM_IDLE_PROB;
                     if (r < sleepProb)
                     {
                         e.State = Constants.SHEEP_STATE_SLEEPING;
@@ -1443,7 +1396,7 @@ internal sealed class Sim
                 }
                 else if (e.State == Constants.CAT_STATE_IDLE)
                 {
-                    double sleepProb = CatSleepProbForLocalHour(DateTime.Now.Hour);
+                    double sleepProb = Constants.CAT_SLEEP_FROM_IDLE_PROB;
                     double r = CritterPrng.Uniform(0.0, 1.0);
                     if (r < sleepProb)
                     {
@@ -1551,7 +1504,7 @@ internal sealed class Sim
                 byte oldState = e.State;
                 if (oldState == Constants.HEDGEHOG_STATE_WALKING)
                 {
-                    byte next = HedgehogChooseRestState(ref CritterPrng, DateTime.Now.Hour);
+                    byte next = HedgehogChooseRestState(ref CritterPrng);
                     e.State = next;
                     e.StateTimer = HedgehogDurationForState(next);
                 }
@@ -1606,7 +1559,7 @@ internal sealed class Sim
             }
         }
 
-        TickBirdFlybys(DateTime.Now.Hour);
+        TickBirdFlybys();
 
         if (CurrentScene == Scene.Autumn && MonitorWidth > 0.0)
         {

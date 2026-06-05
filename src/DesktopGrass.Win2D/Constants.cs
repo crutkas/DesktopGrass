@@ -323,14 +323,7 @@ internal static class Constants
 
     public const double SHEEP_GRAZE_PROBABILITY    = 0.60;
     public const double SHEEP_IDLE_PROBABILITY     = 0.25;
-    public const double SHEEP_SLEEP_PROB_MORNING   = 0.10;
-    public const double SHEEP_SLEEP_PROB_DEFAULT   = 0.30;
-    public const double SHEEP_SLEEP_PROB_NIGHT     = 0.70;
-    public const int    SHEEP_MORNING_START_HOUR   = 6;
-    public const int    SHEEP_MORNING_END_HOUR     = 10;
-    public const int    SHEEP_NIGHT_START_HOUR     = 22;
-    public const int    SHEEP_NIGHT_END_HOUR       = 6;
-    public const double SHEEP_SLEEP_FROM_IDLE_PROB = SHEEP_SLEEP_PROB_DEFAULT;
+    public const double SHEEP_SLEEP_FROM_IDLE_PROB = 0.30;
 
     public const double SHEEP_IDLE_SWEEP_FREQ      = 1.4;
     public const double SHEEP_GRAZE_MUNCH_FREQ     = 8.0;
@@ -405,9 +398,7 @@ internal static class Constants
 
     public const double CAT_IDLE_PROBABILITY   = 0.65;
     public const double CAT_SLEEP_PROBABILITY  = 0.30;
-    public const double CAT_SLEEP_FROM_IDLE_PROB_DEFAULT = 0.50;
-    public const double CAT_SLEEP_FROM_IDLE_PROB_MORNING = 0.20;
-    public const double CAT_SLEEP_FROM_IDLE_PROB_NIGHT   = 0.85;
+    public const double CAT_SLEEP_FROM_IDLE_PROB = 0.50;
 
     public const double CAT_POUNCE_RADIUS      = 80.0;
     public const double CAT_POUNCE_HEIGHT      = 9.0;
@@ -454,8 +445,7 @@ internal static class Constants
     public const double BUNNY_SLEEP_DURATION_MAX = 12.0;
     public const double BUNNY_GRAZE_PROBABILITY  = 0.55;
     public const double BUNNY_IDLE_PROBABILITY   = 0.30;
-    public const double BUNNY_SLEEP_PROB_DAY     = 0.05;
-    public const double BUNNY_SLEEP_PROB_NIGHT   = 0.40;
+    public const double BUNNY_SLEEP_PROB         = 0.05;
 
     public const double BUNNY_STARTLE_RADIUS     = 90.0;
     public const double BUNNY_STARTLE_BOOST      = 2.0;
@@ -512,8 +502,7 @@ internal static class Constants
     public const double HEDGEHOG_CURL_DURATION_MAX     = 5.5;
     public const double HEDGEHOG_SNUFFLE_PROBABILITY   = 0.55;
     public const double HEDGEHOG_IDLE_PROBABILITY      = 0.30;
-    public const double HEDGEHOG_SLEEP_PROB_DAY        = 0.50;
-    public const double HEDGEHOG_SLEEP_PROB_NIGHT      = 0.05;
+    public const double HEDGEHOG_SLEEP_PROB            = 0.50;
     public const double HEDGEHOG_STARTLE_RADIUS        = 70.0;
     public const double HEDGEHOG_SNUFFLE_HEAD_FREQ     = 5.0;
     public const double HEDGEHOG_SNUFFLE_HEAD_AMP      = 0.7;
@@ -542,9 +531,6 @@ internal static class Constants
     public const double BUTTERFLY_ALTITUDE_MAX       = 70.0;
     public const uint   BUTTERFLY_BODY_COLOR         = 0xFF2A2018u;
     public const int    BUTTERFLY_COLOR_COUNT        = 5;
-    public const int    BUTTERFLY_HOUR_START         = 6;
-    public const int    BUTTERFLY_HOUR_END           = 19;
-    public const int    BUTTERFLY_FADE_DURATION_HOUR = 1;
     public const ulong  BUTTERFLY_PRNG_SALT          = 0xB07DEF1E0001ul;
 
     public readonly record struct ButterflyPalette(uint WingColor, uint AccentColor);
@@ -578,15 +564,10 @@ internal static class Constants
     public const uint   FIREFLY_GLOW_COLOR_RGB       = 0xEEDD66u;
     public const int    FIREFLY_GLOW_ALPHA_MAX       = 110;
     public const int    FIREFLY_BODY_ALPHA_MAX       = 255;
-    public const int    FIREFLY_NIGHT_START_HOUR     = 20;
-    public const int    FIREFLY_NIGHT_END_HOUR       = 6;
-    public const int    FIREFLY_FADE_DURATION_HOUR   = 1;
     public const ulong  FIREFLY_PRNG_SALT            = 0xF13EF1E7777ul;
 
-    // Bird flybys (§17.8). Grass-only daytime transient flocks.
+    // Bird flybys (§17.8). Grass-only transient flocks.
     public const double BIRD_FLYBY_SPAWN_RATE_PER_HOUR = 15.0;
-    public const int    BIRD_FLYBY_HOUR_START           = 7;
-    public const int    BIRD_FLYBY_HOUR_END             = 19;
     public const int    BIRD_FLOCK_SIZE_MIN             = 3;
     public const int    BIRD_FLOCK_SIZE_MAX             = 7;
     public const double BIRD_FLOCK_FORMATION_SPACING    = 9.0;
@@ -781,78 +762,6 @@ internal static class Constants
     public const double LEAF_PUFF_START_OFFSET_FRAC = 0.4;     // spawn spread within canopy
     public const ulong  LEAF_PUFF_PRNG_SALT         = 0x9E3779B97F4A7C15ul;
 
-    // Day-night ambient tint (§19). Pure render overlay; no simulation state.
-    public readonly record struct DayTintPhase(float StartHour, byte R, byte G, byte B, byte Alpha);
-
-    public const bool DAYTINT_ENABLED_DEFAULT = false;
-    public const byte DAYTINT_MAX_ALPHA = 36;
-
-    public static readonly DayTintPhase[] DAYTINT_PHASES =
-    {
-        new( 0.0f,  40,  50,  90, 36), // Night (wraps from prev night)
-        new( 4.0f,  60,  70, 110, 32), // Predawn
-        new( 6.0f, 255, 180, 140, 28), // Sunrise
-        new( 8.0f, 255, 220, 160, 16), // Morning
-        new(10.0f, 255, 255, 255,  0), // Day - no tint
-        new(17.0f, 240, 170, 110, 22), // Late afternoon
-        new(19.0f, 220, 110,  90, 30), // Sunset
-        new(20.0f,  90,  80, 130, 28), // Dusk
-        new(22.0f,  40,  50,  90, 36), // Night
-    };
-
-    public static Vector4 ComputeDayTint(double hourFloat)
-    {
-        double hour = NormalizeDayTintHour(hourFloat);
-
-        int currentIndex = DAYTINT_PHASES.Length - 1;
-        for (int i = 0; i < DAYTINT_PHASES.Length; i++)
-        {
-            if (hour >= DAYTINT_PHASES[i].StartHour)
-            {
-                currentIndex = i;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        DayTintPhase current = DAYTINT_PHASES[currentIndex];
-        DayTintPhase next = DAYTINT_PHASES[(currentIndex + 1) % DAYTINT_PHASES.Length];
-
-        double currentStart = current.StartHour;
-        double nextStart = next.StartHour;
-        if (nextStart <= currentStart) nextStart += 24.0;
-
-        double hourForLerp = hour;
-        if (hourForLerp < currentStart) hourForLerp += 24.0;
-
-        double t = 0.0;
-        double span = nextStart - currentStart;
-        if (span > 0.0) t = (hourForLerp - currentStart) / span;
-        t = Math.Clamp(t, 0.0, 1.0);
-        if (span > 2.0) t = 0.0; // long Night/Day spans are plateaus; 1-2h bands blend.
-
-        byte r = LerpDayTintChannel(current.R, next.R, t);
-        byte g = LerpDayTintChannel(current.G, next.G, t);
-        byte b = LerpDayTintChannel(current.B, next.B, t);
-        byte alpha = LerpDayTintChannel(current.Alpha, next.Alpha, t);
-        if (alpha > DAYTINT_MAX_ALPHA) alpha = DAYTINT_MAX_ALPHA;
-
-        return new Vector4(
-            r / 255.0f,
-            g / 255.0f,
-            b / 255.0f,
-            alpha / 255.0f);
-    }
-
-    private static double NormalizeDayTintHour(double hourFloat)
-    {
-        double hour = hourFloat % 24.0;
-        if (hour < 0.0) hour += 24.0;
-        return hour;
-    }
-
     private static double AmbientClamp01(double value)
     {
         if (value <= 0.0) return 0.0;
@@ -864,34 +773,6 @@ internal static class Constants
     {
         double t = AmbientClamp01(value);
         return t * t * (3.0 - 2.0 * t);
-    }
-
-    public static double ButterflyFade(double hourFloat)
-    {
-        double hour = NormalizeDayTintHour(hourFloat);
-        double fadeStart = BUTTERFLY_HOUR_START - BUTTERFLY_FADE_DURATION_HOUR;
-        double start = BUTTERFLY_HOUR_START;
-        double end = BUTTERFLY_HOUR_END;
-        double fadeEnd = BUTTERFLY_HOUR_END + BUTTERFLY_FADE_DURATION_HOUR;
-
-        if (hour >= fadeStart && hour < start) return AmbientClamp01((hour - fadeStart) / BUTTERFLY_FADE_DURATION_HOUR);
-        if (hour >= start && hour < end) return 1.0;
-        if (hour >= end && hour < fadeEnd) return AmbientClamp01((fadeEnd - hour) / BUTTERFLY_FADE_DURATION_HOUR);
-        return 0.0;
-    }
-
-    public static double FireflyFade(double hourFloat)
-    {
-        double hour = NormalizeDayTintHour(hourFloat);
-        double nightStart = FIREFLY_NIGHT_START_HOUR;
-        double nightEnd = FIREFLY_NIGHT_END_HOUR;
-        double fadeInStart = nightStart - FIREFLY_FADE_DURATION_HOUR;
-        double fadeOutEnd = nightEnd + FIREFLY_FADE_DURATION_HOUR;
-
-        if (hour >= nightStart || hour < nightEnd) return 1.0;
-        if (hour >= fadeInStart && hour < nightStart) return AmbientClamp01((hour - fadeInStart) / FIREFLY_FADE_DURATION_HOUR);
-        if (hour >= nightEnd && hour < fadeOutEnd) return AmbientClamp01((fadeOutEnd - hour) / FIREFLY_FADE_DURATION_HOUR);
-        return 0.0;
     }
 
     public static double ButterflyWingScale(double timeSeconds, double phaseY)
@@ -951,13 +832,5 @@ internal static class Constants
         }
 
         return AmbientClamp01(brightness);
-    }
-
-    private static byte LerpDayTintChannel(byte from, byte to, double t)
-    {
-        double value = from + (to - from) * t;
-        if (value <= 0.0) return 0;
-        if (value >= 255.0) return 255;
-        return (byte)value;
     }
 }

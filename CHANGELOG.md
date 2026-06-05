@@ -12,6 +12,22 @@ entries are grouped by date instead.
 
 ---
 
+---
+
+## 2026-06-05 — Removed: day/night concept (tint + time-of-day behavior)
+
+### Removed
+- **The entire day-night concept.** Removed the subtle day-night ambient color
+  tint overlay (it never read well), plus all wall-clock time-of-day behavior:
+  butterflies and fireflies are now always eligible to appear (no day/night
+  fade), bird flybys spawn at any hour, and critters nap on a single random
+  sleep probability instead of a time-biased one (sheep 0.30, cat 0.50,
+  bunny 0.05, hedgehog 0.50). Nothing now reads the local clock, which also
+  makes the simulation fully deterministic. Mirrored in both the Native and
+  Win2D implementations and their conformance tests.
+
+---
+
 ## 2026-06-05 — Feature: user-editable config.json (targetFps, bladeDensity)
 
 ### Added

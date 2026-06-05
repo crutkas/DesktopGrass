@@ -69,8 +69,6 @@ public class BirdFlybyTests
     public void BirdFlybyConstantsArePinnedToSpecValues()
     {
         Assert.Equal(15.0, Constants.BIRD_FLYBY_SPAWN_RATE_PER_HOUR);
-        Assert.Equal(7, Constants.BIRD_FLYBY_HOUR_START);
-        Assert.Equal(19, Constants.BIRD_FLYBY_HOUR_END);
         Assert.Equal(3, Constants.BIRD_FLOCK_SIZE_MIN);
         Assert.Equal(7, Constants.BIRD_FLOCK_SIZE_MAX);
         Assert.Equal(9.0, Constants.BIRD_FLOCK_FORMATION_SPACING);
@@ -222,37 +220,28 @@ public class BirdFlybyTests
             for (int i = 0; i < 8 * 3600; i++)
             {
                 sim.GlobalTime += 1.0;
-                sim.TickBirdFlybys(12);
+                sim.TickBirdFlybys();
             }
             Assert.Equal(0, CountBirds(sim));
         }
     }
 
     [Fact]
-    public void BirdFlybyDayGatingControlsPoissonSpawns()
+    public void BirdFlybyPoissonSpawnsWhenTimerElapses()
     {
-        var night = BuildSim();
-        ResetBirdSchedule(night, Constants.CANONICAL_TEST_SEED);
-        for (int i = 0; i < 10 * 3600; i++)
-        {
-            night.GlobalTime += 1.0;
-            night.TickBirdFlybys(2);
-        }
-        Assert.Equal(0, CountBirds(night));
-
         const ulong seed = 0xDAD1B17DUL;
-        var day = BuildSim(seed);
-        ResetBirdSchedule(day, seed);
+        var sim = BuildSim(seed);
+        ResetBirdSchedule(sim, seed);
         int flybys = 0;
         for (int i = 0; i < 10 * 3600; i++)
         {
-            day.GlobalTime += 1.0;
-            int before = CountBirds(day);
-            day.TickBirdFlybys(12);
-            if (CountBirds(day) > before)
+            sim.GlobalTime += 1.0;
+            int before = CountBirds(sim);
+            sim.TickBirdFlybys();
+            if (CountBirds(sim) > before)
             {
                 flybys++;
-                day.Entities.Clear();
+                sim.Entities.Clear();
             }
         }
 
@@ -397,7 +386,7 @@ public class BirdFlybyTests
             sim.GlobalTime = sim.NextBirdFlybyAtTime;
             totalInterval += sim.GlobalTime - prev;
             prev = sim.GlobalTime;
-            sim.TickBirdFlybys(12);
+            sim.TickBirdFlybys();
             sim.Entities.Clear();
         }
 

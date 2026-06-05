@@ -68,9 +68,8 @@ private:
     void DiscardDeviceResources();
     void DrawGrass(bool treesOnly, bool backgroundTrees);
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
-    void DrawDayTint();
-    void DrawButterfly(const Entity& e, double hourFloat);
-    void DrawFirefly(const Entity& e, double hourFloat);
+    void DrawButterfly(const Entity& e);
+    void DrawFirefly(const Entity& e);
     void DrawBird(const Entity& e);
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawBunny(const Entity& e);
@@ -146,7 +145,6 @@ private:
     ComPtr<ID2D1SolidColorBrush>           birdBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameBrush_;
     ComPtr<ID2D1SolidColorBrush>           petNameShadowBrush_;
-    ComPtr<ID2D1SolidColorBrush>           dayTintBrush_;
     ComPtr<IDWriteFactory>                 dwriteFactory_;
     ComPtr<IDWriteTextFormat>              petNameTextFormat_;
 

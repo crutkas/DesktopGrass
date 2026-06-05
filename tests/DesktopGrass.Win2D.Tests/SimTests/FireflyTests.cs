@@ -66,9 +66,6 @@ public class FireflyTests
         Assert.Equal(0xEEDD66u, Constants.FIREFLY_GLOW_COLOR_RGB);
         Assert.Equal(110, Constants.FIREFLY_GLOW_ALPHA_MAX);
         Assert.Equal(255, Constants.FIREFLY_BODY_ALPHA_MAX);
-        Assert.Equal(20, Constants.FIREFLY_NIGHT_START_HOUR);
-        Assert.Equal(6, Constants.FIREFLY_NIGHT_END_HOUR);
-        Assert.Equal(1, Constants.FIREFLY_FADE_DURATION_HOUR);
         Assert.Equal(0xF13EF1E7777ul, Constants.FIREFLY_PRNG_SALT);
     }
 
@@ -224,12 +221,4 @@ public class FireflyTests
         Assert.True(distinct.Count >= 4);
     }
 
-    [Fact]
-    public void FireflyFadeIsNightOnlyWithDuskAndDawnRamps()
-    {
-        Assert.Equal(1.0, Constants.FireflyFade(0.0), 9);
-        Assert.Equal(0.0, Constants.FireflyFade(12.0), 9);
-        Assert.Equal(0.5, Constants.FireflyFade(19.5), 9);
-        Assert.Equal(0.5, Constants.FireflyFade(6.5), 9);
-    }
 }

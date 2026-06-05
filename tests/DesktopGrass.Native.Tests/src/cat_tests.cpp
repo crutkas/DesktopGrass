@@ -105,9 +105,7 @@ TEST_CASE("Cat constants are pinned to spec values", "[cat][constants]") {
 
     REQUIRE(CAT_IDLE_PROBABILITY == Approx(0.65));
     REQUIRE(CAT_SLEEP_PROBABILITY == Approx(0.30));
-    REQUIRE(CAT_SLEEP_FROM_IDLE_PROB_DEFAULT == Approx(0.50));
-    REQUIRE(CAT_SLEEP_FROM_IDLE_PROB_MORNING == Approx(0.20));
-    REQUIRE(CAT_SLEEP_FROM_IDLE_PROB_NIGHT   == Approx(0.85));
+    REQUIRE(CAT_SLEEP_FROM_IDLE_PROB == Approx(0.50));
 
     REQUIRE(CAT_POUNCE_RADIUS == Approx(80.0));
     REQUIRE(CAT_POUNCE_HEIGHT == Approx(9.0));
@@ -332,9 +330,3 @@ TEST_CASE("Cats do not greet sheep", "[cat][greeting]") {
     for (const Entity& e : sim.entities) REQUIRE(e.state != SHEEP_STATE_GREETING);
 }
 
-TEST_CASE("Cat time-of-day sleep bias is pinned", "[cat][time]") {
-    REQUIRE(cat_sleep_prob_for_local_hour(2)  == Approx(0.85));
-    REQUIRE(cat_sleep_prob_for_local_hour(8)  == Approx(0.20));
-    REQUIRE(cat_sleep_prob_for_local_hour(15) == Approx(0.50));
-    REQUIRE(cat_sleep_prob_for_local_hour(23) == Approx(0.85));
-}

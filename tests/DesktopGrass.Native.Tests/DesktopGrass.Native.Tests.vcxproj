@@ -141,7 +141,6 @@
     <ClCompile Include="src\butterfly_tests.cpp" />
     <ClCompile Include="src\firefly_tests.cpp" />
     <ClCompile Include="src\bird_flyby_tests.cpp" />
-    <ClCompile Include="src\day_tint_tests.cpp" />
     <ClCompile Include="src\persistence_tests.cpp" />
     <ClCompile Include="src\config_tests.cpp" />
     <ClCompile Include="src\autostart_tests.cpp" />

@@ -330,17 +330,12 @@ void sim_set_critter(Sim& sim, CritterKind c) noexcept;
 // are capped at PET_COUNT_MAX_PER_MONITOR during generation.
 void sim_set_critter_count(Sim& sim, int n) noexcept;
 
-double sheep_sleep_prob_for_local_hour(int hour) noexcept;
-double cat_sleep_prob_for_local_hour(int hour) noexcept;
-double bunny_sleep_prob_for_local_hour(int hour) noexcept;
-double hedgehog_sleep_prob_for_local_hour(int hour) noexcept;
 double bunny_hop_y_offset(double age, bool startled) noexcept;
-uint8_t bunny_choose_rest_state(Prng& p, int hour) noexcept;
-uint8_t hedgehog_choose_rest_state(Prng& p, int hour) noexcept;
-bool bird_flyby_is_day_hour(int hour) noexcept;
+uint8_t bunny_choose_rest_state(Prng& p) noexcept;
+uint8_t hedgehog_choose_rest_state(Prng& p) noexcept;
 double bird_flyby_sample_interval(Prng& p) noexcept;
 void sim_spawn_bird_flyby(Sim& sim) noexcept;
-void sim_tick_bird_flybys(Sim& sim, int hour) noexcept;
+void sim_tick_bird_flybys(Sim& sim) noexcept;
 
 // Advance the simulation by dt seconds. Drains the provided event list in
 // order, then runs per-blade dynamics + cut animation. Pass numEvents = 0 if

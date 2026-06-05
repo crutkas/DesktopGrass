@@ -53,9 +53,6 @@ TEST_CASE("Firefly constants are pinned to spec values", "[firefly][constants]")
     REQUIRE(FIREFLY_GLOW_COLOR_RGB == 0xEEDD66u);
     REQUIRE(FIREFLY_GLOW_ALPHA_MAX == 110);
     REQUIRE(FIREFLY_BODY_ALPHA_MAX == 255);
-    REQUIRE(FIREFLY_NIGHT_START_HOUR == 20);
-    REQUIRE(FIREFLY_NIGHT_END_HOUR == 6);
-    REQUIRE(FIREFLY_FADE_DURATION_HOUR == 1);
     REQUIRE(FIREFLY_PRNG_SALT == 0xF13EF1E7777ull);
 }
 
@@ -196,9 +193,3 @@ TEST_CASE("Firefly phases decorrelate visible brightness", "[firefly][blink]") {
     REQUIRE(distinct.size() >= 4);
 }
 
-TEST_CASE("Firefly fade is night-only with dusk and dawn ramps", "[firefly][time]") {
-    REQUIRE(firefly_fade(0.0) == Approx(1.0));
-    REQUIRE(firefly_fade(12.0) == Approx(0.0));
-    REQUIRE(firefly_fade(19.5) == Approx(0.5));
-    REQUIRE(firefly_fade(6.5) == Approx(0.5));
-}

@@ -141,8 +141,7 @@ public class HedgehogTests
         Assert.Equal(5.5, Constants.HEDGEHOG_CURL_DURATION_MAX);
         Assert.Equal(0.55, Constants.HEDGEHOG_SNUFFLE_PROBABILITY);
         Assert.Equal(0.30, Constants.HEDGEHOG_IDLE_PROBABILITY);
-        Assert.Equal(0.50, Constants.HEDGEHOG_SLEEP_PROB_DAY);
-        Assert.Equal(0.05, Constants.HEDGEHOG_SLEEP_PROB_NIGHT);
+        Assert.Equal(0.50, Constants.HEDGEHOG_SLEEP_PROB);
         Assert.Equal(70.0, Constants.HEDGEHOG_STARTLE_RADIUS);
         Assert.Equal(5.0, Constants.HEDGEHOG_SNUFFLE_HEAD_FREQ);
         Assert.Equal(0.7, Constants.HEDGEHOG_SNUFFLE_HEAD_AMP);
@@ -343,13 +342,13 @@ public class HedgehogTests
         int sleep = 0;
         for (int i = 0; i < n; i++)
         {
-            byte state = Sim.HedgehogChooseRestState(ref p, 12);
+            byte state = Sim.HedgehogChooseRestState(ref p);
             if (state == Constants.HEDGEHOG_STATE_SNUFFLING) snuffle++;
             else if (state == Constants.HEDGEHOG_STATE_IDLE) idle++;
             else if (state == Constants.HEDGEHOG_STATE_SLEEPING) sleep++;
         }
 
-        double sleepProb = Constants.HEDGEHOG_SLEEP_PROB_DAY;
+        double sleepProb = Constants.HEDGEHOG_SLEEP_PROB;
         double activeWeight = Constants.HEDGEHOG_SNUFFLE_PROBABILITY + Constants.HEDGEHOG_IDLE_PROBABILITY;
         double expectedSnuffle = (1.0 - sleepProb) * Constants.HEDGEHOG_SNUFFLE_PROBABILITY / activeWeight;
         double expectedIdle = (1.0 - sleepProb) * Constants.HEDGEHOG_IDLE_PROBABILITY / activeWeight;
@@ -359,27 +358,19 @@ public class HedgehogTests
     }
 
     [Fact]
-    public void HedgehogTimeOfDaySleepBiasIsNocturnal()
+    public void HedgehogSleepProbabilityMatchesSingleConstant()
     {
-        Assert.Equal(Constants.HEDGEHOG_SLEEP_PROB_DAY, Sim.HedgehogSleepProbForLocalHour(12));
-        Assert.Equal(Constants.HEDGEHOG_SLEEP_PROB_NIGHT, Sim.HedgehogSleepProbForLocalHour(0));
-
-        const int n = 10000;
-        var noon = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x1234UL);
-        var midnight = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x5678UL);
-        int noonSleep = 0;
-        int midnightSleep = 0;
+        const int n = 20000;
+        var p = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0x1234UL);
+        int sleep = 0;
         for (int i = 0; i < n; i++)
         {
-            if (Sim.HedgehogChooseRestState(ref noon, 12) == Constants.HEDGEHOG_STATE_SLEEPING) noonSleep++;
-            if (Sim.HedgehogChooseRestState(ref midnight, 0) == Constants.HEDGEHOG_STATE_SLEEPING) midnightSleep++;
+            if (Sim.HedgehogChooseRestState(ref p) == Constants.HEDGEHOG_STATE_SLEEPING) sleep++;
         }
-        Assert.InRange(noonSleep / (double)n,
-                       Constants.HEDGEHOG_SLEEP_PROB_DAY - 0.02,
-                       Constants.HEDGEHOG_SLEEP_PROB_DAY + 0.02);
-        Assert.InRange(midnightSleep / (double)n,
-                       Constants.HEDGEHOG_SLEEP_PROB_NIGHT - 0.02,
-                       Constants.HEDGEHOG_SLEEP_PROB_NIGHT + 0.02);
+
+        Assert.InRange(sleep / (double)n,
+                       Constants.HEDGEHOG_SLEEP_PROB - 0.02,
+                       Constants.HEDGEHOG_SLEEP_PROB + 0.02);
     }
 
     [Fact]
@@ -388,7 +379,7 @@ public class HedgehogTests
         var p = Prng.Init(Constants.CANONICAL_TEST_SEED ^ 0xCAFEUL);
         for (int i = 0; i < 1000; i++)
         {
-            byte state = Sim.HedgehogChooseRestState(ref p, 0);
+            byte state = Sim.HedgehogChooseRestState(ref p);
             Assert.True(state == Constants.HEDGEHOG_STATE_SNUFFLING
                      || state == Constants.HEDGEHOG_STATE_IDLE
                      || state == Constants.HEDGEHOG_STATE_SLEEPING);
