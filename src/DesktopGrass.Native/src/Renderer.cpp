@@ -238,6 +238,16 @@ bool Renderer::CreateDeviceResources() {
                                             pineBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    pineShadowBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(PINE_SHADOW_COLOR),
+                                            pineShadowBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    pineHighlightBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(PINE_HIGHLIGHT_COLOR),
+                                            pineHighlightBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     birchBarkBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(BIRCH_BARK_COLOR),
                                             birchBarkBrush_.ReleaseAndGetAddressOf());
@@ -486,6 +496,8 @@ void Renderer::DiscardDeviceResources() {
     snowLayerBottomBrush_.Reset();
     snowLayerHighlightBrush_.Reset();
     pineBrush_.Reset();
+    pineShadowBrush_.Reset();
+    pineHighlightBrush_.Reset();
     birchBarkBrush_.Reset();
     birchMarkBrush_.Reset();
     mapleTrunkBrush_.Reset();
@@ -900,11 +912,30 @@ void Renderer::DrawGrass(bool treesOnly) {
                 const double widthAt  = b.pineWidth * (1.0 - tFrac * (1.0 - PINE_TIP_TAPER));
                 const double baseY    = gy - i * tierH * (1.0 - PINE_TIER_OVERLAP);
                 const double topY     = baseY - tierH;
+                const float  halfW    = static_cast<float>(widthAt * 0.5);
+
+                // Dimensional bough: a self-shadow dropped down-right, the body
+                // on top, then a lighter lit face dabbed on the upper-left, so
+                // the tier reads as rounded volume instead of a flat triangle.
+                const float shadowDX = static_cast<float>(halfW * PINE_SHADOW_OFFSET_X_FRAC);
+                const float shadowDY = static_cast<float>(tierH * PINE_SHADOW_OFFSET_Y_FRAC);
+                drawFilledTri(baseX + shadowDX,
+                              static_cast<float>(baseY) + shadowDY,
+                              static_cast<float>(topY) + shadowDY,
+                              halfW,
+                              pineShadowBrush_.Get());
                 drawFilledTri(baseX,
                               static_cast<float>(baseY),
                               static_cast<float>(topY),
-                              static_cast<float>(widthAt * 0.5),
+                              halfW,
                               pineBrush_.Get());
+                pineHighlightBrush_->SetOpacity(PINE_HIGHLIGHT_OPACITY);
+                drawFilledTri(baseX - static_cast<float>(halfW * PINE_HIGHLIGHT_OFFSET_X_FRAC),
+                              static_cast<float>(baseY),
+                              static_cast<float>(topY),
+                              static_cast<float>(halfW * PINE_HIGHLIGHT_WIDTH_FRAC),
+                              pineHighlightBrush_.Get());
+                pineHighlightBrush_->SetOpacity(1.0f);
 
                 // Snow cap: smaller triangle covering top PINE_SNOW_CAP_FRACTION
                 // of the tier. Inherits the tier's apex; base is at the cap's

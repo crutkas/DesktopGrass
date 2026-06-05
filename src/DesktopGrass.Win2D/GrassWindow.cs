@@ -77,6 +77,8 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _snowLayerBottomBrush;
     private ID2D1SolidColorBrush? _snowLayerHighlightBrush;
     private ID2D1SolidColorBrush? _pineBrush;
+    private ID2D1SolidColorBrush? _pineShadowBrush;
+    private ID2D1SolidColorBrush? _pineHighlightBrush;
     private ID2D1SolidColorBrush? _birchBarkBrush;
     private ID2D1SolidColorBrush? _birchMarkBrush;
     private ID2D1SolidColorBrush? _mapleTrunkBrush;
@@ -253,6 +255,8 @@ internal sealed class GrassWindow : IDisposable
         _snowLayerBottomBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_BOTTOM));
         _snowLayerHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_HIGHLIGHT));
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
+        _pineShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_SHADOW_COLOR));
+        _pineHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_HIGHLIGHT_COLOR));
         _birchBarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_BARK_COLOR));
         _birchMarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BIRCH_MARK_COLOR));
         _mapleTrunkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.MAPLE_TRUNK_COLOR));
@@ -1515,8 +1519,22 @@ internal sealed class GrassWindow : IDisposable
                 double widthAt = b.PineWidth * (1.0 - tFrac * (1.0 - Constants.PINE_TIP_TAPER));
                 double baseY = gy - i * tierH * (1.0 - Constants.PINE_TIER_OVERLAP);
                 double topY = baseY - tierH;
+                float halfW = (float)(widthAt * 0.5);
 
-                DrawFilledPineTri(baseX, (float)baseY, (float)topY, (float)(widthAt * 0.5), _pineBrush!);
+                // Dimensional bough: a self-shadow dropped down-right, the body on
+                // top, then a lighter lit face dabbed on the upper-left, so the
+                // tier reads as rounded volume instead of a flat triangle.
+                float shadowDX = (float)(halfW * Constants.PINE_SHADOW_OFFSET_X_FRAC);
+                float shadowDY = (float)(tierH * Constants.PINE_SHADOW_OFFSET_Y_FRAC);
+                DrawFilledPineTri(baseX + shadowDX, (float)baseY + shadowDY, (float)topY + shadowDY,
+                                  halfW, _pineShadowBrush!);
+                DrawFilledPineTri(baseX, (float)baseY, (float)topY, halfW, _pineBrush!);
+                _pineHighlightBrush!.Opacity = Constants.PINE_HIGHLIGHT_OPACITY;
+                DrawFilledPineTri(baseX - (float)(halfW * Constants.PINE_HIGHLIGHT_OFFSET_X_FRAC),
+                                  (float)baseY, (float)topY,
+                                  (float)(halfW * Constants.PINE_HIGHLIGHT_WIDTH_FRAC),
+                                  _pineHighlightBrush!);
+                _pineHighlightBrush!.Opacity = 1.0f;
 
                 double capHd = tierH * Constants.PINE_SNOW_CAP_FRACTION;
                 double capBaseY = topY + capHd;
@@ -1758,6 +1776,8 @@ internal sealed class GrassWindow : IDisposable
         try { _snowLayerBottomBrush?.Dispose(); } catch { }
         try { _snowLayerHighlightBrush?.Dispose(); } catch { }
         try { _pineBrush?.Dispose(); } catch { }
+        try { _pineShadowBrush?.Dispose(); } catch { }
+        try { _pineHighlightBrush?.Dispose(); } catch { }
         try { _birchBarkBrush?.Dispose(); } catch { }
         try { _birchMarkBrush?.Dispose(); } catch { }
         try { _mapleTrunkBrush?.Dispose(); } catch { }

@@ -686,6 +686,16 @@ internal static class Constants
     public const double PINE_TIER_OVERLAP       = 0.15;
     public const double PINE_SNOW_CAP_FRACTION  = 0.30;
     public const uint   PINE_COLOR              = 0xFF1B5E20u;
+    // Dimensional shading for pine boughs: a darker green dropped down-right as a
+    // self-shadow and a lighter green dabbed on the upper-left lit face, so each
+    // tier reads as a rounded bough instead of a flat triangle.
+    public const uint   PINE_SHADOW_COLOR       = 0xFF103D16u;
+    public const uint   PINE_HIGHLIGHT_COLOR    = 0xFF43A047u;
+    public const double PINE_SHADOW_OFFSET_X_FRAC    = 0.14;
+    public const double PINE_SHADOW_OFFSET_Y_FRAC    = 0.07;
+    public const double PINE_HIGHLIGHT_OFFSET_X_FRAC = 0.20;
+    public const double PINE_HIGHLIGHT_WIDTH_FRAC    = 0.50;
+    public const float  PINE_HIGHLIGHT_OPACITY       = 0.5f;
     public const ulong  PINE_PRNG_SALT          = 0x50494E4550494E45ul;
 
     // Birch tree variant (§15.1). Second tree style — vertical white trunk

@@ -745,6 +745,16 @@ constexpr double   PINE_TIP_TAPER                  = 0.25;
 constexpr double   PINE_TIER_OVERLAP               = 0.15;
 constexpr double   PINE_SNOW_CAP_FRACTION          = 0.30;
 constexpr uint32_t PINE_COLOR                      = 0xFF1B5E20u;
+// Dimensional shading for pine boughs: a darker green dropped down-right as a
+// self-shadow and a lighter green dabbed on the upper-left lit face, so each
+// tier reads as a rounded bough instead of a flat triangle.
+constexpr uint32_t PINE_SHADOW_COLOR               = 0xFF103D16u;
+constexpr uint32_t PINE_HIGHLIGHT_COLOR            = 0xFF43A047u;
+constexpr double   PINE_SHADOW_OFFSET_X_FRAC       = 0.14;
+constexpr double   PINE_SHADOW_OFFSET_Y_FRAC       = 0.07;
+constexpr double   PINE_HIGHLIGHT_OFFSET_X_FRAC    = 0.20;
+constexpr double   PINE_HIGHLIGHT_WIDTH_FRAC       = 0.50;
+constexpr float    PINE_HIGHLIGHT_OPACITY          = 0.5f;
 constexpr uint64_t PINE_PRNG_SALT                  = 0x50494E4550494E45ull;
 
 // Birch tree variant (§15.1). Second tree style — vertical white trunk

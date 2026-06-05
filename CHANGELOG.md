@@ -10,6 +10,17 @@ entries are grouped by date instead.
 
 ---
 
+---
+
+## 2026-06-04 — Pine trees with depth
+
+### Changed
+- **Winter pines now read as rounded boughs instead of flat triangles** — each
+  snow-capped tier gets a self-shadow dropped down-right and a softer lit face
+  dabbed on the upper-left, giving the conifers the same sense of dimension the
+  fall maples just gained. Color, size, and tier variation are unchanged; this is
+  purely a shading upgrade.
+
 ## 2026-06-04 — Fuller fall trees & leaves that scatter on hover
 
 ### Changed

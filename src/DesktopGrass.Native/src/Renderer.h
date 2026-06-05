@@ -110,6 +110,8 @@ private:
     ComPtr<ID2D1SolidColorBrush>           snowLayerBottomBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerHighlightBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
+    ComPtr<ID2D1SolidColorBrush>           pineShadowBrush_;
+    ComPtr<ID2D1SolidColorBrush>           pineHighlightBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchBarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           birchMarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           mapleTrunkBrush_;
