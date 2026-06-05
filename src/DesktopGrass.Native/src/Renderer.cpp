@@ -705,10 +705,9 @@ void Renderer::RenderFrame(double dt,
         ? &cursorPosition
         : nullptr;
 
-    DrawGrass(false, false);
-    DrawGrass(true, true);   // background treeline, occluded by the snowbank below
-    DrawSnowLayer();
-    DrawGrass(true, false);  // foreground treeline, in front of the snowbank
+    DrawGrass(true, true);   // background treeline (smaller, hazier)
+    DrawGrass(false, false); // ground cover incl. Winter snow-tipped grass
+    DrawGrass(true, false);  // foreground treeline
     DrawEntities(cursorForRender);
     DrawDayTint();
 
@@ -971,7 +970,7 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
         // both styles reduce to a short brown stump.
         if (b.isPine) {
             const float baseX = static_cast<float>(b.baseX);
-            const float gy    = static_cast<float>(groundY - snow_tree_base_y_offset(sim_));
+            const float gy    = static_cast<float>(groundY);
 
             // §15.4 depth: background trees shrink toward their base and fade.
             const bool  bgTree    = b.treeBackground;
@@ -1264,12 +1263,9 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
             continue;
         }
 
-        // Winter snowbank (§21.1): ordinary (non-tree) ground cover is buried by
-        // the continuous sculpted snowbank drawn in DrawSnowLayer, so winter
-        // grass/flower blades render nothing here.
-        if (sim_.currentScene == Scene::Winter) {
-            continue;
-        }
+        // Winter renders ordinary (non-tree) ground cover as snow-tipped grass
+        // blades (handled by the shared blade path below + the snow-tip cap), so
+        // no early-out here.
 
         const Stroke s = compute_blade_stroke(b, groundY, sim_.currentScene);
 

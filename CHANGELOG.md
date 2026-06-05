@@ -12,7 +12,24 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-04 — Winter snow visual redesign: lower bank, visible puffs, wind-blown spindrift
+## 2026-06-04 — Winter reverts to snow-tipped grass (snowbank render removed)
+
+### Changed
+- **Winter goes back to the snow-tipped grass look.** The sculpted snowbank /
+  snowscape (and its wind-blown spindrift) looked off and was the dominant CPU
+  cost — it redrew a per-2px column strip across the full monitor width every
+  frame. The renderer no longer draws the snowbank; ordinary Winter ground cover
+  renders as the original frosted, snow-capped grass blades again, with the pine
+  and birch treeline (foreground/background depth retained) standing in it.
+- **Trees sit back on the ground line** (the snow-accumulation base-burial offset
+  is no longer applied at render time, since there's no bank to sink into).
+
+### Kept
+- **The click snow puff stays** — clicking the Winter ground still kicks up a
+  burst of powder. The snow-accumulation / carve / drift simulation state is left
+  intact (and still persisted) but is no longer drawn; only the puff is visible.
+
+
 
 ### Changed
 - **The Winter snowbank is much lower and no longer buries the treeline.** Reduced

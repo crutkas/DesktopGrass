@@ -374,14 +374,8 @@ internal sealed class GrassWindow : IDisposable
 
         var groundY = (float)Sim.GroundY;
 
-        for (int i = 0; i < Sim.Blades.Length; i++)
-        {
-            ref Blade b = ref Sim.Blades[i];
-            DrawBlade(in b, groundY, treesOnly: false, backgroundTrees: false);
-        }
-
-        // §15.4 background treeline: drawn behind the snowbank so the bank
-        // occludes their base, reading as a set-back row.
+        // Background treeline first (smaller, hazier), so ground cover overlaps
+        // their bases and reads as a set-back row.
         if (Sim.CurrentScene == Scene.Winter)
         {
             for (int i = 0; i < Sim.Blades.Length; i++)
@@ -391,7 +385,12 @@ internal sealed class GrassWindow : IDisposable
             }
         }
 
-        DrawSnowLayer(groundY);
+        // Ground cover (incl. Winter snow-tipped grass).
+        for (int i = 0; i < Sim.Blades.Length; i++)
+        {
+            ref Blade b = ref Sim.Blades[i];
+            DrawBlade(in b, groundY, treesOnly: false, backgroundTrees: false);
+        }
 
         if (Sim.CurrentScene == Scene.Winter || Sim.CurrentScene == Scene.Autumn)
         {
@@ -1613,7 +1612,7 @@ internal sealed class GrassWindow : IDisposable
         if (b.IsPine)
         {
             float baseX = (float)b.BaseX;
-            float gy = groundY - (float)Sim.SnowTreeBaseYOffset;
+            float gy = groundY;
 
             // §15.4 depth: background trees shrink toward their base and fade.
             bool bgTree = b.TreeBackground;
@@ -1862,13 +1861,8 @@ internal sealed class GrassWindow : IDisposable
             return;
         }
 
-        // Winter snowbank (§21.1): ordinary (non-tree) ground cover is buried by
-        // the continuous sculpted snowbank drawn in DrawSnowLayer, so winter
-        // grass/flower blades render nothing here.
-        if (Sim.CurrentScene == Scene.Winter)
-        {
-            return;
-        }
+        // Winter renders ordinary (non-tree) ground cover as snow-tipped grass
+        // blades (shared blade path below + the snow-tip cap), so no early-out.
 
         var stroke = Sim.ComputeBladeStroke(b, groundY, Sim.CurrentScene);
         int hue = b.Hue;

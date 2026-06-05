@@ -1159,6 +1159,8 @@ The "Scene ▸ Desert" tray item already exists (§13). Selecting Desert calls `
 
 ## 15. Winter scene
 
+> **Render note (2026-06-04):** Winter renders as **snow-tipped grass** plus the pine/birch treeline, as described in this section. The sculpted snowbank/snowscape of §15.2 (accumulation band), §15.3 (carve), and §15.6 (lower bank / wind spindrift) is **no longer drawn** — it looked off and was the dominant per-frame CPU cost. The underlying Sim state (`snowDepth` accumulation, `snowCarve`, snow-drift cursor-move puffs) is still computed, persisted, and unit-tested, but the only visible Winter interaction is the **click snow puff** (§21). `DrawSnowLayer` / `SnowBankDepthAt` remain in the renderers as currently-uncalled code, and the tree base-burial offset (§15.2) is not applied at render time. The sections below document the snowbank machinery for reference and in case it is revived.
+
 The Winter scene swaps to the frosty palette (§13), emits **snowflakes** continuously as drifting roaming entities, and adds **snow-tipped blade caps** as a pure render-time effect over the existing blade vector. The biome also shrinks ordinary blade height and suppresses mushrooms so the snow caps + pines (§15.1) read as the dominant features.
 
 ### Biome-shaped blade rendering
