@@ -12,6 +12,14 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Bigger winter snow puff
+
+### Changed
+- **The click snow puff is now noticeably bigger** — larger powder motes, more of
+  them per click, a wider and higher burst, and a bigger starting cloud, so a
+  click on the winter snowbank kicks up a fuller poof. Still falls back and fades
+  the same way; just more to see.
+
 ## 2026-06-04 — Trees sway with the wind & cursor
 
 ### Changed

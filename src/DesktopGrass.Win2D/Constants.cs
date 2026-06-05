@@ -636,18 +636,18 @@ internal static class Constants
     // perturbs the snowflake emitter; it only fires on click input. y is
     // screen-down, so an upward launch is negative vy and SNOW_PUFF_GRAVITY
     // pulls back toward the ground.
-    public const int    SNOW_PUFF_COUNT_MIN       = 6;
-    public const int    SNOW_PUFF_COUNT_MAX       = 10;
-    public const double SNOW_PUFF_SIZE_MIN        = 1.2;
-    public const double SNOW_PUFF_SIZE_MAX        = 2.6;
-    public const double SNOW_PUFF_BURST_SPEED_MIN = 34.0;
-    public const double SNOW_PUFF_BURST_SPEED_MAX = 78.0;
-    public const double SNOW_PUFF_SPREAD_RAD      = 1.15;
+    public const int    SNOW_PUFF_COUNT_MIN       = 9;
+    public const int    SNOW_PUFF_COUNT_MAX       = 16;
+    public const double SNOW_PUFF_SIZE_MIN        = 2.0;
+    public const double SNOW_PUFF_SIZE_MAX        = 4.5;
+    public const double SNOW_PUFF_BURST_SPEED_MIN = 48.0;
+    public const double SNOW_PUFF_BURST_SPEED_MAX = 110.0;
+    public const double SNOW_PUFF_SPREAD_RAD      = 1.25;
     public const double SNOW_PUFF_GRAVITY         = 150.0;
     public const double SNOW_PUFF_DRAG            = 1.6;
-    public const double SNOW_PUFF_START_RADIUS    = 4.0;
-    public const double SNOW_PUFF_LIFETIME_MIN    = 0.5;
-    public const double SNOW_PUFF_LIFETIME_MAX    = 0.9;
+    public const double SNOW_PUFF_START_RADIUS    = 7.0;
+    public const double SNOW_PUFF_LIFETIME_MIN    = 0.6;
+    public const double SNOW_PUFF_LIFETIME_MAX    = 1.1;
     public const ulong  SNOW_PUFF_PRNG_SALT       = 0x5503FF1E5503FF1Eul;
 
     // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded

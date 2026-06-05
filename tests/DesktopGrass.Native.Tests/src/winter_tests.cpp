@@ -194,13 +194,13 @@ InputEvent WinterClick(const Sim& sim, double x) {
 }
 
 TEST_CASE("Snow puff constants are pinned", "[winter][puff][constants]") {
-    REQUIRE(SNOW_PUFF_COUNT_MIN == 6);
-    REQUIRE(SNOW_PUFF_COUNT_MAX == 10);
-    REQUIRE(SNOW_PUFF_SIZE_MIN == Approx(1.2));
-    REQUIRE(SNOW_PUFF_SIZE_MAX == Approx(2.6));
+    REQUIRE(SNOW_PUFF_COUNT_MIN == 9);
+    REQUIRE(SNOW_PUFF_COUNT_MAX == 16);
+    REQUIRE(SNOW_PUFF_SIZE_MIN == Approx(2.0));
+    REQUIRE(SNOW_PUFF_SIZE_MAX == Approx(4.5));
     REQUIRE(SNOW_PUFF_GRAVITY == Approx(150.0));
     REQUIRE(SNOW_PUFF_DRAG == Approx(1.6));
-    REQUIRE(SNOW_PUFF_SPREAD_RAD == Approx(1.15));
+    REQUIRE(SNOW_PUFF_SPREAD_RAD == Approx(1.25));
     REQUIRE(SNOW_PUFF_PRNG_SALT == 0x5503FF1E5503FF1Eull);
     REQUIRE(WINTER_DRIFT_HEIGHT_SCALE == Approx(0.42));
     REQUIRE(WINTER_DRIFT_BASE_COLOR == 0xFFE8EEF6u);

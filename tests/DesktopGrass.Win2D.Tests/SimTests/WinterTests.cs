@@ -216,13 +216,13 @@ public class WinterTests
     [Fact]
     public void SnowPuffConstantsArePinned()
     {
-        Assert.Equal(6, Constants.SNOW_PUFF_COUNT_MIN);
-        Assert.Equal(10, Constants.SNOW_PUFF_COUNT_MAX);
-        Assert.Equal(1.2, Constants.SNOW_PUFF_SIZE_MIN);
-        Assert.Equal(2.6, Constants.SNOW_PUFF_SIZE_MAX);
+        Assert.Equal(9, Constants.SNOW_PUFF_COUNT_MIN);
+        Assert.Equal(16, Constants.SNOW_PUFF_COUNT_MAX);
+        Assert.Equal(2.0, Constants.SNOW_PUFF_SIZE_MIN);
+        Assert.Equal(4.5, Constants.SNOW_PUFF_SIZE_MAX);
         Assert.Equal(150.0, Constants.SNOW_PUFF_GRAVITY);
         Assert.Equal(1.6, Constants.SNOW_PUFF_DRAG);
-        Assert.Equal(1.15, Constants.SNOW_PUFF_SPREAD_RAD);
+        Assert.Equal(1.25, Constants.SNOW_PUFF_SPREAD_RAD);
         Assert.Equal(0x5503FF1E5503FF1Eul, Constants.SNOW_PUFF_PRNG_SALT);
         Assert.Equal(0.42, Constants.WINTER_DRIFT_HEIGHT_SCALE);
         Assert.Equal(0xFFE8EEF6u, Constants.WINTER_DRIFT_BASE_COLOR);

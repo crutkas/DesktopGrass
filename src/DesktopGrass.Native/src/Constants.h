@@ -696,18 +696,18 @@ constexpr uint64_t SNOW_TOP_UNDULATION_PHASE_SALT   = 0x5E0A1ull;
 // of powder. Dedicated PRNG stream (salted) so the burst never perturbs the
 // snowflake emitter; it only fires on click input. y is screen-down, so an
 // upward launch is negative vy and SNOW_PUFF_GRAVITY pulls back toward ground.
-constexpr int      SNOW_PUFF_COUNT_MIN          = 6;
-constexpr int      SNOW_PUFF_COUNT_MAX          = 10;
-constexpr double   SNOW_PUFF_SIZE_MIN           = 1.2;    // DIP
-constexpr double   SNOW_PUFF_SIZE_MAX           = 2.6;
-constexpr double   SNOW_PUFF_BURST_SPEED_MIN    = 34.0;   // DIP/sec
-constexpr double   SNOW_PUFF_BURST_SPEED_MAX    = 78.0;
-constexpr double   SNOW_PUFF_SPREAD_RAD         = 1.15;   // half-angle about vertical
+constexpr int      SNOW_PUFF_COUNT_MIN          = 9;
+constexpr int      SNOW_PUFF_COUNT_MAX          = 16;
+constexpr double   SNOW_PUFF_SIZE_MIN           = 2.0;    // DIP
+constexpr double   SNOW_PUFF_SIZE_MAX           = 4.5;
+constexpr double   SNOW_PUFF_BURST_SPEED_MIN    = 48.0;   // DIP/sec
+constexpr double   SNOW_PUFF_BURST_SPEED_MAX    = 110.0;
+constexpr double   SNOW_PUFF_SPREAD_RAD         = 1.25;   // half-angle about vertical
 constexpr double   SNOW_PUFF_GRAVITY            = 150.0;  // DIP/sec^2
 constexpr double   SNOW_PUFF_DRAG               = 1.6;    // horizontal decay
-constexpr double   SNOW_PUFF_START_RADIUS       = 4.0;    // initial scatter around click
-constexpr double   SNOW_PUFF_LIFETIME_MIN       = 0.5;    // sec
-constexpr double   SNOW_PUFF_LIFETIME_MAX       = 0.9;
+constexpr double   SNOW_PUFF_START_RADIUS       = 7.0;    // initial scatter around click
+constexpr double   SNOW_PUFF_LIFETIME_MIN       = 0.6;    // sec
+constexpr double   SNOW_PUFF_LIFETIME_MAX       = 1.1;
 constexpr uint64_t SNOW_PUFF_PRNG_SALT          = 0x5503FF1E5503FF1Eull;
 
 // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded snow
