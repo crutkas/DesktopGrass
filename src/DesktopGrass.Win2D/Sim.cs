@@ -141,7 +141,7 @@ internal struct Blade
 // Roaming entities (architecture.md §13.2). Tumbleweeds (Desert §14),
 // snowflakes (Winter §15), sheep (§16), cats (§17), bunnies (§18), birds (§17.8), and raindrops (§20) live in Sim.Entities.
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Raindrop = 5, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11, SnowPuff = 12 }
 
 public struct Entity
 {
@@ -247,6 +247,10 @@ internal sealed class Sim
     // §16.6 leaf-puff emitter (Autumn scene only). Independent salted stream so
     // cursor-triggered puffs never perturb the ambient leaf emitter's draws.
     public Prng LeafPuffPrng;
+
+    // §21 snow-puff emitter (Winter scene only). Independent salted stream so
+    // click-triggered powder bursts never perturb the snowflake emitter's draws.
+    public Prng SnowPuffPrng;
 
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
@@ -443,6 +447,7 @@ internal sealed class Sim
             case Scene.Winter:
                 GeneratePinesForWinter(this);
                 SnowflakePrng = Prng.Init(EntitySeed ^ Constants.SNOWFLAKE_PRNG_SALT);
+                SnowPuffPrng = Prng.Init(EntitySeed ^ Constants.SNOW_PUFF_PRNG_SALT);
                 double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
                 NextSnowflakeSpawnTime = GlobalTime + SnowflakePrng.Exponential(lambda);
                 break;
@@ -858,6 +863,7 @@ internal sealed class Sim
         LeafPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PRNG_SALT);
         NextLeafSpawnTime = GlobalTime;
         LeafPuffPrng = Prng.Init(EntitySeed ^ Constants.LEAF_PUFF_PRNG_SALT);
+        SnowPuffPrng = Prng.Init(EntitySeed ^ Constants.SNOW_PUFF_PRNG_SALT);
         BirdFlybyPrng = Prng.Init(EntitySeed ^ Constants.BIRD_FLYBY_PRNG_SALT);
         NextBirdFlybyAtTime = GlobalTime + BirdFlybySampleInterval(ref BirdFlybyPrng);
     }
@@ -1235,6 +1241,21 @@ internal sealed class Sim
             }
         }
 
+        // Snow-puff powder (§21): gravity pulls the upward burst back toward the
+        // ground (y is screen-down) while horizontal velocity decays via drag.
+        // The generic pass above already integrated position and age; culling is
+        // by lifetime (below) plus the y > groundY rule.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind == EntityKind.SnowPuff)
+            {
+                e.Vy += Constants.SNOW_PUFF_GRAVITY * dt;
+                e.Vx *= Math.Exp(-Constants.SNOW_PUFF_DRAG * dt);
+                Entities[i] = e;
+            }
+        }
+
         for (int i = 0; i < Entities.Count; i++)
         {
             Entity e = Entities[i];
@@ -1276,6 +1297,7 @@ internal sealed class Sim
         Entities.RemoveAll(e => (e.Lifetime > 0.0 && e.Age >= e.Lifetime)
                              || (e.Kind == EntityKind.Snowflake && e.Y > groundY)
                              || (e.Kind == EntityKind.Leaf && e.Y > groundY)
+                             || (e.Kind == EntityKind.SnowPuff && e.Y > groundY)
                              || (e.Kind == EntityKind.Snowflake
                                  && CurrentScene == Scene.Winter
                                  && SnowDepth > 0.0
@@ -1899,6 +1921,31 @@ internal sealed class Sim
         return e;
     }
 
+    // §21 powder kicked up by a click on the Winter snowbank. Spawns at the
+    // click with an upward, outward burst that gravity (positive Vy, y is
+    // screen-down) pulls back to ground; Vx decays via drag in the tick and the
+    // particle fades over its lifetime. Draw order locked to the native mirror:
+    // size, theta, speed, offA, offR, lifetime.
+    private Entity MakeSnowPuff(double cx, double cy, double groundY)
+    {
+        double twoPi = 2.0 * Math.PI;
+        Entity e = default;
+        e.Kind = EntityKind.SnowPuff;
+        e.Size = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_SIZE_MIN, Constants.SNOW_PUFF_SIZE_MAX);
+        double theta = SnowPuffPrng.Uniform(-Constants.SNOW_PUFF_SPREAD_RAD, Constants.SNOW_PUFF_SPREAD_RAD);
+        double speed = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_BURST_SPEED_MIN, Constants.SNOW_PUFF_BURST_SPEED_MAX);
+        double offA = SnowPuffPrng.Uniform(0.0, twoPi);
+        double offR = SnowPuffPrng.Uniform(0.0, Constants.SNOW_PUFF_START_RADIUS);
+        e.Lifetime = SnowPuffPrng.Uniform(Constants.SNOW_PUFF_LIFETIME_MIN, Constants.SNOW_PUFF_LIFETIME_MAX);
+        e.X = cx + Math.Cos(offA) * offR;
+        // Bias the start to at/above ground so a puff never spawns under the bank.
+        e.Y = Math.Min(cy - Math.Abs(Math.Sin(offA)) * offR, groundY);
+        e.Vx = Math.Sin(theta) * speed;
+        e.Vy = -Math.Cos(theta) * speed;
+        e.Age = 0.0;
+        return e;
+    }
+
     // §8 cursor-move impulse.
     public void ApplyCursorMove(in InputEvent e)
     {
@@ -1976,9 +2023,32 @@ internal sealed class Sim
     // §9 click → cut.
     public void ApplyClick(double clickX, double clickY, double time)
     {
+        // Reject non-finite coordinates before anything else: NaN compares false,
+        // so an unguarded NaN click would slip past the radius checks and cut
+        // every blade (and emit a degenerate puff).
+        if (!double.IsFinite(clickX) || !double.IsFinite(clickY)) return;
+
         double cutBandTop = GroundY - Constants.STRIP_HEIGHT;
         double cutBandBottom = GroundY;
         if (clickY < cutBandTop || clickY > cutBandBottom) return;
+
+        // §21 snow puff: a click on the Winter snowbank kicks up a burst of
+        // powder. We always draw the full locked PRNG sequence per intended puff
+        // and only append when capacity allows, so the stream stays independent
+        // of the transient entity count.
+        if (CurrentScene == Scene.Winter)
+        {
+            int count = Constants.SNOW_PUFF_COUNT_MIN
+                + (int)SnowPuffPrng.Index((uint)(Constants.SNOW_PUFF_COUNT_MAX - Constants.SNOW_PUFF_COUNT_MIN + 1));
+            for (int i = 0; i < count; i++)
+            {
+                Entity puff = MakeSnowPuff(clickX, clickY, GroundY);
+                if (Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR)
+                {
+                    Entities.Add(puff);
+                }
+            }
+        }
 
         for (int i = 0; i < Blades.Length; i++)
         {

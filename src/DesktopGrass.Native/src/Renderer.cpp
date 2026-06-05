@@ -233,6 +233,16 @@ bool Renderer::CreateDeviceResources() {
                                             snowLayerHighlightBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
+    driftBaseBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(WINTER_DRIFT_BASE_COLOR),
+                                            driftBaseBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
+    driftHiliteBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(WINTER_DRIFT_HILITE_COLOR),
+                                            driftHiliteBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     pineBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(PINE_COLOR),
                                             pineBrush_.ReleaseAndGetAddressOf());
@@ -495,6 +505,8 @@ void Renderer::DiscardDeviceResources() {
     snowLayerTopBrush_.Reset();
     snowLayerBottomBrush_.Reset();
     snowLayerHighlightBrush_.Reset();
+    driftBaseBrush_.Reset();
+    driftHiliteBrush_.Reset();
     pineBrush_.Reset();
     pineShadowBrush_.Reset();
     pineHighlightBrush_.Reset();
@@ -1077,6 +1089,50 @@ void Renderer::DrawGrass(bool treesOnly) {
             const D2D1_ELLIPSE cap = D2D1::Ellipse(
                 D2D1::Point2F(baseX, capCY), capRX, capRY);
             d2dContext_->FillEllipse(cap, mushroomCapBrushes_[cIdx].Get());
+            continue;
+        }
+
+        // Winter snowbank (§21): ordinary (non-pine) blades render as low snow
+        // mounds instead of grass, so dense neighbors overlap into a drift. The
+        // mound height tracks blade.height * cutHeight, so a click-cut visibly
+        // dents the bank before it refills.
+        if (sim_.currentScene == Scene::Winter) {
+            const float bx = static_cast<float>(b.baseX);
+            const float gy = static_cast<float>(groundY);
+            double mh = b.height * b.cutHeight * WINTER_DRIFT_HEIGHT_SCALE;
+            mh = std::max(WINTER_DRIFT_HEIGHT_MIN, std::min(WINTER_DRIFT_HEIGHT_MAX, mh));
+            const double mw = std::max(WINTER_DRIFT_WIDTH_MIN, mh * WINTER_DRIFT_WIDTH_FACTOR);
+
+            // Base mound centered on the ground line: only the top half shows as
+            // a bump (the lower half is off-window below the strip baseline).
+            d2dContext_->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(bx, gy),
+                              static_cast<float>(mw), static_cast<float>(mh)),
+                driftBaseBrush_.Get());
+            // Soft white highlight dab offset up-left for a sense of light.
+            d2dContext_->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(bx - static_cast<float>(mw) * 0.18f,
+                                            gy - static_cast<float>(mh) * 0.30f),
+                              static_cast<float>(mw) * 0.55f, static_cast<float>(mh) * 0.60f),
+                driftHiliteBrush_.Get());
+
+            // Calm sparkle: a sparse, slow twinkle keyed off globalTime + baseX
+            // (deterministic, no PRNG). Only the rare crest above the threshold
+            // lights up, so just a few glints shimmer at once.
+            const double tw = std::sin(sim_.globalTime * SNOW_SPARKLE_SPEED
+                                       + b.baseX * SNOW_SPARKLE_PHASE_MUL);
+            if (tw > SNOW_SPARKLE_THRESHOLD) {
+                const float a = static_cast<float>((tw - SNOW_SPARKLE_THRESHOLD)
+                                                   / (1.0 - SNOW_SPARKLE_THRESHOLD));
+                driftHiliteBrush_->SetOpacity(a);
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(bx + static_cast<float>(mw) * 0.10f,
+                                                gy - static_cast<float>(mh) * 0.65f),
+                                  static_cast<float>(SNOW_SPARKLE_RADIUS),
+                                  static_cast<float>(SNOW_SPARKLE_RADIUS)),
+                    driftHiliteBrush_.Get());
+                driftHiliteBrush_->SetOpacity(1.0f);
+            }
             continue;
         }
 
@@ -1818,6 +1874,20 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
             const float dy = std::sin(static_cast<float>(e.rotation));
             d2dContext_->DrawLine(D2D1::Point2F(cx, cy), D2D1::Point2F(cx + dx * r * 1.25f, cy + dy * r * 1.25f),
                                   mapleTrunkDarkBrush_.Get(), std::max(0.8f, r * 0.18f));
+            continue;
+        }
+
+        if (e.kind == EntityKind::SnowPuff) {
+            float alpha = 1.0f;
+            if (e.lifetime > 0.0) alpha = static_cast<float>(1.0 - e.age / e.lifetime);
+            if (alpha <= 0.0f) continue;
+            if (alpha > 1.0f) alpha = 1.0f;
+            const float r = static_cast<float>(e.size);
+            snowflakeBrush_->SetOpacity(alpha);
+            d2dContext_->FillEllipse(
+                D2D1::Ellipse(D2D1::Point2F(static_cast<float>(e.x), static_cast<float>(e.y)), r, r),
+                snowflakeBrush_.Get());
+            snowflakeBrush_->SetOpacity(1.0f);
             continue;
         }
 

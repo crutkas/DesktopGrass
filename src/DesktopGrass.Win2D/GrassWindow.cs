@@ -76,6 +76,8 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _snowLayerTopBrush;
     private ID2D1SolidColorBrush? _snowLayerBottomBrush;
     private ID2D1SolidColorBrush? _snowLayerHighlightBrush;
+    private ID2D1SolidColorBrush? _driftBaseBrush;
+    private ID2D1SolidColorBrush? _driftHiliteBrush;
     private ID2D1SolidColorBrush? _pineBrush;
     private ID2D1SolidColorBrush? _pineShadowBrush;
     private ID2D1SolidColorBrush? _pineHighlightBrush;
@@ -254,6 +256,8 @@ internal sealed class GrassWindow : IDisposable
         _snowLayerTopBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_TOP));
         _snowLayerBottomBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_COLOR_BOTTOM));
         _snowLayerHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.SNOW_LAYER_HIGHLIGHT));
+        _driftBaseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.WINTER_DRIFT_BASE_COLOR));
+        _driftHiliteBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.WINTER_DRIFT_HILITE_COLOR));
         _pineBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_COLOR));
         _pineShadowBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_SHADOW_COLOR));
         _pineHighlightBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.PINE_HIGHLIGHT_COLOR));
@@ -558,6 +562,19 @@ internal sealed class GrassWindow : IDisposable
                 float dy = (float)Math.Sin(e.Rotation);
                 _dc.DrawLine(new Vector2(cx, cy), new Vector2(cx + dx * leafR * 1.25f, cy + dy * leafR * 1.25f),
                              _mapleTrunkDarkBrush!, Math.Max(0.8f, leafR * 0.18f), _strokeStyle);
+                continue;
+            }
+
+            if (e.Kind == EntityKind.SnowPuff)
+            {
+                float alpha = 1.0f;
+                if (e.Lifetime > 0.0) alpha = (float)(1.0 - e.Age / e.Lifetime);
+                if (alpha <= 0.0f) continue;
+                if (alpha > 1.0f) alpha = 1.0f;
+                float pr = (float)e.Size;
+                _snowflakeBrush!.Opacity = alpha;
+                _dc!.FillEllipse(new Ellipse(new Vector2((float)e.X, (float)e.Y), pr, pr), _snowflakeBrush!);
+                _snowflakeBrush!.Opacity = 1.0f;
                 continue;
             }
 
@@ -1664,6 +1681,40 @@ internal sealed class GrassWindow : IDisposable
             return;
         }
 
+        // Winter snowbank (§21): ordinary (non-pine) blades render as low snow
+        // mounds instead of grass, so dense neighbors overlap into a drift. The
+        // mound height tracks blade.Height * CutHeight, so a click-cut visibly
+        // dents the bank before it refills.
+        if (Sim.CurrentScene == Scene.Winter)
+        {
+            float dbx = (float)b.BaseX;
+            float dgy = (float)groundY;
+            double mh = b.Height * b.CutHeight * Constants.WINTER_DRIFT_HEIGHT_SCALE;
+            mh = Math.Clamp(mh, Constants.WINTER_DRIFT_HEIGHT_MIN, Constants.WINTER_DRIFT_HEIGHT_MAX);
+            double mw = Math.Max(Constants.WINTER_DRIFT_WIDTH_MIN, mh * Constants.WINTER_DRIFT_WIDTH_FACTOR);
+
+            _dc!.FillEllipse(new Ellipse(new Vector2(dbx, dgy), (float)mw, (float)mh), _driftBaseBrush!);
+            _dc.FillEllipse(
+                new Ellipse(new Vector2(dbx - (float)mw * 0.18f, dgy - (float)mh * 0.30f),
+                            (float)mw * 0.55f, (float)mh * 0.60f),
+                _driftHiliteBrush!);
+
+            double tw = Math.Sin(Sim.GlobalTime * Constants.SNOW_SPARKLE_SPEED
+                                 + b.BaseX * Constants.SNOW_SPARKLE_PHASE_MUL);
+            if (tw > Constants.SNOW_SPARKLE_THRESHOLD)
+            {
+                float a = (float)((tw - Constants.SNOW_SPARKLE_THRESHOLD)
+                                  / (1.0 - Constants.SNOW_SPARKLE_THRESHOLD));
+                _driftHiliteBrush!.Opacity = a;
+                _dc.FillEllipse(
+                    new Ellipse(new Vector2(dbx + (float)mw * 0.10f, dgy - (float)mh * 0.65f),
+                                (float)Constants.SNOW_SPARKLE_RADIUS, (float)Constants.SNOW_SPARKLE_RADIUS),
+                    _driftHiliteBrush!);
+                _driftHiliteBrush!.Opacity = 1.0f;
+            }
+            return;
+        }
+
         var stroke = Sim.ComputeBladeStroke(b, groundY, Sim.CurrentScene);
         int hue = b.Hue;
         if ((uint)hue >= (uint)Constants.PALETTE_SIZE) hue = 0;
@@ -1775,6 +1826,8 @@ internal sealed class GrassWindow : IDisposable
         try { _snowLayerTopBrush?.Dispose(); } catch { }
         try { _snowLayerBottomBrush?.Dispose(); } catch { }
         try { _snowLayerHighlightBrush?.Dispose(); } catch { }
+        try { _driftBaseBrush?.Dispose(); } catch { }
+        try { _driftHiliteBrush?.Dispose(); } catch { }
         try { _pineBrush?.Dispose(); } catch { }
         try { _pineShadowBrush?.Dispose(); } catch { }
         try { _pineHighlightBrush?.Dispose(); } catch { }

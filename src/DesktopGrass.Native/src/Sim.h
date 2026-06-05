@@ -262,6 +262,10 @@ struct Sim {
     // cursor-triggered puffs never perturb the ambient leaf emitter's draws.
     Prng               leafPuffPrng        = { 0 };
 
+    // §21 snow-puff emitter (Winter scene only). Independent salted stream so
+    // click-triggered powder bursts never perturb the snowflake emitter's draws.
+    Prng               snowPuffPrng        = { 0 };
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     Prng               birdFlybyPrng       = { 0 };

@@ -452,6 +452,30 @@ Entity make_puff_leaf(Prng& prng, double cx, double cy, double canopyR) noexcept
     return e;
 }
 
+// Powder kicked up by a click on the Winter snowbank (§21). Spawns at the click
+// with an upward, outward burst that gravity (positive vy, y is screen-down)
+// pulls back to ground; horizontal velocity decays via drag in the tick, and
+// the particle fades out over its lifetime. Draw order is locked to the Win2D
+// mirror so both impls stay bit-identical: size, theta, speed, offA, offR,
+// lifetime.
+Entity make_snow_puff(Prng& prng, double cx, double cy, double groundY) noexcept {
+    Entity e{};
+    e.kind = EntityKind::SnowPuff;
+    e.size = prng_uniform(prng, SNOW_PUFF_SIZE_MIN, SNOW_PUFF_SIZE_MAX);
+    const double theta = prng_uniform(prng, -SNOW_PUFF_SPREAD_RAD, SNOW_PUFF_SPREAD_RAD);
+    const double speed = prng_uniform(prng, SNOW_PUFF_BURST_SPEED_MIN, SNOW_PUFF_BURST_SPEED_MAX);
+    const double offA = prng_uniform(prng, 0.0, TWO_PI);
+    const double offR = prng_uniform(prng, 0.0, SNOW_PUFF_START_RADIUS);
+    e.lifetime = prng_uniform(prng, SNOW_PUFF_LIFETIME_MIN, SNOW_PUFF_LIFETIME_MAX);
+    e.x  = cx + std::cos(offA) * offR;
+    // Bias the start to at/above ground so a puff never spawns under the bank.
+    e.y  = std::min(cy - std::fabs(std::sin(offA)) * offR, groundY);
+    e.vx = std::sin(theta) * speed;
+    e.vy = -std::cos(theta) * speed;
+    e.age = 0.0;
+    return e;
+}
+
 } // anonymous
 
 void generate_cacti_for_desert(Sim& sim) noexcept {
@@ -790,11 +814,32 @@ void sim_apply_move(Sim& sim, const InputEvent& e) noexcept {
 }
 
 void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
+    // Reject non-finite cursor coordinates before anything else: NaN compares
+    // false, so an unguarded NaN click would slip past the radius checks below
+    // and cut every blade (and emit a degenerate puff).
+    if (!std::isfinite(e.x) || !std::isfinite(e.y)) return;
+
     const double groundY       = sim.windowHeight;
     const double cutBandTop    = groundY - STRIP_HEIGHT;
     const double cutBandBottom = groundY;
 
     if (e.y < cutBandTop || e.y > cutBandBottom) return;
+
+    // Snow puff (§21): a click on the Winter snowbank kicks up a burst of
+    // powder. We always draw the full locked PRNG sequence per intended puff
+    // and only append when capacity allows, so the stream stays independent of
+    // the transient entity count.
+    if (sim.currentScene == Scene::Winter) {
+        const int count = SNOW_PUFF_COUNT_MIN
+            + static_cast<int>(prng_index(sim.snowPuffPrng,
+                                          SNOW_PUFF_COUNT_MAX - SNOW_PUFF_COUNT_MIN + 1));
+        for (int i = 0; i < count; ++i) {
+            Entity puff = make_snow_puff(sim.snowPuffPrng, e.x, e.y, groundY);
+            if (sim.entities.size() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
+                sim.entities.push_back(puff);
+            }
+        }
+    }
 
     for (Blade& b : sim.blades) {
         if (std::fabs(b.baseX - e.x) >= CUT_RADIUS) continue;
@@ -1302,6 +1347,7 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
     case Scene::Winter: {
         generate_pines_for_winter(sim);
         prng_init(sim.snowflakePrng, sim.entitySeed ^ SNOWFLAKE_PRNG_SALT);
+        prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
         const double lambda = SNOWFLAKE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         sim.nextSnowflakeSpawnTime = sim.globalTime + prng_exponential(sim.snowflakePrng, lambda);
         break;
@@ -1477,6 +1523,17 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         }
     }
 
+    // Snow-puff powder (§21): gravity pulls the upward burst back toward the
+    // ground (y is screen-down) while horizontal velocity decays via drag. The
+    // generic pass above already integrated position and age; culling is by
+    // lifetime (below) plus the y > groundY rule.
+    for (Entity& e : sim.entities) {
+        if (e.kind == EntityKind::SnowPuff) {
+            e.vy += SNOW_PUFF_GRAVITY * dt;
+            e.vx *= std::exp(-SNOW_PUFF_DRAG * dt);
+        }
+    }
+
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Butterfly) {
             const double margin = BUTTERFLY_WING_OFFSET + BUTTERFLY_WING_RADIUS;
@@ -1505,6 +1562,7 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                 return (e.lifetime > 0.0 && e.age >= e.lifetime)
                     || (e.kind == EntityKind::Snowflake && e.y > groundY)
                     || (e.kind == EntityKind::Leaf && e.y > groundY)
+                    || (e.kind == EntityKind::SnowPuff && e.y > groundY)
                     || (e.kind == EntityKind::Snowflake
                         && sim.currentScene == Scene::Winter
                         && sim.snowDepth > 0.0
@@ -1910,6 +1968,7 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     prng_init(s.leafPrng, s.entitySeed ^ LEAF_PRNG_SALT);
     s.nextLeafSpawnTime = s.globalTime;
     prng_init(s.leafPuffPrng, s.entitySeed ^ LEAF_PUFF_PRNG_SALT);
+    prng_init(s.snowPuffPrng, s.entitySeed ^ SNOW_PUFF_PRNG_SALT);
     prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
@@ -1941,6 +2000,7 @@ void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density
     prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
     sim.nextLeafSpawnTime = sim.globalTime;
     prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
+    prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
     prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }

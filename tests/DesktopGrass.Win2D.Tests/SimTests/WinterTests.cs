@@ -204,4 +204,119 @@ public class WinterTests
         sim.Tick(2.0, System.ReadOnlySpan<InputEvent>.Empty);
         Assert.Empty(sim.Entities);
     }
+
+    private static int CountSnowPuffs(Sim sim)
+    {
+        int n = 0;
+        foreach (Entity e in sim.Entities)
+            if (e.Kind == EntityKind.SnowPuff) n++;
+        return n;
+    }
+
+    [Fact]
+    public void SnowPuffConstantsArePinned()
+    {
+        Assert.Equal(6, Constants.SNOW_PUFF_COUNT_MIN);
+        Assert.Equal(10, Constants.SNOW_PUFF_COUNT_MAX);
+        Assert.Equal(1.2, Constants.SNOW_PUFF_SIZE_MIN);
+        Assert.Equal(2.6, Constants.SNOW_PUFF_SIZE_MAX);
+        Assert.Equal(150.0, Constants.SNOW_PUFF_GRAVITY);
+        Assert.Equal(1.6, Constants.SNOW_PUFF_DRAG);
+        Assert.Equal(1.15, Constants.SNOW_PUFF_SPREAD_RAD);
+        Assert.Equal(0x5503FF1E5503FF1Eul, Constants.SNOW_PUFF_PRNG_SALT);
+        Assert.Equal(0.42, Constants.WINTER_DRIFT_HEIGHT_SCALE);
+        Assert.Equal(0xFFE8EEF6u, Constants.WINTER_DRIFT_BASE_COLOR);
+    }
+
+    [Fact]
+    public void ClickingWinterSnowbankShedsSnowPuffBurst()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        sim.ApplyClick(400.0, sim.WindowHeight - 5.0, sim.GlobalTime);
+
+        int puffs = CountSnowPuffs(sim);
+        Assert.True(puffs >= Constants.SNOW_PUFF_COUNT_MIN);
+        Assert.True(puffs <= Constants.SNOW_PUFF_COUNT_MAX);
+
+        foreach (Entity e in sim.Entities)
+        {
+            if (e.Kind != EntityKind.SnowPuff) continue;
+            Assert.True(e.Vy < 0.0);
+            Assert.True(e.Y <= sim.WindowHeight + 1e-9);
+        }
+    }
+
+    [Fact]
+    public void SnowPuffOnlyFiresInWinter()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Grass);
+
+        sim.ApplyClick(400.0, sim.WindowHeight - 5.0, sim.GlobalTime);
+
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void NonFiniteClickShedsNoSnowPuff()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        sim.ApplyClick(double.NaN, sim.WindowHeight - 5.0, sim.GlobalTime);
+
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void SnowPuffBurstRisesThenSettlesAndIsCulled()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        sim.ApplyClick(400.0, sim.WindowHeight - 5.0, sim.GlobalTime);
+        Assert.True(CountSnowPuffs(sim) > 0);
+
+        for (int i = 0; i < 200; i++) sim.TickEntities(0.02);
+        Assert.Equal(0, CountSnowPuffs(sim));
+    }
+
+    [Fact]
+    public void SnowPuffDrawOrderMatchesSidePrngStream()
+    {
+        var sim = BuildSim();
+        sim.SetScene(Scene.Winter);
+
+        sim.ApplyClick(300.0, sim.WindowHeight - 5.0, sim.GlobalTime);
+
+        var side = Prng.Init(Constants.CANONICAL_TEST_SEED ^ Constants.SNOW_PUFF_PRNG_SALT);
+        int expectedCount = Constants.SNOW_PUFF_COUNT_MIN
+            + (int)side.Index((uint)(Constants.SNOW_PUFF_COUNT_MAX - Constants.SNOW_PUFF_COUNT_MIN + 1));
+        Assert.Equal(expectedCount, CountSnowPuffs(sim));
+
+        double expectedSize = side.Uniform(Constants.SNOW_PUFF_SIZE_MIN, Constants.SNOW_PUFF_SIZE_MAX);
+        foreach (Entity e in sim.Entities)
+        {
+            if (e.Kind != EntityKind.SnowPuff) continue;
+            Assert.Equal(expectedSize, e.Size, 12);
+            break;
+        }
+    }
+
+    [Fact]
+    public void SnowPuffSaltIsUniqueAmongWinterSalts()
+    {
+        ulong[] otherSalts =
+        {
+            Constants.REGROW_PRNG_SALT, Constants.FLOWER_PRNG_SALT, Constants.MUSHROOM_PRNG_SALT,
+            Constants.AMBIENT_GUST_PRNG_SALT, Constants.CACTUS_PRNG_SALT, Constants.TUMBLEWEED_PRNG_SALT,
+            Constants.CRITTER_PRNG_SALT, Constants.BUTTERFLY_PRNG_SALT, Constants.FIREFLY_PRNG_SALT,
+            Constants.BIRD_FLYBY_PRNG_SALT, Constants.SNOWFLAKE_PRNG_SALT, Constants.RAINDROP_PRNG_SALT,
+            Constants.PINE_PRNG_SALT, Constants.LEAF_PUFF_PRNG_SALT,
+        };
+        foreach (ulong s in otherSalts)
+            Assert.NotEqual(Constants.SNOW_PUFF_PRNG_SALT, s);
+    }
 }

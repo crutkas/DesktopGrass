@@ -12,6 +12,21 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-04 — Winter snow pivot: drifts, click puffs & sparkle
+
+### Changed
+- **Winter now reads as snow, not grass** — the green winter grass blades are
+  replaced by low rounded snow drifts (off-white base mound with a soft white
+  highlight dab). Dense neighbors overlap into a continuous snowbank along the
+  bottom of every monitor.
+
+### Added
+- **Snow puff on click** — clicking the winter snowbank kicks up a small burst of
+  powder (6–10 white motes) that rises, slows, and falls back to the ground. The
+  click still gently dents the drift underneath, so the bank reacts and refills.
+- **Subtle drift sparkle** — a sparse, slow, deterministic twinkle plays across the
+  drift tops so the snow catches the light without becoming busy.
+
 ## 2026-06-04 — Pine trees with depth
 
 ### Changed

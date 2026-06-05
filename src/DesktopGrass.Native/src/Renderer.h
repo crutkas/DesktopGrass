@@ -109,6 +109,8 @@ private:
     ComPtr<ID2D1SolidColorBrush>           snowLayerTopBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerBottomBrush_;
     ComPtr<ID2D1SolidColorBrush>           snowLayerHighlightBrush_;
+    ComPtr<ID2D1SolidColorBrush>           driftBaseBrush_;
+    ComPtr<ID2D1SolidColorBrush>           driftHiliteBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineShadowBrush_;
     ComPtr<ID2D1SolidColorBrush>           pineHighlightBrush_;

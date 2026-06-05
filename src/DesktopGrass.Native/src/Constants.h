@@ -267,6 +267,7 @@ enum class EntityKind : uint8_t {
     Bird       = 9,
     Hedgehog   = 10,
     Leaf       = 11,
+    SnowPuff   = 12,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -690,6 +691,43 @@ constexpr uint32_t SNOW_LAYER_HIGHLIGHT             = 0xFFFFFFFFu;
 constexpr double   SNOW_TOP_UNDULATION_AMP          = 2.5;    // DIP
 constexpr double   SNOW_TOP_UNDULATION_WAVELENGTH   = 90.0;   // DIP
 constexpr uint64_t SNOW_TOP_UNDULATION_PHASE_SALT   = 0x5E0A1ull;
+
+// Snow puff (§21). A click on the Winter snowbank kicks up a short-lived burst
+// of powder. Dedicated PRNG stream (salted) so the burst never perturbs the
+// snowflake emitter; it only fires on click input. y is screen-down, so an
+// upward launch is negative vy and SNOW_PUFF_GRAVITY pulls back toward ground.
+constexpr int      SNOW_PUFF_COUNT_MIN          = 6;
+constexpr int      SNOW_PUFF_COUNT_MAX          = 10;
+constexpr double   SNOW_PUFF_SIZE_MIN           = 1.2;    // DIP
+constexpr double   SNOW_PUFF_SIZE_MAX           = 2.6;
+constexpr double   SNOW_PUFF_BURST_SPEED_MIN    = 34.0;   // DIP/sec
+constexpr double   SNOW_PUFF_BURST_SPEED_MAX    = 78.0;
+constexpr double   SNOW_PUFF_SPREAD_RAD         = 1.15;   // half-angle about vertical
+constexpr double   SNOW_PUFF_GRAVITY            = 150.0;  // DIP/sec^2
+constexpr double   SNOW_PUFF_DRAG               = 1.6;    // horizontal decay
+constexpr double   SNOW_PUFF_START_RADIUS       = 4.0;    // initial scatter around click
+constexpr double   SNOW_PUFF_LIFETIME_MIN       = 0.5;    // sec
+constexpr double   SNOW_PUFF_LIFETIME_MAX       = 0.9;
+constexpr uint64_t SNOW_PUFF_PRNG_SALT          = 0x5503FF1E5503FF1Eull;
+
+// Winter snowbank (§21). Render-only: non-pine blades draw as low rounded snow
+// mounds instead of grass, so dense neighbors overlap into an undulating drift.
+// Mound height follows blade.height * cutHeight so a click-cut still dents it.
+constexpr double   WINTER_DRIFT_HEIGHT_SCALE    = 0.42;
+constexpr double   WINTER_DRIFT_HEIGHT_MIN      = 3.0;    // DIP
+constexpr double   WINTER_DRIFT_HEIGHT_MAX      = 11.0;
+constexpr double   WINTER_DRIFT_WIDTH_MIN       = 7.0;    // DIP
+constexpr double   WINTER_DRIFT_WIDTH_FACTOR    = 1.7;    // width = height * factor
+constexpr uint32_t WINTER_DRIFT_BASE_COLOR      = 0xFFE8EEF6u; // cool off-white
+constexpr uint32_t WINTER_DRIFT_HILITE_COLOR    = 0xFFFFFFFFu; // pure-white cap
+
+// Snow sparkle (§21). Render-only: a sparse, slow twinkle on the drift tops,
+// computed deterministically from globalTime + baseX (no PRNG). The high
+// threshold keeps only a few glints lit at once so it stays calm.
+constexpr double   SNOW_SPARKLE_SPEED           = 1.7;    // rad/sec
+constexpr double   SNOW_SPARKLE_PHASE_MUL       = 0.21;   // phase per DIP of x
+constexpr double   SNOW_SPARKLE_THRESHOLD       = 0.986;  // 0..1, higher = fewer
+constexpr double   SNOW_SPARKLE_RADIUS          = 1.1;    // DIP
 
 // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
 // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.

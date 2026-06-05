@@ -631,6 +631,42 @@ internal static class Constants
     public const double SNOW_TOP_UNDULATION_WAVELENGTH = 90.0;
     public const ulong SNOW_TOP_UNDULATION_PHASE_SALT = 0x5E0A1ul;
 
+    // Snow puff (§21). A click on the Winter snowbank kicks up a short-lived
+    // burst of powder. Dedicated PRNG stream (salted) so the burst never
+    // perturbs the snowflake emitter; it only fires on click input. y is
+    // screen-down, so an upward launch is negative vy and SNOW_PUFF_GRAVITY
+    // pulls back toward the ground.
+    public const int    SNOW_PUFF_COUNT_MIN       = 6;
+    public const int    SNOW_PUFF_COUNT_MAX       = 10;
+    public const double SNOW_PUFF_SIZE_MIN        = 1.2;
+    public const double SNOW_PUFF_SIZE_MAX        = 2.6;
+    public const double SNOW_PUFF_BURST_SPEED_MIN = 34.0;
+    public const double SNOW_PUFF_BURST_SPEED_MAX = 78.0;
+    public const double SNOW_PUFF_SPREAD_RAD      = 1.15;
+    public const double SNOW_PUFF_GRAVITY         = 150.0;
+    public const double SNOW_PUFF_DRAG            = 1.6;
+    public const double SNOW_PUFF_START_RADIUS    = 4.0;
+    public const double SNOW_PUFF_LIFETIME_MIN    = 0.5;
+    public const double SNOW_PUFF_LIFETIME_MAX    = 0.9;
+    public const ulong  SNOW_PUFF_PRNG_SALT       = 0x5503FF1E5503FF1Eul;
+
+    // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded
+    // snow mounds instead of grass, so dense neighbors overlap into a drift.
+    public const double WINTER_DRIFT_HEIGHT_SCALE = 0.42;
+    public const double WINTER_DRIFT_HEIGHT_MIN   = 3.0;
+    public const double WINTER_DRIFT_HEIGHT_MAX   = 11.0;
+    public const double WINTER_DRIFT_WIDTH_MIN    = 7.0;
+    public const double WINTER_DRIFT_WIDTH_FACTOR = 1.7;
+    public const uint   WINTER_DRIFT_BASE_COLOR   = 0xFFE8EEF6u;
+    public const uint   WINTER_DRIFT_HILITE_COLOR = 0xFFFFFFFFu;
+
+    // Snow sparkle (§21). Render-only: a sparse, slow twinkle on the drift tops,
+    // computed deterministically from globalTime + baseX (no PRNG).
+    public const double SNOW_SPARKLE_SPEED        = 1.7;
+    public const double SNOW_SPARKLE_PHASE_MUL    = 0.21;
+    public const double SNOW_SPARKLE_THRESHOLD    = 0.986;
+    public const double SNOW_SPARKLE_RADIUS       = 1.1;
+
     // Light rain (§20). Dedicated "rain drop" PRNG stream. Draw order per drop:
     // size, x, fallSpeed, vx, seed, then the exponential next-spawn interval.
     public const ulong RAINDROP_PRNG_SALT = 0xD40F0A1DD40F0A1Dul;
