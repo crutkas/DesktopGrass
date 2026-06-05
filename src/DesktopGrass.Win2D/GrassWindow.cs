@@ -362,6 +362,14 @@ internal sealed class GrassWindow : IDisposable
         _targetBitmap?.Dispose();
         _targetBitmap = _dc!.CreateBitmapFromDxgiSurface(backBuffer, bmpProps);
         _dc.Target = _targetBitmap;
+
+        // SetTarget does NOT propagate the target bitmap's DPI to the device
+        // context, and a context created via CreateDeviceContext defaults to
+        // 96 DPI. Without this, DIP-space draws map 1:1 to pixels and the scene
+        // is rendered at 96/(96*scale) of the intended size, covering only the
+        // left portion of a hi-DPI monitor. Match the native renderer, which
+        // sets the context DPI explicitly.
+        _dc.SetDpi(96f * _dpiScale, 96f * _dpiScale);
     }
 
     public void Render()

@@ -12,7 +12,24 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-05 — Fix: Win2D grass goes stale / partial after a display change
+## 2026-06-05 — Fix: Win2D grass only covered part of the screen at startup
+
+### Fixed
+- **Win2D (`d2d`) overlay now spans the full monitor width from launch on
+  hi-DPI displays.** The Direct2D device context (created via
+  `CreateDeviceContext`) defaults to 96 DPI, and binding a 144-DPI target
+  bitmap with `SetTarget` does **not** propagate that DPI to the context. As a
+  result, DIP-space blade coordinates (0…`monitorWidthDip`) were mapped to
+  pixels with a 96-DPI transform, so on a 150%-scaled monitor the grass only
+  reached ~67% of the width and the scene was undersized — present from startup,
+  with no resolution change involved. `BindBackBuffer` now calls
+  `_dc.SetDpi(96 * scale, 96 * scale)` after setting the target, matching the
+  native renderer's explicit `SetDpi`. Confirmed the context DPI goes from 96 to
+  144 (96 × 1.5) on the 150% monitor, mapping blades 0…2180 DIP onto the full
+  0…3270 px width.
+
+---
+
 
 ### Fixed
 - **Win2D (`d2d`) overlay no longer renders only part of the screen width after a
