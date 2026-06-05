@@ -842,6 +842,43 @@ void Renderer::DrawSnowLayer() {
             snowLayerHighlightBrush_.Get());
         snowLayerHighlightBrush_->SetOpacity(1.0f);
     }
+
+    // Wind-blown spindrift (§21.3): a few faint streaks skim horizontally just
+    // above the crest, scrolling with globalTime so the surface looks wind-blown
+    // and alive. Each lane has a stable pseudo-random length/height/phase from a
+    // cheap hash of its index; the streak wraps around the strip width.
+    if (snowflakeBrush_) {
+        const double t = sim_.globalTime;
+        for (int lane = 0; lane < SNOW_WIND_LANES; ++lane) {
+            const uint64_t h = splitmix64(0x57494E44ull + static_cast<uint64_t>(lane) * 0x9E3779B97F4A7C15ull);
+            const double u0 = static_cast<double>(h >> 11) / 9007199254740992.0;
+            const double u1 = static_cast<double>((h >> 23) & 0xFFFFF) / 1048576.0;
+            const double u2 = static_cast<double>((h >> 43) & 0xFFFFF) / 1048576.0;
+
+            const double len    = SNOW_WIND_LENGTH_MIN + u0 * (SNOW_WIND_LENGTH_MAX - SNOW_WIND_LENGTH_MIN);
+            const double height = SNOW_WIND_HEIGHT_MIN + u1 * (SNOW_WIND_HEIGHT_MAX - SNOW_WIND_HEIGHT_MIN);
+            const double laneSpeed = SNOW_WIND_SPEED * (0.7 + 0.6 * u2);
+            const double span   = static_cast<double>(width) + len * 2.0;
+            // Scroll left→right, wrapping; stagger lanes by their phase.
+            double headX = std::fmod(u0 * span + t * laneSpeed, span) - len;
+            const float bob = static_cast<float>(std::sin(t * SNOW_WIND_BOB_SPEED + u1 * 6.28318530717958647692) * SNOW_WIND_BOB_AMP);
+
+            const float x1 = static_cast<float>(headX);
+            const float x0 = static_cast<float>(headX - len);
+            const float midX = (x0 + x1) * 0.5f;
+            if (midX < -static_cast<float>(len) || midX > width + static_cast<float>(len)) continue;
+            const float crestY = topYAt(std::min(std::max(midX, 0.0f), width));
+            const float yy = crestY - static_cast<float>(height) + bob;
+            // Fade in/out near the head so streaks don't pop at the wrap seam.
+            const float edgeFade = std::min(1.0f, std::min(x1, width - x0) / static_cast<float>(len));
+            const float a = static_cast<float>(SNOW_WIND_OPACITY) * std::max(0.0f, edgeFade);
+            if (a <= 0.01f) continue;
+            snowflakeBrush_->SetOpacity(a);
+            d2dContext_->DrawLine(D2D1::Point2F(x0, yy + 1.0f), D2D1::Point2F(x1, yy),
+                                  snowflakeBrush_.Get(), static_cast<float>(SNOW_WIND_THICKNESS));
+            snowflakeBrush_->SetOpacity(1.0f);
+        }
+    }
 }
 
 void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
@@ -1968,10 +2005,22 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
             if (e.lifetime > 0.0) alpha = static_cast<float>(1.0 - e.age / e.lifetime);
             if (alpha <= 0.0f) continue;
             if (alpha > 1.0f) alpha = 1.0f;
-            const float r = static_cast<float>(e.size);
+            const float r  = static_cast<float>(e.size);
+            const float cx = static_cast<float>(e.x);
+            const float cy = static_cast<float>(e.y);
+            // Cool rim first so the white core reads against the white bank, then
+            // the bright core on top.
+            if (snowBankShadowBrush_) {
+                const float sr = r * static_cast<float>(SNOW_PUFF_SHADOW_SCALE);
+                snowBankShadowBrush_->SetOpacity(alpha * static_cast<float>(SNOW_PUFF_SHADOW_OPACITY));
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(cx, cy + r * static_cast<float>(SNOW_PUFF_SHADOW_OFFSET)), sr, sr),
+                    snowBankShadowBrush_.Get());
+                snowBankShadowBrush_->SetOpacity(1.0f);
+            }
             snowflakeBrush_->SetOpacity(alpha);
             d2dContext_->FillEllipse(
-                D2D1::Ellipse(D2D1::Point2F(static_cast<float>(e.x), static_cast<float>(e.y)), r, r),
+                D2D1::Ellipse(D2D1::Point2F(cx, cy), r, r),
                 snowflakeBrush_.Get());
             snowflakeBrush_->SetOpacity(1.0f);
             continue;

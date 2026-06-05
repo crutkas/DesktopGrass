@@ -37,7 +37,7 @@ void write_text(const std::filesystem::path& path, const std::string& text) {
 
 TEST_CASE("snow accumulation constants are pinned", "[snow][accumulation]") {
     REQUIRE(SNOW_ACCUMULATION_RATE == Approx(0.012).margin(1e-12));
-    REQUIRE(SNOW_DEPTH_MAX == Approx(30.0).margin(1e-12));
+    REQUIRE(SNOW_DEPTH_MAX == Approx(6.0).margin(1e-12));
     REQUIRE(SNOW_DEPTH_MIN_RENDER == Approx(0.3).margin(1e-12));
     REQUIRE(SNOW_LAYER_COLOR_TOP == 0xFFFFFFFFu);
     REQUIRE(SNOW_LAYER_COLOR_BOTTOM == 0xFFE8E8F0u);
@@ -93,7 +93,7 @@ TEST_CASE("snow accumulation persists through v2 state round trip", "[snow][accu
     persistence::SetStateFilePathForTest(path.wstring());
 
     Sim running = make_sim(Scene::Winter);
-    sim_set_snow_depth(running, 18.0);
+    sim_set_snow_depth(running, 5.0);
 
     persistence::AppState state;
     state.scene = Scene::Winter;
@@ -115,7 +115,7 @@ TEST_CASE("snow accumulation persists through v2 state round trip", "[snow][accu
     Sim fresh = sim_init(CANONICAL_TEST_SEED, 1920.0, 1.0);
     sim_set_scene(fresh, loaded.scene);
     sim_set_snow_depth(fresh, loaded.monitors[0].snowDepth);
-    REQUIRE(fresh.snowDepth == Approx(18.0).margin(1e-9));
+    REQUIRE(fresh.snowDepth == Approx(5.0).margin(1e-9));
 }
 
 TEST_CASE("v1 state files load with zero snow accumulation", "[snow][accumulation][persistence]") {
@@ -169,8 +169,8 @@ TEST_CASE("snowflakes despawn when they touch accumulated snow", "[snow][accumul
 
 TEST_CASE("snow depth exposes tree base burial offset", "[snow][accumulation]") {
     Sim sim = make_sim(Scene::Winter);
-    sim_set_snow_depth(sim, 15.0);
-    REQUIRE(snow_tree_base_y_offset(sim) == Approx(12.5).margin(1e-12));
+    sim_set_snow_depth(sim, 6.0);
+    REQUIRE(snow_tree_base_y_offset(sim) == Approx(3.5).margin(1e-12));
 
     sim_set_snow_depth(sim, 1.0);
     REQUIRE(snow_tree_base_y_offset(sim) == Approx(0.0).margin(1e-12));
@@ -179,5 +179,5 @@ TEST_CASE("snow depth exposes tree base burial offset", "[snow][accumulation]") 
 TEST_CASE("snow depth identity snapshot is deterministic across implementations", "[snow][accumulation]") {
     Sim sim = make_sim(Scene::Winter);
     sim_tick(sim, 1234.5, nullptr, 0);
-    REQUIRE(sim.snowDepth == Approx(14.814).margin(1e-9));
+    REQUIRE(sim.snowDepth == Approx(6.0).margin(1e-9));
 }

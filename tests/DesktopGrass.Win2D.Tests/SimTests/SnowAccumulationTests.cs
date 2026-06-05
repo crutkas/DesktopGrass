@@ -34,7 +34,7 @@ public sealed class SnowAccumulationTests
     public void SnowAccumulationConstantsArePinned()
     {
         Assert.Equal(0.012, Constants.SNOW_ACCUMULATION_RATE, 12);
-        Assert.Equal(30.0, Constants.SNOW_DEPTH_MAX, 12);
+        Assert.Equal(6.0, Constants.SNOW_DEPTH_MAX, 12);
         Assert.Equal(0.3, Constants.SNOW_DEPTH_MIN_RENDER, 12);
         Assert.Equal(0xFFFFFFFFu, Constants.SNOW_LAYER_COLOR_TOP);
         Assert.Equal(0xFFE8E8F0u, Constants.SNOW_LAYER_COLOR_BOTTOM);
@@ -102,7 +102,7 @@ public sealed class SnowAccumulationTests
     {
         UseStatePath(nameof(SnowAccumulationPersistsThroughV2StateRoundTrip));
         Sim running = BuildSim(Scene.Winter);
-        running.SetSnowDepth(18.0);
+        running.SetSnowDepth(5.0);
 
         var state = new AppState(2, Scene.Winter, CritterKind.None, 0, AutoStart: true,
         [
@@ -117,7 +117,7 @@ public sealed class SnowAccumulationTests
 
         Sim fresh = BuildSim(Scene.Winter);
         fresh.SetSnowDepth(monitor.SnowDepth);
-        Assert.Equal(18.0, fresh.SnowDepth, 9);
+        Assert.Equal(5.0, fresh.SnowDepth, 9);
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public sealed class SnowAccumulationTests
     public void SnowDepthExposesTreeBaseBurialOffset()
     {
         Sim sim = BuildSim(Scene.Winter);
-        sim.SetSnowDepth(15.0);
-        Assert.Equal(12.5, sim.SnowTreeBaseYOffset, 12);
+        sim.SetSnowDepth(6.0);
+        Assert.Equal(3.5, sim.SnowTreeBaseYOffset, 12);
 
         sim.SetSnowDepth(1.0);
         Assert.Equal(0.0, sim.SnowTreeBaseYOffset, 12);
@@ -193,6 +193,6 @@ public sealed class SnowAccumulationTests
     {
         Sim sim = BuildSim(Scene.Winter);
         sim.Tick(1234.5, ReadOnlySpan<InputEvent>.Empty);
-        Assert.Equal(14.814, sim.SnowDepth, 9);
+        Assert.Equal(6.0, sim.SnowDepth, 9);
     }
 }

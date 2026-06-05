@@ -197,8 +197,8 @@ InputEvent WinterClick(const Sim& sim, double x) {
 TEST_CASE("Snow puff constants are pinned", "[winter][puff][constants]") {
     REQUIRE(SNOW_PUFF_COUNT_MIN == 9);
     REQUIRE(SNOW_PUFF_COUNT_MAX == 16);
-    REQUIRE(SNOW_PUFF_SIZE_MIN == Approx(2.0));
-    REQUIRE(SNOW_PUFF_SIZE_MAX == Approx(4.5));
+    REQUIRE(SNOW_PUFF_SIZE_MIN == Approx(3.5));
+    REQUIRE(SNOW_PUFF_SIZE_MAX == Approx(8.0));
     REQUIRE(SNOW_PUFF_GRAVITY == Approx(150.0));
     REQUIRE(SNOW_PUFF_DRAG == Approx(1.6));
     REQUIRE(SNOW_PUFF_SPREAD_RAD == Approx(1.25));
@@ -259,7 +259,7 @@ TEST_CASE("Snow puff burst rises then settles and is culled", "[winter][puff]") 
     sim_apply_click(sim, ev);
     REQUIRE(count_snow_puffs(sim) > 0);
 
-    // 4 s easily exceeds SNOW_PUFF_LIFETIME_MAX (0.9 s); every puff should be
+    // 4 s easily exceeds SNOW_PUFF_LIFETIME_MAX (1.8 s); every puff should be
     // culled (lifetime expiry and/or falling back below the ground line).
     for (int i = 0; i < 200; ++i) sim_tick_entities(sim, 0.02);
     REQUIRE(count_snow_puffs(sim) == 0);
@@ -322,13 +322,13 @@ void WinterDrift(Sim& sim, double x0, double x1, double dt) {
 }
 
 TEST_CASE("Snow drift constants are pinned", "[winter][drift][constants]") {
-    REQUIRE(SNOW_DRIFT_COUNT_MIN == 3);
-    REQUIRE(SNOW_DRIFT_COUNT_MAX == 6);
+    REQUIRE(SNOW_DRIFT_COUNT_MIN == 4);
+    REQUIRE(SNOW_DRIFT_COUNT_MAX == 8);
     REQUIRE(SNOW_DRIFT_REACH_DIP == Approx(70.0));
     REQUIRE(SNOW_DRIFT_MIN_SPEED == Approx(90.0));
     REQUIRE(SNOW_DRIFT_COOLDOWN_SEC == Approx(0.12));
-    REQUIRE(SNOW_DRIFT_SIZE_SCALE == Approx(0.75));
-    REQUIRE(SNOW_DRIFT_SPEED_SCALE == Approx(0.6));
+    REQUIRE(SNOW_DRIFT_SIZE_SCALE == Approx(0.9));
+    REQUIRE(SNOW_DRIFT_SPEED_SCALE == Approx(0.85));
     REQUIRE(SNOW_DRIFT_PRNG_SALT == 0x5D81F77D5D81F77Dull);
 }
 

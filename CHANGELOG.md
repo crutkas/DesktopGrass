@@ -12,7 +12,27 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-04 — Winter snow drift: cursor-move spindrift
+## 2026-06-04 — Winter snow visual redesign: lower bank, visible puffs, wind-blown spindrift
+
+### Changed
+- **The Winter snowbank is much lower and no longer buries the treeline.** Reduced
+  the base depth (13→9), roll amplitude (7→5), cornice (11→5) and the snow
+  accumulation cap (`SNOW_DEPTH_MAX` 30→6), so the bank reads as a calm drift along
+  the bottom rather than a tall wall swallowing the background pines.
+- **Click/drift snow puffs are now actually visible against the white bank.** Each
+  puff draws a cool-toned rim (reusing the bank shadow color) behind a bright white
+  core, and the grains are bigger (size 3.5–8 vs 2–4.5), loftier (burst speed
+  70–150) and longer-lived (1.0–1.8 s), so a click reads as a real poof of powder.
+- **Spindrift kick-up is a touch livelier** — slightly more, larger, faster grains
+  (`SNOW_DRIFT_*` count 4–8, size scale 0.9, speed scale 0.85).
+
+### Added
+- **Wind-blown spindrift**: a few faint streaks of snow now skim horizontally just
+  above the bank crest, scrolling with global time so the surface reads as
+  wind-blown and alive. Render-only and fully deterministic from time + lane index
+  (`SNOW_WIND_*`) — no new entities, sim logic, or PRNG draws.
+
+
 
 ### Added
 - **Brushing the cursor low and fast across the Winter snowbank now kicks up a

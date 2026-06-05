@@ -683,8 +683,9 @@ constexpr uint32_t SNOWFLAKE_COLOR                 = 0xFFFFFFFFu;
 constexpr uint64_t SNOWFLAKE_PRNG_SALT             = 0xC0FFEE1CECAFEBABull;
 
 // Snow accumulation (§15.2). Passive Winter-only layer on the strip baseline.
+// Capped low so a long-running session never piles the bank up over the trees.
 constexpr double   SNOW_ACCUMULATION_RATE           = 0.012;  // DIP/sec
-constexpr double   SNOW_DEPTH_MAX                   = 30.0;   // DIP
+constexpr double   SNOW_DEPTH_MAX                   = 6.0;    // DIP
 constexpr double   SNOW_DEPTH_MIN_RENDER            = 0.3;    // DIP
 constexpr uint32_t SNOW_LAYER_COLOR_TOP             = 0xFFFFFFFFu;
 constexpr uint32_t SNOW_LAYER_COLOR_BOTTOM          = 0xFFE8E8F0u;
@@ -699,16 +700,21 @@ constexpr uint64_t SNOW_TOP_UNDULATION_PHASE_SALT   = 0x5E0A1ull;
 // upward launch is negative vy and SNOW_PUFF_GRAVITY pulls back toward ground.
 constexpr int      SNOW_PUFF_COUNT_MIN          = 9;
 constexpr int      SNOW_PUFF_COUNT_MAX          = 16;
-constexpr double   SNOW_PUFF_SIZE_MIN           = 2.0;    // DIP
-constexpr double   SNOW_PUFF_SIZE_MAX           = 4.5;
-constexpr double   SNOW_PUFF_BURST_SPEED_MIN    = 48.0;   // DIP/sec
-constexpr double   SNOW_PUFF_BURST_SPEED_MAX    = 110.0;
+constexpr double   SNOW_PUFF_SIZE_MIN           = 3.5;    // DIP
+constexpr double   SNOW_PUFF_SIZE_MAX           = 8.0;
+constexpr double   SNOW_PUFF_BURST_SPEED_MIN    = 70.0;   // DIP/sec
+constexpr double   SNOW_PUFF_BURST_SPEED_MAX    = 150.0;
 constexpr double   SNOW_PUFF_SPREAD_RAD         = 1.25;   // half-angle about vertical
 constexpr double   SNOW_PUFF_GRAVITY            = 150.0;  // DIP/sec^2
 constexpr double   SNOW_PUFF_DRAG               = 1.6;    // horizontal decay
 constexpr double   SNOW_PUFF_START_RADIUS       = 7.0;    // initial scatter around click
-constexpr double   SNOW_PUFF_LIFETIME_MIN       = 0.6;    // sec
-constexpr double   SNOW_PUFF_LIFETIME_MAX       = 1.1;
+constexpr double   SNOW_PUFF_LIFETIME_MIN       = 1.0;    // sec
+constexpr double   SNOW_PUFF_LIFETIME_MAX       = 1.8;
+// Puffs are white, so on the white bank they need an edge: the cool bank-shadow
+// brush is reused to draw a slightly larger disc offset down behind the core.
+constexpr double   SNOW_PUFF_SHADOW_SCALE       = 1.35;   // shadow radius vs core
+constexpr double   SNOW_PUFF_SHADOW_OFFSET      = 0.45;   // downward offset vs core radius
+constexpr double   SNOW_PUFF_SHADOW_OPACITY     = 0.55;   // relative to the puff's age alpha
 constexpr uint64_t SNOW_PUFF_PRNG_SALT          = 0x5503FF1E5503FF1Eull;
 
 // §21.1 Snow drift (Winter cursor-move spindrift). Brushing the cursor low and
@@ -716,13 +722,13 @@ constexpr uint64_t SNOW_PUFF_PRNG_SALT          = 0x5503FF1E5503FF1Eull;
 // analogue of the autumn leaf-puff hover, giving the scene a calm move-driven
 // interaction to match grass/desert/fall. Reuses the snow-puff particle but with
 // fewer, smaller, slower grains. A global cooldown keeps it from spamming.
-constexpr int      SNOW_DRIFT_COUNT_MIN         = 3;
-constexpr int      SNOW_DRIFT_COUNT_MAX         = 6;
+constexpr int      SNOW_DRIFT_COUNT_MIN         = 4;
+constexpr int      SNOW_DRIFT_COUNT_MAX         = 8;
 constexpr double   SNOW_DRIFT_REACH_DIP         = 70.0;   // cursor must be this near the ground
 constexpr double   SNOW_DRIFT_MIN_SPEED         = 90.0;   // DIP/sec; only kicks up while moving
 constexpr double   SNOW_DRIFT_COOLDOWN_SEC      = 0.12;   // global gate (~8 wisps/sec max)
-constexpr double   SNOW_DRIFT_SIZE_SCALE        = 0.75;   // smaller grains than a click burst
-constexpr double   SNOW_DRIFT_SPEED_SCALE       = 0.6;    // gentler upward kick
+constexpr double   SNOW_DRIFT_SIZE_SCALE        = 0.9;    // a touch smaller than a click burst
+constexpr double   SNOW_DRIFT_SPEED_SCALE       = 0.85;   // a touch gentler kick
 constexpr uint64_t SNOW_DRIFT_PRNG_SALT         = 0x5D81F77D5D81F77Dull;
 
 // Winter snowbank (§21). Render-only: non-pine blades draw as low rounded snow
@@ -744,20 +750,36 @@ constexpr double   SNOW_SPARKLE_PHASE_MUL       = 0.21;   // phase per DIP of x
 constexpr double   SNOW_SPARKLE_THRESHOLD       = 0.986;  // 0..1, higher = fewer
 constexpr double   SNOW_SPARKLE_RADIUS          = 1.1;    // DIP
 
+// Wind-blown spindrift (§21.3). Render-only: a few faint streaks of snow skim
+// horizontally just above the bank crest, scrolling with globalTime so the
+// surface reads as wind-blown and alive rather than a static white mound. Fully
+// deterministic from globalTime + lane index (no PRNG, no entities, no state).
+constexpr int      SNOW_WIND_LANES              = 7;      // concurrent streaks across the strip
+constexpr double   SNOW_WIND_SPEED             = 130.0;  // DIP/sec horizontal scroll
+constexpr double   SNOW_WIND_LENGTH_MIN        = 26.0;   // DIP streak length
+constexpr double   SNOW_WIND_LENGTH_MAX        = 64.0;
+constexpr double   SNOW_WIND_THICKNESS         = 2.2;    // DIP streak thickness
+constexpr double   SNOW_WIND_HEIGHT_MIN        = 3.0;    // DIP above the crest
+constexpr double   SNOW_WIND_HEIGHT_MAX        = 16.0;
+constexpr double   SNOW_WIND_BOB_AMP           = 3.0;    // DIP vertical waft
+constexpr double   SNOW_WIND_BOB_SPEED         = 1.1;    // rad/sec
+constexpr double   SNOW_WIND_OPACITY           = 0.5;    // peak streak alpha
+constexpr uint32_t SNOW_WIND_COLOR             = 0xFFFFFFFFu;
+
 // Sculpted winter snowbank (§21.1). Render-only continuous drift that replaces
 // the per-blade snow mounds: a multi-harmonic crest (rolling dunes + ripples +
 // fine texture + occasional wind-piled cornices) filled with a lit-crest ->
 // soft-body -> cool-shadow tone stack, a bright crest edge, and a cool sub-crest
 // lip line for cornice definition. snowDepth still adds to the base so snow
 // visibly piles up over time. Phases derive from the per-monitor snowPhaseSeed.
-constexpr double   SNOW_BANK_BASE_DEPTH         = 13.0;   // DIP, always-present height
-constexpr double   SNOW_BANK_ROLL_AMP           = 7.0;
+constexpr double   SNOW_BANK_BASE_DEPTH         = 9.0;    // DIP, always-present height
+constexpr double   SNOW_BANK_ROLL_AMP           = 5.0;
 constexpr double   SNOW_BANK_ROLL_WAVELENGTH    = 280.0;
 constexpr double   SNOW_BANK_RIPPLE_AMP         = 3.0;
 constexpr double   SNOW_BANK_RIPPLE_WAVELENGTH  = 76.0;
 constexpr double   SNOW_BANK_MICRO_AMP          = 1.2;
 constexpr double   SNOW_BANK_MICRO_WAVELENGTH   = 23.0;
-constexpr double   SNOW_BANK_CORNICE_AMP        = 11.0;
+constexpr double   SNOW_BANK_CORNICE_AMP        = 5.0;
 constexpr double   SNOW_BANK_CORNICE_WAVELENGTH = 540.0;
 constexpr double   SNOW_BANK_CREST_BAND_FRAC    = 0.34;   // top fraction painted bright
 constexpr double   SNOW_BANK_SHADOW_BAND_FRAC   = 0.30;   // bottom fraction painted cool

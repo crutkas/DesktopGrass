@@ -1345,7 +1345,7 @@ Snow accumulation is Winter-only, always on, and ambient. Each monitor strip own
 | Constant | Value | Meaning |
 |---|---:|---|
 | `SNOW_ACCUMULATION_RATE` | `0.012` | DIP/sec; about `0.72` DIP/min |
-| `SNOW_DEPTH_MAX` | `30.0` | cap; reached in about 42 minutes |
+| `SNOW_DEPTH_MAX` | `6.0` | cap; reached in about 8 minutes |
 | `SNOW_DEPTH_MIN_RENDER` | `0.3` | render threshold to avoid startup flicker |
 | `SNOW_LAYER_COLOR_TOP` | `0xFFFFFFFF` | white upper band |
 | `SNOW_LAYER_COLOR_BOTTOM` | `0xFFE8E8F0` | pale blue-grey lower band |
@@ -1439,15 +1439,39 @@ It lives in `sim_apply_move` / `ApplyCursorMove`, after the first-event guard an
 
 | Constant | Value | Meaning |
 |---|---:|---|
-| `SNOW_DRIFT_COUNT_MIN` / `MAX` | `3` / `6` | grains per wisp (vs 9–16 for a click) |
+| `SNOW_DRIFT_COUNT_MIN` / `MAX` | `4` / `8` | grains per wisp (vs 9–16 for a click) |
 | `SNOW_DRIFT_REACH_DIP` | `70.0` | how near the ground the cursor must be |
 | `SNOW_DRIFT_MIN_SPEED` | `90.0` | DIP/sec; only kicks up while moving |
 | `SNOW_DRIFT_COOLDOWN_SEC` | `0.12` | global gate (~8 wisps/sec max) |
-| `SNOW_DRIFT_SIZE_SCALE` | `0.75` | smaller grains than a click burst |
-| `SNOW_DRIFT_SPEED_SCALE` | `0.6` | gentler upward kick |
+| `SNOW_DRIFT_SIZE_SCALE` | `0.9` | slightly smaller grains than a click burst |
+| `SNOW_DRIFT_SPEED_SCALE` | `0.85` | slightly gentler upward kick |
 | `SNOW_DRIFT_PRNG_SALT` | — | independent stream |
 
-`make_snow_puff` / `MakeSnowPuff` gained optional post-draw multipliers `sizeScale`/`speedScale` (default `1.0`) applied **after** every PRNG draw, so the click puff's byte sequence is unchanged; drift passes `0.75`/`0.6`. The drift uses its own `snowDriftPrng` (salted `SNOW_DRIFT_PRNG_SALT`), so it never perturbs the click-puff or snowflake streams. `snowDriftCooldownEnd` resets to `0` on every scene change. Because it only emits from move events, the no-input snapshot tests are unaffected. The move handler now also rejects non-finite cursor coordinates up front (mirroring the click handler), preventing a stray NaN from poisoning the cursor baseline.
+`make_snow_puff` / `MakeSnowPuff` gained optional post-draw multipliers `sizeScale`/`speedScale` (default `1.0`) applied **after** every PRNG draw, so the click puff's byte sequence is unchanged; drift passes `0.9`/`0.85`. The drift uses its own `snowDriftPrng` (salted `SNOW_DRIFT_PRNG_SALT`), so it never perturbs the click-puff or snowflake streams. `snowDriftCooldownEnd` resets to `0` on every scene change. Because it only emits from move events, the no-input snapshot tests are unaffected. The move handler now also rejects non-finite cursor coordinates up front (mirroring the click handler), preventing a stray NaN from poisoning the cursor baseline.
+
+---
+
+## 15.6 Winter snow visual redesign (lower bank, visible puffs, wind spindrift)
+
+A pass to make Winter read as a calm snowscape rather than a tall white wall that buried the treeline. Three render/constant changes, no new Sim logic or PRNG draws:
+
+1. **Lower bank.** `SNOW_BANK_BASE_DEPTH` 13→9, `SNOW_BANK_ROLL_AMP` 7→5, `SNOW_BANK_CORNICE_AMP` 11→5, and the accumulation cap `SNOW_DEPTH_MAX` 30→6. The sculpted bank (§15.4 background trees draw *before* it) now sits low enough to frame the pines instead of swallowing them. The accumulation-derived `snow_tree_base_y_offset` therefore tops out at `SNOW_DEPTH_MAX - SNOW_TOP_UNDULATION_AMP = 3.5`.
+2. **Visible puffs.** Click (§21) and drift (§15.5) puffs were white ellipses on a white bank (zero contrast). Each puff now draws a cool-toned rim (the bank shadow color, scaled `SNOW_PUFF_SHADOW_SCALE`, offset down `SNOW_PUFF_SHADOW_OFFSET·r`, at `alpha·SNOW_PUFF_SHADOW_OPACITY`) behind a bright white core. Grains are also bigger (`SNOW_PUFF_SIZE` 3.5–8.0), faster (`SNOW_PUFF_BURST_SPEED` 70–150) and longer-lived (`SNOW_PUFF_LIFETIME` 1.0–1.8 s).
+3. **Wind-blown spindrift (§21.3).** `SNOW_WIND_LANES` (7) faint streaks skim horizontally just above the crest, scrolling with `globalTime`, each with a stable length/height/phase from `splitmix64(0x57494E44 + lane·φ)` and a sine bob. Render-only and deterministic from time + lane index — no entities, Sim state, or PRNG-stream draws — so determinism and the no-input snapshots are untouched.
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `SNOW_PUFF_SHADOW_SCALE` | `1.35` | rim disc size vs core |
+| `SNOW_PUFF_SHADOW_OFFSET` | `0.45` | rim down-offset (× radius) |
+| `SNOW_PUFF_SHADOW_OPACITY` | `0.55` | rim opacity (× puff alpha) |
+| `SNOW_WIND_LANES` | `7` | number of spindrift streaks |
+| `SNOW_WIND_SPEED` | `130.0` | DIP/sec base scroll speed |
+| `SNOW_WIND_LENGTH_MIN` / `MAX` | `26.0` / `64.0` | streak length range |
+| `SNOW_WIND_THICKNESS` | `2.2` | line thickness |
+| `SNOW_WIND_HEIGHT_MIN` / `MAX` | `3.0` / `16.0` | DIP above crest |
+| `SNOW_WIND_BOB_AMP` / `BOB_SPEED` | `3.0` / `1.1` | vertical bob |
+| `SNOW_WIND_OPACITY` | `0.5` | max streak opacity |
+| `SNOW_WIND_COLOR` | `0xFFFFFFFF` | white |
 
 ---
 

@@ -566,6 +566,43 @@ internal sealed class GrassWindow : IDisposable
                             _snowLayerHighlightBrush);
             _snowLayerHighlightBrush.Opacity = 1.0f;
         }
+
+        // Wind-blown spindrift (§21.3): a few faint streaks skim horizontally
+        // just above the crest, scrolling with globalTime so the surface looks
+        // wind-blown and alive. Each lane has a stable pseudo-random length /
+        // height / phase from a cheap hash of its index; the streak wraps around.
+        if (_snowflakeBrush is not null)
+        {
+            double t = Sim.GlobalTime;
+            for (int lane = 0; lane < Constants.SNOW_WIND_LANES; lane++)
+            {
+                ulong h = SnowBankSplitMix64(0x57494E44UL + (ulong)lane * 0x9E3779B97F4A7C15UL);
+                double u0 = (h >> 11) / 9007199254740992.0;
+                double u1 = ((h >> 23) & 0xFFFFF) / 1048576.0;
+                double u2 = ((h >> 43) & 0xFFFFF) / 1048576.0;
+
+                double len = Constants.SNOW_WIND_LENGTH_MIN + u0 * (Constants.SNOW_WIND_LENGTH_MAX - Constants.SNOW_WIND_LENGTH_MIN);
+                double height = Constants.SNOW_WIND_HEIGHT_MIN + u1 * (Constants.SNOW_WIND_HEIGHT_MAX - Constants.SNOW_WIND_HEIGHT_MIN);
+                double laneSpeed = Constants.SNOW_WIND_SPEED * (0.7 + 0.6 * u2);
+                double span = widthDip + len * 2.0;
+                double headX = (u0 * span + t * laneSpeed) % span - len;
+                float bob = (float)(Math.Sin(t * Constants.SNOW_WIND_BOB_SPEED + u1 * 6.28318530717958647692) * Constants.SNOW_WIND_BOB_AMP);
+
+                float x1 = (float)headX;
+                float x0 = (float)(headX - len);
+                float midX = (x0 + x1) * 0.5f;
+                if (midX < -(float)len || midX > widthDip + (float)len) continue;
+                float crestY = TopYAt(Math.Min(Math.Max(midX, 0.0f), widthDip));
+                float yy = crestY - (float)height + bob;
+                float edgeFade = Math.Min(1.0f, Math.Min(x1, widthDip - x0) / (float)len);
+                float aw = (float)Constants.SNOW_WIND_OPACITY * Math.Max(0.0f, edgeFade);
+                if (aw <= 0.01f) continue;
+                _snowflakeBrush.Opacity = aw;
+                _dc.DrawLine(new Vector2(x0, yy + 1.0f), new Vector2(x1, yy),
+                             _snowflakeBrush, (float)Constants.SNOW_WIND_THICKNESS, _strokeStyle);
+                _snowflakeBrush.Opacity = 1.0f;
+            }
+        }
     }
 
     private void DrawEntities(float groundY, Vector2? cursorPosition)
@@ -662,8 +699,19 @@ internal sealed class GrassWindow : IDisposable
                 if (alpha <= 0.0f) continue;
                 if (alpha > 1.0f) alpha = 1.0f;
                 float pr = (float)e.Size;
+                float pcx = (float)e.X;
+                float pcy = (float)e.Y;
+                // Cool rim first so the white core reads against the white bank,
+                // then the bright core on top.
+                if (_snowBankShadowBrush is not null)
+                {
+                    float sr = pr * (float)Constants.SNOW_PUFF_SHADOW_SCALE;
+                    _snowBankShadowBrush.Opacity = alpha * (float)Constants.SNOW_PUFF_SHADOW_OPACITY;
+                    _dc!.FillEllipse(new Ellipse(new Vector2(pcx, pcy + pr * (float)Constants.SNOW_PUFF_SHADOW_OFFSET), sr, sr), _snowBankShadowBrush);
+                    _snowBankShadowBrush.Opacity = 1.0f;
+                }
                 _snowflakeBrush!.Opacity = alpha;
-                _dc!.FillEllipse(new Ellipse(new Vector2((float)e.X, (float)e.Y), pr, pr), _snowflakeBrush!);
+                _dc!.FillEllipse(new Ellipse(new Vector2(pcx, pcy), pr, pr), _snowflakeBrush!);
                 _snowflakeBrush!.Opacity = 1.0f;
                 continue;
             }

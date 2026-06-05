@@ -219,8 +219,8 @@ public class WinterTests
     {
         Assert.Equal(9, Constants.SNOW_PUFF_COUNT_MIN);
         Assert.Equal(16, Constants.SNOW_PUFF_COUNT_MAX);
-        Assert.Equal(2.0, Constants.SNOW_PUFF_SIZE_MIN);
-        Assert.Equal(4.5, Constants.SNOW_PUFF_SIZE_MAX);
+        Assert.Equal(3.5, Constants.SNOW_PUFF_SIZE_MIN);
+        Assert.Equal(8.0, Constants.SNOW_PUFF_SIZE_MAX);
         Assert.Equal(150.0, Constants.SNOW_PUFF_GRAVITY);
         Assert.Equal(1.6, Constants.SNOW_PUFF_DRAG);
         Assert.Equal(1.25, Constants.SNOW_PUFF_SPREAD_RAD);
@@ -336,13 +336,13 @@ public class WinterTests
     [Fact]
     public void SnowDriftConstantsArePinned()
     {
-        Assert.Equal(3, Constants.SNOW_DRIFT_COUNT_MIN);
-        Assert.Equal(6, Constants.SNOW_DRIFT_COUNT_MAX);
+        Assert.Equal(4, Constants.SNOW_DRIFT_COUNT_MIN);
+        Assert.Equal(8, Constants.SNOW_DRIFT_COUNT_MAX);
         Assert.Equal(70.0, Constants.SNOW_DRIFT_REACH_DIP);
         Assert.Equal(90.0, Constants.SNOW_DRIFT_MIN_SPEED);
         Assert.Equal(0.12, Constants.SNOW_DRIFT_COOLDOWN_SEC);
-        Assert.Equal(0.75, Constants.SNOW_DRIFT_SIZE_SCALE);
-        Assert.Equal(0.6, Constants.SNOW_DRIFT_SPEED_SCALE);
+        Assert.Equal(0.9, Constants.SNOW_DRIFT_SIZE_SCALE);
+        Assert.Equal(0.85, Constants.SNOW_DRIFT_SPEED_SCALE);
         Assert.Equal(0x5D81F77D5D81F77Dul, Constants.SNOW_DRIFT_PRNG_SALT);
     }
 
