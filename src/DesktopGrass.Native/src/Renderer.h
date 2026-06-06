@@ -38,6 +38,12 @@ public:
     // (DPI change, mode change). Leaves Sim intact; caller may regenerate it.
     bool Resize(int widthPx, int heightPx, UINT dpi);
 
+    // Regenerate the blade layout for the current (post-Resize) DIP width after
+    // a DPI change, reseeding with the same deterministic per-monitor seed and
+    // preserving scene/critter/cut state. Mirrors the Win2D rebuild path. Must
+    // NOT be called on device-loss recovery (which leaves the Sim untouched).
+    void RegenerateForDpi(uint64_t seed, double density);
+
     // Advance the simulation by `dt` seconds, then draw a frame.
     void RenderFrame(double dt,
                      const InputEvent* events,

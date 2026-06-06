@@ -139,6 +139,12 @@ LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp) {
                 dpi_ = newDpi;
                 screenBounds_ = *rect;
                 renderer_.SetWindowOriginScreen(rect->left, rect->top);
+                // Mirror the Win2D rebuild: regenerate the blade layout for the
+                // new DIP width using the same per-monitor seed so the result is
+                // identical to a fresh launch at this DPI. Reuses the stored
+                // seed_/density_; sway scales and scene/critter/cut state are
+                // preserved inside RegenerateForDpi.
+                renderer_.RegenerateForDpi(seed_, density_);
             }
             return 0;
         }

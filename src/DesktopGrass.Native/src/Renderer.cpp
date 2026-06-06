@@ -591,6 +591,46 @@ bool Renderer::Resize(int widthPx, int heightPx, UINT dpi) {
     return true;
 }
 
+void Renderer::RegenerateForDpi(uint64_t seed, double density) {
+    // Reflow the blade layout for the new DIP width after a DPI change,
+    // mirroring the Win2D rebuild path (RebuildWindows -> CreatePerMonitorWindows),
+    // which recreates the window and re-runs sim init for the new width. We
+    // reseed with the SAME deterministic per-monitor seed so the regenerated
+    // layout is identical to a fresh launch at the new DPI.
+    //
+    // IMPORTANT: this is intentionally separate from the device-loss recovery
+    // path (D2DERR_RECREATE_TARGET / DXGI_ERROR_DEVICE_*), which only rebuilds
+    // GPU resources and must NOT regenerate the sim. Only a DPI change calls
+    // here.
+    if (!initialized_) return;
+
+    // Width/height in pixels and the DPI were already updated by Resize(); derive
+    // the DIP extents the same way Initialize() does.
+    const double widthDip  = static_cast<double>(widthPx_)  * 96.0 / static_cast<double>(dpi_);
+    const double heightDip = static_cast<double>(heightPx_) * 96.0 / static_cast<double>(dpi_);
+
+    // Preserve live runtime state across the reflow, exactly as the Win2D
+    // rebuild does: it persists cuts and re-applies scene / critter selection to
+    // the freshly created window.
+    const Scene       scene        = sim_.currentScene;
+    const CritterKind critter      = sim_.currentCritter;
+    const int         critterCount = sim_.critterCountOverride;
+    const double      swaySpeed    = sim_.swaySpeedScale;
+    const double      swayAmp      = sim_.swayAmpScale;
+    const std::vector<persistence::CutRecord> cuts = sim_get_cuts(sim_);
+
+    sim_regenerate(sim_, seed, widthDip, density);
+    sim_.windowHeight   = heightDip;
+    sim_.swaySpeedScale = swaySpeed;
+    sim_.swayAmpScale   = swayAmp;
+
+    // Re-apply persisted/live state in the same order as App::ApplyPersistedStateToWindow.
+    sim_set_scene(sim_, scene);
+    sim_set_critter_count(sim_, critterCount);
+    sim_set_critter(sim_, critter);
+    sim_apply_cuts(sim_, cuts);
+}
+
 bool Renderer::TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const {
     POINT pt{};
     if (!GetCursorPos(&pt)) return false;

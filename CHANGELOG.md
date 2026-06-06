@@ -8,6 +8,28 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Lockstep: reflow sim on DPI change (Native)
+
+### Fixed
+- **Native now reflows the grass simulation on `WM_DPICHANGED`, matching the
+  Win2D rebuild.** Win2D handles a DPI change by recreating the per-monitor
+  window and re-running sim init for the new width (`RebuildWindows` →
+  `CreatePerMonitorWindows`), regenerating the blade layout. Native previously
+  only resized the swap chain and updated `sim_.windowHeight`; `monitorWidth`
+  and the blade layout were frozen at `sim_init`, so after a DPI change the
+  grass stayed laid out for the *old* DIP width — a lockstep divergence. Native
+  now calls a new `Renderer::RegenerateForDpi` after `Resize`, which reseeds with
+  the **same deterministic per-monitor seed** (so the layout is identical to a
+  fresh launch at the new DPI), regenerates blades for the new DIP width, and
+  preserves scene / critter / cut state and the sway scales (re-applied in the
+  same order as `App::ApplyPersistedStateToWindow`). **Review note:** this path
+  has no unit tests (renderer/window loop). It is deliberately kept distinct
+  from the device-loss recovery path (`D2DERR_RECREATE_TARGET` /
+  `DXGI_ERROR_DEVICE_*`), which only rebuilds GPU resources and must never
+  regenerate the sim.
+
+---
+
 ## 2026-06-05 — Lockstep: case-insensitive config keys (Native)
 
 ### Fixed
