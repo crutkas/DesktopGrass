@@ -221,6 +221,12 @@ struct Sim {
     double             prevCursorTime      = -1.0;
     double             windowHeight        = STRIP_HEIGHT + HEADROOM;
 
+    // §config sway knobs. Multipliers applied in update_blade_dynamics; default
+    // 1.0 reproduces historical behavior. Set once from config after sim_init and
+    // preserved across scene changes (sim_set_scene does not touch them).
+    double             swaySpeedScale      = 1.0;
+    double             swayAmpScale        = 1.0;
+
     // Ambient gust scheduler (§8.1). Initialized by sim_init / sim_regenerate.
     Prng               ambientPrng         = { 0 };
     double             nextAmbientGustTime = 0.0;
@@ -361,7 +367,9 @@ void generate_pines_for_winter(Sim& sim) noexcept;
 void generate_maples_for_autumn(Sim& sim) noexcept;
 
 // Per-blade dynamics helper (visible for tests).
-void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept;
+void update_blade_dynamics(Blade& b, double globalTime, double dt,
+                           double swaySpeedScale = 1.0,
+                           double swayAmpScale = 1.0) noexcept;
 void advance_cut(Blade& b, double globalTime) noexcept;
 
 // Persistence helpers. GetCuts stores cut timestamps shifted relative to the

@@ -511,13 +511,15 @@ void generate_maples_for_autumn(Sim& sim) noexcept {
 // Sway / gust dynamics
 // ---------------------------------------------------------------------------
 
-void update_blade_dynamics(Blade& b, double globalTime, double dt) noexcept {
+void update_blade_dynamics(Blade& b, double globalTime, double dt,
+                           double swaySpeedScale, double swayAmpScale) noexcept {
     // 1. Gust velocity decays exponentially.
     b.gustVelocity *= std::exp(-DECAY_RATE * dt);
 
     // 2. Sway is a pure function of globalTime + per-blade phase offset.
-    const double swayPhase = b.swayPhaseOffset + globalTime * BASE_SWAY_SPEED;
-    const double baseLean  = std::sin(swayPhase) * BASE_AMPLITUDE * b.stiffness;
+    //    swaySpeedScale stretches the phase advance; swayAmpScale scales the lean.
+    const double swayPhase = b.swayPhaseOffset + globalTime * BASE_SWAY_SPEED * swaySpeedScale;
+    const double baseLean  = std::sin(swayPhase) * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
 
     // 3. Combined lean.
     b.effectiveLean = baseLean + b.gustVelocity * GUST_TO_LEAN_FACTOR;
@@ -1930,7 +1932,7 @@ void sim_tick(Sim& sim, double dt,
     sim_tick_ambient_gusts(sim);
 
     for (Blade& b : sim.blades) {
-        update_blade_dynamics(b, sim.globalTime, dt);
+        update_blade_dynamics(b, sim.globalTime, dt, sim.swaySpeedScale, sim.swayAmpScale);
         advance_cut(b, sim.globalTime);
     }
 

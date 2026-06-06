@@ -32,7 +32,8 @@ public:
     // Creates the HWND, attaches a Renderer, generates blades using `seed`.
     bool Create(HINSTANCE hInst,
                 const RECT& monitorBounds, UINT dpi,
-                uint64_t seed, double density);
+                uint64_t seed, double density,
+                double swaySpeed = 1.0, double swayAmplitude = 1.0);
 
     void Show();
     void Destroy();

@@ -8,7 +8,23 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-06 — Perf: default frame rate lowered to 24 fps
+## 2026-06-06 — Config: swaySpeed and swayAmplitude knobs
+
+### Added
+- **Two new `config.json` "feel" knobs: `swaySpeed` and `swayAmplitude`** (both
+  default `1.0`, range `0.0–3.0`). `swaySpeed` scales how fast grass blades sway
+  (phase advance); `swayAmplitude` scales how far they lean. `0.0` freezes the
+  passive sway / holds blades upright; higher values exaggerate the motion. The
+  multipliers are read once at startup, applied in `update_blade_dynamics` /
+  `UpdateBladeDynamics`, and persist across scene changes. Default `1.0` leaves
+  behavior byte-identical, so all existing sway + conformance tests stay green.
+  Non-finite values (NaN/inf from malformed input) fall back to the default and
+  can never poison the sim. Added in lockstep (Native `Config.*`, `Sim.*`,
+  `Renderer.*`, `GrassWindow.*`, `App.cpp`; Win2D `Config.cs`, `Sim.cs`,
+  `GrassWindow.cs`, `App.cs`) with parse/clamp/non-finite + scale-effect tests in
+  both suites (Native 288, Win2D 287).
+
+---
 
 ### Changed
 - **Default `targetFps` lowered from 30 to 24** across both renderers. The whole

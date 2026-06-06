@@ -7,6 +7,7 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -29,7 +30,15 @@ constexpr char kDefaultConfigTemplate[] =
     "\n"
     "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n"
     "  // Default 2.53125.\n"
-    "  \"bladeDensity\": 2.53125\n"
+    "  \"bladeDensity\": 2.53125,\n"
+    "\n"
+    "  // Grass sway speed multiplier. 1.0 = default, 0.0 = still, higher = faster.\n"
+    "  // Range 0.0-3.0.\n"
+    "  \"swaySpeed\": 1.0,\n"
+    "\n"
+    "  // Grass sway amplitude multiplier (how far blades lean). 1.0 = default,\n"
+    "  // 0.0 = upright. Range 0.0-3.0.\n"
+    "  \"swayAmplitude\": 1.0\n"
     "}\n";
 
 std::wstring DefaultConfigFilePath() {
@@ -76,6 +85,13 @@ T Clamp(T value, T lo, T hi) {
     return value < lo ? lo : (value > hi ? hi : value);
 }
 
+// Clamps a config double, treating non-finite values (NaN/inf from malformed
+// input) as the supplied default so they can never poison the sim.
+double ClampFinite(double value, double lo, double hi, double fallback) {
+    if (!std::isfinite(value)) return fallback;
+    return Clamp(value, lo, hi);
+}
+
 Config ApplyAndClamp(const json::Value& root) {
     Config cfg;
     cfg.version = json::ReadInt(root, "version").value_or(kConfigVersion);
@@ -84,7 +100,13 @@ Config ApplyAndClamp(const json::Value& root) {
     cfg.targetFps = Clamp(fps, kTargetFpsMin, kTargetFpsMax);
 
     const double density = json::ReadDouble(root, "bladeDensity").value_or(kBladeDensityDefault);
-    cfg.bladeDensity = Clamp(density, kBladeDensityMin, kBladeDensityMax);
+    cfg.bladeDensity = ClampFinite(density, kBladeDensityMin, kBladeDensityMax, kBladeDensityDefault);
+
+    const double swaySpeed = json::ReadDouble(root, "swaySpeed").value_or(kSwaySpeedDefault);
+    cfg.swaySpeed = ClampFinite(swaySpeed, kSwaySpeedMin, kSwaySpeedMax, kSwaySpeedDefault);
+
+    const double swayAmp = json::ReadDouble(root, "swayAmplitude").value_or(kSwayAmplitudeDefault);
+    cfg.swayAmplitude = ClampFinite(swayAmp, kSwayAmplitudeMin, kSwayAmplitudeMax, kSwayAmplitudeDefault);
 
     return cfg;
 }

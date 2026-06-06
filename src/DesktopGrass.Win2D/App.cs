@@ -211,7 +211,8 @@ internal sealed class App : IDisposable
             var grass = new GrassWindow(
                 hwnd, widthPx, heightPx, perMonScale,
                 monitorBounds,
-                seed, monitorWidthDip, _config.BladeDensity);
+                seed, monitorWidthDip, _config.BladeDensity,
+                _config.SwaySpeed, _config.SwayAmplitude);
             ApplyPersistedStateToWindow(grass, monitorBounds);
 
             // Show without activating. Use NOACTIVATE-friendly path.

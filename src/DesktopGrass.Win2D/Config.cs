@@ -9,7 +9,7 @@ namespace DesktopGrass.Win2D;
 /// defaults if missing, then only ever read — never overwritten — so hand edits
 /// are preserved. Loaded once at startup.
 /// </summary>
-public sealed record AppConfig(int Version, int TargetFps, double BladeDensity);
+public sealed record AppConfig(int Version, int TargetFps, double BladeDensity, double SwaySpeed, double SwayAmplitude);
 
 public static class Config
 {
@@ -20,6 +20,12 @@ public static class Config
     public static double BladeDensityDefault => Constants.DEFAULT_DENSITY; // 2.53125
     public const double BladeDensityMin = 0.2;
     public const double BladeDensityMax = 5.0;
+    public const double SwaySpeedDefault = 1.0;
+    public const double SwaySpeedMin = 0.0;
+    public const double SwaySpeedMax = 3.0;
+    public const double SwayAmplitudeDefault = 1.0;
+    public const double SwayAmplitudeMin = 0.0;
+    public const double SwayAmplitudeMax = 3.0;
 
     // Annotated default config written verbatim on first run. The loader skips
     // JSONC comments, so users can keep these notes while editing.
@@ -34,7 +40,15 @@ public static class Config
         "\n" +
         "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n" +
         "  // Default 2.53125.\n" +
-        "  \"bladeDensity\": 2.53125\n" +
+        "  \"bladeDensity\": 2.53125,\n" +
+        "\n" +
+        "  // Grass sway speed multiplier. 1.0 = default, 0.0 = still, higher = faster.\n" +
+        "  // Range 0.0-3.0.\n" +
+        "  \"swaySpeed\": 1.0,\n" +
+        "\n" +
+        "  // Grass sway amplitude multiplier (how far blades lean). 1.0 = default,\n" +
+        "  // 0.0 = upright. Range 0.0-3.0.\n" +
+        "  \"swayAmplitude\": 1.0\n" +
         "}\n";
 
     private static readonly JsonSerializerOptions Options = new()
@@ -48,7 +62,7 @@ public static class Config
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DesktopGrass", "config.json");
 
-    public static AppConfig Default => new(ConfigVersion, TargetFpsDefault, BladeDensityDefault);
+    public static AppConfig Default => new(ConfigVersion, TargetFpsDefault, BladeDensityDefault, SwaySpeedDefault, SwayAmplitudeDefault);
 
     /// <summary>Loads the config from the default location, creating an annotated
     /// default file if missing. Always returns a valid, clamped config.</summary>
@@ -76,7 +90,9 @@ public static class Config
             return new AppConfig(
                 dto.Version ?? ConfigVersion,
                 Math.Clamp(dto.TargetFps ?? TargetFpsDefault, TargetFpsMin, TargetFpsMax),
-                Math.Clamp(dto.BladeDensity ?? BladeDensityDefault, BladeDensityMin, BladeDensityMax));
+                ClampFinite(dto.BladeDensity ?? BladeDensityDefault, BladeDensityMin, BladeDensityMax, BladeDensityDefault),
+                ClampFinite(dto.SwaySpeed ?? SwaySpeedDefault, SwaySpeedMin, SwaySpeedMax, SwaySpeedDefault),
+                ClampFinite(dto.SwayAmplitude ?? SwayAmplitudeDefault, SwayAmplitudeMin, SwayAmplitudeMax, SwayAmplitudeDefault));
         }
         catch (JsonException ex)
         {
@@ -126,5 +142,12 @@ public static class Config
         public int? Version { get; set; }
         public int? TargetFps { get; set; }
         public double? BladeDensity { get; set; }
+        public double? SwaySpeed { get; set; }
+        public double? SwayAmplitude { get; set; }
     }
+
+    // Clamps a config double, treating non-finite values (NaN/inf from malformed
+    // input) as the supplied default so they can never poison the sim.
+    private static double ClampFinite(double value, double lo, double hi, double fallback)
+        => double.IsFinite(value) ? Math.Clamp(value, lo, hi) : fallback;
 }

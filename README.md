@@ -69,14 +69,18 @@ fall back to defaults without being clobbered.
 
 | Key            | Default  | Range     | Effect |
 |----------------|----------|-----------|--------|
-| `targetFps`    | `30`     | `5`–`144` | Animation frame rate. Lower = less CPU, choppier motion. |
-| `bladeDensity` | `2.8125` | `0.2`–`5.0` | Grass blade density. Lower = fewer blades (less CPU). |
+| `targetFps`    | `24`     | `5`–`144` | Animation frame rate. Lower = less CPU, choppier motion. |
+| `bladeDensity` | `2.53125` | `0.2`–`5.0` | Grass blade density. Lower = fewer blades (less CPU). |
+| `swaySpeed`    | `1.0`    | `0.0`–`3.0` | Grass sway speed multiplier. `0.0` = still, higher = faster. |
+| `swayAmplitude`| `1.0`    | `0.0`–`3.0` | Grass sway amplitude (how far blades lean). `0.0` = upright. |
 
 ```jsonc
 {
   "version": 1,
-  "targetFps": 30,
-  "bladeDensity": 2.8125
+  "targetFps": 24,
+  "bladeDensity": 2.53125,
+  "swaySpeed": 1.0,
+  "swayAmplitude": 1.0
 }
 ```
 

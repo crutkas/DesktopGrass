@@ -529,7 +529,8 @@ void Renderer::DiscardDeviceResources() {
 }
 
 bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
-                          UINT dpi, uint64_t seed, double density)
+                          UINT dpi, uint64_t seed, double density,
+                          double swaySpeed, double swayAmplitude)
 {
     hwnd_     = hwnd;
     widthPx_  = widthPx;
@@ -543,6 +544,8 @@ bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
     const double heightDip = static_cast<double>(heightPx) * 96.0 / static_cast<double>(dpi_);
     sim_ = sim_init(seed, widthDip, density);
     sim_.windowHeight = heightDip;
+    sim_.swaySpeedScale = swaySpeed;
+    sim_.swayAmpScale   = swayAmplitude;
     initialized_ = true;
     return true;
 }

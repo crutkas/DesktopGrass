@@ -97,5 +97,37 @@ public sealed class ConfigTests
         AppConfig cfg = Config.Load(path);
         Assert.Equal(45, cfg.TargetFps);
         Assert.Equal(Config.BladeDensityDefault, cfg.BladeDensity, 6);
+        Assert.Equal(Config.SwaySpeedDefault, cfg.SwaySpeed, 6);
+        Assert.Equal(Config.SwayAmplitudeDefault, cfg.SwayAmplitude, 6);
+    }
+
+    [Fact]
+    public void SwayKnobs_Parse_Clamp_AndRejectNonFinite()
+    {
+        string path = FreshConfigPath("sway");
+
+        // Defaults when absent.
+        File.WriteAllText(path, "{ }");
+        AppConfig cfg = Config.Load(path);
+        Assert.Equal(Config.SwaySpeedDefault, cfg.SwaySpeed, 6);
+        Assert.Equal(Config.SwayAmplitudeDefault, cfg.SwayAmplitude, 6);
+
+        // Valid values parsed.
+        File.WriteAllText(path, "{ \"swaySpeed\": 0.5, \"swayAmplitude\": 2.0 }");
+        cfg = Config.Load(path);
+        Assert.Equal(0.5, cfg.SwaySpeed, 6);
+        Assert.Equal(2.0, cfg.SwayAmplitude, 6);
+
+        // Out-of-range clamped to bounds.
+        File.WriteAllText(path, "{ \"swaySpeed\": 99.0, \"swayAmplitude\": -5.0 }");
+        cfg = Config.Load(path);
+        Assert.Equal(Config.SwaySpeedMax, cfg.SwaySpeed, 6);
+        Assert.Equal(Config.SwayAmplitudeMin, cfg.SwayAmplitude, 6);
+
+        // Non-finite (inf from overflow) falls back to default, never poisons the sim.
+        File.WriteAllText(path, "{ \"swaySpeed\": 1e999, \"swayAmplitude\": 1e999 }");
+        cfg = Config.Load(path);
+        Assert.Equal(Config.SwaySpeedDefault, cfg.SwaySpeed, 6);
+        Assert.Equal(Config.SwayAmplitudeDefault, cfg.SwayAmplitude, 6);
     }
 }

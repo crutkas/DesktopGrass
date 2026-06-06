@@ -301,7 +301,8 @@ bool App::EnumerateMonitorsAndCreateWindows() {
         // Each monitor gets its own seed derived from the base seed so blade
         // patterns differ across monitors but remain deterministic.
         const uint64_t mseed = seed_ ^ ((static_cast<uint64_t>(i) + 1) * 0x9E3779B97F4A7C15ull);
-        if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity)) {
+        if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity,
+                      config_.swaySpeed, config_.swayAmplitude)) {
             ApplyPersistedStateToWindow(*w, ctx.bounds[i]);
             w->Show();
             windows_.push_back(std::move(w));

@@ -68,6 +68,44 @@ TEST_CASE("stiffness scales sway amplitude", "[sway]") {
     REQUIRE(softMax == Approx(hardMax * 0.6).margin(1e-3));
 }
 
+TEST_CASE("swayAmplitude scale multiplies the lean", "[sway]") {
+    // At the same time/phase, ampScale=2.0 doubles the lean; ampScale=0 zeroes it.
+    Blade base = make_blade(0.3, 1.0);
+    Blade dbl  = make_blade(0.3, 1.0);
+    Blade zero = make_blade(0.3, 1.0);
+    const double t = 1.234;
+    update_blade_dynamics(base, t, 0.016, 1.0, 1.0);
+    update_blade_dynamics(dbl,  t, 0.016, 1.0, 2.0);
+    update_blade_dynamics(zero, t, 0.016, 1.0, 0.0);
+    REQUIRE(dbl.effectiveLean  == Approx(2.0 * base.effectiveLean).margin(1e-12));
+    REQUIRE(zero.effectiveLean == Approx(0.0).margin(1e-12));
+}
+
+TEST_CASE("swaySpeed scale stretches the phase advance", "[sway]") {
+    // speedScale=2.0 at time t equals the default at time 2t (pure phase scaling).
+    Blade fast = make_blade(0.1, 1.0);
+    Blade slow = make_blade(0.1, 1.0);
+    const double t = 0.9;
+    update_blade_dynamics(fast, t,       0.016, 2.0, 1.0);
+    update_blade_dynamics(slow, 2.0 * t, 0.016, 1.0, 1.0);
+    REQUIRE(fast.effectiveLean == Approx(slow.effectiveLean).margin(1e-12));
+}
+
+TEST_CASE("sim_tick applies the Sim sway scales to blades", "[sway]") {
+    // Proves the knobs are actually wired through the per-frame tick, not just
+    // the standalone helper: a sim with swayAmpScale=0 produces zero base lean.
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim.swayAmpScale   = 0.0;
+    sim.swaySpeedScale = 1.0;
+    sim_tick(sim, 0.5, nullptr, 0);
+    for (const Blade& b : sim.blades) {
+        // No ambient gust fired (gustVelocity stays 0), so effectiveLean is pure
+        // base lean, which ampScale=0 must flatten to 0.
+        REQUIRE(b.gustVelocity == Approx(0.0).margin(1e-12));
+        REQUIRE(b.effectiveLean == Approx(0.0).margin(1e-12));
+    }
+}
+
 TEST_CASE("phase offset shifts the sine wave", "[sway]") {
     Blade a = make_blade(0.0,        1.0);
     Blade b = make_blade(kPi / 2.0, 1.0);

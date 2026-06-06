@@ -210,6 +210,11 @@ internal sealed class Sim
     public double GroundY;        // y coordinate of the ground line in window-local space
     public double WindowHeight;   // for diagnostics
 
+    // Sway feel multipliers from config (default 1.0 = unchanged). Set once at
+    // construction and preserved across scene changes.
+    public double SwaySpeedScale = 1.0;
+    public double SwayAmpScale = 1.0;
+
     // Ambient gust scheduler (§8.1). Initialized by ResetAmbientGusts.
     public Prng AmbientPrng;
     public double NextAmbientGustTime;
@@ -1742,12 +1747,13 @@ internal sealed class Sim
     }
 
     // §6 sway physics, applied per blade per frame.
-    public static void UpdateBladeDynamics(ref Blade b, double globalTime, double dt)
+    public static void UpdateBladeDynamics(ref Blade b, double globalTime, double dt,
+                                           double swaySpeedScale = 1.0, double swayAmpScale = 1.0)
     {
         b.GustVelocity *= Math.Exp(-Constants.DECAY_RATE * dt);
 
-        double swayPhase = b.SwayPhaseOffset + globalTime * Constants.BASE_SWAY_SPEED;
-        double baseLean = Math.Sin(swayPhase) * Constants.BASE_AMPLITUDE * b.Stiffness;
+        double swayPhase = b.SwayPhaseOffset + globalTime * Constants.BASE_SWAY_SPEED * swaySpeedScale;
+        double baseLean = Math.Sin(swayPhase) * Constants.BASE_AMPLITUDE * swayAmpScale * b.Stiffness;
 
         b.EffectiveLean = baseLean + b.GustVelocity * Constants.GUST_TO_LEAN_FACTOR;
     }
@@ -2213,7 +2219,7 @@ internal sealed class Sim
         for (int i = 0; i < Blades.Length; i++)
         {
             ref Blade b = ref Blades[i];
-            UpdateBladeDynamics(ref b, GlobalTime, dt);
+            UpdateBladeDynamics(ref b, GlobalTime, dt, SwaySpeedScale, SwayAmpScale);
             AdvanceCut(ref b, GlobalTime);
         }
 

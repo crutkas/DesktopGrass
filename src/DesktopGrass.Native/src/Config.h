@@ -22,11 +22,19 @@ constexpr int    kTargetFpsMax          = 144;
 constexpr double kBladeDensityDefault   = DEFAULT_DENSITY; // 2.53125
 constexpr double kBladeDensityMin       = 0.2;
 constexpr double kBladeDensityMax       = 5.0;
+constexpr double kSwaySpeedDefault      = 1.0;
+constexpr double kSwaySpeedMin          = 0.0;
+constexpr double kSwaySpeedMax          = 3.0;
+constexpr double kSwayAmplitudeDefault  = 1.0;
+constexpr double kSwayAmplitudeMin      = 0.0;
+constexpr double kSwayAmplitudeMax      = 3.0;
 
 struct Config {
-    int    version      = kConfigVersion;
-    int    targetFps    = kTargetFpsDefault;
-    double bladeDensity = kBladeDensityDefault;
+    int    version       = kConfigVersion;
+    int    targetFps     = kTargetFpsDefault;
+    double bladeDensity  = kBladeDensityDefault;
+    double swaySpeed     = kSwaySpeedDefault;
+    double swayAmplitude = kSwayAmplitudeDefault;
 };
 
 // Loads config.json from the default location, creating an annotated default

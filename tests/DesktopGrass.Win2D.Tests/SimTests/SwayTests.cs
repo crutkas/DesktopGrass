@@ -98,4 +98,31 @@ public class SwayTests
         Assert.Equal(Constants.BASE_AMPLITUDE, stiff.EffectiveLean, 9);
         Assert.Equal(Constants.BASE_AMPLITUDE * 0.6, floppy.EffectiveLean, 9);
     }
+
+    [Fact]
+    public void SwayAmplitudeScaleMultipliesLean()
+    {
+        // At the same time/phase, ampScale=2.0 doubles the lean; ampScale=0 zeroes it.
+        var b = MakeBlade(phaseOffset: 0.3, stiffness: 1.0);
+        var dbl = MakeBlade(phaseOffset: 0.3, stiffness: 1.0);
+        var zero = MakeBlade(phaseOffset: 0.3, stiffness: 1.0);
+        double t = 1.234, dt = 1.0 / 60.0;
+        Sim.UpdateBladeDynamics(ref b, t, dt, swaySpeedScale: 1.0, swayAmpScale: 1.0);
+        Sim.UpdateBladeDynamics(ref dbl, t, dt, swaySpeedScale: 1.0, swayAmpScale: 2.0);
+        Sim.UpdateBladeDynamics(ref zero, t, dt, swaySpeedScale: 1.0, swayAmpScale: 0.0);
+        Assert.Equal(2.0 * b.EffectiveLean, dbl.EffectiveLean, 12);
+        Assert.Equal(0.0, zero.EffectiveLean, 12);
+    }
+
+    [Fact]
+    public void SwaySpeedScaleStretchesPhaseAdvance()
+    {
+        // speedScale=2.0 at time t equals the default at time 2t (pure phase scaling).
+        var fast = MakeBlade(phaseOffset: 0.1, stiffness: 1.0);
+        var slow = MakeBlade(phaseOffset: 0.1, stiffness: 1.0);
+        double t = 0.9, dt = 1.0 / 60.0;
+        Sim.UpdateBladeDynamics(ref fast, t, dt, swaySpeedScale: 2.0, swayAmpScale: 1.0);
+        Sim.UpdateBladeDynamics(ref slow, 2.0 * t, dt, swaySpeedScale: 1.0, swayAmpScale: 1.0);
+        Assert.Equal(slow.EffectiveLean, fast.EffectiveLean, 12);
+    }
 }

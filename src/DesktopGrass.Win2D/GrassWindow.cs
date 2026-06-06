@@ -151,7 +151,7 @@ internal sealed class GrassWindow : IDisposable
 
     public GrassWindow(IntPtr hwnd, int widthPx, int heightPx, float dpiScale,
                        Rectangle monitorBoundsPx, ulong seed, double monitorWidthDip,
-                       double density)
+                       double density, double swaySpeed, double swayAmplitude)
     {
         _hwnd = hwnd;
         _widthPx = widthPx;
@@ -164,6 +164,8 @@ internal sealed class GrassWindow : IDisposable
             Blades = Sim.GenerateBlades(seed, monitorWidthDip, density),
             GroundY = _heightPx / _dpiScale,
             WindowHeight = _heightPx / _dpiScale,
+            SwaySpeedScale = swaySpeed,
+            SwayAmpScale = swayAmplitude,
         };
         Sim.ResetAmbientGusts(seed, monitorWidthDip);
         Sim.ResetEntities(seed);

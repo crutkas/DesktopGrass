@@ -38,7 +38,8 @@ GrassWindow::~GrassWindow() {
 
 bool GrassWindow::Create(HINSTANCE hInst,
                          const RECT& monitorBounds, UINT dpi,
-                         uint64_t seed, double density)
+                         uint64_t seed, double density,
+                         double swaySpeed, double swayAmplitude)
 {
     dpi_     = dpi == 0 ? 96 : dpi;
     seed_    = seed;
@@ -72,7 +73,8 @@ bool GrassWindow::Create(HINSTANCE hInst,
         return false;
     }
 
-    if (!renderer_.Initialize(hwnd_, monitorW, heightPx, dpi_, seed, density)) {
+    if (!renderer_.Initialize(hwnd_, monitorW, heightPx, dpi_, seed, density,
+                              swaySpeed, swayAmplitude)) {
         DestroyWindow(hwnd_);
         hwnd_ = nullptr;
         return false;

@@ -31,7 +31,8 @@ public:
     // and generates the initial blade list with `seed`. Returns false on
     // failure (logged via OutputDebugString).
     bool Initialize(HWND hwnd, int widthPx, int heightPx,
-                    UINT dpi, uint64_t seed, double density);
+                    UINT dpi, uint64_t seed, double density,
+                    double swaySpeed = 1.0, double swayAmplitude = 1.0);
 
     // Resize the swap chain & D2D target. Call when the monitor changes size
     // (DPI change, mode change). Leaves Sim intact; caller may regenerate it.

@@ -108,4 +108,34 @@ TEST_CASE("Config: missing keys fall back to per-key defaults", "[config]") {
     const config::Config cfg = config::LoadConfig(path.wstring());
     CHECK(cfg.targetFps == 45);
     CHECK(cfg.bladeDensity == Approx(config::kBladeDensityDefault));
+    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
+    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
+}
+
+TEST_CASE("Config: sway knobs parse, clamp, and reject non-finite", "[config]") {
+    const std::filesystem::path path = test_config_path("sway");
+
+    // Defaults when absent.
+    write_text(path, "{ }");
+    config::Config cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
+    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
+
+    // Valid values parsed.
+    write_text(path, "{ \"swaySpeed\": 0.5, \"swayAmplitude\": 2.0 }");
+    cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.swaySpeed == Approx(0.5));
+    CHECK(cfg.swayAmplitude == Approx(2.0));
+
+    // Out-of-range clamped to bounds.
+    write_text(path, "{ \"swaySpeed\": 99.0, \"swayAmplitude\": -5.0 }");
+    cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedMax));
+    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeMin));
+
+    // Non-finite (inf from overflow) falls back to default, never poisons the sim.
+    write_text(path, "{ \"swaySpeed\": 1e999, \"swayAmplitude\": 1e999 }");
+    cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
+    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
 }
