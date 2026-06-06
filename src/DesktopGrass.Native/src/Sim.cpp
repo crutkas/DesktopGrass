@@ -228,6 +228,11 @@ void restore_original_variants(Blade& b) noexcept {
     b.mapleCanopyColorIdx = 0;
     b.mapleIsBare    = false;
     b.leafPuffCooldownEnd = 0.0;
+    b.isCoral        = false;
+    b.coralType      = 0;
+    b.coralHeight    = 0.0;
+    b.coralWidth     = 0.0;
+    b.coralColorIdx  = 0;
     b.isFlower       = b.originalIsFlower;
     b.isMushroom     = b.originalIsMushroom;
 }
@@ -504,6 +509,74 @@ void generate_maples_for_autumn(Sim& sim) noexcept {
         b.mapleCanopyRadius = prng_uniform(maplePrng, MAPLE_CANOPY_RADIUS_MIN, MAPLE_CANOPY_RADIUS_MAX);
         b.mapleCanopyColorIdx = static_cast<uint8_t>(prng_index(maplePrng, MAPLE_CANOPY_COLOR_COUNT));
         b.mapleIsBare = prng_uniform(maplePrng, 0.0, 1.0) < MAPLE_BARE_FRACTION;
+    }
+}
+
+void generate_coral_for_ocean(Sim& sim) noexcept {
+    Prng coralPrng;
+    prng_init(coralPrng, sim.entitySeed ^ CORAL_PRNG_SALT);
+
+    for (Blade& b : sim.blades) {
+        restore_original_variants(b);
+        // Underwater scene suppresses mushrooms — they don't fit a reef.
+        b.isMushroom = false;
+
+        const double r = prng_uniform(coralPrng, 0.0, 1.0);
+        if (r >= CORAL_PROBABILITY) continue;
+
+        // Draw order: probability (consumed above), height, width, type,
+        // color. Locked so PRNG stream is reproducible.
+        b.isCoral = true;
+        b.isFlower = false;
+        b.isMushroom = false;
+        b.coralHeight = prng_uniform(coralPrng, CORAL_HEIGHT_MIN, CORAL_HEIGHT_MAX);
+        b.coralWidth  = prng_uniform(coralPrng, CORAL_WIDTH_MIN,  CORAL_WIDTH_MAX);
+        b.coralType   = static_cast<uint8_t>(prng_index(coralPrng, CORAL_TYPE_COUNT));
+        b.coralColorIdx = static_cast<uint8_t>(prng_index(coralPrng, CORAL_COLOR_COUNT));
+    }
+}
+
+// §17 Ocean fish helpers. Mirror the Win2D Sim.TargetFishCount/SpawnFish/
+// SpawnInitialFish so the fish stream draws byte-identically across impls.
+static int target_fish_count(const Sim& sim) noexcept {
+    const double scaled = FISH_COUNT_PER_1920DIP * sim.monitorWidth / 1920.0;
+    // C# Math.Round defaults to MidpointRounding.ToEven; std::nearbyint honors
+    // the default FE_TONEAREST rounding mode (ties to even) to match it exactly.
+    int n = static_cast<int>(std::nearbyint(scaled));
+    if (n < FISH_COUNT_MIN) n = FISH_COUNT_MIN;
+    if (n > FISH_COUNT_MAX) n = FISH_COUNT_MAX;
+    return n;
+}
+
+static Entity spawn_fish(Sim& sim, bool fromEdge) noexcept {
+    Entity e{};
+    e.kind = EntityKind::Fish;
+    e.size = prng_uniform(sim.fishPrng, FISH_SIZE_MIN, FISH_SIZE_MAX);
+    const double speed = prng_uniform(sim.fishPrng, FISH_SPEED_MIN, FISH_SPEED_MAX);
+    const bool swimsRight = (prng_next_u64(sim.fishPrng) & 1ull) != 0ull;
+    e.vx = swimsRight ? speed : -speed;
+    e.vy = 0.0;
+    const double altitude = prng_uniform(sim.fishPrng, FISH_ALTITUDE_MIN, FISH_ALTITUDE_MAX);
+    e.y = sim.windowHeight - altitude;
+    if (fromEdge) {
+        e.x = swimsRight ? -e.size - 4.0 : sim.monitorWidth + e.size + 4.0;
+    } else {
+        e.x = prng_uniform(sim.fishPrng, 0.0, sim.monitorWidth);
+    }
+    e.phaseX = prng_uniform(sim.fishPrng, 0.0, TWO_PI);
+    e.colorVariant = static_cast<uint8_t>(prng_index(sim.fishPrng, FISH_COLOR_COUNT));
+    e.age = 0.0;
+    e.lifetime = -1.0; // edge-respawned, not lifetime-bounded
+    e.seed = prng_next_u32(sim.fishPrng);
+    return e;
+}
+
+static void spawn_initial_fish(Sim& sim) noexcept {
+    if (sim.monitorWidth <= 0.0) return;
+    const int target = target_fish_count(sim);
+    for (int i = 0; i < target
+            && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
+        sim.entities.push_back(spawn_fish(sim, false));
     }
 }
 
@@ -1310,6 +1383,13 @@ void sim_set_scene(Sim& sim, Scene s) noexcept {
         prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
         sim.nextLeafSpawnTime = sim.globalTime;
         break;
+    case Scene::Ocean:
+        generate_coral_for_ocean(sim);
+        prng_init(sim.bubblePrng, sim.entitySeed ^ BUBBLE_PRNG_SALT);
+        sim.nextBubbleSpawnTime = sim.globalTime;
+        prng_init(sim.fishPrng, sim.entitySeed ^ FISH_PRNG_SALT);
+        spawn_initial_fish(sim);
+        break;
     }
 
     // Grass critters/flyers are scene-gated inside generate_critters_for_kind.
@@ -1466,6 +1546,12 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
             }
             e.x = e.x0 + LEAF_HORIZONTAL_DRIFT_AMP
                 * std::sin(e.age * LEAF_HORIZONTAL_DRIFT_FREQ + e.phaseX);
+        } else if (e.kind == EntityKind::Bubble) {
+            // Apply horizontal wobble in absolute terms (x0 = spawn column).
+            // The generic vx*dt above is zero for bubbles so this fully
+            // controls x.
+            e.x = e.x0 + BUBBLE_WOBBLE_AMPLITUDE
+                * std::sin(e.age * BUBBLE_WOBBLE_FREQUENCY * TWO_PI + e.phaseX);
         }
     }
 
@@ -1511,7 +1597,11 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                     || (e.kind == EntityKind::SnowPuff && e.y > groundY)
                     || (e.kind == EntityKind::Bird
                         && ((e.vx >= 0.0 && e.x > sim.monitorWidth + 50.0)
-                         || (e.vx < 0.0 && e.x < -50.0)));
+                         || (e.vx < 0.0 && e.x < -50.0)))
+                    || (e.kind == EntityKind::Bubble && e.y < -e.size)
+                    || (e.kind == EntityKind::Fish
+                        && ((e.vx >= 0.0 && e.x > sim.monitorWidth + e.size + 4.0)
+                         || (e.vx < 0.0 && e.x < -e.size - 4.0)));
             }),
         sim.entities.end());
 
@@ -1809,6 +1899,49 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
                && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
             sim.entities.push_back(make_leaf(sim.leafPrng, sim.monitorWidth));
             sim.nextLeafSpawnTime += prng_exponential(sim.leafPrng, lambda);
+        }
+    }
+
+    if (sim.currentScene == Scene::Ocean && sim.monitorWidth > 0.0) {
+        // Bubbles rise from the seafloor toward the canvas top, with a gentle
+        // sinusoidal horizontal wobble (applied during the per-kind pass
+        // above). Lifetime ensures cleanup even if the cap-by-y condition is
+        // somehow missed on a window resize.
+        const double lambda = BUBBLE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
+        while (lambda > 0.0 && sim.globalTime >= sim.nextBubbleSpawnTime
+               && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
+            Entity e{};
+            e.kind = EntityKind::Bubble;
+            e.size = prng_uniform(sim.bubblePrng, BUBBLE_SIZE_MIN, BUBBLE_SIZE_MAX);
+            const double xFrac = prng_uniform(sim.bubblePrng, 0.0, 1.0);
+            const double spawnX = xFrac * sim.monitorWidth;
+            const double rise = prng_uniform(sim.bubblePrng, BUBBLE_RISE_SPEED_MIN, BUBBLE_RISE_SPEED_MAX);
+            e.phaseX = prng_uniform(sim.bubblePrng, 0.0, TWO_PI);
+            e.x0 = spawnX;
+            e.x = spawnX;
+            e.y = groundY + e.size + 2.0;
+            e.vx = 0.0;
+            e.vy = -rise; // negative = up
+            e.baseSpeed = rise;
+            e.age = 0.0;
+            // Travel distance from below ground to above canvas = groundY + 2*size.
+            e.lifetime = (groundY + 2.0 * e.size) / rise + BUBBLE_LIFETIME_PADDING_SEC;
+            e.seed = prng_next_u32(sim.bubblePrng);
+            sim.entities.push_back(e);
+            sim.nextBubbleSpawnTime += prng_exponential(sim.bubblePrng, lambda);
+        }
+
+        // Keep the fish population at the target. Edge despawn happens in the
+        // cleanup pass above.
+        const int target = target_fish_count(sim);
+        int currentFish = 0;
+        for (const Entity& e : sim.entities) {
+            if (e.kind == EntityKind::Fish) ++currentFish;
+        }
+        while (currentFish < target
+               && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
+            sim.entities.push_back(spawn_fish(sim, true));
+            ++currentFish;
         }
     }
 }

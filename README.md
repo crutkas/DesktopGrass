@@ -47,6 +47,13 @@ no engagement loops, no toys.
   contemplative empty season — no critters, no other weather, just leaves
   and trees.
 
+**Ocean scene**
+- Teal / aqua seafloor palette so the grass reads as wisps of seagrass on a
+  sandy bottom. Coral in three forms (fan, branching, brain) sprouts in five
+  reef colors. Bubbles rise from the floor with a gentle horizontal wobble and
+  pop at the surface, and a small school of fish swims back and forth across
+  the strip.
+
 **Always-on touches**
 - App state (scene, cuts, pet counts, snow depth, auto-start preference)
   persists across sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.

@@ -23,7 +23,8 @@ TEST_CASE("Scene enum has spec-locked discriminants", "[scene][enum]") {
     REQUIRE(static_cast<int>(Scene::Desert) == 1);
     REQUIRE(static_cast<int>(Scene::Winter) == 2);
     REQUIRE(static_cast<int>(Scene::Autumn) == 3);
-    REQUIRE(SCENE_COUNT == 4);
+    REQUIRE(static_cast<int>(Scene::Ocean)  == 4);
+    REQUIRE(SCENE_COUNT == 5);
     REQUIRE(static_cast<int>(SCENE_DEFAULT) == 0);
 }
 
@@ -61,6 +62,7 @@ TEST_CASE("sim_set_scene round-trips through all values", "[scene][api]") {
     sim_set_scene(sim, Scene::Desert);  REQUIRE(sim.currentScene == Scene::Desert);
     sim_set_scene(sim, Scene::Winter);  REQUIRE(sim.currentScene == Scene::Winter);
     sim_set_scene(sim, Scene::Autumn);  REQUIRE(sim.currentScene == Scene::Autumn);
+    sim_set_scene(sim, Scene::Ocean);   REQUIRE(sim.currentScene == Scene::Ocean);
     sim_set_scene(sim, Scene::Grass);   REQUIRE(sim.currentScene == Scene::Grass);
 }
 

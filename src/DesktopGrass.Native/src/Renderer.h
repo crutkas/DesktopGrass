@@ -78,6 +78,8 @@ private:
     void DrawButterfly(const Entity& e);
     void DrawFirefly(const Entity& e);
     void DrawBird(const Entity& e);
+    void DrawCoral(const Blade& b, float groundY);
+    void DrawFish(const Entity& e);
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawBunny(const Entity& e);
     void DrawHedgehog(const Entity& e);
@@ -119,6 +121,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           mapleTrunkBrush_;
     ComPtr<ID2D1SolidColorBrush>           mapleTrunkDarkBrush_;
     ComPtr<ID2D1SolidColorBrush>           mapleCanopyBrushes_[MAPLE_CANOPY_COLOR_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           coralBrushes_[CORAL_COLOR_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           bubbleStrokeBrush_;
+    ComPtr<ID2D1SolidColorBrush>           bubbleHighlightBrush_;
+    ComPtr<ID2D1SolidColorBrush>           fishBrushes_[FISH_COLOR_COUNT];
+    ComPtr<ID2D1SolidColorBrush>           fishFinBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepBodyBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepLegBrush_;
     ComPtr<ID2D1SolidColorBrush>           sheepFaceBrush_;

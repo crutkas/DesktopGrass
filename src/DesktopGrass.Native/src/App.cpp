@@ -144,6 +144,7 @@ bool App::CreateTrayIcon() {
     AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneDesert, L"Desert");
     AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneWinter, L"Winter");
     AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneAutumn, L"Autumn");
+    AppendMenuW(sceneSubmenu_, MF_STRING, kMenuSceneOcean,  L"Ocean");
     AppendMenuW(trayMenu_, MF_POPUP | MF_STRING,
                 reinterpret_cast<UINT_PTR>(sceneSubmenu_), L"Scene");
 
@@ -202,7 +203,7 @@ void App::UpdateSceneMenuCheck() {
     // Radio-style check: kMenuSceneGrass + Scene enum index.
     const int activeId = kMenuSceneGrass + static_cast<int>(currentScene_);
     CheckMenuRadioItem(sceneSubmenu_,
-                       kMenuSceneGrass, kMenuSceneAutumn,
+                       kMenuSceneGrass, kMenuSceneOcean,
                        activeId, MF_BYCOMMAND);
 }
 
@@ -549,6 +550,7 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
                 case kMenuSceneDesert:   SetScene(Scene::Desert);             break;
                 case kMenuSceneWinter:   SetScene(Scene::Winter);             break;
                 case kMenuSceneAutumn:   SetScene(Scene::Autumn);             break;
+    case kMenuSceneOcean:    SetScene(Scene::Ocean);              break;
                 case kMenuCritterNone:   SetCritter(CritterKind::None);       break;
                 case kMenuCritterSheep:  SetCritter(CritterKind::Sheep);      break;
                 case kMenuCritterCat:    SetCritter(CritterKind::Cat);        break;

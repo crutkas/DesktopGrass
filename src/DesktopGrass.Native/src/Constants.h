@@ -183,8 +183,9 @@ enum class Scene : uint8_t {
     Desert = 1,
     Winter = 2,
     Autumn = 3,
+    Ocean  = 4,
 };
-constexpr int    SCENE_COUNT   = 4;
+constexpr int    SCENE_COUNT   = 5;
 constexpr Scene  SCENE_DEFAULT = Scene::Grass;
 
 // Per-scene blade palettes (§13). Each is six ARGB colors indexed by
@@ -218,6 +219,18 @@ constexpr uint32_t AUTUMN_PALETTE[PALETTE_SIZE] = {
     0xFF8C2E0Fu,  // 5 dark maroon
 };
 
+// Ocean palette — seafloor sand / silt / pebble tones used for blades on
+// the Ocean scene (so non-coral grass slots read as wisps of seagrass on
+// a sandy bottom rather than green lawn).
+constexpr uint32_t OCEAN_PALETTE[PALETTE_SIZE] = {
+    0xFF3FA9A6u,  // 0 teal
+    0xFF2E8C8Au,  // 1 deep teal
+    0xFF6FC6C2u,  // 2 pale aqua
+    0xFF1F6F75u,  // 3 deep sea green
+    0xFF8FD7CCu,  // 4 light sea foam
+    0xFF257D7Bu,  // 5 mid teal
+};
+
 constexpr uint32_t MUSHROOM_PALETTE[MUSHROOM_PALETTE_SIZE] = {
     0xFFD32F2Fu, // 0 red (amanita)
     0xFF8D6E63u, // 1 brown
@@ -248,6 +261,7 @@ constexpr uint32_t SCENE_PALETTES[SCENE_COUNT][PALETTE_SIZE] = {
     { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
     { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
     { AUTUMN_PALETTE[0], AUTUMN_PALETTE[1], AUTUMN_PALETTE[2], AUTUMN_PALETTE[3], AUTUMN_PALETTE[4], AUTUMN_PALETTE[5] },
+    { OCEAN_PALETTE[0],  OCEAN_PALETTE[1],  OCEAN_PALETTE[2],  OCEAN_PALETTE[3],  OCEAN_PALETTE[4],  OCEAN_PALETTE[5]  },
 };
 
 // Roaming-entity subsystem (§13.2). EntityKind discriminants are
@@ -269,6 +283,8 @@ enum class EntityKind : uint8_t {
     Hedgehog   = 10,
     Leaf       = 11,
     SnowPuff   = 12,
+    Bubble     = 13,
+    Fish       = 14,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -826,6 +842,65 @@ constexpr double   LEAF_PUFF_HOVER_RADIUS_MUL   = 1.15;   // × canopy radius
 constexpr double   LEAF_PUFF_MIN_CUT_HEIGHT     = 0.5;    // tree must be reasonably leafy
 constexpr double   LEAF_PUFF_START_OFFSET_FRAC  = 0.4;    // spawn spread within canopy
 constexpr uint64_t LEAF_PUFF_PRNG_SALT          = 0x9E3779B97F4A7C15ull;
+
+// Ocean scene — coral (blade variant), bubbles (rising entity), fish
+// (horizontal swimmer). Coral probability is intentionally lower than
+// pines/maples because each piece is wider (multi-DIP fan/brain).
+constexpr double   CORAL_PROBABILITY     = 0.018;
+constexpr double   CORAL_HEIGHT_MIN      = 22.0;
+constexpr double   CORAL_HEIGHT_MAX      = 48.0;
+constexpr double   CORAL_WIDTH_MIN       = 10.0;
+constexpr double   CORAL_WIDTH_MAX       = 20.0;
+constexpr int      CORAL_TYPE_COUNT      = 3;   // 0 = fan, 1 = branching, 2 = brain
+constexpr int      CORAL_COLOR_COUNT     = 5;
+constexpr uint32_t CORAL_COLOR_0         = 0xFFFF6FA8u; // pink
+constexpr uint32_t CORAL_COLOR_1         = 0xFFFF8A3Du; // orange
+constexpr uint32_t CORAL_COLOR_2         = 0xFFB155D9u; // purple
+constexpr uint32_t CORAL_COLOR_3         = 0xFFE53935u; // red
+constexpr uint32_t CORAL_COLOR_4         = 0xFFFFE6D0u; // bone-white
+constexpr uint32_t CORAL_COLORS[CORAL_COLOR_COUNT] = {
+    CORAL_COLOR_0, CORAL_COLOR_1, CORAL_COLOR_2, CORAL_COLOR_3, CORAL_COLOR_4,
+};
+constexpr uint64_t CORAL_PRNG_SALT       = 0xC04A1C04A1C04A1Cull;
+
+// Bubbles — rise from the seafloor with horizontal wobble, pop at the top
+// of the canvas. Emit rate mirrors snowflake but at a calmer cadence.
+constexpr double   BUBBLE_EMIT_RATE_PER_1920DIP = 1.8;
+constexpr double   BUBBLE_RISE_SPEED_MIN   = 18.0;
+constexpr double   BUBBLE_RISE_SPEED_MAX   = 38.0;
+constexpr double   BUBBLE_SIZE_MIN         = 2.0;
+constexpr double   BUBBLE_SIZE_MAX         = 4.5;
+constexpr double   BUBBLE_WOBBLE_AMPLITUDE = 6.0;
+constexpr double   BUBBLE_WOBBLE_FREQUENCY = 0.7;
+constexpr double   BUBBLE_LIFETIME_PADDING_SEC = 1.5;
+constexpr uint32_t BUBBLE_STROKE_COLOR     = 0xCCB0E4FFu;
+constexpr uint32_t BUBBLE_HIGHLIGHT_COLOR  = 0xFFFFFFFFu;
+constexpr uint64_t BUBBLE_PRNG_SALT        = 0xB0BB1EB0BB1EB0BBull;
+
+// Fish — small swimmers confined to the visible strip so they stay on
+// canvas. The overlay is only STRIP_HEIGHT + HEADROOM (≈110 DIP) tall,
+// so altitudes are tight: 25..75 DIP above the ground line.
+constexpr double   FISH_COUNT_PER_1920DIP = 2.5;
+constexpr int      FISH_COUNT_MIN         = 2;
+constexpr int      FISH_COUNT_MAX         = 8;
+constexpr double   FISH_SPEED_MIN         = 18.0;
+constexpr double   FISH_SPEED_MAX         = 38.0;
+constexpr double   FISH_SIZE_MIN          = 5.0;   // body half-length DIP
+constexpr double   FISH_SIZE_MAX          = 8.5;
+constexpr double   FISH_ALTITUDE_MIN      = 25.0;  // DIP above ground
+constexpr double   FISH_ALTITUDE_MAX      = 75.0;
+constexpr double   FISH_TAIL_WOBBLE_FREQ  = 6.0;
+constexpr double   FISH_TAIL_WOBBLE_AMP   = 0.45;  // radians
+constexpr int      FISH_COLOR_COUNT       = 4;
+constexpr uint32_t FISH_COLOR_0           = 0xFFFFA844u; // clownfish orange
+constexpr uint32_t FISH_COLOR_1           = 0xFFFFD54Fu; // yellow
+constexpr uint32_t FISH_COLOR_2           = 0xFF42A5F5u; // bright blue
+constexpr uint32_t FISH_COLOR_3           = 0xFFE57373u; // coral pink
+constexpr uint32_t FISH_COLORS[FISH_COLOR_COUNT] = {
+    FISH_COLOR_0, FISH_COLOR_1, FISH_COLOR_2, FISH_COLOR_3,
+};
+constexpr uint32_t FISH_FIN_COLOR         = 0xFF222222u;
+constexpr uint64_t FISH_PRNG_SALT         = 0xF15F15F15F15F15Full;
 
 inline double ambient_clamp01(double value) noexcept {
     if (value <= 0.0) return 0.0;
