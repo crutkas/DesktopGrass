@@ -105,6 +105,24 @@ public sealed class PersistenceTests
         AssertStateEqual(expected, actual);
     }
 
+    [Theory]
+    [InlineData(Scene.Grass)]
+    [InlineData(Scene.Desert)]
+    [InlineData(Scene.Winter)]
+    [InlineData(Scene.Autumn)]
+    [InlineData(Scene.Ocean)]
+    public void RoundTripsEveryScene(Scene scene)
+    {
+        UseStatePath(nameof(RoundTripsEveryScene));
+        var expected = new AppState(2, scene, CritterKind.None, 0, AutoStart: false, []);
+
+        Persistence.Save(expected);
+        AppState? actual = Persistence.Load();
+
+        Assert.NotNull(actual);
+        Assert.Equal(scene, actual.Scene);
+    }
+
     [Fact]
     public void VersionMismatchReturnsNull()
     {

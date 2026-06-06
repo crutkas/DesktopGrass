@@ -7,7 +7,7 @@ using System.Numerics;
 
 namespace DesktopGrass.Win2D;
 
-public enum Scene { Grass = 0, Desert = 1, Winter = 2, Autumn = 3 }
+public enum Scene { Grass = 0, Desert = 1, Winter = 2, Autumn = 3, Ocean = 4 }
 
 // Critter (§13.3). Grass-scene ambient critters plus legacy tray selectors.
 // Cross-impl-locked discriminants.
@@ -190,7 +190,7 @@ internal static class Constants
     };
 
     // Scenes (§13).
-    public const int    SCENE_COUNT   = 4;
+    public const int    SCENE_COUNT   = 5;
     public const Scene  SCENE_DEFAULT = Scene.Grass;
 
     // Desert palette (§13) — sandy/tan tones.
@@ -226,6 +226,19 @@ internal static class Constants
         0xFF8C2E0F, // 5 dark maroon
     };
 
+    // Ocean palette — seafloor sand / silt / pebble tones used for blades on
+    // the Ocean scene (so non-coral grass slots read as wisps of seagrass on
+    // a sandy bottom rather than green lawn).
+    public static readonly uint[] OCEAN_PALETTE =
+    {
+        0xFF3FA9A6, // 0 teal
+        0xFF2E8C8A, // 1 deep teal
+        0xFF6FC6C2, // 2 pale aqua
+        0xFF1F6F75, // 3 deep sea green
+        0xFF8FD7CC, // 4 light sea foam
+        0xFF257D7B, // 5 mid teal
+    };
+
     // 2D lookup: SCENE_PALETTES[(int)scene, hue]. Row 0 must equal PALETTE.
     public static readonly uint[,] SCENE_PALETTES = new uint[SCENE_COUNT, PALETTE_SIZE]
     {
@@ -233,6 +246,7 @@ internal static class Constants
         { DESERT_PALETTE[0], DESERT_PALETTE[1], DESERT_PALETTE[2], DESERT_PALETTE[3], DESERT_PALETTE[4], DESERT_PALETTE[5] },
         { WINTER_PALETTE[0], WINTER_PALETTE[1], WINTER_PALETTE[2], WINTER_PALETTE[3], WINTER_PALETTE[4], WINTER_PALETTE[5] },
         { AUTUMN_PALETTE[0], AUTUMN_PALETTE[1], AUTUMN_PALETTE[2], AUTUMN_PALETTE[3], AUTUMN_PALETTE[4], AUTUMN_PALETTE[5] },
+        { OCEAN_PALETTE[0],  OCEAN_PALETTE[1],  OCEAN_PALETTE[2],  OCEAN_PALETTE[3],  OCEAN_PALETTE[4],  OCEAN_PALETTE[5]  },
     };
 
     // Roaming-entity subsystem (§13.2). Caps Sim.Entities so the snowflake
@@ -780,6 +794,67 @@ internal static class Constants
     public const double LEAF_PUFF_MIN_CUT_HEIGHT    = 0.5;     // tree must be reasonably leafy
     public const double LEAF_PUFF_START_OFFSET_FRAC = 0.4;     // spawn spread within canopy
     public const ulong  LEAF_PUFF_PRNG_SALT         = 0x9E3779B97F4A7C15ul;
+
+    // Ocean scene — coral (blade variant), bubbles (rising entity), fish
+    // (horizontal swimmer). Coral probability is intentionally lower than
+    // pines/maples because each piece is wider (multi-DIP fan/brain).
+    public const double CORAL_PROBABILITY     = 0.018;
+    public const double CORAL_HEIGHT_MIN      = 22.0;
+    public const double CORAL_HEIGHT_MAX      = 48.0;
+    public const double CORAL_WIDTH_MIN       = 10.0;
+    public const double CORAL_WIDTH_MAX       = 20.0;
+    public const int    CORAL_TYPE_COUNT      = 3;   // 0 = fan, 1 = branching, 2 = brain
+    public const int    CORAL_COLOR_COUNT     = 5;
+    public const uint   CORAL_COLOR_0         = 0xFFFF6FA8u; // pink
+    public const uint   CORAL_COLOR_1         = 0xFFFF8A3Du; // orange
+    public const uint   CORAL_COLOR_2         = 0xFFB155D9u; // purple
+    public const uint   CORAL_COLOR_3         = 0xFFE53935u; // red
+    public const uint   CORAL_COLOR_4         = 0xFFFFE6D0u; // bone-white
+    public static readonly uint[] CORAL_COLORS =
+    {
+        CORAL_COLOR_0, CORAL_COLOR_1, CORAL_COLOR_2, CORAL_COLOR_3, CORAL_COLOR_4,
+    };
+    public const ulong  CORAL_PRNG_SALT       = 0xC04A1C04A1C04A1Cul;
+
+    // Bubbles — rise from the seafloor with horizontal wobble, pop at the top
+    // of the canvas. Emit rate mirrors snowflake but at a calmer cadence.
+    public const double BUBBLE_EMIT_RATE_PER_1920DIP = 1.8;
+    public const double BUBBLE_RISE_SPEED_MIN   = 18.0;
+    public const double BUBBLE_RISE_SPEED_MAX   = 38.0;
+    public const double BUBBLE_SIZE_MIN         = 2.0;
+    public const double BUBBLE_SIZE_MAX         = 4.5;
+    public const double BUBBLE_WOBBLE_AMPLITUDE = 6.0;
+    public const double BUBBLE_WOBBLE_FREQUENCY = 0.7;
+    public const double BUBBLE_LIFETIME_PADDING_SEC = 1.5;
+    public const uint   BUBBLE_STROKE_COLOR     = 0xCCB0E4FFu;
+    public const uint   BUBBLE_HIGHLIGHT_COLOR  = 0xFFFFFFFFu;
+    public const ulong  BUBBLE_PRNG_SALT        = 0xB0BB1EB0BB1EB0BBul;
+
+    // Fish — small swimmers confined to the visible strip so they stay on
+    // canvas. The overlay is only STRIP_HEIGHT + HEADROOM (≈110 DIP) tall,
+    // so altitudes are tight: 25..75 DIP above the ground line.
+    public const double FISH_COUNT_PER_1920DIP = 2.5;
+    public const int    FISH_COUNT_MIN         = 2;
+    public const int    FISH_COUNT_MAX         = 8;
+    public const double FISH_SPEED_MIN         = 18.0;
+    public const double FISH_SPEED_MAX         = 38.0;
+    public const double FISH_SIZE_MIN          = 5.0;   // body half-length DIP
+    public const double FISH_SIZE_MAX          = 8.5;
+    public const double FISH_ALTITUDE_MIN      = 25.0;  // DIP above ground
+    public const double FISH_ALTITUDE_MAX      = 75.0;
+    public const double FISH_TAIL_WOBBLE_FREQ  = 6.0;
+    public const double FISH_TAIL_WOBBLE_AMP   = 0.45;  // radians
+    public const int    FISH_COLOR_COUNT       = 4;
+    public const uint   FISH_COLOR_0           = 0xFFFFA844u; // clownfish orange
+    public const uint   FISH_COLOR_1           = 0xFFFFD54Fu; // yellow
+    public const uint   FISH_COLOR_2           = 0xFF42A5F5u; // bright blue
+    public const uint   FISH_COLOR_3           = 0xFFE57373u; // coral pink
+    public static readonly uint[] FISH_COLORS =
+    {
+        FISH_COLOR_0, FISH_COLOR_1, FISH_COLOR_2, FISH_COLOR_3,
+    };
+    public const uint   FISH_FIN_COLOR         = 0xFF222222u;
+    public const ulong  FISH_PRNG_SALT         = 0xF15F15F15F15F15Ful;
 
     private static double AmbientClamp01(double value)
     {

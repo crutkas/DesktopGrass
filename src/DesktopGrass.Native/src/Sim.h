@@ -122,6 +122,13 @@ struct Blade {
     uint8_t mapleCanopyColorIdx     = 0;
     bool    mapleIsBare             = false;
 
+    // Coral (§17). Ocean-only slot-bound blade variant.
+    bool    isCoral                 = false;
+    uint8_t coralType               = 0;     // 0 = fan, 1 = branching, 2 = brain
+    double  coralHeight             = 0.0;   // DIP
+    double  coralWidth              = 0.0;   // DIP
+    uint8_t coralColorIdx           = 0;
+
     // Leaf puff cooldown (§16.6). Absolute globalTime before which this maple
     // will not shed another hover-triggered leaf flurry. Runtime-only; default
     // 0.0 keeps `Blade b{}` fixtures ready to puff immediately.
@@ -270,6 +277,13 @@ struct Sim {
     Prng               snowDriftPrng       = { 0 };
     double             snowDriftCooldownEnd = 0.0;
 
+    // §17 Ocean emitters. Bubble stream rises from the seafloor; fish stream
+    // maintains the swimmer population. Independent salted streams so neither
+    // perturbs the other's draws or the shared coral generator.
+    Prng               bubblePrng          = { 0 };
+    double             nextBubbleSpawnTime = 0.0;
+    Prng               fishPrng            = { 0 };
+
     // §17.8 daytime bird-flyby emitter. Transient Grass-only flocks share one
     // persistent stream and one next-event time across scene switches.
     Prng               birdFlybyPrng       = { 0 };
@@ -365,6 +379,7 @@ void generate_pines_for_winter(Sim& sim) noexcept;
 // Maple tree generator (§16.5). Iterates blade slots; promotes a small
 // fraction to maples from the MAPLE_PRNG_SALT stream when entering Autumn.
 void generate_maples_for_autumn(Sim& sim) noexcept;
+void generate_coral_for_ocean(Sim& sim) noexcept;
 
 // Per-blade dynamics helper (visible for tests).
 void update_blade_dynamics(Blade& b, double globalTime, double dt,

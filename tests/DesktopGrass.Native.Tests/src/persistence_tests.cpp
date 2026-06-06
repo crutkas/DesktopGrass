@@ -126,6 +126,24 @@ TEST_CASE("persistence round-trips state with cuts", "[persistence]") {
     assert_state_equal(expected, actual);
 }
 
+TEST_CASE("persistence round-trips every scene", "[persistence]") {
+    const Scene scenes[] = {
+        Scene::Grass, Scene::Desert, Scene::Winter, Scene::Autumn, Scene::Ocean
+    };
+    for (Scene scene : scenes) {
+        const auto path = test_state_path("round-trip-scene");
+        use_state_path(path);
+
+        persistence::AppState expected;
+        expected.scene = scene;
+        REQUIRE(persistence::SaveAppState(expected));
+
+        persistence::AppState actual;
+        REQUIRE(persistence::LoadAppState(actual));
+        REQUIRE(actual.scene == scene);
+    }
+}
+
 TEST_CASE("persistence version mismatch returns false", "[persistence]") {
     const auto path = test_state_path("version-mismatch");
     use_state_path(path);

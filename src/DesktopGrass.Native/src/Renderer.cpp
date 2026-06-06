@@ -267,6 +267,31 @@ bool Renderer::CreateDeviceResources() {
         if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
     }
 
+    for (int i = 0; i < CORAL_COLOR_COUNT; ++i) {
+        coralBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(CORAL_COLORS[i]),
+                                                coralBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+    bubbleStrokeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUBBLE_STROKE_COLOR),
+                                            bubbleStrokeBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    bubbleHighlightBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(BUBBLE_HIGHLIGHT_COLOR),
+                                            bubbleHighlightBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    for (int i = 0; i < FISH_COLOR_COUNT; ++i) {
+        fishBrushes_[i].Reset();
+        hr = d2dContext_->CreateSolidColorBrush(FromArgb(FISH_COLORS[i]),
+                                                fishBrushes_[i].ReleaseAndGetAddressOf());
+        if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+    }
+    fishFinBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(FISH_FIN_COLOR),
+                                            fishFinBrush_.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
+
     sheepBodyBrush_.Reset();
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(SHEEP_BODY_COLOR),
                                             sheepBodyBrush_.ReleaseAndGetAddressOf());
@@ -487,6 +512,11 @@ void Renderer::DiscardDeviceResources() {
     mapleTrunkBrush_.Reset();
     mapleTrunkDarkBrush_.Reset();
     for (auto& b : mapleCanopyBrushes_) b.Reset();
+    for (auto& b : coralBrushes_) b.Reset();
+    bubbleStrokeBrush_.Reset();
+    bubbleHighlightBrush_.Reset();
+    for (auto& b : fishBrushes_) b.Reset();
+    fishFinBrush_.Reset();
     sheepBodyBrush_.Reset();
     sheepLegBrush_.Reset();
     sheepFaceBrush_.Reset();
@@ -770,6 +800,11 @@ void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
             const bool isBg = b.isPine && b.treeBackground;
             if (backgroundTrees != isBg) continue;
         } else if (b.isPine || b.isMaple) {
+            continue;
+        }
+
+        if (b.isCoral) {
+            DrawCoral(b, static_cast<float>(groundY));
             continue;
         }
 
@@ -1283,6 +1318,133 @@ void Renderer::DrawBird(const Entity& e) {
                           birdBrush_.Get(), 1.0f);
     d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), bodyRx, bodyRy), birdBrush_.Get());
     birdBrush_->SetOpacity(1.0f);
+}
+
+void Renderer::DrawCoral(const Blade& b, float groundY) {
+    int idx = b.coralColorIdx;
+    if (static_cast<unsigned>(idx) >= static_cast<unsigned>(CORAL_COLOR_COUNT)) idx = 0;
+    ID2D1SolidColorBrush* brush = coralBrushes_[idx].Get();
+    if (!brush) return;
+    ID2D1StrokeStyle* round = roundStrokeStyle_.Get();
+
+    const float baseX = static_cast<float>(b.baseX);
+    const float gy = groundY;
+    const float h = static_cast<float>(b.coralHeight * b.cutHeight);
+    const float w = static_cast<float>(b.coralWidth);
+
+    if (b.cutHeight < CUT_STUMP_THRESHOLD) {
+        const float stumpW = std::max(2.0f, w * 0.45f);
+        d2dContext_->DrawLine(D2D1::Point2F(baseX, gy),
+                              D2D1::Point2F(baseX, gy - static_cast<float>(STUMP_HEIGHT)),
+                              brush, stumpW, round);
+        return;
+    }
+
+    if (b.coralType == 0) {
+        // Fan coral — splayed line bundle anchored at the base, tips spread
+        // across a horizontal arc at the top.
+        const int rays = 7;
+        const float topY = gy - h;
+        const float halfW = w * 0.5f;
+        const float rayW = std::max(1.2f, w * 0.10f);
+        for (int i = 0; i < rays; ++i) {
+            const float t = (rays == 1) ? 0.5f : static_cast<float>(i) / (rays - 1);
+            const float tipX = baseX - halfW + t * w;
+            const float tipY = topY + std::fabs(t - 0.5f) * h * 0.18f;
+            d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(tipX, tipY),
+                                  brush, rayW, round);
+            d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(tipX, tipY), rayW * 0.9f, rayW * 0.9f), brush);
+        }
+        d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, gy - h * 0.18f),
+                              brush, std::max(2.0f, w * 0.30f), round);
+    } else if (b.coralType == 1) {
+        // Branching coral — central trunk with paired branches.
+        const float trunkW = std::max(1.6f, w * 0.22f);
+        const float topY = gy - h;
+        d2dContext_->DrawLine(D2D1::Point2F(baseX, gy), D2D1::Point2F(baseX, topY),
+                              brush, trunkW, round);
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(baseX, topY), trunkW * 0.9f, trunkW * 0.9f), brush);
+        struct Branch { float frac; float side; float lenFrac; float angleDeg; };
+        const Branch branches[] = {
+            { 0.45f, -1.0f, 0.55f, 55.0f },
+            { 0.55f, +1.0f, 0.50f, 50.0f },
+            { 0.72f, -1.0f, 0.40f, 35.0f },
+            { 0.78f, +1.0f, 0.45f, 40.0f },
+        };
+        const float branchW = std::max(1.2f, trunkW * 0.75f);
+        for (const Branch& br : branches) {
+            const float sx = baseX;
+            const float sy = gy - h * br.frac;
+            const float blen = h * br.lenFrac;
+            const float ang = br.angleDeg * 3.14159265358979323846f / 180.0f;
+            const float ex = sx + br.side * blen * std::sin(ang);
+            const float ey = sy - blen * std::cos(ang);
+            d2dContext_->DrawLine(D2D1::Point2F(sx, sy), D2D1::Point2F(ex, ey), brush, branchW, round);
+            d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(ex, ey), branchW * 0.9f, branchW * 0.9f), brush);
+        }
+    } else {
+        // Brain coral — bulbous mound with internal ridge lines.
+        const float cx = baseX;
+        const float cy = gy - h * 0.45f;
+        const float rx = w * 0.55f;
+        const float ry = h * 0.55f;
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), rx, ry), brush);
+        if (!bubbleStrokeBrush_) return;
+        const float ridgeW = std::max(0.8f, w * 0.06f);
+        for (int i = -2; i <= 2; ++i) {
+            const float t = i / 2.0f;
+            const float ridgeY = cy + t * ry * 0.55f;
+            const float halfRidge = rx * std::sqrt(std::max(0.0f, 1.0f - t * t * 0.85f)) * 0.85f;
+            d2dContext_->DrawLine(D2D1::Point2F(cx - halfRidge, ridgeY),
+                                  D2D1::Point2F(cx + halfRidge, ridgeY),
+                                  bubbleStrokeBrush_.Get(), ridgeW, round);
+        }
+    }
+}
+
+void Renderer::DrawFish(const Entity& e) {
+    int idx = e.colorVariant;
+    if (static_cast<unsigned>(idx) >= static_cast<unsigned>(FISH_COLOR_COUNT)) idx = 0;
+    ID2D1SolidColorBrush* body = fishBrushes_[idx].Get();
+    if (!body) return;
+    ID2D1StrokeStyle* round = roundStrokeStyle_.Get();
+
+    const float cx = static_cast<float>(e.x);
+    const float cy = static_cast<float>(e.y);
+    const float halfLen = static_cast<float>(e.size);
+    const float halfH = halfLen * 0.55f;
+    const float facing = (e.vx >= 0.0) ? 1.0f : -1.0f;
+
+    // Body
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), halfLen, halfH), body);
+
+    // Tail — wobbles with time; tail points away from heading direction.
+    const double tailAngle = std::sin(e.age * FISH_TAIL_WOBBLE_FREQ + e.phaseX) * FISH_TAIL_WOBBLE_AMP;
+    const float tailRootX = cx - facing * halfLen * 0.95f;
+    const float tailLen = halfLen * 0.80f;
+    const float tipX = tailRootX - facing * tailLen * static_cast<float>(std::cos(tailAngle));
+    const float tipY = cy + tailLen * static_cast<float>(std::sin(tailAngle));
+    const float spreadH = halfH * 0.85f;
+    d2dContext_->DrawLine(D2D1::Point2F(tailRootX, cy - spreadH * 0.6f), D2D1::Point2F(tipX, tipY - spreadH * 0.5f), body, std::max(1.0f, halfH * 0.50f), round);
+    d2dContext_->DrawLine(D2D1::Point2F(tailRootX, cy + spreadH * 0.6f), D2D1::Point2F(tipX, tipY + spreadH * 0.5f), body, std::max(1.0f, halfH * 0.50f), round);
+    d2dContext_->DrawLine(D2D1::Point2F(tailRootX, cy), D2D1::Point2F(tipX, tipY), body, std::max(1.0f, halfH * 0.40f), round);
+
+    // Top fin
+    const float finBase1X = cx - facing * halfLen * 0.10f;
+    const float finBase2X = cx + facing * halfLen * 0.15f;
+    const float finBaseY = cy - halfH * 0.85f;
+    const float finTipX = cx;
+    const float finTipY = cy - halfH * 1.55f;
+    d2dContext_->DrawLine(D2D1::Point2F(finBase1X, finBaseY), D2D1::Point2F(finTipX, finTipY), body, std::max(0.8f, halfH * 0.30f), round);
+    d2dContext_->DrawLine(D2D1::Point2F(finBase2X, finBaseY), D2D1::Point2F(finTipX, finTipY), body, std::max(0.8f, halfH * 0.30f), round);
+
+    // Eye — small dark dot near the head.
+    if (fishFinBrush_) {
+        const float eyeX = cx + facing * halfLen * 0.55f;
+        const float eyeY = cy - halfH * 0.18f;
+        const float eyeR = std::max(0.8f, halfH * 0.18f);
+        d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(eyeX, eyeY), eyeR, eyeR), fishFinBrush_.Get());
+    }
 }
 
 void Renderer::DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
@@ -1854,6 +2016,28 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
 
         if (e.kind == EntityKind::Firefly) {
             DrawFirefly(e);
+            continue;
+        }
+
+        if (e.kind == EntityKind::Bubble) {
+            const float cx = static_cast<float>(e.x);
+            const float cy = static_cast<float>(e.y);
+            const float br = static_cast<float>(e.size);
+            if (bubbleStrokeBrush_) {
+                d2dContext_->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, br),
+                                         bubbleStrokeBrush_.Get(), std::max(0.9f, br * 0.25f));
+            }
+            if (bubbleHighlightBrush_) {
+                const float hr = std::max(0.6f, br * 0.30f);
+                d2dContext_->FillEllipse(
+                    D2D1::Ellipse(D2D1::Point2F(cx - br * 0.32f, cy - br * 0.32f), hr, hr),
+                    bubbleHighlightBrush_.Get());
+            }
+            continue;
+        }
+
+        if (e.kind == EntityKind::Fish) {
+            DrawFish(e);
             continue;
         }
 

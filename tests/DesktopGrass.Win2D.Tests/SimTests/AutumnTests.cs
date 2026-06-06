@@ -87,9 +87,9 @@ public sealed class AutumnTests
     }
 
     [Fact]
-    public void SceneCountBumpsToFour()
+    public void SceneCountBumpsToFive()
     {
-        Assert.Equal(4, Constants.SCENE_COUNT);
+        Assert.Equal(5, Constants.SCENE_COUNT);
     }
 
     [Fact]

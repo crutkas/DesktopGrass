@@ -116,8 +116,8 @@ std::filesystem::path autumn_state_path() {
 
 } // namespace
 
-TEST_CASE("Autumn scene count bumps to four", "[autumn][scene]") {
-    REQUIRE(SCENE_COUNT == 4);
+TEST_CASE("Autumn scene count bumps to five", "[autumn][scene]") {
+    REQUIRE(SCENE_COUNT == 5);
 }
 
 TEST_CASE("Autumn scene enum value is pinned", "[autumn][scene]") {
