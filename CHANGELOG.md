@@ -8,6 +8,19 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-06 — Perf: default frame rate lowered to 24 fps
+
+### Changed
+- **Default `targetFps` lowered from 30 to 24** across both renderers. The whole
+  pipeline (sim + render + present) scales ~linearly with frame rate, so 24 fps
+  cuts CPU ~17% (Grass ~0.84% → ~0.70% of one Task Manager core, measured paired
+  with stable 10–12%/core samples) while grass sway — which is slow and gentle —
+  stays visually smooth. Combined with the −10% blade-density default, Grass now
+  idles around ~0.70% of one core vs ~1.05% before (≈⅓ less CPU). `targetFps`
+  remains a user knob (range 5–144); only the fresh-install default changed.
+  Updated in lockstep (Native `Config.h`/`Config.cpp`, Win2D `Config.cs`); tests
+  reference the default symbol, so 284/284 stay green in both suites.
+
 ---
 
 ## 2026-06-06 — Perf: default blade density reduced 10%

@@ -16,7 +16,7 @@ namespace desktopgrass::config {
 // Valid ranges and defaults for the exposed knobs. Defaults reproduce the app's
 // historical behavior exactly.
 constexpr int    kConfigVersion        = 1;
-constexpr int    kTargetFpsDefault      = 30;
+constexpr int    kTargetFpsDefault      = 24;
 constexpr int    kTargetFpsMin          = 5;
 constexpr int    kTargetFpsMax          = 144;
 constexpr double kBladeDensityDefault   = DEFAULT_DENSITY; // 2.53125

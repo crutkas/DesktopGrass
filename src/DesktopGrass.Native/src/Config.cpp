@@ -25,7 +25,7 @@ constexpr char kDefaultConfigTemplate[] =
     "  \"version\": 1,\n"
     "\n"
     "  // Animation frame rate. Lower = less CPU, choppier motion. Range 5-144.\n"
-    "  \"targetFps\": 30,\n"
+    "  \"targetFps\": 24,\n"
     "\n"
     "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n"
     "  // Default 2.53125.\n"

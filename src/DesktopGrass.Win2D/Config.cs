@@ -14,7 +14,7 @@ public sealed record AppConfig(int Version, int TargetFps, double BladeDensity);
 public static class Config
 {
     public const int ConfigVersion = 1;
-    public const int TargetFpsDefault = 30;
+    public const int TargetFpsDefault = 24;
     public const int TargetFpsMin = 5;
     public const int TargetFpsMax = 144;
     public static double BladeDensityDefault => Constants.DEFAULT_DENSITY; // 2.53125
@@ -30,7 +30,7 @@ public static class Config
         "  \"version\": 1,\n" +
         "\n" +
         "  // Animation frame rate. Lower = less CPU, choppier motion. Range 5-144.\n" +
-        "  \"targetFps\": 30,\n" +
+        "  \"targetFps\": 24,\n" +
         "\n" +
         "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n" +
         "  // Default 2.53125.\n" +
