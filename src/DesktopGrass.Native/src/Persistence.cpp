@@ -44,6 +44,7 @@ std::string SceneToString(Scene scene) noexcept {
     case Scene::Desert: return "Desert";
     case Scene::Winter: return "Winter";
     case Scene::Autumn: return "Autumn";
+    case Scene::Ocean:  return "Ocean";
     }
     return "Grass";
 }
@@ -52,6 +53,7 @@ Scene SceneFromString(const std::string& scene) noexcept {
     if (scene == "Desert") return Scene::Desert;
     if (scene == "Winter") return Scene::Winter;
     if (scene == "Autumn") return Scene::Autumn;
+    if (scene == "Ocean") return Scene::Ocean;
     return Scene::Grass;
 }
 

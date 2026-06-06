@@ -538,11 +538,25 @@ void generate_coral_for_ocean(Sim& sim) noexcept {
 
 // §17 Ocean fish helpers. Mirror the Win2D Sim.TargetFishCount/SpawnFish/
 // SpawnInitialFish so the fish stream draws byte-identically across impls.
+
+// Deterministic round-half-to-even that does NOT depend on the FPU/MXCSR
+// rounding mode (unlike std::nearbyint). std::floor and std::fmod are
+// mode-independent, so this matches C# Math.Round (MidpointRounding.ToEven)
+// even if an injected DLL alters the process floating-point control word.
+static double round_half_to_even(double x) noexcept {
+    double r = std::floor(x);
+    double frac = x - r;
+    if (frac > 0.5) {
+        r += 1.0;
+    } else if (frac == 0.5 && std::fmod(r, 2.0) != 0.0) {
+        r += 1.0;
+    }
+    return r;
+}
+
 static int target_fish_count(const Sim& sim) noexcept {
     const double scaled = FISH_COUNT_PER_1920DIP * sim.monitorWidth / 1920.0;
-    // C# Math.Round defaults to MidpointRounding.ToEven; std::nearbyint honors
-    // the default FE_TONEAREST rounding mode (ties to even) to match it exactly.
-    int n = static_cast<int>(std::nearbyint(scaled));
+    int n = static_cast<int>(round_half_to_even(scaled));
     if (n < FISH_COUNT_MIN) n = FISH_COUNT_MIN;
     if (n > FISH_COUNT_MAX) n = FISH_COUNT_MAX;
     return n;

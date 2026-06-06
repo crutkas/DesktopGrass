@@ -64,6 +64,18 @@ TEST_CASE("Ocean scene spawns initial fish at or above the target minimum",
     REQUIRE(fishCount <= FISH_COUNT_MAX);
 }
 
+TEST_CASE("Ocean fish count rounds half-to-even deterministically",
+          "[ocean][fish]") {
+    // scaled = 2.5 * width / 1920. Widths chosen so scaled lands exactly on a
+    // .5 tie; round-half-to-even must pick the even neighbor (NOT half-up),
+    // matching C# Math.Round and independent of the FPU rounding mode.
+    Sim tie25 = make_ocean_sim(CANONICAL_TEST_SEED, 1920.0); // scaled 2.5 -> 2
+    REQUIRE(count_kind(tie25, EntityKind::Fish) == 2);
+
+    Sim tie45 = make_ocean_sim(CANONICAL_TEST_SEED, 3456.0); // scaled 4.5 -> 4
+    REQUIRE(count_kind(tie45, EntityKind::Fish) == 4);
+}
+
 TEST_CASE("Ocean tick emits bubbles over time", "[ocean][bubble]") {
     Sim sim = make_ocean_sim();
 

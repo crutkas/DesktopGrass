@@ -12,15 +12,17 @@ public class OceanTests
 {
     private const double Monitor1920 = 1920.0;
 
-    private static Sim BuildSim()
+    private static Sim BuildSim() => BuildSim(Monitor1920);
+
+    private static Sim BuildSim(double width)
     {
         var sim = new Sim
         {
-            Blades = Sim.GenerateBlades(Constants.CANONICAL_TEST_SEED, Monitor1920, Constants.DEFAULT_DENSITY),
+            Blades = Sim.GenerateBlades(Constants.CANONICAL_TEST_SEED, width, Constants.DEFAULT_DENSITY),
             WindowHeight = Constants.STRIP_HEIGHT + Constants.HEADROOM,
             GroundY = Constants.STRIP_HEIGHT + Constants.HEADROOM,
         };
-        sim.ResetAmbientGusts(Constants.CANONICAL_TEST_SEED, Monitor1920);
+        sim.ResetAmbientGusts(Constants.CANONICAL_TEST_SEED, width);
         sim.ResetEntities(Constants.CANONICAL_TEST_SEED);
         return sim;
     }
@@ -57,6 +59,18 @@ public class OceanTests
         int fishCount = sim.Entities.Count(e => e.Kind == EntityKind.Fish);
         Assert.True(fishCount >= Constants.FISH_COUNT_MIN, $"Expected at least {Constants.FISH_COUNT_MIN} fish, got {fishCount}");
         Assert.True(fishCount <= Constants.FISH_COUNT_MAX, $"Expected at most {Constants.FISH_COUNT_MAX} fish, got {fishCount}");
+    }
+
+    [Theory]
+    [InlineData(1920.0, 2)] // scaled 2.5 -> round-half-to-even -> 2
+    [InlineData(3456.0, 4)] // scaled 4.5 -> round-half-to-even -> 4
+    public void SetSceneOcean_FishCountRoundsHalfToEven(double width, int expected)
+    {
+        var sim = BuildSim(width);
+        sim.SetScene(Scene.Ocean);
+
+        int fishCount = sim.Entities.Count(e => e.Kind == EntityKind.Fish);
+        Assert.Equal(expected, fishCount);
     }
 
     [Fact]
