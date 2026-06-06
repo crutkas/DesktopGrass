@@ -17,7 +17,7 @@ constexpr double STRIP_HEIGHT          = 80.0;
 constexpr double HEADROOM              = 30.0;
 
 // Procedural generation -------------------------------------------------------
-constexpr double DEFAULT_DENSITY        = 2.8125;
+constexpr double DEFAULT_DENSITY        = 2.53125;
 constexpr double BLADE_SPACING_MIN     = 4.0;
 constexpr double BLADE_SPACING_MAX     = 8.0;
 constexpr double BLADE_HEIGHT_MIN      = 6.0;

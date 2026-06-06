@@ -17,7 +17,7 @@ public static class Config
     public const int TargetFpsDefault = 30;
     public const int TargetFpsMin = 5;
     public const int TargetFpsMax = 144;
-    public static double BladeDensityDefault => Constants.DEFAULT_DENSITY; // 2.8125
+    public static double BladeDensityDefault => Constants.DEFAULT_DENSITY; // 2.53125
     public const double BladeDensityMin = 0.2;
     public const double BladeDensityMax = 5.0;
 
@@ -33,8 +33,8 @@ public static class Config
         "  \"targetFps\": 30,\n" +
         "\n" +
         "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n" +
-        "  // Default 2.8125.\n" +
-        "  \"bladeDensity\": 2.8125\n" +
+        "  // Default 2.53125.\n" +
+        "  \"bladeDensity\": 2.53125\n" +
         "}\n";
 
     private static readonly JsonSerializerOptions Options = new()

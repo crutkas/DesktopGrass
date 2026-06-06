@@ -19,7 +19,7 @@ constexpr int    kConfigVersion        = 1;
 constexpr int    kTargetFpsDefault      = 30;
 constexpr int    kTargetFpsMin          = 5;
 constexpr int    kTargetFpsMax          = 144;
-constexpr double kBladeDensityDefault   = DEFAULT_DENSITY; // 2.8125
+constexpr double kBladeDensityDefault   = DEFAULT_DENSITY; // 2.53125
 constexpr double kBladeDensityMin       = 0.2;
 constexpr double kBladeDensityMax       = 5.0;
 

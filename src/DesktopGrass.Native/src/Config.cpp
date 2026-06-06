@@ -28,8 +28,8 @@ constexpr char kDefaultConfigTemplate[] =
     "  \"targetFps\": 30,\n"
     "\n"
     "  // Grass blade density. Lower = fewer blades (less CPU). Range 0.2-5.0.\n"
-    "  // Default 2.8125.\n"
-    "  \"bladeDensity\": 2.8125\n"
+    "  // Default 2.53125.\n"
+    "  \"bladeDensity\": 2.53125\n"
     "}\n";
 
 std::wstring DefaultConfigFilePath() {

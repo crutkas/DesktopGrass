@@ -176,7 +176,7 @@ internal static class Constants
     public const ulong CANONICAL_TEST_SEED = 0x6B6173746FUL;
 
     // Density override the plan calls for ~600 blades / 1920 px monitor.
-    public const double DEFAULT_DENSITY = 2.8125;
+    public const double DEFAULT_DENSITY = 2.53125;
 
     // Palette (§4) - exactly 6 ARGB colors, alpha always 0xFF.
     public static readonly uint[] PALETTE =

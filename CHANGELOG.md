@@ -8,6 +8,22 @@ entries are grouped by date instead.
 
 ---
 
+---
+
+## 2026-06-06 — Perf: default blade density reduced 10%
+
+### Changed
+- **Default `bladeDensity` lowered from 2.8125 to 2.53125 (−10%)** across both
+  renderers. Per-blade Direct2D path construction dominates grass CPU, so a 10%
+  blade cut yields ~17% less CPU (Grass ~1.05% → ~0.87% of one Task Manager core
+  at 30 fps) while the field stays visually indistinguishable. Applies to every
+  scene. `DEFAULT_DENSITY` constant + the generated `config.json` template were
+  updated in lockstep (Native `Constants.h`/`Config.cpp`, Win2D
+  `Constants.cs`/`Config.cs`); existing user `config.json` files are never
+  overwritten, so users keep whatever density they set. Tests reference the
+  `DEFAULT_DENSITY` symbol (no hard-coded counts pinned to the old value), so all
+  284/284 cases stay green in both suites.
+
 ## 2026-06-06 — Perf: Winter renders ~25% fewer grass blades
 
 ### Changed
