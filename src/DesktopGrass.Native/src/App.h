@@ -83,7 +83,6 @@ private:
     bool                                        trayAdded_ = false;
     MouseEventQueue                             queue_{};
     std::vector<std::unique_ptr<GrassWindow>>   windows_;
-    uint64_t                                    seed_     = 0;
     config::Config                              config_{};
     Scene                                       currentScene_ = SCENE_DEFAULT;
     CritterKind                                 currentCritter_ = CRITTER_DEFAULT;

@@ -9,7 +9,6 @@
 
 #include <shellscalingapi.h>
 #include <algorithm>
-#include <chrono>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -24,10 +23,20 @@ namespace {
 
 constexpr const wchar_t* kMsgWindowClass = L"DesktopGrass.Native.MessageWindow";
 
-uint64_t make_seed_from_time() {
-    using namespace std::chrono;
-    return static_cast<uint64_t>(
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count());
+// Fixed launch seed shared with the Win2D implementation so both produce
+// identical, deterministic per-monitor blade layouts.
+constexpr uint64_t kAppSeed = 0xD3C7C0F30070D511ull;
+
+// Per-monitor seed: combine the fixed app seed with the monitor's physical
+// origin so different screens get different — but stable across launches —
+// blade layouts. Mirrors Win2D App.cs exactly, including C# `(ulong)int`
+// sign-extension and unchecked uint64 multiply/wraparound semantics.
+uint64_t make_monitor_seed(const RECT& bounds) {
+    const uint64_t left = static_cast<uint64_t>(static_cast<int64_t>(bounds.left));
+    const uint64_t top  = static_cast<uint64_t>(static_cast<int64_t>(bounds.top));
+    return kAppSeed
+        ^ (left * 0xA0761D6478BD642Full)
+        ^ (top  * 0xE7037ED1A0B428DBull);
 }
 
 // EnumDisplayMonitors callback context.
@@ -67,7 +76,6 @@ App::~App() {
 
 bool App::Initialize(HINSTANCE hInst) {
     hInst_   = hInst;
-    seed_    = make_seed_from_time();
     config_  = config::LoadConfig();
 
     QueryPerformanceFrequency(&qpcFreq_);
@@ -298,9 +306,11 @@ bool App::EnumerateMonitorsAndCreateWindows() {
 
     for (size_t i = 0; i < ctx.bounds.size(); ++i) {
         auto w = std::make_unique<GrassWindow>();
-        // Each monitor gets its own seed derived from the base seed so blade
-        // patterns differ across monitors but remain deterministic.
-        const uint64_t mseed = seed_ ^ ((static_cast<uint64_t>(i) + 1) * 0x9E3779B97F4A7C15ull);
+        // Each monitor gets a deterministic seed derived from its physical
+        // origin (shared formula with Win2D) so blade patterns differ across
+        // monitors but stay stable across launches and line up with persisted
+        // cut records.
+        const uint64_t mseed = make_monitor_seed(ctx.bounds[i]);
         if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity,
                       config_.swaySpeed, config_.swayAmplitude)) {
             ApplyPersistedStateToWindow(*w, ctx.bounds[i]);

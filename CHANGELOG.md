@@ -8,6 +8,24 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-07 — Lockstep: deterministic per-monitor RNG seed (Native)
+
+### Changed
+- **Native per-monitor RNG seed is now deterministic and stable across
+  launches, matching Win2D.** Native previously derived its base seed from the
+  steady clock (`make_seed_from_time`) and mixed in the monitor *enumeration
+  index*, so every launch produced a different random blade layout and persisted
+  cut records could not line up. Native now uses the same fixed app seed
+  (`0xD3C7C0F30070D511`) and the same coordinate-based mixing formula as Win2D —
+  `seed = AppSeed ^ (left * 0xA0761D6478BD642F) ^ (top * 0xE7037ED1A0B428DB)`
+  over the monitor's physical work-area origin, replicating C# `(ulong)int`
+  sign-extension and unchecked uint64 wraparound so the computed seed is
+  bit-identical to Win2D. Removed the now-unused `make_seed_from_time` helper and
+  the App-level base-seed member. **Behavior note for review:** Native grass is
+  now deterministic-per-monitor instead of random-per-launch.
+
+---
+
 ## 2026-06-07 — Lockstep: cursor out-of-band baseline parity
 
 ### Fixed
