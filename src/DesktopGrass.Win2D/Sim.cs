@@ -1862,12 +1862,19 @@ internal sealed class Sim
 
         double gustBandTop = GroundY - Constants.STRIP_HEIGHT - Constants.HEADROOM;
         double gustBandBottom = GroundY;
-        if (e.Y < gustBandTop || e.Y > gustBandBottom)
-            return;
 
         // First event after init / long idle: just prime the baseline.
         if (PrevCursorTime < 0.0 || (e.Time - PrevCursorTime) > Constants.CURSOR_REINIT_GAP_SEC)
         {
+            PrevCursorX = e.X;
+            PrevCursorTime = e.Time;
+            return;
+        }
+
+        if (e.Y < gustBandTop || e.Y > gustBandBottom)
+        {
+            // Outside the gust band — update baseline (so the *next* in-band
+            // event gets a sensible velocity), but emit no impulse.
             PrevCursorX = e.X;
             PrevCursorTime = e.Time;
             return;

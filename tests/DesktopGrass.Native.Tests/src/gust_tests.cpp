@@ -115,6 +115,29 @@ TEST_CASE("moves outside the gust band don't emit impulses", "[gust]") {
     REQUIRE(sim.blades[0].gustVelocity == Approx(0.0));
 }
 
+TEST_CASE("out-of-band move updates baseline; re-entry parity", "[gust]") {
+    Sim sim = make_sim_with_blades({700.0});
+    const double inBandY    = sim.windowHeight - 10.0;
+    const double outOfBandY = sim.windowHeight - STRIP_HEIGHT - HEADROOM - 20.0;
+
+    // t0 in-band: primes baseline (first event, no impulse).
+    sim_apply_move(sim, move(500.0, inBandY, 0.0));
+    // t1 out-of-band: updates baseline but emits no impulse.
+    sim_apply_move(sim, move(520.0, outOfBandY, 0.05));
+    REQUIRE(sim.prevCursorX    == Approx(520.0));
+    REQUIRE(sim.prevCursorTime == Approx(0.05));
+    REQUIRE(sim.blades[0].gustVelocity == Approx(0.0));
+
+    // t2 re-enter in-band: emits impulse off the out-of-band baseline.
+    sim_apply_move(sim, move(700.0, inBandY, 0.10));
+
+    const double dtEv  = std::max(0.10 - 0.05, 1.0 / 1000.0);
+    const double velX  = (700.0 - 520.0) / dtEv;
+    const double capped = std::max(-MAX_CURSOR_SPEED, std::min(velX, MAX_CURSOR_SPEED));
+    const double expected = capped * IMPULSE_SCALE; // distance 0 → smoothstep = 1
+    REQUIRE(sim.blades[0].gustVelocity == Approx(expected).margin(1e-9));
+}
+
 TEST_CASE("large time gap resets cursor baseline", "[gust]") {
     Sim sim = make_sim_with_blades({100.0});
     const double y = sim.windowHeight - 10.0;

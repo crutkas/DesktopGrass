@@ -31,13 +31,62 @@ public class GustTests
     }
 
     [Fact]
-    public void EventOutsideGustBandIgnored()
+    public void EventOutsideGustBandUpdatesBaselineWithoutImpulse()
     {
         var sim = MakeSim();
-        sim.ApplyCursorMove(new InputEvent(EventType.Move, 500.0, 200.0, 1.0));
-        Assert.Equal(-1.0, sim.PrevCursorTime);
-        sim.ApplyCursorMove(new InputEvent(EventType.Move, 500.0, -10.0, 1.0));
-        Assert.Equal(-1.0, sim.PrevCursorTime);
+        var blades0 = (Blade[])sim.Blades.Clone();
+
+        // Prime the baseline with an in-band event so the next move is not the
+        // first/re-init event.
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 500.0, 80.0, 1.0));
+
+        // Out-of-band move: updates the baseline (matching Native) but emits no
+        // impulse.
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 600.0, 200.0, 1.05));
+        Assert.Equal(600.0, sim.PrevCursorX);
+        Assert.Equal(1.05, sim.PrevCursorTime);
+
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 700.0, -10.0, 1.10));
+        Assert.Equal(700.0, sim.PrevCursorX);
+        Assert.Equal(1.10, sim.PrevCursorTime);
+
+        for (int i = 0; i < sim.Blades.Length; i++)
+            Assert.Equal(blades0[i].GustVelocity, sim.Blades[i].GustVelocity);
+    }
+
+    [Fact]
+    public void OutOfBandMoveBaselineParity()
+    {
+        // Sequence: in-band at t0, out-of-band at t1, re-enter in-band at t2.
+        // Asserts the out-of-band baseline update and the resulting gust velocity
+        // after re-entry, mirroring the Native parity test exactly.
+        var sim = MakeSim();
+
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 500.0, 80.0, 0.0));   // t0 in-band: primes baseline
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 520.0, 200.0, 0.05)); // t1 out-of-band: updates baseline
+
+        Assert.Equal(520.0, sim.PrevCursorX);
+        Assert.Equal(0.05, sim.PrevCursorTime);
+
+        sim.ApplyCursorMove(new InputEvent(EventType.Move, 700.0, 80.0, 0.10));  // t2 re-enter in-band: emits impulse
+
+        int bestIdx = 0;
+        double bestDx = double.MaxValue;
+        for (int i = 0; i < sim.Blades.Length; i++)
+        {
+            double dx = Math.Abs(sim.Blades[i].BaseX - 700.0);
+            if (dx < bestDx) { bestDx = dx; bestIdx = i; }
+        }
+
+        double dtEv = Math.Max(0.10 - 0.05, 1.0 / 1000.0);
+        double velX = (700.0 - 520.0) / dtEv;
+        double capped = Math.Clamp(velX, -Constants.MAX_CURSOR_SPEED, Constants.MAX_CURSOR_SPEED);
+        double impulseMag = capped * Constants.IMPULSE_SCALE;
+        double t = 1.0 - bestDx / Constants.GUST_RADIUS;
+        double smooth = t * t * (3.0 - 2.0 * t);
+        double expected = impulseMag * smooth;
+
+        Assert.Equal(expected, sim.Blades[bestIdx].GustVelocity, 9);
     }
 
     [Fact]

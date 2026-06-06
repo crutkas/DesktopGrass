@@ -8,6 +8,23 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-07 — Lockstep: cursor out-of-band baseline parity
+
+### Fixed
+- **`ApplyCursorMove` out-of-band baseline now matches between Native and
+  Win2D.** Win2D previously checked the gust band *before* the first-event /
+  `CURSOR_REINIT_GAP_SEC` re-init check and returned without updating
+  `PrevCursorX` / `PrevCursorTime` for a move outside the band. Native (the
+  deliberate spec per its inline comment) runs the first-event check first and
+  still updates the cursor baseline on an out-of-band move so the *next* in-band
+  event computes a sensible velocity. Win2D now replicates Native's control flow
+  exactly. Added an out-of-band baseline parity test to both suites (in-band at
+  t0, out-of-band at t1, re-enter in-band at t2) and realigned the previously
+  contradictory `EventOutsideGustBand` assertion to the Native behavior (Native
+  289, Win2D 288).
+
+---
+
 ## 2026-06-06 — Config: swaySpeed and swayAmplitude knobs
 
 ### Added
