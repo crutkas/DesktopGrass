@@ -19,6 +19,20 @@
 
 namespace desktopgrass::json {
 
+// ASCII-only lowercase fold (a-z), locale-independent, so object member keys
+// can be matched case-insensitively to mirror the Win2D loader's
+// PropertyNameCaseInsensitive=true / OrdinalIgnoreCase behavior. Non-ASCII and
+// non-letter bytes pass through unchanged.
+inline std::string AsciiLower(std::string_view text) {
+    std::string out(text);
+    for (char& c : out) {
+        if (c >= 'A' && c <= 'Z') {
+            c = static_cast<char>(c - 'A' + 'a');
+        }
+    }
+    return out;
+}
+
 struct Value {
     enum class Type { Null, Bool, Number, String, Array, Object };
 
@@ -136,7 +150,11 @@ private:
 
             Value value;
             if (!ParseValue(value)) return false;
-            out.objectValue.emplace(std::move(key), std::move(value));
+            // Normalize keys to ASCII-lowercase so config/state lookups are
+            // case-insensitive (matching the Win2D loader). Monitor keys like
+            // "1920x1080@0,0" contain no uppercase letters, so this is a no-op
+            // for them.
+            out.objectValue.emplace(AsciiLower(key), std::move(value));
 
             SkipWhitespace();
             if (pos_ >= text_.size()) return false;
@@ -279,7 +297,9 @@ inline bool Parse(std::string_view text, Value& out) {
 
 inline const Value* FindMember(const Value& object, const std::string& name) {
     if (object.type != Value::Type::Object) return nullptr;
-    const auto it = object.objectValue.find(name);
+    // Keys are stored ASCII-lowercased at parse time, so fold the lookup name
+    // the same way for case-insensitive matching.
+    const auto it = object.objectValue.find(AsciiLower(name));
     return it == object.objectValue.end() ? nullptr : &it->second;
 }
 

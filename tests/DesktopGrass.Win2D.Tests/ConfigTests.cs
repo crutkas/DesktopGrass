@@ -102,6 +102,21 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void Keys_AreMatchedCaseInsensitively()
+    {
+        string path = FreshConfigPath("case-insensitive");
+        File.WriteAllText(path,
+            "{ \"TargetFps\": 60, \"BLADEDENSITY\": 1.5, " +
+            "\"SwaySpeed\": 0.5, \"swayamplitude\": 2.0 }");
+
+        AppConfig cfg = Config.Load(path);
+        Assert.Equal(60, cfg.TargetFps);
+        Assert.Equal(1.5, cfg.BladeDensity, 6);
+        Assert.Equal(0.5, cfg.SwaySpeed, 6);
+        Assert.Equal(2.0, cfg.SwayAmplitude, 6);
+    }
+
+    [Fact]
     public void SwayKnobs_Parse_Clamp_AndRejectNonFinite()
     {
         string path = FreshConfigPath("sway");

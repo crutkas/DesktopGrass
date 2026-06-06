@@ -112,6 +112,19 @@ TEST_CASE("Config: missing keys fall back to per-key defaults", "[config]") {
     CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
 }
 
+TEST_CASE("Config: keys are matched case-insensitively", "[config]") {
+    const std::filesystem::path path = test_config_path("case-insensitive");
+    write_text(path,
+        "{ \"TargetFps\": 60, \"BLADEDENSITY\": 1.5, "
+        "\"SwaySpeed\": 0.5, \"swayamplitude\": 2.0 }");
+
+    const config::Config cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.targetFps == 60);
+    CHECK(cfg.bladeDensity == Approx(1.5));
+    CHECK(cfg.swaySpeed == Approx(0.5));
+    CHECK(cfg.swayAmplitude == Approx(2.0));
+}
+
 TEST_CASE("Config: sway knobs parse, clamp, and reject non-finite", "[config]") {
     const std::filesystem::path path = test_config_path("sway");
 

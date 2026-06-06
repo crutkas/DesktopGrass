@@ -8,6 +8,25 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-05 — Lockstep: case-insensitive config keys (Native)
+
+### Fixed
+- **Native config key lookup is now case-insensitive, matching Win2D.** Win2D
+  deserializes `config.json` with `PropertyNameCaseInsensitive = true`, so keys
+  like `TargetFps`, `BLADEDENSITY`, or `SwaySpeed` are honored. Native's JSON
+  reader did exact, case-sensitive `std::map` lookups, so a mis-cased key was
+  silently ignored and the value fell back to its default — a lockstep
+  divergence where the same hand-edited config produced different behavior
+  across the two implementations. The shared `Json.h` now normalizes object
+  member keys to ASCII-lowercase at parse time and folds lookup names the same
+  way (`FindMember` / `ReadInt` / `ReadDouble` / `ReadString`). Folding is
+  ASCII-only (`a`–`z`), locale-independent, to mirror C# `OrdinalIgnoreCase`
+  semantics; persisted monitor keys like `1920x1080@0,0` contain no uppercase
+  letters and are unaffected. Added a case-insensitive config parsing test to
+  both suites.
+
+---
+
 ## 2026-06-07 — Lockstep: deterministic per-monitor RNG seed (Native)
 
 ### Changed
