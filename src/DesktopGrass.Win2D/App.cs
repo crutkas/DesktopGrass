@@ -66,6 +66,11 @@ internal sealed class App : IDisposable
     private const ulong AppSeed = 0xD3C7C0F30070D511UL; // arbitrary launch seed
 
     private readonly List<GrassWindow> _windows = new();
+    // Last time the per-frame DPI drift poll ran (see RunMessageLoop). The poll
+    // is a safety net because WM_DPICHANGED is not reliably delivered to our
+    // DComp-only popups (WS_EX_LAYERED | TRANSPARENT | TOOLWINDOW |
+    // NOREDIRECTIONBITMAP) and GetDpiForWindow returns a stale per-window cache.
+    private DateTimeOffset _lastDpiPoll = DateTimeOffset.UtcNow;
     private MouseHook? _hook;
     private TrayIcon? _tray;
     private Scene _currentScene = Constants.SCENE_DEFAULT;
@@ -406,6 +411,31 @@ internal sealed class App : IDisposable
                 Win32.DispatchMessageW(in msg);
             }
             if (Win32App.QuitRequested) break;
+
+            // DPI drift poll. WM_DPICHANGED is unreliable for DComp-only popups
+            // (WS_EX_LAYERED | TRANSPARENT | TOOLWINDOW | NOREDIRECTIONBITMAP),
+            // and GetDpiForWindow returns a per-window cache that only updates
+            // when WM_DPICHANGED actually fires. Querying the MONITOR's effective
+            // DPI directly via shcore!GetDpiForMonitor is the source of truth and
+            // works regardless of which messages the system sends. On drift we
+            // funnel into the same RebuildWindows path used by the message
+            // handlers. Cost is one shcore call per window per second.
+            if (DateTimeOffset.UtcNow - _lastDpiPoll >= TimeSpan.FromSeconds(1))
+            {
+                _lastDpiPoll = DateTimeOffset.UtcNow;
+                foreach (var w in _windows)
+                {
+                    IntPtr hMon = Win32.MonitorFromWindow(w.Hwnd, Win32.MONITOR_DEFAULTTONEAREST);
+                    if (hMon == IntPtr.Zero) continue;
+                    if (Win32.GetDpiForMonitor(hMon, Win32.MonitorDpiType.MDT_EFFECTIVE_DPI, out _, out uint dpiY) != 0
+                        || dpiY == 0) continue;
+                    if (Math.Abs(dpiY / 96f - w.DpiScale) > 0.01f)
+                    {
+                        Win32App.RequestRebuild();
+                        break;
+                    }
+                }
+            }
 
             if (Win32App.ConsumePendingRebuild())
             {
