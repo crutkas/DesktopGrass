@@ -6,7 +6,7 @@ the outside world along the bottom edge of every monitor, on top of all windows
 underneath. The design philosophy is **passive and calm**: ambient touches only,
 no engagement loops, no toys.
 
-![DesktopGrass in action](./docs/assets/grass.gif)
+![DesktopGrass in action](docs/assets/grass.gif)
 
 ## What's in it
 
