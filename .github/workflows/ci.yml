@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build & test
+    # VS2026 (v145 PlatformToolset) is required by the Native vcxproj.
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET (pinned via global.json)
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Show .NET version
+        run: dotnet --info
+
+      # --- Native (C++ / Win32 + Direct2D) ---
+      - name: Build Native (x64, Release)
+        run: msbuild src/DesktopGrass.Native/DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo
+
+      - name: Build Native tests (x64, Release)
+        run: msbuild tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo
+
+      - name: Run Native tests
+        run: tests/DesktopGrass.Native.Tests/out/x64/Release/DesktopGrass.Native.Tests.exe --reporter compact
+
+      # --- Win2D (C# / .NET 10 + Vortice) ---
+      - name: Restore Win2D
+        run: dotnet restore src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj
+
+      - name: Build Win2D (x64, Release)
+        run: dotnet build src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj -c Release -p:Platform=x64 --no-restore
+
+      - name: Build Win2D tests
+        run: dotnet build tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj -c Release
+
+      - name: Run Win2D tests
+        run: dotnet test tests/DesktopGrass.Win2D.Tests/DesktopGrass.Win2D.Tests.csproj -c Release --no-build --nologo
+
+  publish-native:
+    name: Publish Native (${{ matrix.platform }})
+    needs: test
+    runs-on: windows-2025-vs2026
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build Native (${{ matrix.platform }}, Release, statically linked CRT)
+        run: msbuild src/DesktopGrass.Native/DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=${{ matrix.platform }} /m /nologo
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: DesktopGrass.Native-${{ matrix.platform }}
+          path: src/DesktopGrass.Native/out/${{ matrix.platform }}/Release/DesktopGrass.Native.exe
+          if-no-files-found: error
+
+  publish-win2d:
+    name: Publish Win2D (${{ matrix.rid }})
+    needs: test
+    runs-on: windows-2025-vs2026
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            platform: x64
+          - rid: win-arm64
+            platform: ARM64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET (pinned via global.json)
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Publish Win2D (${{ matrix.rid }}, self-contained, single-file)
+        run: >
+          dotnet publish src/DesktopGrass.Win2D/DesktopGrass.Win2D.csproj
+          -c Release
+          -p:Platform=${{ matrix.platform }}
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: DesktopGrass.Win2D-${{ matrix.rid }}
+          path: src/DesktopGrass.Win2D/bin/${{ matrix.platform }}/Release/net10.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
+          if-no-files-found: error
