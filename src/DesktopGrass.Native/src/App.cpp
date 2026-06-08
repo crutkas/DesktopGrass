@@ -447,10 +447,10 @@ void App::SaveCurrentState() {
 
 int App::Run() {
     MSG msg{};
-    // Calm ambient content renders at 30 fps by default to roughly halve
-    // per-frame CPU vs 60 fps; motion is time-based (dt), so the rate only
-    // changes how often the same animation is sampled. The user can override
-    // this in config.json (targetFps).
+    // Calm ambient content renders at the configured target fps (default 24
+    // via Config.h kTargetFpsDefault) to keep per-frame CPU low; motion is
+    // time-based (dt), so the rate only changes how often the same animation
+    // is sampled. The user can override this in config.json (targetFps).
     const double kTargetFrameSec = 1.0 / static_cast<double>(config_.targetFps);
 
     while (!quitRequested_) {
@@ -479,19 +479,18 @@ int App::Run() {
         }
 
         // Pace to the target frame interval, accounting for the time already
-        // spent rendering/presenting this iteration so the cadence holds at the
-        // target fps regardless of how long Present blocked. Returns early if
-        // input arrives, keeping the app responsive.
+        // spent rendering/presenting this iteration so the cadence holds at
+        // the target fps regardless of how long Present blocked. The pacer
+        // uses a high-resolution waitable timer (Win 10 1803+) so the wait
+        // honours sub-15.6 ms remainders instead of getting clamped to the
+        // default system timer resolution. The wait returns early if input
+        // arrives, keeping the app responsive.
         LARGE_INTEGER after;
         QueryPerformanceCounter(&after);
         const double elapsedSec = static_cast<double>(after.QuadPart - now.QuadPart) /
                                   static_cast<double>(qpcFreq_.QuadPart);
         const double remainingSec = kTargetFrameSec - elapsedSec;
-        const DWORD waitMs = remainingSec > 0.0
-            ? static_cast<DWORD>(remainingSec * 1000.0)
-            : 0;
-        MsgWaitForMultipleObjectsEx(0, nullptr, waitMs, QS_ALLINPUT,
-                                    MWMO_INPUTAVAILABLE);
+        pacer_.WaitUntilNextFrame(remainingSec);
     }
 
     SaveCurrentState();

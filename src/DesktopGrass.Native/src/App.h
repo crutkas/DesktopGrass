@@ -14,6 +14,7 @@
 
 #include "GrassWindow.h"
 #include "MouseHook.h"
+#include "Pacing.h"
 #include "Persistence.h"
 #include "Config.h"
 
@@ -94,6 +95,7 @@ private:
     ULONGLONG                                   lastPersistenceSaveMs_ = 0;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
+    FramePacer                                  pacer_{};
     bool                                        quitRequested_ = false;
 };
 
