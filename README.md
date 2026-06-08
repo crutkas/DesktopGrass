@@ -35,10 +35,11 @@ no engagement loops, no toys.
 
 **Winter scene**
 - -50% grass density; pines and birches with snow caps; falling snowflakes.
-- **Snow accumulation** — leave the scene on for ~40 minutes of continuous
-  Winter and watch a snow layer slowly pile up along the strip baseline.
-  Snowflakes "land" on the layer; trees subtly settle into the deepening snow.
-  Switching away melts it; persisted across app restarts.
+- Pines and birches are split into a hazier background layer and a sharper
+  foreground layer for a sense of depth.
+- Clicking the strip kicks up a small two-tone snow puff at the cursor.
+- Brushing the cursor low and fast across the strip kicks up a gentle wisp of
+  spindrift.
 
 **Autumn scene**
 - Warm orange / red / yellow / gold blade palette. Falling leaves drift down
@@ -55,7 +56,7 @@ no engagement loops, no toys.
   the strip.
 
 **Always-on touches**
-- App state (scene, cuts, pet counts, snow depth, auto-start preference)
+- App state (scene, cuts, pet counts, auto-start preference)
   persists across sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
 - Optional "Start with Windows" toggle in the tray menu.
 - Spans all monitors, anchored to the bottom of each monitor's work area
@@ -166,10 +167,11 @@ you want the C# build.
 
 - **Unit tests** — pure-logic suites for each impl in [`tests/`](tests). They
   cover PRNG determinism, blade generation, sway, gusts, cuts, regrowth, stroke
-  geometry, flowers, mushrooms, scenes, weather (snow), critters (sheep,
-  cat, bunny), butterflies, fireflies, persistence, and click-through window
-  styles. The two impls share a `Sim` / `Constants` core so they assert against
-  the same numerical contract.
+  geometry, flowers, mushrooms, scenes, weather (snow), critters (sheep, cat,
+  bunny, hedgehog), ambient flyers (butterflies, fireflies, bird flybys),
+  scene-specific entities (desert tumbleweeds, winter pines, autumn leaves &
+  maples, ocean coral / fish / bubbles), `config.json` parsing, "Start with
+  Windows" auto-start, persistence, and click-through window styles.
 - **Cross-impl PRNG identity** — every species and weather entity is covered by
   a side-stream PRNG identity test that walks a parallel `Prng(seed XOR salt)`
   and asserts the bit-identical draw order. This is the cornerstone invariant
@@ -197,9 +199,12 @@ Both implementations use:
 
 - The same xorshift64 PRNG seeded via SplitMix64.
 - The same canonical test seed (`0x6B6173746F`).
-- The same per-feature PRNG salt for each independent stream (blades, regrowth,
-  flowers, mushrooms, tumbleweeds, snowflakes, ambient gusts, critters,
-  butterflies, fireflies).
+- The same per-feature PRNG salt for each independent stream — blades,
+  regrowth, flowers, mushrooms, ambient gusts; ground critters (sheep, cat,
+  bunny, hedgehog share one salt); ambient flyers (butterflies, fireflies,
+  bird flybys); per-scene streams (desert cacti & tumbleweeds; winter
+  snowflakes, pines, click-puff and cursor-drift puffs; autumn leaves, maples,
+  leaf-puff; ocean coral, bubbles, fish).
 - The same sway / gust / cut / regrowth / chord-bend / weather / critter math
   from [`docs/architecture.md`](docs/architecture.md).
 
