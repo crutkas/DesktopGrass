@@ -791,6 +791,15 @@ constexpr double   TREE_BACKGROUND_PROBABILITY     = 0.45;  // share of trees pu
 constexpr double   TREE_BG_SCALE                   = 0.62;  // background trees are ~62% size
 constexpr float    TREE_BG_OPACITY                 = 0.78f; // atmospheric haze on background trees
 
+// Minimum visible gap between two adjacent props of the same kind/layer
+// (pine/birch, cactus, maple, coral). Without this, the per-blade probability
+// roll can place two props directly on top of each other in tight clusters.
+// Each generator computes an effective collision half-width per prop and
+// enforces `nextLeftEdge >= prevRightEdge + PROP_MIN_GAP_DIP`. Background
+// vs foreground pines are tracked independently — they render at different
+// z-depths and overlap there is intentional parallax, not visual crowding.
+constexpr double   PROP_MIN_GAP_DIP                = 4.0;
+
 // Birch tree variant (§15.1). Second tree style — vertical white trunk
 // with dark bark marks and short bare branches. Selected per-slot via
 // an additional PRNG draw on tree promotion.

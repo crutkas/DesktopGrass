@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
+#include <limits>
 
 namespace desktopgrass {
 
@@ -398,6 +399,7 @@ Entity make_snow_puff(Prng& prng, double cx, double cy, double groundY,
 void generate_cacti_for_desert(Sim& sim) noexcept {
     Prng cactusPrng;
     prng_init(cactusPrng, sim.entitySeed ^ CACTUS_PRNG_SALT);
+    double lastPlacedRight = -std::numeric_limits<double>::infinity();
 
     for (Blade& b : sim.blades) {
         restore_original_variants(b);
@@ -431,6 +433,21 @@ void generate_cacti_for_desert(Sim& sim) noexcept {
             b.cactusType = 0;
             b.cactusArmSide = +1;
         }
+
+        // Minimum-spacing rule (§Props). Armed cacti reach out to ~1.55 *
+        // cactusWidth on each arm side (see Renderer drawCactusArm: arm tip
+        // ends at width*1.2 plus the half-stroke width*0.35). Reject any
+        // placement that would directly overlap a previously placed cactus,
+        // but leave every PRNG draw above intact so the stream stays
+        // bit-identical regardless of the placement outcome.
+        const double halfWidth = (b.cactusType != 0)
+            ? b.cactusWidth * 1.55
+            : b.cactusWidth * 0.5;
+        if (b.baseX - halfWidth < lastPlacedRight + PROP_MIN_GAP_DIP) {
+            restore_original_variants(b);
+            continue;
+        }
+        lastPlacedRight = b.baseX + halfWidth;
     }
 }
 
@@ -445,6 +462,8 @@ void generate_tumbleweeds(Sim& sim) noexcept {
 void generate_pines_for_winter(Sim& sim) noexcept {
     Prng pinePrng;
     prng_init(pinePrng, sim.entitySeed ^ PINE_PRNG_SALT);
+    double lastFgPineRight = -std::numeric_limits<double>::infinity();
+    double lastBgPineRight = -std::numeric_limits<double>::infinity();
 
     for (Blade& b : sim.blades) {
         restore_original_variants(b);
@@ -488,12 +507,33 @@ void generate_pines_for_winter(Sim& sim) noexcept {
         // and hazier, behind the snowbank, for a sense of fore/background depth.
         const double depthDraw = prng_uniform(pinePrng, 0.0, 1.0);
         b.treeBackground = depthDraw < TREE_BACKGROUND_PROBABILITY;
+
+        // Minimum-spacing rule (§Props). Pine canopy base spans `pineWidth`;
+        // birch branches fan out to roughly 4× the trunk width (Renderer
+        // kBranches: branchBaseLen = trunkW*3.0, lenMul up to 1.6, sin up to
+        // ~0.87). Background and foreground trees track independently because
+        // they render at distinct z-bands — bg behind the snowbank, fg in
+        // front — and a bg silhouette partially hidden by an fg tree is
+        // intentional parallax rather than visual overlap.
+        double halfWidth = (variant == 1) ? b.pineWidth * 4.0 : b.pineWidth * 0.5;
+        if (b.treeBackground) halfWidth *= TREE_BG_SCALE;
+        double& lastRight = b.treeBackground ? lastBgPineRight : lastFgPineRight;
+        if (b.baseX - halfWidth < lastRight + PROP_MIN_GAP_DIP) {
+            restore_original_variants(b);
+            // Winter scene-wide suppression — re-apply after the restore so a
+            // rejected tree slot doesn't reveal a mushroom that the scene
+            // would otherwise hide.
+            b.isMushroom = false;
+            continue;
+        }
+        lastRight = b.baseX + halfWidth;
     }
 }
 
 void generate_maples_for_autumn(Sim& sim) noexcept {
     Prng maplePrng;
     prng_init(maplePrng, sim.entitySeed ^ MAPLE_PRNG_SALT);
+    double lastPlacedRight = -std::numeric_limits<double>::infinity();
 
     for (Blade& b : sim.blades) {
         restore_original_variants(b);
@@ -509,12 +549,22 @@ void generate_maples_for_autumn(Sim& sim) noexcept {
         b.mapleCanopyRadius = prng_uniform(maplePrng, MAPLE_CANOPY_RADIUS_MIN, MAPLE_CANOPY_RADIUS_MAX);
         b.mapleCanopyColorIdx = static_cast<uint8_t>(prng_index(maplePrng, MAPLE_CANOPY_COLOR_COUNT));
         b.mapleIsBare = prng_uniform(maplePrng, 0.0, 1.0) < MAPLE_BARE_FRACTION;
+
+        // Minimum-spacing rule (§Props). Canopy is the widest part of the
+        // tree; mapleCanopyRadius is its visual half-width directly.
+        const double halfWidth = b.mapleCanopyRadius;
+        if (b.baseX - halfWidth < lastPlacedRight + PROP_MIN_GAP_DIP) {
+            restore_original_variants(b);
+            continue;
+        }
+        lastPlacedRight = b.baseX + halfWidth;
     }
 }
 
 void generate_coral_for_ocean(Sim& sim) noexcept {
     Prng coralPrng;
     prng_init(coralPrng, sim.entitySeed ^ CORAL_PRNG_SALT);
+    double lastPlacedRight = -std::numeric_limits<double>::infinity();
 
     for (Blade& b : sim.blades) {
         restore_original_variants(b);
@@ -533,6 +583,18 @@ void generate_coral_for_ocean(Sim& sim) noexcept {
         b.coralWidth  = prng_uniform(coralPrng, CORAL_WIDTH_MIN,  CORAL_WIDTH_MAX);
         b.coralType   = static_cast<uint8_t>(prng_index(coralPrng, CORAL_TYPE_COUNT));
         b.coralColorIdx = static_cast<uint8_t>(prng_index(coralPrng, CORAL_COLOR_COUNT));
+
+        // Minimum-spacing rule (§Props). Coral is denser than the land
+        // props (~3× the probability), but still placed left-to-right so a
+        // single right-edge tracker is enough to prevent direct overlap.
+        const double halfWidth = b.coralWidth * 0.5;
+        if (b.baseX - halfWidth < lastPlacedRight + PROP_MIN_GAP_DIP) {
+            restore_original_variants(b);
+            // Ocean scene-wide suppression — re-apply after restore.
+            b.isMushroom = false;
+            continue;
+        }
+        lastPlacedRight = b.baseX + halfWidth;
     }
 }
 
