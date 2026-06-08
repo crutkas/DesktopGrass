@@ -812,6 +812,8 @@ internal sealed class Sim
     public static void GeneratePinesForWinter(Sim sim)
     {
         var pinePrng = Prng.Init(sim.EntitySeed ^ Constants.PINE_PRNG_SALT);
+        double lastFgPineRight = double.NegativeInfinity;
+        double lastBgPineRight = double.NegativeInfinity;
 
         for (int i = 0; i < sim.Blades.Length; i++)
         {
@@ -857,12 +859,29 @@ internal sealed class Sim
             // and hazier, behind the snowbank, for a sense of fore/background depth.
             double depthDraw = pinePrng.Uniform(0.0, 1.0);
             b.TreeBackground = depthDraw < Constants.TREE_BACKGROUND_PROBABILITY;
+
+            // Min-spacing gate (§15.6). Birch fan reaches ~4x trunk width to
+            // match Renderer's kBranches; pines use canopy half-base. Bg/fg
+            // tracked separately — bg is a parallax layer behind the snowbank.
+            double halfWidth = (variant == 1) ? b.PineWidth * 4.0 : b.PineWidth * 0.5;
+            if (b.TreeBackground) halfWidth *= Constants.TREE_BG_SCALE;
+            double leftEdge  = b.BaseX - halfWidth;
+            double rightEdge = b.BaseX + halfWidth;
+            ref double lastRight = ref (b.TreeBackground ? ref lastBgPineRight : ref lastFgPineRight);
+            if (leftEdge < lastRight + Constants.PROP_MIN_GAP_DIP)
+            {
+                RestoreOriginalVariants(ref b);
+                b.IsMushroom = false; // re-apply Winter mushroom suppression
+                continue;
+            }
+            lastRight = rightEdge;
         }
     }
 
     public static void GenerateMaplesForAutumn(Sim sim)
     {
         var maplePrng = Prng.Init(sim.EntitySeed ^ Constants.MAPLE_PRNG_SALT);
+        double lastPlacedRight = double.NegativeInfinity;
 
         for (int i = 0; i < sim.Blades.Length; i++)
         {
@@ -880,12 +899,24 @@ internal sealed class Sim
             b.MapleCanopyRadius = maplePrng.Uniform(Constants.MAPLE_CANOPY_RADIUS_MIN, Constants.MAPLE_CANOPY_RADIUS_MAX);
             b.MapleCanopyColorIdx = (byte)maplePrng.Index((uint)Constants.MAPLE_CANOPY_COLOR_COUNT);
             b.MapleIsBare = maplePrng.Uniform(0.0, 1.0) < Constants.MAPLE_BARE_FRACTION;
+
+            // Min-spacing gate (§15.6). Canopy is the widest part of a maple.
+            double halfWidth = b.MapleCanopyRadius;
+            double leftEdge  = b.BaseX - halfWidth;
+            double rightEdge = b.BaseX + halfWidth;
+            if (leftEdge < lastPlacedRight + Constants.PROP_MIN_GAP_DIP)
+            {
+                RestoreOriginalVariants(ref b);
+                continue;
+            }
+            lastPlacedRight = rightEdge;
         }
     }
 
     public static void GenerateCoralForOcean(Sim sim)
     {
         var coralPrng = Prng.Init(sim.EntitySeed ^ Constants.CORAL_PRNG_SALT);
+        double lastPlacedRight = double.NegativeInfinity;
 
         for (int i = 0; i < sim.Blades.Length; i++)
         {
@@ -906,6 +937,18 @@ internal sealed class Sim
             b.CoralWidth  = coralPrng.Uniform(Constants.CORAL_WIDTH_MIN,  Constants.CORAL_WIDTH_MAX);
             b.CoralType   = (byte)coralPrng.Index((uint)Constants.CORAL_TYPE_COUNT);
             b.CoralColorIdx = (byte)coralPrng.Index((uint)Constants.CORAL_COLOR_COUNT);
+
+            // Min-spacing gate (§15.6).
+            double halfWidth = b.CoralWidth * 0.5;
+            double leftEdge  = b.BaseX - halfWidth;
+            double rightEdge = b.BaseX + halfWidth;
+            if (leftEdge < lastPlacedRight + Constants.PROP_MIN_GAP_DIP)
+            {
+                RestoreOriginalVariants(ref b);
+                b.IsMushroom = false; // re-apply Ocean mushroom suppression
+                continue;
+            }
+            lastPlacedRight = rightEdge;
         }
     }
 
@@ -959,6 +1002,7 @@ internal sealed class Sim
     public static void GenerateCactiForDesert(Sim sim)
     {
         var cactusPrng = Prng.Init(sim.EntitySeed ^ Constants.CACTUS_PRNG_SALT);
+        double lastPlacedRight = double.NegativeInfinity;
 
         for (int i = 0; i < sim.Blades.Length; i++)
         {
@@ -998,6 +1042,18 @@ internal sealed class Sim
                 b.CactusType = 0;
                 b.CactusArmSide = +1;
             }
+
+            // Min-spacing gate (§15.6). Armed cacti reach ~1.55x width per side
+            // to match Renderer's drawCactusArm; un-armed columns are ~0.5x.
+            double halfWidth = (b.CactusType != 0) ? b.CactusWidth * 1.55 : b.CactusWidth * 0.5;
+            double leftEdge  = b.BaseX - halfWidth;
+            double rightEdge = b.BaseX + halfWidth;
+            if (leftEdge < lastPlacedRight + Constants.PROP_MIN_GAP_DIP)
+            {
+                RestoreOriginalVariants(ref b);
+                continue;
+            }
+            lastPlacedRight = rightEdge;
         }
     }
 
