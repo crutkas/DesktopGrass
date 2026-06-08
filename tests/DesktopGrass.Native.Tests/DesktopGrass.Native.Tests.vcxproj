@@ -147,6 +147,7 @@
     <ClCompile Include="src\autostart_tests.cpp" />
     <ClCompile Include="src\click_through_smoke_test.cpp" />
     <ClCompile Include="src\pacing_tests.cpp" />
+    <ClCompile Include="src\prop_spacing_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Config.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Pacing.cpp" />

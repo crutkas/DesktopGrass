@@ -8,6 +8,32 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-09 — Min-spacing rule between adjacent props
+
+### Changed
+- **Cacti, pines, maples, and coral now refuse to render directly on top of
+  one another.** A new `PROP_MIN_GAP_DIP = 4.0` constant gates the final
+  placement step of each prop generator: after all per-prop PRNG draws have
+  run (so determinism and the canonical first-prop snapshot tests are
+  unchanged), the candidate's effective collision half-width is compared
+  against the last-placed prop's right edge. On a gap-fail the slot reverts
+  to its original flower/mushroom variants via `restore_original_variants`.
+  Foreground and background pines are tracked independently, since the
+  background tree-line is a parallax layer that's expected to overlap the
+  foreground.
+- Effective half-widths reflect what the renderer actually draws — armed
+  cacti use `width * 1.55` to match the arm reach in `drawCactusArm`,
+  birches use `pineWidth * 4.0` to cover the kBranches fan, and bg pines
+  scale by `TREE_BG_SCALE`. Result is a couple-percent rejection rate per
+  scene, still well within the existing `±25%` probability tolerance.
+
+### Added
+- `prop_spacing_tests.cpp`: five new Catch2 tests that walk every placed
+  prop in Desert / Winter / Autumn / Ocean and assert adjacent props are
+  at least `PROP_MIN_GAP_DIP` apart for their kind+layer.
+
+---
+
 ## 2026-06-08 — Pacing fix: actually hit the 24 fps target on the default system timer
 
 ### Fixed
