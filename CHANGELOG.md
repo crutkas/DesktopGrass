@@ -8,6 +8,21 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-06-07 — Ocean scene — fifth biome (coral, bubbles, fish)
+
+### Added
+- **Ocean scene** — fifth biome in the scene rotation (**Grass / Desert /
+  Winter / Autumn / Ocean**) shipped in PR #3 by niels9001. Adds a teal reef
+  blade palette, three deterministic coral forms (fan / branching / brain), a
+  rising bubble emitter, and a maintained school of horizontally swimming fish.
+- **Parallel Native + Win2D implementations** — both ports share the same Ocean
+  constants, scene enum value (`Ocean = 4`), `EntityKind` values (`Bubble = 13`,
+  `Fish = 14`), and salted PRNG streams. Follow-up 99b141b fixed Native
+  persistence and fish-count round-half-to-even parity so the Ocean behavior
+  stays lockstep across implementations.
+
+---
+
 ## 2026-06-05 — Lockstep: reflow sim on DPI change (Native)
 
 ### Fixed
