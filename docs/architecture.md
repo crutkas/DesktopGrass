@@ -803,6 +803,8 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `SCENE_DEFAULT` | `Grass` (= 0) | enum | §13 |
 | `DESERT_PALETTE` | 6 ARGB; see below | uint32[] | §13 |
 | `WINTER_PALETTE` | 6 ARGB; see below | uint32[] | §13 |
+| `AUTUMN_PALETTE` | 6 ARGB; see §16.5 | uint32[] | §16.5 |
+| `OCEAN_PALETTE` | 6 ARGB; see §16.6 | uint32[] | §16.6 |
 | `MAX_ENTITIES_PER_MONITOR` | 64 | count | §13.2 |
 | `CACTUS_PROBABILITY` | 0.005 | (unitless) | §14 |
 | `CACTUS_HEIGHT_MIN` | 30.0 | DIP | §14 |
@@ -832,6 +834,9 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `SNOWFLAKE_LIFETIME_PADDING_SEC` | 2.0 | sec | §15 |
 | `SNOWFLAKE_COLOR` | `0xFFFFFFFF` | uint32 ARGB | §15 |
 | `SNOWFLAKE_PRNG_SALT` | `0xC0FFEE1CECAFEBAB` | uint64 | §15 |
+| `CORAL_PRNG_SALT` | `0xC04A1C04A1C04A1C` | uint64 | §16.6 |
+| `BUBBLE_PRNG_SALT` | `0xB0BB1EB0BB1EB0BB` | uint64 | §16.6 |
+| `FISH_PRNG_SALT` | `0xF15F15F15F15F15F` | uint64 | §16.6 |
 | `RAINDROP_PRNG_SALT` | `0xD40F0A1DD40F0A1D` | uint64 ("rain drop" mnemonic) | §20 |
 | `RAINDROP_EMIT_RATE_PER_1920DIP` | 6.0 | drops/sec | §20 |
 | `RAINDROP_LENGTH_MIN` | 4.0 | DIP | §20 |
@@ -876,7 +881,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `CURSOR_REINIT_GAP_SEC` | 0.25 | sec | §8 |
 | `CANONICAL_TEST_SEED` | `0x6B6173746F` | uint64 | §12 |
 
-The palette table from §4 (six ARGB values for grass blades), the Flower palette (six ARGB values for flower heads), and the Mushroom palette (six ARGB values for caps + one `MUSHROOM_STEM_COLOR` for stems) are also part of this constants set. §13 adds two further palette tables (Desert blade palette + Winter blade palette) of six ARGB values each.
+The palette table from §4 (six ARGB values for grass blades), the Flower palette (six ARGB values for flower heads), and the Mushroom palette (six ARGB values for caps + one `MUSHROOM_STEM_COLOR` for stems) are also part of this constants set. Scene sections add four further blade palette tables (Desert, Winter, Autumn, Ocean) of six ARGB values each.
 
 ### Scene blade palettes (§13)
 
@@ -898,6 +903,24 @@ WINTER_PALETTE[6] = {
     0xFFA8B7C6,   // 4 winter slate
     0xFFEEF3F8,   // 5 hoarfrost
 };
+
+AUTUMN_PALETTE[6] = {
+    0xFFD96B0C,   // 0 burnt orange
+    0xFFB54D1E,   // 1 deep rust
+    0xFFE89A3C,   // 2 warm amber
+    0xFFC23E12,   // 3 vibrant red-orange
+    0xFFD9A65C,   // 4 honey-gold
+    0xFF8C2E0F,   // 5 dark maroon
+};
+
+OCEAN_PALETTE[6] = {
+    0xFF3FA9A6,   // 0 teal
+    0xFF2E8C8A,   // 1 deep teal
+    0xFF6FC6C2,   // 2 pale aqua
+    0xFF1F6F75,   // 3 deep sea green
+    0xFF8FD7CC,   // 4 light sea foam
+    0xFF257D7B,   // 5 mid teal
+};
 ```
 
 Grass blades render at the same `blade.hue` indices in every scene; only the palette table changes.
@@ -906,7 +929,7 @@ Grass blades render at the same `blade.hue` indices in every scene; only the pal
 
 ## 13. Scenes (infrastructure)
 
-The simulation supports a small fixed set of visual "scenes" that share the same blade generation, sway physics, gust/cut model, and ambient-gust scheduler from §§4–10 + §8.1, but differ in render-time presentation. The four-scene cycle is **Grass / Desert / Winter / Autumn**. The infrastructure pass swaps the blade palette per scene; scene-specific sections (§14 Desert, §15 Winter, §16.5 Autumn) add entities and props on top.
+The simulation supports a small fixed set of visual "scenes" that share the same blade generation, sway physics, gust/cut model, and ambient-gust scheduler from §§4–10 + §8.1, but differ in render-time presentation. The five-scene cycle is **Grass / Desert / Winter / Autumn / Ocean**. The infrastructure pass swaps the blade palette per scene; scene-specific sections (§14 Desert, §15 Winter, §16.5 Autumn, §16.6 Ocean) add entities and props on top.
 
 ### Scene enum
 
@@ -916,8 +939,9 @@ enum Scene : uint8_t {
     Desert = 1,   // dried-grass / sand palette; cacti & tumbleweeds in §14
     Winter = 2,   // frosted / snowy palette; snowflakes in §15
     Autumn = 3,   // warm orange/red/yellow palette; leaves and maples in §16.5
+    Ocean  = 4,   // teal reef palette; coral, bubbles, and fish in §16.6
 };
-constexpr int SCENE_COUNT = 4;
+constexpr int SCENE_COUNT = 5;
 ```
 
 Both impls MUST use these exact discriminant values so the cross-impl conformance tests in §12 can compare an integer scene id.
@@ -927,14 +951,14 @@ Both impls MUST use these exact discriminant values so the cross-impl conformanc
 Each scene defines a 6-color ARGB palette indexed by `blade.hue`. The `hue` index is still drawn from the main PRNG stream as per §5 — generation is scene-independent — but the renderer selects which palette table to look up based on `sim.currentScene`:
 
 ```c
-uint32_t argb = SCENE_PALETTE[sim->currentScene][blade.hue];
+uint32_t argb = SCENE_PALETTES[sim->currentScene][blade.hue];
 ```
 
-The Grass palette is the original §4 palette (unchanged). Desert, Winter, and Autumn palettes are listed in §11 / §16.5.
+The Grass palette is the original §4 palette (unchanged). Desert, Winter, Autumn, and Ocean palettes are listed in §11 / §16.5 / §16.6.
 
 ### Sim state
 
-The `Sim` carries one new field:
+The `Sim` carries the scene field:
 
 ```
 Scene currentScene = Grass;     // default at sim_init
@@ -955,6 +979,7 @@ DesktopGrass tray
 │           ○  Desert
 │           ○  Winter
 │           ○  Autumn
+│           ○  Ocean
 └── Quit
 ```
 
@@ -962,8 +987,8 @@ The active scene shows a radio-style mark (`MFS_CHECKED` / `MF_BYCOMMAND` in Win
 
 ### Cross-impl conformance
 
-- The `Scene` enum values are exactly `{ Grass = 0, Desert = 1, Winter = 2, Autumn = 3 }` in both impls.
-- The Desert, Winter, and Autumn blade palette tables are bit-identical between impls.
+- The `Scene` enum values are exactly `{ Grass = 0, Desert = 1, Winter = 2, Autumn = 3, Ocean = 4 }` in both impls.
+- The Desert, Winter, Autumn, and Ocean blade palette tables are bit-identical between impls.
 - `sim_init` sets `currentScene = Grass`.
 - `set_scene` updates the field and is a no-op on the §5 generation streams: the §12 first-blade snapshot stays unchanged regardless of scene.
 - Scene state is persisted across launches as part of app state (§18); missing or incompatible state still falls back to `Grass`.
@@ -976,17 +1001,17 @@ Constants and palette tables land in §11 under "Scenes".
 
 ## 13.1 Scene-aware generation (amendment to §13)
 
-§13 introduced `set_scene` as a pure state-only update. With the per-scene content sections below (§14 Desert, §15 Winter), `set_scene` additionally:
+§13 introduced `set_scene` as a pure state-only update. With the per-scene content sections below (§14 Desert, §15 Winter, §16.5 Autumn, §16.6 Ocean), `set_scene` additionally:
 
 1. Clears `sim.entities` (see §13.2).
-2. Calls the new scene's entity generators (`generate_cacti` is a slot-bound blade-variant operation — it touches `sim.blades` and uses `CACTUS_PRNG_SALT`; `generate_tumbleweeds` and the snowflake emitter populate `sim.entities` from `TUMBLEWEED_PRNG_SALT` / `SNOWFLAKE_PRNG_SALT`).
-3. Leaves the §5 main blade stream **strictly** untouched: blade slot positions, heights, thicknesses, hues, and the flower/mushroom variant tags are bit-identical across scenes. Cacti are written **on top of** existing blade slots and only replace the `isFlower`/`isMushroom`/grass tag of slots that satisfy the cactus probability draw — they do not shift slot positions or perturb the main stream.
+2. Calls the new scene's generators (`generate_cacti`, `generate_pines`, `generate_maples`, and `generate_coral` are slot-bound blade-variant operations — they touch `sim.blades` from independent salted streams; tumbleweeds, snowflakes, leaves, bubbles, and fish populate `sim.entities` from their own salted streams).
+3. Leaves the §5 main blade stream **strictly** untouched: blade slot positions, heights, thicknesses, hues, and the flower/mushroom variant tags are bit-identical across scenes. Slot-bound scene variants are written **on top of** existing blade slots and only replace the `isFlower`/`isMushroom`/grass tag of slots that satisfy that scene's probability draw — they do not shift slot positions or perturb the main stream.
 
-`sim_init` still defaults `currentScene = Grass` and, since the Grass scene has no roamer or slot-overlay generators, `sim.entities` is empty at startup. The §12 first-blade snapshot test must continue to assert the §5 outputs only — entities are a separate conformance surface (§14, §15).
+`sim_init` still defaults `currentScene = Grass` and, since the Grass scene has no roamer or slot-overlay generators, `sim.entities` is empty at startup. The §12 first-blade snapshot test must continue to assert the §5 outputs only — entities are a separate conformance surface (§14, §15, §16.5, §16.6).
 
 ## 13.2 Roaming-entity subsystem
 
-§13 had no notion of entities that move independently of the blade slots. Desert, Winter, and Grass weather now introduce tumbleweeds, snowflakes, and raindrops, so the simulation carries an `entities` vector alongside `blades`.
+§13 had no notion of entities that move independently of the blade slots. Desert, Winter, Autumn, Ocean, and legacy Grass weather introduce tumbleweeds, snowflakes, leaves, bubbles, fish, and raindrops, so the simulation carries an `entities` vector alongside `blades`.
 
 ### Entity model
 
@@ -1004,6 +1029,9 @@ enum EntityKind : uint8_t {
     EntityBird       = 9,
     EntityHedgehog   = 10,
     EntityLeaf       = 11,
+    EntitySnowPuff   = 12,
+    EntityBubble     = 13,
+    EntityFish       = 14,
 };
 
 struct Entity {
@@ -1024,10 +1052,10 @@ Both impls use the exact `EntityKind` discriminants above for cross-impl conform
 ### Storage and lifecycle
 
 - `sim.entities` is a growable container of `Entity` (Native: `std::vector`; Win2D: `List<Entity>` — both pre-reserved to `MAX_ENTITIES_PER_MONITOR` at sim_init to avoid grow churn).
-- Generated by `set_scene` for hard scene entities and by per-scene emitters for soft weather/ambient particles (Grass raindrops, Winter snowflakes, Autumn leaves).
+- Generated by `set_scene` for hard scene entities and by per-scene emitters for soft weather/ambient particles (Grass raindrops, Winter snowflakes, Autumn leaves, Ocean bubbles/fish).
 - Updated every tick by `sim_tick_entities` (Native) / `TickEntities` (Win2D), called after blade physics in the §10 update order.
 - Rendered after blades in the renderer (`DrawEntities` / equivalent).
-- Capped at `MAX_ENTITIES_PER_MONITOR` — the snowflake emitter MUST not exceed this cap (it stops emitting and resumes when count drops).
+- Capped at `MAX_ENTITIES_PER_MONITOR` — per-scene emitters MUST not exceed this cap (they stop emitting and resume when count drops).
 
 ### Tick update
 
@@ -1044,18 +1072,21 @@ for each entity e in sim.entities:
     else if e.kind == Snowflake:
         // sway: vx wobble around its mean drift
         e.vx = baseVx + SNOWFLAKE_SWAY_AMPLITUDE * sin(e.age * 2π * SNOWFLAKE_SWAY_FREQUENCY + e.seed)
+    else if e.kind == Bubble:
+        // absolute wobble around the spawn column
+        e.x = e.x0 + BUBBLE_WOBBLE_AMPLITUDE * sin(e.age * BUBBLE_WOBBLE_FREQUENCY * 2π + e.phaseX)
 
 remove entities where e.lifetime > 0 and e.age >= e.lifetime
-also remove snowflakes that pass below groundY
-emit new snowflakes per §15 schedule, raindrops per §20 schedule, and leaves per §16.5 schedule
+also remove snowflakes/leaves/snow puffs that pass below groundY, bubbles that pass above the canvas, and fish that swim beyond their edge margin
+emit new snowflakes per §15 schedule, leaves per §16.5 schedule, bubbles/fish per §16.6 schedule, and raindrops per §20 schedule
 ```
 
 The emitter and respawn paths are the only places entities are added/removed during a tick.
 
 ### Cross-impl conformance for entities
 
-- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Bunny=6, Butterfly=7, Firefly=8, Bird=9, Hedgehog=10, Leaf=11}` match exactly (value `5`, formerly `Raindrop`, is a retired gap).
-- Entity-stream PRNG salts (`TUMBLEWEED_PRNG_SALT`, `SNOWFLAKE_PRNG_SALT`, `RAINDROP_PRNG_SALT`, `CACTUS_PRNG_SALT`, `LEAF_PRNG_SALT`, `MAPLE_PRNG_SALT`) are global constants — both impls draw entity parameters from streams seeded `seed XOR salt`.
+- `EntityKind` discriminants `{None=0, Tumbleweed=1, Snowflake=2, Sheep=3, Cat=4, Bunny=6, Butterfly=7, Firefly=8, Bird=9, Hedgehog=10, Leaf=11, SnowPuff=12, Bubble=13, Fish=14}` match exactly (value `5`, formerly `Raindrop`, is a retired gap).
+- Entity/scene PRNG salts (`TUMBLEWEED_PRNG_SALT`, `SNOWFLAKE_PRNG_SALT`, `RAINDROP_PRNG_SALT`, `CACTUS_PRNG_SALT`, `LEAF_PRNG_SALT`, `MAPLE_PRNG_SALT`, `CORAL_PRNG_SALT`, `BUBBLE_PRNG_SALT`, `FISH_PRNG_SALT`) are global constants — both impls draw entity and slot-variant parameters from streams seeded `seed XOR salt`.
 - A new conformance test class (`entity_tests.cpp` / `EntityTests.cs`) asserts the first tumbleweed for `CANONICAL_TEST_SEED + Desert + monitorWidth=1920` matches a pinned (`x`, `y`, `vx`, `size`) snapshot derivable from the spec, and the first snowflake at `t = 0.5s` (after exactly one tick at 0.5s) matches a pinned snapshot.
 - Blade conformance (§12) is unchanged: `sim.blades` for any seed is bit-identical regardless of `currentScene`.
 
@@ -1479,7 +1510,7 @@ A pass to make Winter read as a calm snowscape rather than a tall white wall tha
 
 ## 16.5 Autumn scene
 
-Autumn is the fourth scene (`Scene::Autumn = 3`) and completes the Grass / Desert / Winter / Autumn cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn.
+Autumn is the fourth scene (`Scene::Autumn = 3`) in the Grass / Desert / Winter / Autumn / Ocean cycle. It is intentionally passive and quiet: warm blade colors, falling leaves, and occasional slot-bound maple trees. There are no critters, birds, bugs, rain, snowflakes, or snow accumulation in Autumn.
 
 ### Autumn blade palette
 
@@ -1549,6 +1580,157 @@ Autumn generates no Grass critters/flyers, no rain, no Winter snowflakes, and re
 
 ---
 
+## 16.6 Ocean scene
+
+Ocean is the fifth scene (`Scene::Ocean = 4`) in the Grass / Desert / Winter / Autumn / Ocean cycle. It swaps blades to a teal reef palette, promotes a deterministic subset of blade slots to coral, emits rising bubbles, and maintains a small horizontal fish school. Coral is a slot-bound blade variant, not an `EntityKind`; bubbles and fish are roaming entities (`EntityKind::Bubble = 13`, `EntityKind::Fish = 14`). Ocean generates no Grass critters/flyers, rain, snowflakes, falling leaves, or snow accumulation.
+
+### Ocean blade palette
+
+`OCEAN_PALETTE` is pinned and exposed through `SCENE_PALETTES[4]`:
+
+| Hue | ARGB | Meaning |
+|---:|---|---|
+| 0 | `0xFF3FA9A6` | teal |
+| 1 | `0xFF2E8C8A` | deep teal |
+| 2 | `0xFF6FC6C2` | pale aqua |
+| 3 | `0xFF1F6F75` | deep sea green |
+| 4 | `0xFF8FD7CC` | light sea foam |
+| 5 | `0xFF257D7B` | mid teal |
+
+### Coral (slot-bound reef variant)
+
+Coral uses `coralPrng = Prng(entitySeed XOR CORAL_PRNG_SALT)`, with `CORAL_PRNG_SALT = 0xC04A1C04A1C04A1C`. `generate_coral_for_ocean` walks blade slots in order. For every slot it restores original variants, suppresses mushrooms (`isMushroom = false`), then draws `r = uniform(0, 1)`. If `r < CORAL_PROBABILITY`, the slot becomes coral: clear `isFlower` / `isMushroom`, set `isCoral = true`, then draw fields in this exact order: `coralHeight`, `coralWidth`, `coralType`, `coralColorIdx`.
+
+| Constant | Value |
+|---|---:|
+| `CORAL_PROBABILITY` | `0.018` |
+| `CORAL_HEIGHT_MIN` / `MAX` | `22.0` / `48.0` DIP |
+| `CORAL_WIDTH_MIN` / `MAX` | `10.0` / `20.0` DIP |
+| `CORAL_TYPE_COUNT` | `3` (`0` fan, `1` branching, `2` brain) |
+| `CORAL_COLOR_COUNT` | `5` |
+
+| Color index | ARGB | Meaning |
+|---:|---|---|
+| 0 | `0xFFFF6FA8` | pink |
+| 1 | `0xFFFF8A3D` | orange |
+| 2 | `0xFFB155D9` | purple |
+| 3 | `0xFFE53935` | red |
+| 4 | `0xFFFFE6D0` | bone-white |
+
+Rendering forms: fan coral draws 7 splayed rays plus a thicker base stub; branching coral draws a central trunk with four fixed side branches; brain coral draws a filled oval mound with five ridge lines. Coral scales by `cutHeight` and uses the normal stump rule (`CUT_STUMP_THRESHOLD` / `STUMP_HEIGHT`) when cut.
+
+### Bubbles
+
+Bubbles are Ocean-only transient entities from `bubblePrng = Prng(entitySeed XOR BUBBLE_PRNG_SALT)`, with `BUBBLE_PRNG_SALT = 0xB0BB1EB0BB1EB0BB`. On entering Ocean, `nextBubbleSpawnTime = globalTime`, so the first eligible Ocean tick may emit immediately. Each Ocean tick uses:
+
+```text
+lambda = BUBBLE_EMIT_RATE_PER_1920DIP * monitorWidth / 1920.0
+```
+
+and emits while `lambda > 0`, `globalTime >= nextBubbleSpawnTime`, and `len(entities) < MAX_ENTITIES_PER_MONITOR`. If the entity cap is full, the loop exits without consuming bubble PRNG draws or advancing `nextBubbleSpawnTime`.
+
+| Constant | Value |
+|---|---:|
+| `BUBBLE_EMIT_RATE_PER_1920DIP` | `1.8` bubbles/sec |
+| `BUBBLE_RISE_SPEED_MIN` / `MAX` | `18.0` / `38.0` DIP/sec |
+| `BUBBLE_SIZE_MIN` / `MAX` | `2.0` / `4.5` DIP radius |
+| `BUBBLE_WOBBLE_AMPLITUDE` | `6.0` DIP |
+| `BUBBLE_WOBBLE_FREQUENCY` | `0.7` Hz |
+| `BUBBLE_LIFETIME_PADDING_SEC` | `1.5` sec |
+| `BUBBLE_STROKE_COLOR` | `0xCCB0E4FF` |
+| `BUBBLE_HIGHLIGHT_COLOR` | `0xFFFFFFFF` |
+
+Per-bubble draw order is locked: `size`, `xFrac`, `rise`, `phaseX`, `seed`, then the next-spawn exponential interval. Spawn state:
+
+```text
+e.kind = Bubble
+e.size = uniform(BUBBLE_SIZE_MIN, BUBBLE_SIZE_MAX)
+spawnX = uniform(0, 1) * monitorWidth
+rise = uniform(BUBBLE_RISE_SPEED_MIN, BUBBLE_RISE_SPEED_MAX)
+e.phaseX = uniform(0, 2π)
+e.x0 = e.x = spawnX
+e.y = groundY + e.size + 2.0
+e.vx = 0
+e.vy = -rise
+e.baseSpeed = rise
+e.age = 0
+e.lifetime = (groundY + 2 * e.size) / rise + BUBBLE_LIFETIME_PADDING_SEC
+e.seed = next_u32()
+nextBubbleSpawnTime += exponential(lambda)
+```
+
+On tick, the generic entity update applies `vy`; the bubble pass overwrites `x` with `x0 + BUBBLE_WOBBLE_AMPLITUDE * sin(age * BUBBLE_WOBBLE_FREQUENCY * 2π + phaseX)`. A bubble pops (is removed) when its lifetime expires or when it rises above the canvas (`y < -size`). Rendering is a translucent outline circle plus a small white highlight.
+
+### Fish school
+
+Fish are Ocean-only roaming entities from `fishPrng = Prng(entitySeed XOR FISH_PRNG_SALT)`, with `FISH_PRNG_SALT = 0xF15F15F15F15F15F`. The maintained school size is:
+
+```text
+scaled = FISH_COUNT_PER_1920DIP * monitorWidth / 1920.0
+target = clamp(round_half_to_even(scaled), FISH_COUNT_MIN, FISH_COUNT_MAX)
+```
+
+`round_half_to_even` is part of the lockstep contract: Win2D uses `Math.Round`'s default banker's rounding, and Native uses an explicit round-half-to-even helper so `1920 DIP → 2.5 → 2` and `3456 DIP → 4.5 → 4` in both impls.
+
+| Constant | Value |
+|---|---:|
+| `FISH_COUNT_PER_1920DIP` | `2.5` |
+| `FISH_COUNT_MIN` / `MAX` | `2` / `8` |
+| `FISH_SPEED_MIN` / `MAX` | `18.0` / `38.0` DIP/sec |
+| `FISH_SIZE_MIN` / `MAX` | `5.0` / `8.5` DIP body half-length |
+| `FISH_ALTITUDE_MIN` / `MAX` | `25.0` / `75.0` DIP above `groundY` |
+| `FISH_TAIL_WOBBLE_FREQ` | `6.0` rad/sec |
+| `FISH_TAIL_WOBBLE_AMP` | `0.45` radians |
+| `FISH_COLOR_COUNT` | `4` |
+| `FISH_FIN_COLOR` | `0xFF222222` |
+
+| Color index | ARGB | Meaning |
+|---:|---|---|
+| 0 | `0xFFFFA844` | clownfish orange |
+| 1 | `0xFFFFD54F` | yellow |
+| 2 | `0xFF42A5F5` | bright blue |
+| 3 | `0xFFE57373` | coral pink |
+
+`spawn_initial_fish` does nothing for `monitorWidth <= 0`; otherwise it calls `spawn_fish(fromEdge=false)` until the target count or `MAX_ENTITIES_PER_MONITOR` is reached. Later Ocean ticks count current fish after cleanup and call `spawn_fish(fromEdge=true)` until the target is restored.
+
+`spawn_fish` field draw order is locked:
+
+```text
+e.kind = Fish
+e.size = uniform(FISH_SIZE_MIN, FISH_SIZE_MAX)
+speed = uniform(FISH_SPEED_MIN, FISH_SPEED_MAX)
+swimsRight = (next_u64() & 1) != 0
+e.vx = swimsRight ? speed : -speed
+e.vy = 0
+altitude = uniform(FISH_ALTITUDE_MIN, FISH_ALTITUDE_MAX)
+e.y = groundY - altitude
+if fromEdge:
+    e.x = swimsRight ? -e.size - 4.0 : monitorWidth + e.size + 4.0   // no PRNG draw
+else:
+    e.x = uniform(0, monitorWidth)
+e.phaseX = uniform(0, 2π)
+e.colorVariant = index(FISH_COLOR_COUNT)
+e.age = 0
+e.lifetime = -1
+e.seed = next_u32()
+```
+
+Fish move horizontally by the generic entity tick and despawn after crossing their edge margin (`x > monitorWidth + size + 4` for rightward fish, `x < -size - 4` for leftward fish). Rendering uses an ellipse body, a time-wobbling tail (`sin(age * FISH_TAIL_WOBBLE_FREQ + phaseX) * FISH_TAIL_WOBBLE_AMP`), a top fin, and a dark eye.
+
+### `set_scene(Ocean)` lifecycle and lockstep
+
+Every scene transition resets `snowDriftCooldownEnd`, assigns `currentScene`, clears `entities`, and restores all original blade variants before running the scene-specific branch. The Ocean branch then runs in this exact order:
+
+1. `generate_coral_for_ocean(sim)`.
+2. `bubblePrng = Prng(entitySeed XOR BUBBLE_PRNG_SALT)` and `nextBubbleSpawnTime = globalTime`.
+3. `fishPrng = Prng(entitySeed XOR FISH_PRNG_SALT)`.
+4. `spawn_initial_fish(sim)`.
+5. `generate_critters_for_kind(sim)` runs last like every scene, but is scene-gated and emits nothing outside Grass.
+
+The three Ocean streams are independent and MUST NOT be interleaved with each other or with the §5 blade, flower, mushroom, cactus, pine, maple, snowflake, leaf, or critter streams. Coral slot order and field draws, bubble emission field draws, fish field draws, and fish-count rounding must match byte-for-byte across Native C++ and Win2D. Switching away from Ocean clears bubbles/fish and restores all coral slots through the shared scene-transition cleanup.
+
+---
+
 ## 12. Conformance
 
 Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests` and `DesktopGrass.Win2D.Tests` can share a single snapshot fixture.
@@ -1583,7 +1765,7 @@ When any test in this list fails on a single impl, that impl has diverged from t
 
 ## 13.3 Critter subsystem (Grass-scene ambient critters)
 
-Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), Bunny (§17.5), and Hedgehog (§17.9) share the same `CRITTER_PRNG_SALT`; Butterflies (§17.6), Fireflies (§17.7), and Birds (§17.8) are always-on/ambient Grass flyers with independent species PRNG salts. Desert and Winter currently generate zero critters/flyers. `CritterKind::None` spawns **no ground critters** — only the always-on ambient flyers (`2–4` butterflies, `3–6` fireflies) appear. The mixed ground-critter set (`2–3` sheep, `1–2` cats, `1–2` bunnies, `0–1` hedgehogs with 55% presence probability) is generated by the `CritterKind::Bunny` selector.
+Critters are passive Grass-scene animals rendered on top of the bottom strip. Sheep (§16), Cat (§17), Bunny (§17.5), and Hedgehog (§17.9) share the same `CRITTER_PRNG_SALT`; Butterflies (§17.6), Fireflies (§17.7), and Birds (§17.8) are always-on/ambient Grass flyers with independent species PRNG salts. Desert, Winter, Autumn, and Ocean currently generate zero critters/flyers. `CritterKind::None` spawns **no ground critters** — only the always-on ambient flyers (`2–4` butterflies, `3–6` fireflies) appear. The mixed ground-critter set (`2–3` sheep, `1–2` cats, `1–2` bunnies, `0–1` hedgehogs with 55% presence probability) is generated by the `CritterKind::Bunny` selector.
 
 ### Enum and salt
 
@@ -1594,7 +1776,7 @@ constexpr CritterKind CRITTER_DEFAULT  = CritterKind::None
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8E
 ```
 
-Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, `EntityKind::Firefly = 8`, `EntityKind::Bird = 9`, `EntityKind::Hedgehog = 10`, and `EntityKind::Leaf = 11`; existing discriminants MUST NOT be renumbered (value `5`, formerly `Raindrop`, is a retired gap and must not be reused). Bunny and Hedgehog introduce no new PRNG salt; butterflies, fireflies, birds, and leaves use independent salts documented in their sections.
+Discriminants are cross-impl-locked. `EntityKind::Sheep = 3`, `EntityKind::Cat = 4`, `EntityKind::Bunny = 6`, `EntityKind::Butterfly = 7`, `EntityKind::Firefly = 8`, `EntityKind::Bird = 9`, `EntityKind::Hedgehog = 10`, `EntityKind::Leaf = 11`, `EntityKind::SnowPuff = 12`, `EntityKind::Bubble = 13`, and `EntityKind::Fish = 14`; existing discriminants MUST NOT be renumbered (value `5`, formerly `Raindrop`, is a retired gap and must not be reused). Bunny and Hedgehog introduce no new PRNG salt; butterflies, fireflies, birds, leaves, bubbles, fish, and coral use independent salts documented in their sections.
 
 ### Sim state
 
@@ -1625,10 +1807,10 @@ Inside `sim_set_scene`:
 
 1. Remove hard scene-transition entities (finite raindrops are preserved for soft fade-out).
 2. Restore default blade variants.
-3. Run the scene generator (tumbleweeds, snowflakes, etc.).
+3. Run the scene generator (tumbleweeds, snowflakes, leaves, coral, bubbles, fish, etc.).
 4. **Run `generate_critters_for_kind(sim)` LAST.**
 
-Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass entity order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), bunny count + bunny entities, hedgehog count-probability + hedgehog entity (if present), then butterfly count + butterfly entities and firefly count + firefly entities from their independent salts.
+Step 4 must be last so that `entities[0..N-1]` for scene entities (tumbleweeds, snowflakes, leaves, bubbles, fish) is bit-identical to the snapshot tests pinned in §12 regardless of which critter mode is active. The all-species Grass entity order is locked: sheep count + sheep entities, cat count + cat entities (including `coatVariantIndex` after `nameIndex`), bunny count + bunny entities, hedgehog count-probability + hedgehog entity (if present), then butterfly count + butterfly entities and firefly count + firefly entities from their independent salts.
 
 ### `sim_set_critter` semantics
 
