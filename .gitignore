@@ -64,3 +64,7 @@ publish/
 
 # Local scratch directory used by Copilot agent runs for test outputs
 .copilot-scratch/
+
+# Benchmark sweep outputs (timestamped result trees). Keep the harness scripts
+# but never commit raw runs.
+tools/benchmark/results/
