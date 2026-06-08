@@ -743,6 +743,16 @@ internal static class Constants
     public const double TREE_BG_SCALE                 = 0.62;
     public const float  TREE_BG_OPACITY               = 0.78f;
 
+    // Min spacing between adjacent props (cacti, pines, maples, coral) so
+    // they never render directly on top of one another. Each generator
+    // tracks the last-placed prop's right edge and rejects a candidate
+    // whose left edge isn't at least PROP_MIN_GAP_DIP further along. The
+    // candidate's PRNG draws still happen (so determinism + canonical
+    // first-prop snapshots are unchanged); only the commit-vs-revert step
+    // is gated. Foreground and background pines are tracked independently,
+    // since the bg layer is parallax and is expected to overlap the fg.
+    public const double PROP_MIN_GAP_DIP              = 4.0;
+
     // Birch tree variant (§15.1). Second tree style — vertical white trunk
     // with dark bark marks and short bare branches.
     public const double BIRCH_VARIANT_PROBABILITY = 0.30;

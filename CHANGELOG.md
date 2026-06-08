@@ -13,11 +13,12 @@ entries are grouped by date instead.
 ### Changed
 - **Cacti, pines, maples, and coral now refuse to render directly on top of
   one another.** A new `PROP_MIN_GAP_DIP = 4.0` constant gates the final
-  placement step of each prop generator: after all per-prop PRNG draws have
-  run (so determinism and the canonical first-prop snapshot tests are
-  unchanged), the candidate's effective collision half-width is compared
-  against the last-placed prop's right edge. On a gap-fail the slot reverts
-  to its original flower/mushroom variants via `restore_original_variants`.
+  placement step of each prop generator in **both** the Native (C++) and
+  Win2D (C#) implementations: after all per-prop PRNG draws have run (so
+  determinism and the canonical first-prop snapshot tests are unchanged),
+  the candidate's effective collision half-width is compared against the
+  last-placed prop's right edge. On a gap-fail the slot reverts to its
+  original flower/mushroom variants via `RestoreOriginalVariants`.
   Foreground and background pines are tracked independently, since the
   background tree-line is a parallax layer that's expected to overlap the
   foreground.
@@ -28,9 +29,10 @@ entries are grouped by date instead.
   scene, still well within the existing `±25%` probability tolerance.
 
 ### Added
-- `prop_spacing_tests.cpp`: five new Catch2 tests that walk every placed
-  prop in Desert / Winter / Autumn / Ocean and assert adjacent props are
-  at least `PROP_MIN_GAP_DIP` apart for their kind+layer.
+- `prop_spacing_tests.cpp` (Native) and `PropSpacingTests.cs` (Win2D):
+  five new tests in each suite that walk every placed prop in
+  Desert / Winter / Autumn / Ocean and assert adjacent props are at least
+  `PROP_MIN_GAP_DIP` apart for their kind+layer.
 
 ---
 
