@@ -5,6 +5,7 @@
 #include "Benchmark.h"
 
 #include "GrassWindow.h"
+#include "Pacing.h"
 #include "Sim.h"
 
 #include <shellscalingapi.h>
@@ -257,6 +258,7 @@ int Run(HINSTANCE hInst, const Options& opts) {
 
     long long frameIndex = 0;
     bool userClosed = false;
+    FramePacer pacer;
     int  exitCode = 0;
 
     MSG msg{};
@@ -295,19 +297,13 @@ int Run(HINSTANCE hInst, const Options& opts) {
         }
         ++frameIndex;
 
-        // Pace to target fps, accounting for the time render already took.
+        // Pace to target fps via the shared high-resolution waitable timer.
         LARGE_INTEGER tAfter{};
         QueryPerformanceCounter(&tAfter);
         const double spentSec =
             static_cast<double>(tAfter.QuadPart - tNow.QuadPart) / freq;
         const double remaining = targetFrameSec - spentSec;
-        const DWORD waitMs = remaining > 0.0
-            ? static_cast<DWORD>(remaining * 1000.0)
-            : 0;
-        if (waitMs > 0) {
-            MsgWaitForMultipleObjectsEx(0, nullptr, waitMs, QS_ALLINPUT,
-                                        MWMO_INPUTAVAILABLE);
-        }
+        pacer.WaitUntilNextFrame(remaining);
     }
 
     if (csv) std::fclose(csv);

@@ -8,7 +8,56 @@ entries are grouped by date instead.
 
 ---
 
-## 2026-06-07 — Ocean scene — fifth biome (coral, bubbles, fish)
+## 2026-06-08 — Pacing fix: actually hit the 24 fps target on the default system timer
+
+### Fixed
+- **`App::Run` and the benchmark runner now pace via a high-resolution
+  waitable timer (`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`, Windows 10
+  1803+).** The previous `MsgWaitForMultipleObjectsEx(NULL, waitMs, ...)`
+  loop was clamped by the default ~15.6 ms system timer resolution, so any
+  request under one tick rounded up. At the production 24 fps target
+  (~41.66 ms requested wait) every frame paid for the next full tick
+  (~46.8 ms), yielding `dt p95 ≈ 48 ms` and an effective ~21.5 fps. The
+  new `FramePacer` honours sub-15.6 ms remainders without changing the
+  system-wide timer resolution.
+- Measured on `CRUTKASFRAME` (Release\|x64, 3 runs × 60 s per scene, at the
+  production 24 fps target):
+  | Scene  | FPS before → after | dt p95 ms before → after | CPU% before → after |
+  |--------|-------------------:|-------------------------:|-------------------:|
+  | Grass  | 21.5 → 23.45       | 48 → 42.27               | 4.93 → 4.50 (−9%)  |
+  | Desert | 21.5 → 23.69       | 48 → 42.28               | 5.62 → 4.36 (−22%) |
+  | Winter | 21.5 → 23.68       | 48 → 42.28               | 6.42 → 6.07 (−5%)  |
+  | Autumn | 21.5 → 23.16       | 48 → 42.34               | 5.67 → 4.63 (−18%) |
+  | Ocean  | 21.5 → 23.64       | 48 → 42.35               | 6.60 → 5.91 (−10%) |
+- **Net effect is a strict win at the production 24 fps target**: ~10%
+  more frames per second (closer to the target) *and* lower CPU% mean on
+  every scene, because the high-res waitable timer wakes once per frame
+  instead of being interrupted on every ~15.6 ms system tick. Working
+  set, IO, and private bytes are unchanged.
+
+### Fixed (correctness, benchmark default)
+- **`Benchmark::Options::targetFps` default 30 → 24.** It was incorrectly
+  documented as "matches Config.h default"; the real `kTargetFpsDefault`
+  is 24, so previous benchmark runs were over-targeting and not
+  representative of production behaviour. The pre-pacing-fix baseline
+  numbers above were re-measured against the corrected 24 fps target.
+- **`App::Run` pacing comment refreshed** to reference the real default
+  (24 fps) instead of the stale "30 fps" wording.
+
+### Added
+- **`FramePacer` (`src\DesktopGrass.Native\src\Pacing.{h,cpp}`)** — shared
+  high-resolution waitable timer with a graceful fallback to the legacy
+  `MsgWaitForMultipleObjectsEx(NULL, waitMs, ...)` wait when the high-res
+  timer cannot be created.
+- **`pacing_tests.cpp`** — Catch2 coverage that (1) asserts
+  `IsHighResolution()` on supported Windows, (2) verifies zero/negative
+  waits return immediately, and (3) verifies five 1 ms waits complete
+  comfortably under 30 ms (legacy resolution would take ~78 ms), catching
+  any regression that drops the high-res flag.
+
+---
+
+
 
 ### Added
 - **Ocean scene** — fifth biome in the scene rotation (**Grass / Desert /

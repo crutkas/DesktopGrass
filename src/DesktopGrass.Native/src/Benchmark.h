@@ -35,7 +35,7 @@ struct Options {
     int          durationSec  = 60;
     int          widthPx      = 0;      // 0 = primary-monitor work-area width
     int          heightPx     = 0;      // 0 = STRIP_HEIGHT + HEADROOM at primary DPI
-    int          targetFps    = 30;     // matches Config.h default; overridable
+    int          targetFps    = 24;     // matches Config.h kTargetFpsDefault; overridable
     std::wstring outCsvPath;            // empty = no per-frame log written
     bool         hideWindow   = false;  // SW_HIDE instead of SW_SHOWNOACTIVATE
 };
