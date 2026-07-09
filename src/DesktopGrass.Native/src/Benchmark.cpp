@@ -209,7 +209,7 @@ int Run(HINSTANCE hInst, const Options& opts) {
     const uint64_t seed = opts.seed != 0 ? opts.seed : kBenchmarkDefaultSeed;
 
     GrassWindow window;
-    if (!window.Create(hInst, monitorBounds, primaryDpi, seed,
+    if (!window.Create(hInst, nullptr, monitorBounds, primaryDpi, seed,
                        /*density=*/1.0, /*swaySpeed=*/1.0, /*swayAmplitude=*/1.0)) {
         std::fwprintf(stderr, L"[benchmark] GrassWindow::Create failed\n");
         return 1;

@@ -117,7 +117,7 @@ LRESULT CALLBACK GrassWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM, LPARAM) {
+LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CLOSE:
             // The smoke harness sends WM_CLOSE. Forward to the main thread as
