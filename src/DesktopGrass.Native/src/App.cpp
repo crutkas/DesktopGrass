@@ -92,6 +92,7 @@ bool App::Initialize(HINSTANCE hInst) {
         OutputDebugStringA("[DesktopGrass] unable to reconcile Start with Windows registry state\n");
     }
     lastPersistenceSaveMs_ = GetTickCount64();
+    lastDpiPollMs_ = lastPersistenceSaveMs_;
 
     if (!GrassWindow::RegisterWindowClass(hInst_)) return false;
     if (!CreateMessageWindow())                    return false;
@@ -312,7 +313,7 @@ bool App::EnumerateMonitorsAndCreateWindows() {
         // monitors but stay stable across launches and line up with persisted
         // cut records.
         const uint64_t mseed = make_monitor_seed(ctx.bounds[i]);
-        if (w->Create(hInst_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity,
+        if (w->Create(hInst_, msgHwnd_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity,
                       config_.swaySpeed, config_.swayAmplitude)) {
             ApplyPersistedStateToWindow(*w, ctx.bounds[i]);
             w->Show();
@@ -331,6 +332,23 @@ void App::DestroyAllGrassWindows() {
 void App::OnDisplayChanged() {
     SaveCurrentState();
     EnumerateMonitorsAndCreateWindows();
+}
+
+bool App::HasDpiDrift() const {
+    for (const auto& window : windows_) {
+        HMONITOR monitor = MonitorFromWindow(
+            window->GetHwnd(), MONITOR_DEFAULTTONEAREST);
+        if (!monitor) continue;
+
+        UINT dpiX = 96;
+        UINT dpiY = 96;
+        if (SUCCEEDED(GetDpiForMonitor(
+                monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) &&
+            dpiX != window->GetDpi()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void App::DispatchMouseEvents() {
@@ -465,6 +483,19 @@ int App::Run() {
         }
         if (quitRequested_) break;
 
+        // WM_DPICHANGED is not reliable for every layered DirectComposition
+        // popup. Poll the monitor DPI as a low-cost safety net, then rebuild
+        // outside window procedures so no live swap chain is resized mid-change.
+        const ULONGLONG tickMs = GetTickCount64();
+        if (tickMs - lastDpiPollMs_ >= 1000ull) {
+            lastDpiPollMs_ = tickMs;
+            displayChangePending_ = displayChangePending_ || HasDpiDrift();
+        }
+        if (displayChangePending_) {
+            displayChangePending_ = false;
+            OnDisplayChanged();
+        }
+
         // Compute dt.
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
@@ -559,7 +590,8 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
         }
 
         case WM_DISPLAYCHANGE:
-            OnDisplayChanged();
+        case GrassWindow::kWmAppDisplayChanged:
+            displayChangePending_ = true;
             return 0;
 
         case WM_CLOSE:

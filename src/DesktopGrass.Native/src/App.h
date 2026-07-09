@@ -60,6 +60,7 @@ private:
     bool EnumerateMonitorsAndCreateWindows();
     void DestroyAllGrassWindows();
     void OnDisplayChanged();
+    bool HasDpiDrift() const;
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
     void ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds);
@@ -93,10 +94,12 @@ private:
     bool                                        hasPersistedState_ = false;
     persistence::AppState                       persistedState_{};
     ULONGLONG                                   lastPersistenceSaveMs_ = 0;
+    ULONGLONG                                   lastDpiPollMs_ = 0;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     FramePacer                                  pacer_{};
     bool                                        quitRequested_ = false;
+    bool                                        displayChangePending_ = false;
 };
 
 } // namespace desktopgrass
