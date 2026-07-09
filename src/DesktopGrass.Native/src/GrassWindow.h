@@ -20,6 +20,7 @@ class GrassWindow {
 public:
     static constexpr const wchar_t* kWindowClassName = L"DesktopGrass.Native.Window";
     static constexpr UINT           kWmAppQuit       = WM_APP + 1;
+    static constexpr UINT           kWmAppDisplayChanged = WM_APP + 2;
 
     static bool RegisterWindowClass(HINSTANCE hInst);
 
@@ -31,6 +32,7 @@ public:
 
     // Creates the HWND, attaches a Renderer, generates blades using `seed`.
     bool Create(HINSTANCE hInst,
+                HWND displayChangeHwnd,
                 const RECT& monitorBounds, UINT dpi,
                 uint64_t seed, double density,
                 double swaySpeed = 1.0, double swayAmplitude = 1.0);
@@ -41,6 +43,7 @@ public:
                      const InputEvent* events, std::size_t numEvents);
 
     HWND      GetHwnd()  const { return hwnd_; }
+    UINT      GetDpi() const { return dpi_; }
     Renderer& GetRenderer()     { return renderer_; }
     const RECT& GetScreenBounds() const { return screenBounds_; }
     const RECT& GetMonitorBounds() const { return monitorBounds_; }
@@ -50,12 +53,11 @@ private:
     LRESULT HandleMessage(UINT msg, WPARAM wp, LPARAM lp);
 
     HWND       hwnd_ = nullptr;
+    HWND       displayChangeHwnd_ = nullptr;
     Renderer   renderer_;
     RECT       screenBounds_{}; // window screen-rect (left, top, right, bottom)
     RECT       monitorBounds_{}; // monitor work-area rect used for persistence keys
     UINT       dpi_   = 96;
-    uint64_t   seed_  = 0;
-    double     density_ = 1.0;
 };
 
 } // namespace desktopgrass

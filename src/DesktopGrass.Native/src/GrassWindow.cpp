@@ -37,13 +37,13 @@ GrassWindow::~GrassWindow() {
 }
 
 bool GrassWindow::Create(HINSTANCE hInst,
+                         HWND displayChangeHwnd,
                          const RECT& monitorBounds, UINT dpi,
                          uint64_t seed, double density,
                          double swaySpeed, double swayAmplitude)
 {
+    displayChangeHwnd_ = displayChangeHwnd;
     dpi_     = dpi == 0 ? 96 : dpi;
-    seed_    = seed;
-    density_ = density;
     monitorBounds_ = monitorBounds;
 
     // Compute window dims in pixels: full monitor width × (STRIP_HEIGHT +
@@ -117,7 +117,7 @@ LRESULT CALLBACK GrassWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp) {
+LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM, LPARAM) {
     switch (msg) {
         case WM_CLOSE:
             // The smoke harness sends WM_CLOSE. Forward to the main thread as
@@ -126,25 +126,12 @@ LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_DPICHANGED: {
-            const UINT newDpi = HIWORD(wp);
-            auto* rect = reinterpret_cast<const RECT*>(lp);
-            if (rect) {
-                SetWindowPos(hwnd_, nullptr,
-                             rect->left, rect->top,
-                             rect->right - rect->left,
-                             rect->bottom - rect->top,
-                             SWP_NOZORDER | SWP_NOACTIVATE);
-                renderer_.Resize(rect->right - rect->left,
-                                 rect->bottom - rect->top, newDpi);
-                dpi_ = newDpi;
-                screenBounds_ = *rect;
-                renderer_.SetWindowOriginScreen(rect->left, rect->top);
-                // Mirror the Win2D rebuild: regenerate the blade layout for the
-                // new DIP width using the same per-monitor seed so the result is
-                // identical to a fresh launch at this DPI. Reuses the stored
-                // seed_/density_; sway scales and scene/critter/cut state are
-                // preserved inside RegenerateForDpi.
-                renderer_.RegenerateForDpi(seed_, density_);
+            // Resizing a live DirectComposition swap chain here can leave the
+            // target detached if ResizeBuffers fails during the scale
+            // transition. Defer a full per-monitor rebuild to App's message
+            // loop, matching the managed implementation.
+            if (displayChangeHwnd_) {
+                PostMessageW(displayChangeHwnd_, kWmAppDisplayChanged, 0, 0);
             }
             return 0;
         }
