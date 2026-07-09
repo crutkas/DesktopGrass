@@ -8,6 +8,17 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-07-09 — Keep Native visible across DPI changes
+
+### Fixed
+- **Native no longer risks disappearing when a monitor's scale changes.** DPI
+  changes now defer a full per-monitor window and DirectComposition rebuild to
+  the application loop instead of resizing a live swap chain inside
+  `WM_DPICHANGED`. A once-per-second monitor-DPI check also catches scale
+  changes when layered popup windows do not receive that message.
+
+---
+
 ## 2026-06-09 — Min-spacing rule between adjacent props
 
 ### Changed

@@ -59,7 +59,7 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 
 - [ ] Hot-plug a monitor (unplug or disable in display settings); grass disappears from that monitor without crashing the app.
 - [ ] Plug it back in; grass reappears on it.
-- [ ] Change a monitor's scale factor (Settings → System → Display → Scale); on next render the blade dimensions look correct (no doubled-thickness, no half-height).
+- [ ] Change a monitor's scale factor (Settings → System → Display → Scale); grass remains visible (or returns within one second) and the blade dimensions look correct (no doubled-thickness, no half-height).
 - [ ] Move a monitor's resolution (e.g., 1920x1080 → 2560x1440); grass extends to the new width without artifacts.
 
 ### Tray / lifecycle
@@ -112,7 +112,7 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 
 - [ ] Hot-plug a monitor (unplug or disable in display settings); grass disappears from that monitor without crashing the app.
 - [ ] Plug it back in; grass reappears on it.
-- [ ] Change a monitor's scale factor (Settings → System → Display → Scale); on next render the blade dimensions look correct (no doubled-thickness, no half-height).
+- [ ] Change a monitor's scale factor (Settings → System → Display → Scale); grass remains visible (or returns within one second) and the blade dimensions look correct (no doubled-thickness, no half-height).
 - [ ] Move a monitor's resolution (e.g., 1920x1080 → 2560x1440); grass extends to the new width without artifacts.
 
 ### Tray / lifecycle
