@@ -10,6 +10,8 @@
 
 namespace desktopgrass::runtime {
 
+// Initial conservative caps. GitHub issue #14 owns measurement-based tuning;
+// policy always chooses min(configured FPS, applicable cap).
 constexpr int kBatteryFpsCap = 12;
 constexpr int kSaverFpsCap = 5;
 

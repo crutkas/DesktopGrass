@@ -144,6 +144,7 @@
     <ClCompile Include="src\MouseHook.cpp" />
     <ClCompile Include="src\Pacing.cpp" />
     <ClCompile Include="src\Persistence.cpp" />
+    <ClCompile Include="src\RuntimeNotifications.cpp" />
     <ClCompile Include="src\RuntimePolicy.cpp" />
     <ClCompile Include="src\Sim.cpp" />
     <ClCompile Include="src\VisibilityTracker.cpp" />
@@ -164,6 +165,7 @@
     <ClInclude Include="src\Pacing.h" />
     <ClInclude Include="src\Persistence.h" />
     <ClInclude Include="src\Renderer.h" />
+    <ClInclude Include="src\RuntimeNotifications.h" />
     <ClInclude Include="src\RuntimePolicy.h" />
     <ClInclude Include="src\Sim.h" />
     <ClInclude Include="src\VisibilityTracker.h" />

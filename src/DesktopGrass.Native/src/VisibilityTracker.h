@@ -8,7 +8,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include <atomic>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 #include "RuntimePolicy.h"
@@ -40,6 +41,8 @@ public:
                          const runtime::Rect& targetBounds) const;
 
 private:
+    struct CallbackState;
+
     static void CALLBACK WinEventProc(HWINEVENTHOOK hook,
                                       DWORD event,
                                       HWND hwnd,
@@ -49,14 +52,12 @@ private:
                                       DWORD eventTime);
 
     bool AddHook(DWORD eventMin, DWORD eventMax);
-    void Notify() noexcept;
 
-    static VisibilityTracker* instance_;
+    static std::mutex callbackRegistryMutex_;
+    static std::weak_ptr<CallbackState> callbackRegistry_;
 
-    HWND notificationWindow_ = nullptr;
-    UINT notificationMessage_ = 0;
+    std::shared_ptr<CallbackState> callbackState_;
     std::vector<HWINEVENTHOOK> hooks_;
-    std::atomic<bool> notificationPending_{false};
 };
 
 } // namespace desktopgrass

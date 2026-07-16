@@ -18,6 +18,7 @@
 #include "Pacing.h"
 #include "Persistence.h"
 #include "Config.h"
+#include "RuntimeNotifications.h"
 #include "RuntimePolicy.h"
 #include "VisibilityTracker.h"
 
@@ -60,8 +61,6 @@ private:
     bool CreateMessageWindow();
     bool InitializeRuntimeNotifications();
     void ShutdownRuntimeNotifications() noexcept;
-    void SeedRuntimeState();
-    runtime::SessionState QueryCurrentSessionState() const;
     bool CreateTrayIcon();
     bool AddTrayIcon();
     void RemoveTrayIcon();
@@ -80,8 +79,6 @@ private:
     void RefreshVisibilityState();
     void ApplyRuntimePolicy();
     void SetMouseObservationEnabled(bool enabled);
-    LRESULT HandlePowerBroadcast(WPARAM wp, LPARAM lp);
-    void HandleWtsSessionChange(WPARAM wp, LPARAM lp);
     void HandleVisibilityNotification();
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
@@ -127,13 +124,8 @@ private:
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     FramePacer                                  pacer_{};
+    RuntimeNotifications                        runtimeNotifications_{};
     VisibilityTracker                           visibilityTracker_{};
-    runtime::GlobalState                        runtimeState_{};
-    HPOWERNOTIFY                                acdcPowerNotification_ = nullptr;
-    HPOWERNOTIFY                                saverNotification_ = nullptr;
-    HPOWERNOTIFY                                displayNotification_ = nullptr;
-    HPOWERNOTIFY                                suspendResumeNotification_ = nullptr;
-    DWORD                                       sessionId_ = 0xFFFFFFFFu;
     int                                         effectiveTargetFps_ = 0;
     bool                                        quitRequested_ = false;
     bool                                        displayChangePending_ = false;
@@ -143,7 +135,6 @@ private:
     bool                                        resumeFramePending_ = true;
     bool                                        mouseHookInstalled_ = false;
     bool                                        hardPauseStateSaved_ = false;
-    bool                                        wtsNotificationRegistered_ = false;
     bool                                        sessionEndStateSaved_ = false;
     UINT                                        taskbarCreatedMessage_ = 0;
 };

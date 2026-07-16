@@ -5,6 +5,9 @@
 #include <dwmapi.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cwchar>
+#include <iterator>
 
 #pragma comment(lib, "Dwmapi.lib")
 
@@ -16,11 +19,30 @@ runtime::Rect ToRuntimeRect(const RECT& rect) noexcept {
     return runtime::Rect{rect.left, rect.top, rect.right, rect.bottom};
 }
 
-bool IsCloaked(HWND hwnd) noexcept {
-    DWORD cloaked = 0;
-    return SUCCEEDED(DwmGetWindowAttribute(
-               hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked)))
-        && cloaked != 0;
+bool TryGetCloaked(HWND hwnd, bool& cloaked) noexcept {
+    DWORD cloakState = 0;
+    const HRESULT result = DwmGetWindowAttribute(
+        hwnd, DWMWA_CLOAKED, &cloakState, sizeof(cloakState));
+    if (FAILED(result)) return false;
+    cloaked = cloakState != 0;
+    return true;
+}
+
+bool IsShellSurface(HWND hwnd) noexcept {
+    if (hwnd == GetShellWindow() || hwnd == GetDesktopWindow()) {
+        return true;
+    }
+
+    wchar_t className[64]{};
+    if (GetClassNameW(
+            hwnd, className, static_cast<int>(std::size(className))) == 0) {
+        return false;
+    }
+
+    return std::wcscmp(className, L"Progman") == 0
+        || std::wcscmp(className, L"WorkerW") == 0
+        || std::wcscmp(className, L"Shell_TrayWnd") == 0
+        || std::wcscmp(className, L"Shell_SecondaryTrayWnd") == 0;
 }
 
 bool TryGetWindowBounds(HWND hwnd, runtime::Rect& bounds) noexcept {
@@ -37,11 +59,19 @@ bool TryGetWindowBounds(HWND hwnd, runtime::Rect& bounds) noexcept {
 }
 
 bool IsKnownOpaque(HWND hwnd) noexcept {
-    if (!hwnd || !IsWindowVisible(hwnd) || IsIconic(hwnd) || IsCloaked(hwnd)) {
+    if (!hwnd
+        || IsShellSurface(hwnd)
+        || !IsWindowVisible(hwnd)
+        || IsIconic(hwnd)) {
         return false;
     }
 
+    bool cloaked = false;
+    if (!TryGetCloaked(hwnd, cloaked) || cloaked) return false;
+
+    SetLastError(ERROR_SUCCESS);
     const LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    if (exStyle == 0 && GetLastError() != ERROR_SUCCESS) return false;
     if ((exStyle & WS_EX_TRANSPARENT) != 0) return false;
     if ((exStyle & WS_EX_NOREDIRECTIONBITMAP) != 0) return false;
 
@@ -121,7 +151,17 @@ BOOL CALLBACK CollectOccludingWindows(HWND hwnd, LPARAM value) {
 
 } // anonymous namespace
 
-VisibilityTracker* VisibilityTracker::instance_ = nullptr;
+struct VisibilityTracker::CallbackState {
+    std::mutex mutex;
+    HWND notificationWindow = nullptr;
+    UINT notificationMessage = 0;
+    bool active = true;
+    std::atomic<bool> notificationPending{false};
+};
+
+std::mutex VisibilityTracker::callbackRegistryMutex_;
+std::weak_ptr<VisibilityTracker::CallbackState>
+    VisibilityTracker::callbackRegistry_;
 
 VisibilityTracker::~VisibilityTracker() {
     Stop();
@@ -131,16 +171,25 @@ bool VisibilityTracker::Start(HWND notificationWindow,
                               UINT notificationMessage)
 {
     if (!notificationWindow || notificationMessage < WM_APP) return false;
-    if (instance_ && instance_ != this) return false;
     if (!hooks_.empty()) {
-        return notificationWindow_ == notificationWindow
-            && notificationMessage_ == notificationMessage;
+        const std::shared_ptr<CallbackState> state = callbackState_;
+        if (!state) return false;
+        std::lock_guard<std::mutex> lock(state->mutex);
+        return state->active
+            && state->notificationWindow == notificationWindow
+            && state->notificationMessage == notificationMessage;
     }
 
-    notificationWindow_ = notificationWindow;
-    notificationMessage_ = notificationMessage;
-    notificationPending_.store(false, std::memory_order_release);
-    instance_ = this;
+    const auto state = std::make_shared<CallbackState>();
+    state->notificationWindow = notificationWindow;
+    state->notificationMessage = notificationMessage;
+
+    {
+        std::lock_guard<std::mutex> lock(callbackRegistryMutex_);
+        if (!callbackRegistry_.expired()) return false;
+        callbackRegistry_ = state;
+    }
+    callbackState_ = state;
 
     const bool ok =
         AddHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND)
@@ -158,18 +207,36 @@ bool VisibilityTracker::Start(HWND notificationWindow,
 }
 
 void VisibilityTracker::Stop() noexcept {
-    for (HWINEVENTHOOK hook : hooks_) {
-        if (hook) UnhookWinEvent(hook);
+    const std::shared_ptr<CallbackState> state = callbackState_;
+    if (state) {
+        {
+            std::lock_guard<std::mutex> lock(callbackRegistryMutex_);
+            if (callbackRegistry_.lock() == state) {
+                callbackRegistry_.reset();
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->active = false;
+            state->notificationWindow = nullptr;
+            state->notificationMessage = 0;
+            state->notificationPending.store(
+                false, std::memory_order_release);
+        }
+    }
+
+    for (auto it = hooks_.rbegin(); it != hooks_.rend(); ++it) {
+        if (*it) UnhookWinEvent(*it);
     }
     hooks_.clear();
-    if (instance_ == this) instance_ = nullptr;
-    notificationPending_.store(false, std::memory_order_release);
-    notificationWindow_ = nullptr;
-    notificationMessage_ = 0;
+    callbackState_.reset();
 }
 
 void VisibilityTracker::AcknowledgeNotification() noexcept {
-    notificationPending_.store(false, std::memory_order_release);
+    const std::shared_ptr<CallbackState> state = callbackState_;
+    if (state) {
+        state->notificationPending.store(false, std::memory_order_release);
+    }
 }
 
 bool VisibilityTracker::TryGetForegroundBounds(
@@ -210,19 +277,6 @@ bool VisibilityTracker::AddHook(DWORD eventMin, DWORD eventMax) {
     return true;
 }
 
-void VisibilityTracker::Notify() noexcept {
-    if (!notificationWindow_ || notificationMessage_ == 0) return;
-
-    bool expected = false;
-    if (notificationPending_.compare_exchange_strong(
-            expected, true, std::memory_order_acq_rel)) {
-        if (!PostMessageW(
-                notificationWindow_, notificationMessage_, 0, 0)) {
-            notificationPending_.store(false, std::memory_order_release);
-        }
-    }
-}
-
 void CALLBACK VisibilityTracker::WinEventProc(
     HWINEVENTHOOK,
     DWORD event,
@@ -232,13 +286,36 @@ void CALLBACK VisibilityTracker::WinEventProc(
     DWORD,
     DWORD)
 {
-    VisibilityTracker* tracker = instance_;
-    if (!tracker) return;
-
     if (event >= EVENT_OBJECT_CREATE) {
         if (objectId != OBJID_WINDOW || childId != CHILDID_SELF) return;
     }
-    tracker->Notify();
+
+    std::shared_ptr<CallbackState> state;
+    {
+        std::lock_guard<std::mutex> lock(callbackRegistryMutex_);
+        state = callbackRegistry_.lock();
+    }
+    if (!state) return;
+
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (!state->active
+        || !state->notificationWindow
+        || state->notificationMessage == 0) {
+        return;
+    }
+
+    bool expected = false;
+    if (state->notificationPending.compare_exchange_strong(
+            expected, true, std::memory_order_acq_rel)) {
+        if (!PostMessageW(
+                state->notificationWindow,
+                state->notificationMessage,
+                0,
+                0)) {
+            state->notificationPending.store(
+                false, std::memory_order_release);
+        }
+    }
 }
 
 } // namespace desktopgrass

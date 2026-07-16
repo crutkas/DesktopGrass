@@ -9,24 +9,19 @@
 #include "../resource.h"
 
 #include <dbt.h>
-#include <powersetting.h>
-#include <wtsapi32.h>
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <string>
 #include <utility>
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "User32.lib")
-#pragma comment(lib, "Wtsapi32.lib")
 
 namespace desktopgrass {
 
 namespace {
 
 constexpr const wchar_t* kMsgWindowClass = L"DesktopGrass.Native.MessageWindow";
-constexpr DWORD kTermSrvReadyTimeoutMs = 10'000;
 
 runtime::Rect make_runtime_rect(const topology::PixelRect& bounds) {
     return runtime::Rect{
@@ -41,31 +36,6 @@ runtime::Rect make_runtime_rect(const topology::SurfaceSpec& surface) {
         surface.x + surface.widthPx,
         surface.y + surface.heightPx,
     };
-}
-
-bool register_session_notifications(HWND hwnd) {
-    if (WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION)) {
-        return true;
-    }
-    if (GetLastError() != RPC_S_INVALID_BINDING) {
-        return false;
-    }
-
-    HANDLE readyEvent = OpenEventW(
-        SYNCHRONIZE, FALSE, L"Global\\TermSrvReadyEvent");
-    if (!readyEvent) return false;
-
-    const DWORD waitResult =
-        WaitForSingleObject(readyEvent, kTermSrvReadyTimeoutMs);
-    CloseHandle(readyEvent);
-    if (waitResult != WAIT_OBJECT_0) {
-        SetLastError(
-            waitResult == WAIT_TIMEOUT ? ERROR_TIMEOUT : ERROR_GEN_FAILURE);
-        return false;
-    }
-
-    return WTSRegisterSessionNotification(
-               hwnd, NOTIFY_FOR_THIS_SESSION) != FALSE;
 }
 } // anonymous
 
@@ -138,121 +108,8 @@ void App::DestroyMessageWindow() {
     }
 }
 
-void App::SeedRuntimeState() {
-    runtimeState_ = {};
-
-    SYSTEM_POWER_STATUS power{};
-    if (GetSystemPowerStatus(&power)) {
-        switch (power.ACLineStatus) {
-            case 0:
-                runtimeState_.powerSource = runtime::PowerSource::Battery;
-                break;
-            case 1:
-                runtimeState_.powerSource = runtime::PowerSource::Ac;
-                break;
-            default:
-                runtimeState_.powerSource = runtime::PowerSource::Unknown;
-                break;
-        }
-        runtimeState_.saverEnabled = power.SystemStatusFlag != 0;
-    } else {
-        OutputDebugStringA(
-            "[DesktopGrass] GetSystemPowerStatus failed; power source is unknown\n");
-    }
-
-    if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId_)) {
-        sessionId_ = 0xFFFFFFFFu;
-        OutputDebugStringA(
-            "[DesktopGrass] ProcessIdToSessionId failed; session state is unknown\n");
-    }
-    runtimeState_.sessionState = QueryCurrentSessionState();
-}
-
-runtime::SessionState App::QueryCurrentSessionState() const {
-    LPWSTR buffer = nullptr;
-    DWORD bytesReturned = 0;
-    const DWORD querySession = sessionId_ == 0xFFFFFFFFu
-        ? WTS_CURRENT_SESSION
-        : sessionId_;
-
-    if (!WTSQuerySessionInformationW(
-            WTS_CURRENT_SERVER_HANDLE,
-            querySession,
-            WTSSessionInfoEx,
-            &buffer,
-            &bytesReturned)) {
-        OutputDebugStringA(
-            "[DesktopGrass] WTSQuerySessionInformation failed; session state is unknown\n");
-        return runtime::SessionState::Unknown;
-    }
-
-    runtime::SessionState result = runtime::SessionState::Unknown;
-    if (buffer && bytesReturned >= sizeof(WTSINFOEXW)) {
-        const auto* info = reinterpret_cast<const WTSINFOEXW*>(buffer);
-        if (info->Level == 1) {
-            const WTSINFOEX_LEVEL1_W& level = info->Data.WTSInfoExLevel1;
-            if (level.SessionState == WTSDisconnected) {
-                result = runtime::SessionState::Disconnected;
-            } else if (level.SessionFlags == WTS_SESSIONSTATE_LOCK) {
-                result = runtime::SessionState::Locked;
-            } else if (level.SessionFlags == WTS_SESSIONSTATE_UNLOCK) {
-                result = runtime::SessionState::Active;
-            } else if (level.SessionState == WTSActive) {
-                result = runtime::SessionState::Active;
-            }
-        }
-    }
-    WTSFreeMemory(buffer);
-    return result;
-}
-
 bool App::InitializeRuntimeNotifications() {
-    SeedRuntimeState();
-
-    acdcPowerNotification_ = RegisterPowerSettingNotification(
-        msgHwnd_, &GUID_ACDC_POWER_SOURCE, DEVICE_NOTIFY_WINDOW_HANDLE);
-    if (!acdcPowerNotification_) {
-        OutputDebugStringA(
-            "[DesktopGrass] RegisterPowerSettingNotification(AC/DC) failed\n");
-        ShutdownRuntimeNotifications();
-        return false;
-    }
-
-    saverNotification_ = RegisterPowerSettingNotification(
-        msgHwnd_, &GUID_POWER_SAVING_STATUS, DEVICE_NOTIFY_WINDOW_HANDLE);
-    if (!saverNotification_) {
-        OutputDebugStringA(
-            "[DesktopGrass] RegisterPowerSettingNotification(Battery Saver) failed\n");
-        ShutdownRuntimeNotifications();
-        return false;
-    }
-
-    displayNotification_ = RegisterPowerSettingNotification(
-        msgHwnd_, &GUID_SESSION_DISPLAY_STATUS, DEVICE_NOTIFY_WINDOW_HANDLE);
-    if (!displayNotification_) {
-        OutputDebugStringA(
-            "[DesktopGrass] RegisterPowerSettingNotification(display) failed\n");
-        ShutdownRuntimeNotifications();
-        return false;
-    }
-
-    suspendResumeNotification_ = RegisterSuspendResumeNotification(
-        msgHwnd_, DEVICE_NOTIFY_WINDOW_HANDLE);
-    if (!suspendResumeNotification_) {
-        OutputDebugStringA(
-            "[DesktopGrass] RegisterSuspendResumeNotification failed\n");
-        ShutdownRuntimeNotifications();
-        return false;
-    }
-
-    if (!register_session_notifications(msgHwnd_)) {
-        OutputDebugStringA(
-            "[DesktopGrass] WTSRegisterSessionNotification failed\n");
-        ShutdownRuntimeNotifications();
-        return false;
-    }
-    wtsNotificationRegistered_ = true;
-    runtimeState_.sessionState = QueryCurrentSessionState();
+    if (!runtimeNotifications_.Start(msgHwnd_)) return false;
 
     if (!visibilityTracker_.Start(
             msgHwnd_, kVisibilityChangedMessage)) {
@@ -269,27 +126,7 @@ bool App::InitializeRuntimeNotifications() {
 
 void App::ShutdownRuntimeNotifications() noexcept {
     visibilityTracker_.Stop();
-
-    if (wtsNotificationRegistered_) {
-        WTSUnRegisterSessionNotification(msgHwnd_);
-        wtsNotificationRegistered_ = false;
-    }
-    if (suspendResumeNotification_) {
-        UnregisterSuspendResumeNotification(suspendResumeNotification_);
-        suspendResumeNotification_ = nullptr;
-    }
-    if (displayNotification_) {
-        UnregisterPowerSettingNotification(displayNotification_);
-        displayNotification_ = nullptr;
-    }
-    if (saverNotification_) {
-        UnregisterPowerSettingNotification(saverNotification_);
-        saverNotification_ = nullptr;
-    }
-    if (acdcPowerNotification_) {
-        UnregisterPowerSettingNotification(acdcPowerNotification_);
-        acdcPowerNotification_ = nullptr;
-    }
+    runtimeNotifications_.Stop();
 }
 
 bool App::CreateTrayIcon() {
@@ -693,7 +530,8 @@ void App::ApplyRuntimePolicy() {
     runtimeDecisions_.resize(windows_.size());
 
     const runtime::Decision globalDecision =
-        runtime::Evaluate(runtimeState_, {}, config_.targetFps);
+        runtime::Evaluate(
+            runtimeNotifications_.State(), {}, config_.targetFps);
     const bool globallyPaused =
         runtime::IsGlobalPause(globalDecision.pauseReason);
 
@@ -708,7 +546,9 @@ void App::ApplyRuntimePolicy() {
 
     for (std::size_t i = 0; i < windows_.size(); ++i) {
         const runtime::Decision decision = runtime::Evaluate(
-            runtimeState_, surfaceStates_[i], config_.targetFps);
+            runtimeNotifications_.State(),
+            surfaceStates_[i],
+            config_.targetFps);
         runtimeDecisions_[i] = decision;
 
         const bool visibilitySuppressed =
@@ -892,111 +732,6 @@ void App::HandleSessionEnding(bool ending) {
     }
 }
 
-LRESULT App::HandlePowerBroadcast(WPARAM event, LPARAM data) {
-    if (event == PBT_APMSUSPEND) {
-        runtimeState_.suspended = true;
-        runtimeStateDirty_ = true;
-        return TRUE;
-    }
-
-    if (event == PBT_APMRESUMEAUTOMATIC
-        || event == PBT_APMRESUMESUSPEND) {
-        runtimeState_.suspended = false;
-        runtimeStateDirty_ = true;
-        visibilityStateDirty_ = true;
-        return TRUE;
-    }
-
-    if (event != PBT_POWERSETTINGCHANGE) {
-        return DefWindowProcW(msgHwnd_, WM_POWERBROADCAST, event, data);
-    }
-
-    const auto* setting =
-        reinterpret_cast<const POWERBROADCAST_SETTING*>(data);
-    if (!setting || setting->DataLength < sizeof(DWORD)) {
-        OutputDebugStringA(
-            "[DesktopGrass] Ignoring malformed power-setting notification\n");
-        return TRUE;
-    }
-
-    DWORD value = 0;
-    std::memcpy(&value, setting->Data, sizeof(value));
-    if (IsEqualGUID(setting->PowerSetting, GUID_ACDC_POWER_SOURCE)) {
-        switch (value) {
-        case 0:
-            runtimeState_.powerSource = runtime::PowerSource::Ac;
-            break;
-        case 1:
-            runtimeState_.powerSource = runtime::PowerSource::Battery;
-            break;
-        case 2:
-            runtimeState_.powerSource = runtime::PowerSource::ShortTerm;
-            break;
-        default:
-            runtimeState_.powerSource = runtime::PowerSource::Unknown;
-            break;
-        }
-    } else if (IsEqualGUID(
-                   setting->PowerSetting,
-                   GUID_POWER_SAVING_STATUS)) {
-        runtimeState_.saverEnabled = value != 0;
-    } else if (IsEqualGUID(
-                   setting->PowerSetting,
-                   GUID_SESSION_DISPLAY_STATUS)) {
-        switch (value) {
-        case 0:
-            runtimeState_.displayState = runtime::DisplayState::Off;
-            break;
-        case 1:
-            runtimeState_.displayState = runtime::DisplayState::On;
-            break;
-        case 2:
-            runtimeState_.displayState = runtime::DisplayState::Dimmed;
-            break;
-        default:
-            runtimeState_.displayState = runtime::DisplayState::Unknown;
-            break;
-        }
-    } else {
-        return TRUE;
-    }
-
-    runtimeStateDirty_ = true;
-    return TRUE;
-}
-
-void App::HandleWtsSessionChange(WPARAM event, LPARAM sessionId) {
-    if (sessionId_ != 0xFFFFFFFFu
-        && static_cast<DWORD>(sessionId) != sessionId_) {
-        return;
-    }
-
-    switch (event) {
-    case WTS_SESSION_LOCK:
-        runtimeState_.sessionState = runtime::SessionState::Locked;
-        break;
-    case WTS_CONSOLE_DISCONNECT:
-    case WTS_REMOTE_DISCONNECT:
-    case WTS_SESSION_LOGOFF:
-        runtimeState_.sessionState = runtime::SessionState::Disconnected;
-        break;
-    case WTS_SESSION_UNLOCK:
-        runtimeState_.sessionState = runtime::SessionState::Active;
-        visibilityStateDirty_ = true;
-        break;
-    case WTS_CONSOLE_CONNECT:
-    case WTS_REMOTE_CONNECT:
-    case WTS_SESSION_LOGON:
-        runtimeState_.sessionState = QueryCurrentSessionState();
-        visibilityStateDirty_ = true;
-        break;
-    default:
-        return;
-    }
-
-    runtimeStateDirty_ = true;
-}
-
 void App::HandleVisibilityNotification() {
     visibilityTracker_.AcknowledgeNotification();
     visibilityStateDirty_ = true;
@@ -1152,16 +887,18 @@ LRESULT App::HandleMessageWindowMessage(
             return 0;
 
         case WM_POWERBROADCAST:
-            {
-                const LRESULT result = HandlePowerBroadcast(wp, lp);
-                ApplyPendingRuntimeChanges();
-                return result;
-            }
-
         case WM_WTSSESSION_CHANGE:
-            HandleWtsSessionChange(wp, lp);
+        {
+            const RuntimeNotificationResult notification =
+                runtimeNotifications_.Dispatch(msg, wp, lp);
+            if (!notification.handled) break;
+            runtimeStateDirty_ =
+                runtimeStateDirty_ || notification.stateChanged;
+            visibilityStateDirty_ =
+                visibilityStateDirty_ || notification.visibilityChanged;
             ApplyPendingRuntimeChanges();
-            return 0;
+            return notification.result;
+        }
 
         case kVisibilityChangedMessage:
             HandleVisibilityNotification();
