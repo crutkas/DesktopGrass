@@ -66,6 +66,7 @@ private:
     void ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds);
     persistence::AppState BuildAppState();
     void SaveCurrentState();
+    void HandleSessionEnding(bool ending);
     void SetAutoStart(bool enabled);
     void UpdateSceneMenuCheck();
     void UpdateCritterMenuCheck();
@@ -100,6 +101,7 @@ private:
     FramePacer                                  pacer_{};
     bool                                        quitRequested_ = false;
     bool                                        displayChangePending_ = false;
+    bool                                        sessionEndStateSaved_ = false;
 };
 
 } // namespace desktopgrass

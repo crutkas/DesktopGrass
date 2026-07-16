@@ -170,6 +170,27 @@ TEST_CASE("persistence malformed json returns false", "[persistence]") {
     REQUIRE_FALSE(persistence::LoadAppState(actual));
 }
 
+TEST_CASE("persistence rejects oversized integer values safely", "[persistence]") {
+    const auto path = test_state_path("oversized-integers");
+    use_state_path(path);
+    write_text(path,
+        "{"
+        "\"version\": 2,"
+        "\"critterCount\": 1e300,"
+        "\"monitors\": {"
+        "  \"1920x1080@0,0\": {"
+        "    \"cuts\": [{ \"bladeIndex\": 1e300, \"cutTime\": -5.0 }]"
+        "  }"
+        "}"
+        "}");
+
+    persistence::AppState actual;
+    REQUIRE(persistence::LoadAppState(actual));
+    REQUIRE(actual.critterCountOverride == 0);
+    REQUIRE(actual.monitors.size() == 1);
+    REQUIRE(actual.monitors[0].cuts.empty());
+}
+
 TEST_CASE("persistence atomic write leaves final file and removes tmp", "[persistence]") {
     const auto path = test_state_path("atomic-write");
     use_state_path(path);

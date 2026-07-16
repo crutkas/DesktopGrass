@@ -463,6 +463,17 @@ void App::SaveCurrentState() {
     lastPersistenceSaveMs_ = GetTickCount64();
 }
 
+void App::HandleSessionEnding(bool ending) {
+    if (!ending) {
+        sessionEndStateSaved_ = false;
+        return;
+    }
+    if (!sessionEndStateSaved_) {
+        SaveCurrentState();
+        sessionEndStateSaved_ = true;
+    }
+}
+
 int App::Run() {
     MSG msg{};
     // Calm ambient content renders at the configured target fps (default 24
@@ -592,6 +603,18 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
         case WM_DISPLAYCHANGE:
         case GrassWindow::kWmAppDisplayChanged:
             displayChangePending_ = true;
+            return 0;
+
+        case WM_QUERYENDSESSION:
+            HandleSessionEnding(true);
+            return TRUE;
+
+        case WM_ENDSESSION:
+            HandleSessionEnding(wp != FALSE);
+            return 0;
+
+        case GrassWindow::kWmAppSessionEnding:
+            HandleSessionEnding(wp != FALSE);
             return 0;
 
         case WM_CLOSE:

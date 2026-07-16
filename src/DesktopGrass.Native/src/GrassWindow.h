@@ -21,6 +21,7 @@ public:
     static constexpr const wchar_t* kWindowClassName = L"DesktopGrass.Native.Window";
     static constexpr UINT           kWmAppQuit       = WM_APP + 1;
     static constexpr UINT           kWmAppDisplayChanged = WM_APP + 2;
+    static constexpr UINT           kWmAppSessionEnding = WM_APP + 3;
 
     static bool RegisterWindowClass(HINSTANCE hInst);
 

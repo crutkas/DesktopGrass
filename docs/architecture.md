@@ -24,7 +24,7 @@ All coordinates are in **DIPs** (device-independent pixels, 1 DIP = 1/96 inch). 
 
 - **Origin**: top-left of the window, matching Win32/Direct2D convention.
 - **y axis**: grows **downward** in screen space.
-- **Window placement**: the per-monitor window spans the monitor's full width. Its bottom edge sits on the monitor's bottom edge. Its height is `stripHeight + headroom` DIP (see constants table). The window is the algorithm's render surface; everything below is computed in window-local coordinates.
+- **Window placement**: the per-monitor window spans the monitor work area's full width. Its bottom edge sits on `MONITORINFO.rcWork.bottom`, immediately above a bottom-docked taskbar. Its height is `stripHeight + headroom` DIP (see constants table). The window is the algorithm's render surface; everything below is computed in window-local coordinates.
 - **Ground line**: `groundY = windowHeight` (the bottom edge of the window in window-local coordinates). Blades anchor here.
 
 For clarity, the spec talks about a blade's **`height` above ground** as a positive scalar. The visible blade length is:
@@ -2626,4 +2626,3 @@ Per raindrop, both implementations MUST draw fields in this exact order: `size`,
 Render each raindrop as a slim line from `(x, y)` to `(x - vx * 0.03, y + size)` using `RAINDROP_COLOR` and `RAINDROP_THICKNESS`; the horizontal tail suggests subtle motion blur. Switching away from Grass stops new emission but preserves existing raindrops so they softly fade out through normal lifetime expiry rather than hard-cutting.
 
 </details>
-

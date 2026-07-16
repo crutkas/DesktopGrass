@@ -72,6 +72,8 @@ private:
     void Cleanup();
     bool CreateDeviceResources();
     bool CreateSwapChainResources(int widthPx, int heightPx);
+    bool TryRestoreDeviceResources();
+    void HandleDeviceLoss(const char* operation, HRESULT hr);
     void DiscardDeviceResources();
     void DrawGrass(bool treesOnly, bool backgroundTrees);
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
@@ -169,6 +171,7 @@ private:
     Sim                                    sim_{};
     std::unordered_map<uint64_t, double>   petNameLastHover_;
     bool                                   initialized_ = false;
+    ULONGLONG                              nextDeviceRecoveryAttemptMs_ = 0;
 };
 
 } // namespace desktopgrass

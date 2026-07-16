@@ -1,10 +1,10 @@
 # DesktopGrass
 
 A small, "just for fun" Windows app that draws a procedurally generated patch of
-the outside world along the bottom edge of every monitor, on top of all windows
-(including the taskbar). Click-through — input passes through to whatever is
-underneath. The design philosophy is **passive and calm**: ambient touches only,
-no engagement loops, no toys.
+the outside world along the bottom edge of every monitor's work area, immediately
+above its taskbar. The strip stays topmost and click-through, so input passes to
+whatever is underneath. The design philosophy is **passive and calm**: ambient
+touches only, no engagement loops, no toys.
 
 ![DesktopGrass in action](docs/assets/grass.gif)
 
@@ -212,6 +212,12 @@ The Native impl carries a canonical snapshot
 (`tests/DesktopGrass.Native.Tests/snapshot_data.h`) that the Win2D impl's tests
 cross-check against indirectly via the shared spec.
 
+## PowerToys migration
+
+The Native implementation is the selected PowerToys candidate. The ordered
+work items, dependencies, and acceptance gates are tracked in
+[`docs/powertoys-migration.md`](docs/powertoys-migration.md).
+
 ## Roadmap
 
 Possible next directions, in no particular order:
@@ -222,3 +228,6 @@ Possible next directions, in no particular order:
 - A settings UI (currently held off — passive philosophy prefers tray-only
   controls; revisit if the tray menu starts feeling cluttered).
 
+## License
+
+DesktopGrass is licensed under the [MIT License](LICENSE).

@@ -13,8 +13,8 @@ across scenes (and, in future, optimization variants).
 - **Per-process CPU%, working set, private bytes, IO** — sampled at 1 Hz by
   polling `Get-Process -Id <pid>` from the driver script. CPU% is normalised
   to logical-core count, so `100%` = one full core.
-- **Effective FPS** — `frame_count / wall_seconds`. Useful for spotting cells
-  where the renderer is falling behind the 30 fps pacing target.
+- **Effective FPS** — `frame_count / in-process duration`. Useful for spotting
+  cells where the renderer is falling behind the 24 fps production pacing target.
 
 Things explicitly **not** measured today:
 
@@ -67,7 +67,7 @@ Supported flags (`--key=value` or `--key value`):
 | `--duration=SEC` | 60 | Run length. |
 | `--width=PX` | primary work-area width | Render strip width. |
 | `--height=PX` | STRIP_HEIGHT+HEADROOM | Logged in the CSV header; actual HWND height is fixed by spec. |
-| `--fps=N` | 30 | Pacing target. |
+| `--fps=N` | 24 | Pacing target. |
 | `--out=PATH` | none | Per-frame CSV path. Omit to skip the dump. |
 | `--hidden` | off | `SW_HIDE` instead of `SW_SHOWNOACTIVATE`. Off by default so the production code path is exercised. |
 

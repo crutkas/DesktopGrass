@@ -6,7 +6,7 @@
 # Stats per cell:
 #   frame_p50_ms, frame_p95_ms, frame_p99_ms  (from per-frame render_ms)
 #   dt_p95_ms                                 (from per-frame dt_ms; reveals stalls)
-#   effective_fps                             (frame count / wall duration)
+#   effective_fps                             (frame count / in-process duration)
 #   cpu_pct_mean, cpu_pct_p95                 (sampler, normalized by NLogical)
 #   working_set_mb_peak                       (sampler)
 #   private_mb_peak                           (sampler)
@@ -78,9 +78,14 @@ foreach ($entry in $manifest) {
     $renderMs = @()
     $dtMs     = @()
     $frameCount = 0
+    $targetFps = $null
     if (Test-Path $framePath) {
         # The frame CSV starts with a `# scene=...` comment line we need to skip.
         $framesRaw = Get-Content $framePath
+        $header = $framesRaw | Where-Object { $_ -match '^\s*#' } | Select-Object -First 1
+        if ($header -match '\btarget_fps=(\d+)\b') {
+            $targetFps = [int]$Matches[1]
+        }
         $framesCsv = $framesRaw | Where-Object { $_ -notmatch '^\s*#' }
         $framesObj = $framesCsv | ConvertFrom-Csv
         $renderMs  = @($framesObj | ForEach-Object { [double]$_.render_ms })
@@ -99,7 +104,28 @@ foreach ($entry in $manifest) {
         $privMb = @($samplesObj | ForEach-Object { [double]$_.private_mb })
     }
 
-    $effFps = if ($entry.WallSec -gt 0) { $frameCount / $entry.WallSec } else { 0 }
+    if ($entry.PSObject.Properties['TargetFps']) {
+        $targetFps = [int]$entry.TargetFps
+    }
+
+    $benchmarkSec = 0.0
+    $effFps = 0.0
+    $logPath = Join-Path $ResultDir $entry.LogFile
+    if (Test-Path $logPath) {
+        $summary = Get-Content $logPath -Raw
+        if ($summary -match '\bduration_s=([0-9]+(?:\.[0-9]+)?)\s+fps=([0-9]+(?:\.[0-9]+)?)\b') {
+            $benchmarkSec = [double]$Matches[1]
+            $effFps = [double]$Matches[2]
+        }
+    }
+    if ($benchmarkSec -le 0) {
+        $benchmarkSec = if ($entry.DurationSec -gt 0) {
+            [double]$entry.DurationSec
+        } else {
+            [double]$entry.WallSec
+        }
+        $effFps = if ($benchmarkSec -gt 0) { $frameCount / $benchmarkSec } else { 0 }
+    }
 
     $cellStats.Add([pscustomobject]@{
         Scene             = $entry.Scene
@@ -107,7 +133,9 @@ foreach ($entry in $manifest) {
         Variant           = $entry.Variant
         Run               = $entry.Run
         FrameCount        = $frameCount
+        BenchmarkSec      = $benchmarkSec
         WallSec           = [double]$entry.WallSec
+        TargetFps         = $targetFps
         EffectiveFps      = $effFps
         FrameP50Ms        = Percentile -Values $renderMs -P 50
         FrameP95Ms        = Percentile -Values $renderMs -P 95
@@ -173,6 +201,9 @@ if ($machine) {
     [void]$md.AppendLine("- OS: $($machine.OSVersion)")
     [void]$md.AppendLine("- Logical CPUs: $($machine.LogicalCpus)")
     [void]$md.AppendLine("- Per-run duration: $($machine.DurationSec)s, sample interval: $($machine.SampleIntervalSec)s")
+    if ($machine.PSObject.Properties['TargetFps']) {
+        [void]$md.AppendLine("- Target FPS: $($machine.TargetFps)")
+    }
     [void]$md.AppendLine("- Exe: ``$($machine.Exe)``")
     [void]$md.AppendLine("- Sweep start: $($machine.UtcStart)")
     [void]$md.AppendLine('')
@@ -199,14 +230,14 @@ foreach ($r in $rows) {
 [void]$md.AppendLine('')
 [void]$md.AppendLine('## Per-run detail')
 [void]$md.AppendLine('')
-[void]$md.AppendLine('| Cell | Scene | Variant | Run | Frames | Wall s | FPS | render p50 | render p95 | render p99 | dt p95 | CPU% mean | WS peak MB | Exit |')
+[void]$md.AppendLine('| Cell | Scene | Variant | Run | Frames | Bench s | FPS | render p50 | render p95 | render p99 | dt p95 | CPU% mean | WS peak MB | Exit |')
 [void]$md.AppendLine('|---|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|')
 foreach ($c in $cellStats) {
     [void]$md.AppendLine(('| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} |' -f `
         ('scene{0}-{1}-{2}-run{3}' -f $c.Scene, $c.SceneName.ToLowerInvariant(), $c.Variant, $c.Run),
         $c.SceneName, $c.Variant, $c.Run,
         $c.FrameCount,
-        (Fmt $c.WallSec 2),
+        (Fmt $c.BenchmarkSec 2),
         (Fmt $c.EffectiveFps 2),
         (Fmt $c.FrameP50Ms 3),
         (Fmt $c.FrameP95Ms 3),
@@ -219,7 +250,7 @@ foreach ($c in $cellStats) {
 [void]$md.AppendLine('')
 [void]$md.AppendLine('## Columns')
 [void]$md.AppendLine('')
-[void]$md.AppendLine('- **FPS**: frames written / wall-clock seconds. Target is 30; lower means the renderer ran behind pacing.')
+[void]$md.AppendLine('- **FPS**: frames written / the benchmark process''s in-process measurement duration. The target is recorded in `machine.json` and each frame CSV (24 by default).')
 [void]$md.AppendLine('- **render p50/p95/p99 ms**: time spent inside `Renderer::RenderFrame` per frame (QPC-bracketed in-process).')
 [void]$md.AppendLine('- **dt p95 ms**: 95th percentile time between successive frames. Stalls / scheduler interference show up here, not in render_ms.')
 [void]$md.AppendLine('- **CPU% mean / p95**: 100% = one full core. Renderer using one full core reads as 100, two cores as 200, etc. Sampled at 1Hz via `Process.TotalProcessorTime`.')

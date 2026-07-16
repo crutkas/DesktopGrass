@@ -289,8 +289,8 @@ function Get-GrassStripPixelVariance {
     )
 
     # Primary monitor's *work area* (excludes the taskbar). The grass renders
-    # on top of the taskbar (at the bottom of the work area), so we sample the
-    # strip ending at WorkingArea.Bottom rather than Bounds.Bottom.
+    # immediately above a bottom-docked taskbar, so sample the strip ending at
+    # WorkingArea.Bottom rather than Bounds.Bottom.
     $primary = [System.Windows.Forms.Screen]::PrimaryScreen
     if ($null -eq $primary) {
         Add-Type -AssemblyName System.Windows.Forms | Out-Null
