@@ -20,6 +20,9 @@ entries are grouped by date instead.
   release commitment.
 - **CI no longer publishes managed release artifacts.** Native remains the
   downloadable build while Managed retains source-rot detection.
+- **The default `DesktopGrass.slnx` now contains only the supported Native app
+  and tests.** Managed remains buildable directly from its project files and
+  continues to receive CI build/unit coverage.
 
 ---
 

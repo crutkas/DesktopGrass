@@ -105,7 +105,10 @@ Native.
 | [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# / .NET 10 + Vortice Direct2D + DirectComposition | Build and unit coverage for reproducibility; no feature-parity, active platform-hardening, or release commitment |
 
 The managed project may receive narrowly scoped build or test maintenance needed
-to prevent source rot. Native changes do not need to be ported to it.
+to prevent source rot. Native changes do not need to be ported to it. The
+default [`DesktopGrass.slnx`](DesktopGrass.slnx) contains only the supported
+Native app and tests; Managed is built and tested directly from its project
+files in CI.
 
 > **History:** the repo originally shipped four parallel implementations to
 > compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the
