@@ -19,10 +19,11 @@ Run commands from the repository root.
   (ARM64 builds land under `out\ARM64\Release\`).
 
 The managed C#/Vortice project is a source-available comparison/reference, not a
-release target. CI keeps its build and unit tests healthy for reproducibility.
-Its optional `Win2D` smoke target can help reproduce the historical comparison,
-but managed-only platform behavior is not a Native release or PowerToys
-readiness gate.
+release target. Its restore/build/test commands are retained as a commented CI
+recipe for manual reproduction, not run as required CI coverage. Its optional
+`Win2D` smoke target can help reproduce the historical comparison, but
+managed-only platform behavior is not a Native release or PowerToys readiness
+gate.
 
 ## Checklist — supported Native release
 

@@ -2,10 +2,10 @@
 
 > **Current support policy (2026-07-16):** Native is the supported standalone
 > implementation and only PowerToys candidate. The C#/Vortice implementation is
-> retained as a source-available comparison/reference with CI build and unit
-> coverage for reproducibility, but it is not a recommended run/download target
-> and has no ongoing feature-parity, platform-hardening, or release commitment.
-> WinUI 3 and WPF were removed after the comparison.
+> retained as a source-available comparison/reference with a manual build/unit
+> recipe for reproducibility, but it is outside active CI, is not a recommended
+> run/download target, and has no ongoing feature-parity, platform-hardening, or
+> release commitment. WinUI 3 and WPF were removed after the comparison.
 
 This document is the historical side-by-side comparison of the four
 implementations as they stood at the comparison point on `main`. A later

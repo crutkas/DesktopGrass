@@ -15,14 +15,15 @@ entries are grouped by date instead.
   candidate.** Product features, platform hardening, release checks, and
   downloadable artifacts target Native.
 - **The C#/Vortice implementation remains source-available as a buildable
-  comparison/reference.** Its build and unit tests remain covered for
-  reproducibility, but it has no ongoing feature-parity, platform-hardening, or
-  release commitment.
-- **CI no longer publishes managed release artifacts.** Native remains the
-  downloadable build while Managed retains source-rot detection.
+  comparison/reference.** Its build and unit commands remain available for
+  manual reproducibility, but it has no active CI, feature-parity,
+  platform-hardening, or release commitment.
+- **Managed CI and release publication are inactive.** Native is the only
+  required product gate and downloadable build. The workflow retains the
+  Managed restore/build/test steps as a commented manual recipe.
 - **The default `DesktopGrass.slnx` now contains only the supported Native app
   and tests.** Managed remains buildable directly from its project files and
-  continues to receive CI build/unit coverage.
+  does not participate in the default solution.
 
 ---
 

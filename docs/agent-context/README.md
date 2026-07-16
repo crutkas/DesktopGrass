@@ -7,9 +7,10 @@ without depending on a local `~/.copilot/session-state/` folder.
 > **Archive notice:** this snapshot records the original multi-implementation
 > comparison era. It is not the current support policy or roadmap. Native is the
 > supported implementation and only PowerToys candidate; Managed is a
-> source-available, build/unit-covered reference without an ongoing parity or
-> platform-hardening commitment. Start with the root [`README`](../../README.md)
-> and [`powertoys-migration.md`](../powertoys-migration.md).
+> source-available reference with a manual build/unit recipe, no active CI, and
+> no ongoing parity or platform-hardening commitment. Start with the root
+> [`README`](../../README.md) and
+> [`powertoys-migration.md`](../powertoys-migration.md).
 
 ## Layout
 

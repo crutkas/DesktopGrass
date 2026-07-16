@@ -102,13 +102,14 @@ Native.
 | Project | Role | Stack | Maintenance commitment |
 | --- | --- | --- | --- |
 | [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | **Supported product and PowerToys candidate** | C++ / Win32 + Direct2D + DirectComposition | Active product development, platform hardening, tests, and release artifacts |
-| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# / .NET 10 + Vortice Direct2D + DirectComposition | Build and unit coverage for reproducibility; no feature-parity, active platform-hardening, or release commitment |
+| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# / .NET 10 + Vortice Direct2D + DirectComposition | Manual build/unit recipe retained for reproducibility; no active CI, feature-parity, platform-hardening, or release commitment |
 
 The managed project may receive narrowly scoped build or test maintenance needed
 to prevent source rot. Native changes do not need to be ported to it. The
 default [`DesktopGrass.slnx`](DesktopGrass.slnx) contains only the supported
-Native app and tests; Managed is built and tested directly from its project
-files in CI.
+Native app and tests. Managed can be built and tested directly from its project
+files; CI retains those steps as a commented manual recipe rather than a
+required product gate.
 
 > **History:** the repo originally shipped four parallel implementations to
 > compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the
@@ -154,9 +155,9 @@ portable/downloadable product build.
 
 ## Reproducing the managed reference
 
-The C#/Vortice project remains buildable so the original comparison can be
-reproduced and accidental source rot is detected. These commands verify the
-reference; they do not produce a supported release:
+The C#/Vortice project remains source-available so the original comparison can
+be reproduced on demand. These commands verify the reference manually; they do
+not run in active CI or produce a supported release:
 
 ```powershell
 dotnet build src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj -c Release -p:Platform=x64
@@ -181,7 +182,7 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
   reference. It asserts click-through / topmost window styles and verifies
   rendering via screenshot pixel variance over the bottom strip.
 
-Run the maintained coverage:
+Run Native coverage and, when needed, reproduce the managed baseline:
 
 ```powershell
 # Native unit tests (x64; build with Platform=ARM64 for the ARM64 suite)

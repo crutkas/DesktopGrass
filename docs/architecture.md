@@ -2,9 +2,10 @@
 
 This document is the **single source of truth** for the supported
 `DesktopGrass.Native` grass simulation. `DesktopGrass.Win2D` contains the
-source-available managed port captured at the comparison freeze point. CI keeps
-that reference buildable and runs its unit tests for reproducibility, but future
-Native changes do not need to be ported to it.
+source-available managed port captured at the comparison freeze point. Its
+restore/build/test commands are retained as a commented CI recipe for manual
+reproduction, but it is not an active CI gate and future Native changes do not
+need to be ported to it.
 
 > **History:** the repo originally shipped four parallel implementations (Native, Win2D, packaged WinUI 3, vanilla WPF). The WinUI 3 and WPF impls were dropped after a head-to-head A/B because they were 3–10× heavier on working set than the Native and Win2D builds while offering no behavioral advantage for a transparent, click-through, topmost overlay. See `docs/comparison.md` for the full evaluation.
 
