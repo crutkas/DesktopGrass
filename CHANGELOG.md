@@ -8,6 +8,25 @@ entries are grouped by date instead.
 
 ---
 
+## 2026-07-16 — Freeze Managed as a comparison reference
+
+### Changed
+- **Native is now the supported standalone implementation and only PowerToys
+  candidate.** Product features, platform hardening, release checks, and
+  downloadable artifacts target Native.
+- **The C#/Vortice implementation remains source-available as a buildable
+  comparison/reference.** Its build and unit commands remain available for
+  manual reproducibility, but it has no active CI, feature-parity,
+  platform-hardening, or release commitment.
+- **Managed CI and release publication are inactive.** Native is the only
+  required product gate and downloadable build. The workflow retains the
+  Managed restore/build/test steps as a commented manual recipe.
+- **The default `DesktopGrass.slnx` now contains only the supported Native app
+  and tests.** Managed remains buildable directly from its project files and
+  does not participate in the default solution.
+
+---
+
 ## 2026-07-09 — Keep Native visible across DPI changes
 
 ### Fixed
@@ -877,8 +896,9 @@ entries are grouped by date instead.
   parallel impls (Native, Win2D, WinUI 3, WPF) for a head-to-head comparison.
   After A/B testing, WinUI 3 and WPF were 3-10× heavier on working set than
   Native and Win2D for the same overlay shape, with no behavioral advantage.
-  See [`docs/comparison.md`](docs/comparison.md). The Native and Win2D builds
-  are the supported implementations going forward.
+  See [`docs/comparison.md`](docs/comparison.md). Native and Win2D were selected
+  at that comparison stage; the 2026-07-16 entry records the later support
+  freeze.
 
 ---
 
@@ -929,8 +949,9 @@ entries are grouped by date instead.
   parallel impls (Native, Win2D, WinUI 3, WPF) for a head-to-head comparison.
   After A/B testing, WinUI 3 and WPF were 3-10× heavier on working set than
   Native and Win2D for the same overlay shape, with no behavioral advantage.
-  See [`docs/comparison.md`](docs/comparison.md). The Native and Win2D builds
-  are the supported implementations going forward.
+  See [`docs/comparison.md`](docs/comparison.md). Native and Win2D were selected
+  at that comparison stage; the 2026-07-16 entry records the later support
+  freeze.
 
 ---
 

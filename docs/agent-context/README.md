@@ -1,16 +1,24 @@
-# Agent context — resume on any machine
+# Agent context archive
 
 This folder is a portable snapshot of the Copilot CLI session that built
 DesktopGrass, so the same conversation can be picked up from any machine
 without depending on a local `~/.copilot/session-state/` folder.
 
+> **Archive notice:** this snapshot records the original multi-implementation
+> comparison era. It is not the current support policy or roadmap. Native is the
+> supported implementation and only PowerToys candidate; Managed is a
+> source-available reference with a manual build/unit recipe, no active CI, and
+> no ongoing parity or platform-hardening commitment. Start with the root
+> [`README`](../../README.md) and
+> [`powertoys-migration.md`](../powertoys-migration.md).
+
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `plan.md` | Current high-level plan, open questions, scratch state. Read this first. |
+| `plan.md` | Archived v1 comparison plan and scratch state. Read only for historical context. |
 | `checkpoints/index.md` | Numbered list of all prior checkpoints with one-line summaries. |
-| `checkpoints/NNN-*.md` | Detailed per-milestone hand-off notes (goal, files touched, technical decisions, follow-ups). Read the most recent few for live context, older ones on demand. |
+| `checkpoints/NNN-*.md` | Historical per-milestone hand-off notes (goal, files touched, technical decisions, follow-ups). |
 | `files/` | Persistent design artifacts the agent kept across checkpoints (e.g. `phase3-design.md`). |
 
 ## How to resume on a fresh machine
@@ -28,12 +36,13 @@ without depending on a local `~/.copilot/session-state/` folder.
 
 3. **Start Copilot CLI in the repo root** and prime it:
 
-   > Read `docs/agent-context/plan.md` and the last 2–3 checkpoints in
-   > `docs/agent-context/checkpoints/`, then continue from where we left off.
+   > Read the root `README.md` support policy and
+   > `docs/powertoys-migration.md` first. Consult
+   > `docs/agent-context/plan.md` and checkpoints only as historical context.
 
-   That re-hydrates the same working context — the agent will know about the
-   Native + Win2D split, the locked PRNG draw order, the scene framework,
-   the birch redesign, etc.
+   That establishes the current Native-only product scope while preserving
+   access to the original comparison decisions, PRNG draw order, scene
+   framework, birch redesign, and other implementation history.
 
 ## What does NOT move across machines
 

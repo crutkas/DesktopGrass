@@ -1,17 +1,20 @@
 # DesktopGrass smoke tests
 
-Screenshot-based smoke harness for the two DesktopGrass implementations
-(`Native`, `Win2D`). Designed to be the post-build sanity check
-that says "yes, this build actually painted something click-through on top
-of the desktop".
+Screenshot-based smoke harness for the supported Native implementation and the
+optional managed (`Win2D`) comparison/reference. Native smoke results are a
+product gate. The managed target is retained to reproduce the historical
+comparison; it does not imply release support, active platform hardening, or
+future feature parity.
 
 ## Running
 
 From the repo root:
 
 ```powershell
-pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
+
+# Optional managed-reference comparison
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -TimeoutSeconds 30
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
 ```
@@ -47,12 +50,12 @@ For v1 the harness is also runnable directly against the built exe (no
 `winapp ui` required) — that's the inner loop developers actually use.
 The current GitHub Actions workflow does not run this harness because its
 runner has no guaranteed interactive desktop; migration to PowerToys must wire
-the assertions into that repository's supported UI-test environment.
+the Native assertions into that repository's supported UI-test environment.
 
 ## Why no UIA assertions
 
-Both implementations render their content via Direct2D /
-DirectComposition. **None of that content is in the UIA tree in any
+The supported Native binary and managed reference both render their content via
+Direct2D / DirectComposition. **None of that content is in the UIA tree in any
 meaningful way** — it's the same blind spot WebView2 has with its DOM.
 A UIA-property assertion would either find nothing or, worse, succeed
 against an empty placeholder window that never actually painted.

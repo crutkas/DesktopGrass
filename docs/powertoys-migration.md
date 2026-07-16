@@ -6,12 +6,18 @@ Status date: 2026-07-16
 
 | Decision | Outcome |
 | --- | --- |
+| Repository support | Native is the supported standalone implementation and only PowerToys candidate. |
 | Implementation | Port the Native C++/Direct2D/DirectComposition implementation. |
 | Proposed hosting | Start with an in-process native PowerToys module, subject to explicit maintainer approval in PT-006. |
-| Managed implementation | Do not import the C#/Vortice implementation or its graphics dependencies. |
+| Managed implementation | Keep the C#/Vortice source and a commented restore/build/test recipe only as a reproducible comparison/reference. It is outside active CI; do not import it or its graphics dependencies. |
 | Standalone shell | Do not port the tray icon, Run-key auto-start, standalone entry point, private updater/installer behavior, or duplicate enable/disable lifecycle. |
 | License | DesktopGrass is MIT licensed. Catch2 remains BSL-1.0 test-only code and must retain its own notice if any of it is imported. |
 | Feature scope | Port existing behavior first. Do not add scenes, critters, or other features until the PowerToys module meets its quality gates. |
+
+Managed feature parity, release packaging, smoke hardening, and platform
+behavior are outside this backlog. Managed-only hardening work is not a blocker
+for Native standalone releases or PowerToys readiness. Required CI is scoped to
+the supported Native product so a frozen reference cannot block product work.
 
 ## Toolchain position
 

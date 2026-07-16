@@ -1,5 +1,12 @@
 # DesktopGrass — v1 Implementation Plan
 
+> **Archived plan:** this records the original side-by-side implementation
+> phase and is not the current roadmap. Native is now the supported
+> implementation and only PowerToys candidate. The C#/Vortice implementation is
+> retained as a source-available reference with a manual build/unit recipe, no
+> active CI, and no ongoing feature-parity or platform-hardening commitment. See
+> the root [`README`](../../README.md) for current policy.
+
 ## Problem & goals
 A small, "just for fun" Windows app that draws procedurally generated grass along the bottom edge of every monitor, on top of all windows (including the taskbar). The grass:
 

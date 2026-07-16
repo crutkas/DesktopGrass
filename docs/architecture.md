@@ -1,10 +1,22 @@
 # DesktopGrass — Shared Algorithm Specification
 
-This document is the **single source of truth** for the grass simulation. The two shipping implementations — `DesktopGrass.Native` (Win32 + Direct2D, C++) and `DesktopGrass.Win2D` (C# + Vortice Direct2D) — each port the algorithms below into their own language. There is no shared library; the spec **is** the contract.
+This document is the **single source of truth** for the supported
+`DesktopGrass.Native` grass simulation. `DesktopGrass.Win2D` contains the
+source-available managed port captured at the comparison freeze point. Its
+restore/build/test commands are retained as a commented CI recipe for manual
+reproduction, but it is not an active CI gate and future Native changes do not
+need to be ported to it.
 
 > **History:** the repo originally shipped four parallel implementations (Native, Win2D, packaged WinUI 3, vanilla WPF). The WinUI 3 and WPF impls were dropped after a head-to-head A/B because they were 3–10× heavier on working set than the Native and Win2D builds while offering no behavioral advantage for a transparent, click-through, topmost overlay. See `docs/comparison.md` for the full evaluation.
 
-For the product goals, window model, input model, and project layout, see [`plan.md`](../plan.md). This document covers only the math/state machine that every implementation must reproduce.
+For current product goals, support status, and project layout, see
+[`README.md`](../README.md). The original comparison plan is archived under
+[`docs/agent-context`](agent-context/README.md). This document covers the
+math/state machine used by Native and captured by the managed reference.
+
+> References below to "both implementations," parity, or lockstep describe the
+> frozen comparison baseline and its existing tests. They are not an ongoing
+> feature-parity or platform-hardening commitment.
 
 ---
 
@@ -12,7 +24,13 @@ For the product goals, window model, input model, and project layout, see [`plan
 
 DesktopGrass paints a strip of procedurally generated grass along the bottom of every monitor, on top of all windows, fully click-through. The strip sways gently on its own, reacts to cursor motion with localized gusts, and reacts to left-clicks by cutting blades.
 
-The v1 plan called for **four independent implementations** of the same feature set so they could be compared side-by-side on LoC, CPU/GPU cost, startup time, and binary size; two of those impls (WinUI 3, WPF) were dropped after the comparison and the remaining two (Native, Win2D) continue to ship together specifically so cross-impl conformance keeps the spec honest. To make that conformance meaningful, both impls must produce **pixel-equivalent output** for a given `(seed, monitorWidth, density)` and an identical event stream. This spec fixes every constant, function, and ordering decision needed to make that true.
+The v1 plan called for **four independent implementations** of the same feature
+set so they could be compared side-by-side on LoC, CPU/GPU cost, startup time,
+and binary size. WinUI 3 and WPF were removed after the comparison. At the
+managed freeze point, Native and Win2D produced **pixel-equivalent output** for
+a given `(seed, monitorWidth, density)` and identical event stream. This spec
+records the constants, functions, and ordering decisions behind that baseline
+while remaining the active contract for Native.
 
 Pseudocode is given in a C-like form chosen to port cleanly to C++ (Native), C# (Win2D), and any future Rust/Go port. Where a port idiom differs (e.g., `Math.Sin` vs `std::sin`), the spec uses the mathematical name (`sin`, `exp`, `sqrt`, `clamp`).
 
@@ -1731,9 +1749,11 @@ The three Ocean streams are independent and MUST NOT be interleaved with each ot
 
 ---
 
-## 12. Conformance
+## 12. Conformance and reference reproducibility
 
-Because every implementation ports this spec verbatim, the unit tests in `DesktopGrass.Native.Tests` and `DesktopGrass.Win2D.Tests` can share a single snapshot fixture.
+`DesktopGrass.Native.Tests` enforces the supported implementation's current
+contract. `DesktopGrass.Win2D.Tests` preserves the managed comparison baseline
+and detects accidental source rot against its existing snapshots.
 
 ### Canonical test seed
 
@@ -1759,7 +1779,11 @@ Tests at minimum SHOULD assert:
 
 6. **Idempotence.** Clicking twice on the same blade within the 200 ms cut window does not change the trajectory of the first cut. Clicking on an already-cut blade is a no-op.
 
-When any test in this list fails on a single impl, that impl has diverged from the spec — fix the impl, not the spec, unless the divergence reveals a spec ambiguity, in which case update this document first and propagate the fix to both impls.
+When a Native test fails, fix Native rather than weakening the spec unless the
+failure reveals a genuine ambiguity, in which case update this document first.
+A managed-only failure indicates source rot relative to the frozen reference;
+repair only what is needed to preserve reproducibility. New or changed Native
+behavior does not need to be propagated to Managed.
 
 ---
 
