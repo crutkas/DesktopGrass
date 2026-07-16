@@ -37,7 +37,7 @@ Each per-target check performs, in order:
 5. Poll physical-pixel screenshots of a grass HWND's bottom 80 px until the
    timeout, counting unique ARGB values sampled every 4th pixel. Fail if fewer
    than 50 colors appear.
-7. `PostMessage(WM_CLOSE)`; wait up to 2 s; force-kill if it hangs.
+6. `PostMessage(WM_CLOSE)`; wait up to 2 s; force-kill if it hangs.
 
 The process is cleaned up in a `finally` block — even if any assertion
 throws, no orphan `DesktopGrass.*.exe` is left running.
