@@ -151,6 +151,7 @@
     <ClInclude Include="src\Benchmark.h" />
     <ClInclude Include="src\Config.h" />
     <ClInclude Include="src\Constants.h" />
+    <ClInclude Include="src\DeviceRecovery.h" />
     <ClInclude Include="src\GrassWindow.h" />
     <ClInclude Include="src\Json.h" />
     <ClInclude Include="src\MouseHook.h" />
