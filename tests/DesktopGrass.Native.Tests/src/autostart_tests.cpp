@@ -61,6 +61,31 @@ std::wstring read_registry_value(const std::wstring& subkey) {
     return std::wstring(buffer.data());
 }
 
+bool registry_value_exists(const std::wstring& subkey) {
+    HKEY key = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS) {
+        return false;
+    }
+
+    const std::wstring valueName = autostart::GetRegistryValueName();
+    const LSTATUS queryStatus = RegQueryValueExW(
+        key, valueName.c_str(), nullptr, nullptr, nullptr, nullptr);
+    RegCloseKey(key);
+    return queryStatus == ERROR_SUCCESS;
+}
+
+void write_registry_value(const std::wstring& subkey, const std::wstring& value) {
+    HKEY key = nullptr;
+    REQUIRE(RegCreateKeyExW(
+        HKEY_CURRENT_USER, subkey.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE,
+        KEY_SET_VALUE, nullptr, &key, nullptr) == ERROR_SUCCESS);
+    const DWORD byteCount = static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t));
+    REQUIRE(RegSetValueExW(
+        key, autostart::GetRegistryValueName().c_str(), 0, REG_SZ,
+        reinterpret_cast<const BYTE*>(value.c_str()), byteCount) == ERROR_SUCCESS);
+    RegCloseKey(key);
+}
+
 std::filesystem::path test_state_path(const char* name) {
     std::filesystem::path dir = std::filesystem::current_path()
         / ".copilot-scratch"
@@ -97,12 +122,30 @@ TEST_CASE("autostart disable deletes registry value", "[autostart]") {
     REQUIRE_FALSE(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart registry value contains current exe path", "[autostart]") {
+TEST_CASE("autostart registry value contains quoted current exe path", "[autostart]") {
     AutoStartRegistrySandbox sandbox(L"path");
 
     REQUIRE(autostart::SetEnabled(true));
 
-    REQUIRE(read_registry_value(sandbox.subkey()) == autostart::GetCurrentExePath());
+    REQUIRE(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
+}
+
+TEST_CASE("autostart reconciliation repairs a stale command", "[autostart]") {
+    AutoStartRegistrySandbox sandbox(L"stale-command");
+    write_registry_value(sandbox.subkey(), L"\"C:\\Old\\DesktopGrass.Native.exe\"");
+
+    REQUIRE_FALSE(autostart::IsEnabled());
+    REQUIRE(autostart::ReconcileWithState(true));
+    REQUIRE(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
+}
+
+TEST_CASE("autostart reconciliation removes a stale command when disabled", "[autostart]") {
+    AutoStartRegistrySandbox sandbox(L"stale-command-disabled");
+    write_registry_value(sandbox.subkey(), L"\"C:\\Old\\DesktopGrass.Native.exe\"");
+
+    REQUIRE(registry_value_exists(sandbox.subkey()));
+    REQUIRE(autostart::ReconcileWithState(false));
+    REQUIRE_FALSE(registry_value_exists(sandbox.subkey()));
 }
 
 TEST_CASE("autostart enable is idempotent", "[autostart]") {

@@ -125,6 +125,18 @@ LRESULT GrassWindow::HandleMessage(UINT msg, WPARAM wp, LPARAM lp) {
             PostQuitMessage(0);
             return 0;
 
+        case WM_QUERYENDSESSION:
+            if (displayChangeHwnd_) {
+                SendMessageW(displayChangeHwnd_, kWmAppSessionEnding, TRUE, lp);
+            }
+            return TRUE;
+
+        case WM_ENDSESSION:
+            if (displayChangeHwnd_) {
+                SendMessageW(displayChangeHwnd_, kWmAppSessionEnding, wp, lp);
+            }
+            return 0;
+
         case WM_DPICHANGED: {
             // Resizing a live DirectComposition swap chain here can leave the
             // target detached if ResizeBuffers fails during the scale

@@ -75,6 +75,18 @@ TEST_CASE("Config: out-of-range values are clamped", "[config]") {
     CHECK(cfg.bladeDensity == Approx(config::kBladeDensityMin));
 }
 
+TEST_CASE("Config: oversized integer values fall back safely", "[config]") {
+    const std::filesystem::path path = test_config_path("oversized-integer");
+
+    write_text(path, "{ \"targetFps\": 1e300 }");
+    config::Config cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.targetFps == config::kTargetFpsDefault);
+
+    write_text(path, "{ \"targetFps\": -1e300 }");
+    cfg = config::LoadConfig(path.wstring());
+    CHECK(cfg.targetFps == config::kTargetFpsDefault);
+}
+
 TEST_CASE("Config: JSONC comments and trailing commas are tolerated", "[config]") {
     const std::filesystem::path path = test_config_path("jsonc");
     write_text(path,

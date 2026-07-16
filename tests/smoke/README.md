@@ -12,6 +12,7 @@ From the repo root:
 ```powershell
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -TimeoutSeconds 30
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
 ```
 
@@ -39,13 +40,14 @@ throws, no orphan `DesktopGrass.*.exe` is left running.
 
 The harness is shaped to slot into GitHub's `winapp ui` CLI (same pattern
 the [microsoft/calculator](https://github.com/microsoft/calculator) team
-uses): the implementation's CI workflow calls `winapp run <build-dir>` to
-launch the app under test, and a `winapp ui ...` verification step then
-invokes `Run-SmokeTests.ps1` against the resulting build output.
+uses): an interactive CI workflow can launch the app under test and invoke
+`Run-SmokeTests.ps1` against the resulting build output.
 
 For v1 the harness is also runnable directly against the built exe (no
 `winapp ui` required) — that's the inner loop developers actually use.
-`winapp ui` is the deployment vehicle for CI; the assertions are the same.
+The current GitHub Actions workflow does not run this harness because its
+runner has no guaranteed interactive desktop; migration to PowerToys must wire
+the assertions into that repository's supported UI-test environment.
 
 ## Why no UIA assertions
 

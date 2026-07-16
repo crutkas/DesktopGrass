@@ -6,7 +6,7 @@ Use this checklist for the release-time checks that the automated smoke harness 
 
 ## Setup
 
-Run commands from the repository root, `C:\Users\crutkas\source\DesktopGrass`.
+Run commands from the repository root.
 
 - **Native — Win32 + Direct2D (C++)**
   - Build from scratch:
@@ -31,13 +31,13 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 
 - [ ] Grass appears along the bottom of the primary monitor within 2 seconds of launch.
 - [ ] Grass appears on every connected monitor (test with at least 2 monitors).
-- [ ] Grass is bottom-aligned to each monitor's screen edge regardless of taskbar position (test with taskbar on the bottom, top, and a side).
+- [ ] Grass is bottom-aligned to each monitor's work area (immediately above a bottom-docked taskbar; test bottom, top, and side taskbar positions).
 - [ ] No window chrome, no title bar, no taskbar icon (`WS_EX_TOOLWINDOW`).
 
 ### Click-through behavior
 
 - [ ] Move the mouse over the grass — cursor shape is whatever's underneath, NOT a wait/loading/arrow imposed by our window.
-- [ ] Click an underlying taskbar button through the grass — the taskbar button activates (Start menu, an app icon, the clock).
+- [ ] Place an app window behind the strip and click a control through the grass — the underlying control activates.
 - [ ] Click a desktop icon through the grass — the icon receives focus / opens on double-click.
 - [ ] Drag-select on the desktop starting from a point covered by grass — the rubber band selection works as if the grass weren't there.
 
@@ -53,7 +53,7 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 - [ ] Left-click in the grass strip; blades within the cut radius visibly drop to a stump within ~200 ms (`docs/architecture.md` §9: 30 DIP radius, 0.2 sec duration).
 - [ ] Cut blades stay cut for the session.
 - [ ] Repeat-clicking already-cut blades is a no-op (no visual glitch, no stutter).
-- [ ] Clicking causes only a visual cut — the underlying surface still receives the click (e.g., right-clicking the taskbar still shows the taskbar context menu).
+- [ ] Clicking causes only a visual cut — the underlying app or desktop surface still receives the click.
 
 ### Display & DPI
 
@@ -84,13 +84,13 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 
 - [ ] Grass appears along the bottom of the primary monitor within 2 seconds of launch.
 - [ ] Grass appears on every connected monitor (test with at least 2 monitors).
-- [ ] Grass is bottom-aligned to each monitor's screen edge regardless of taskbar position (test with taskbar on the bottom, top, and a side).
+- [ ] Grass is bottom-aligned to each monitor's work area (immediately above a bottom-docked taskbar; test bottom, top, and side taskbar positions).
 - [ ] No window chrome, no title bar, no taskbar icon (`WS_EX_TOOLWINDOW`).
 
 ### Click-through behavior
 
 - [ ] Move the mouse over the grass — cursor shape is whatever's underneath, NOT a wait/loading/arrow imposed by our window.
-- [ ] Click an underlying taskbar button through the grass — the taskbar button activates (Start menu, an app icon, the clock).
+- [ ] Place an app window behind the strip and click a control through the grass — the underlying control activates.
 - [ ] Click a desktop icon through the grass — the icon receives focus / opens on double-click.
 - [ ] Drag-select on the desktop starting from a point covered by grass — the rubber band selection works as if the grass weren't there.
 
@@ -106,7 +106,7 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 - [ ] Left-click in the grass strip; blades within the cut radius visibly drop to a stump within ~200 ms (`docs/architecture.md` §9: 30 DIP radius, 0.2 sec duration).
 - [ ] Cut blades stay cut for the session.
 - [ ] Repeat-clicking already-cut blades is a no-op (no visual glitch, no stutter).
-- [ ] Clicking causes only a visual cut — the underlying surface still receives the click (e.g., right-clicking the taskbar still shows the taskbar context menu).
+- [ ] Clicking causes only a visual cut — the underlying app or desktop surface still receives the click.
 
 ### Display & DPI
 
@@ -131,11 +131,11 @@ Run the app for 10 minutes idle.
 
 ## Known limitations
 
-- Auto-start is opt-in via tray → Start with Windows and writes the per-impl HKCU Run value.
-- v1 has no settings UI. Constants are hard-coded per `docs/architecture.md`.
-- v1 has no persistence. Cut state is per-session.
-- v1 has no trees / regrowth / weather.
+- Auto-start is opt-in via tray → Start with Windows and writes the per-implementation HKCU Run value.
+- There is no settings UI. User-tunable animation values live in `config.json` and apply after restart.
+- The automated smoke harness checks the primary monitor only; multi-monitor, DPI, display-change, and long-run resource behavior remain manual release gates.
+- The custom-rendered scene is decorative and has no meaningful UI Automation tree. User controls are exposed through the tray menu.
 
 ## Reporting bugs
 
-File an issue in `[issue tracker placeholder]` with: impl name, Windows version, monitor configuration, and clear repro steps.
+File an issue at <https://github.com/crutkas/DesktopGrass/issues/new> with: implementation name, Windows version, monitor configuration, and clear repro steps.

@@ -34,6 +34,7 @@ void LogHR(const char* tag, HRESULT hr) {
 }
 
 constexpr float SHEEP_CURIOUS_VERTICAL_RADIUS_DIP = 120.0f;
+constexpr ULONGLONG DEVICE_RECOVERY_RETRY_MS = 1000;
 
 
 // Render-only shear that leans a tree about its trunk base (pivotGy) by a
@@ -61,6 +62,7 @@ void Renderer::Cleanup() {
     dcompTarget_.Reset();
     dcompDevice_.Reset();
     initialized_ = false;
+    nextDeviceRecoveryAttemptMs_ = 0;
 }
 
 bool Renderer::CreateDeviceResources() {
@@ -558,6 +560,41 @@ void Renderer::DiscardDeviceResources() {
     d3dDevice_.Reset();
 }
 
+bool Renderer::TryRestoreDeviceResources() {
+    DiscardDeviceResources();
+    dcompVisual_.Reset();
+    dcompTarget_.Reset();
+    dcompDevice_.Reset();
+
+    initialized_ = CreateDeviceResources()
+        && CreateSwapChainResources(widthPx_, heightPx_);
+    if (initialized_) {
+        nextDeviceRecoveryAttemptMs_ = 0;
+        return true;
+    }
+
+    DiscardDeviceResources();
+    dcompVisual_.Reset();
+    dcompTarget_.Reset();
+    dcompDevice_.Reset();
+    nextDeviceRecoveryAttemptMs_ = GetTickCount64() + DEVICE_RECOVERY_RETRY_MS;
+    OutputDebugStringA("[DesktopGrass] device recovery failed; retrying in 1 second\n");
+    return false;
+}
+
+void Renderer::HandleDeviceLoss(const char* operation, HRESULT hr) {
+    LogHR(operation, hr);
+    if (d3dDevice_) {
+        const HRESULT reason = d3dDevice_->GetDeviceRemovedReason();
+        if (FAILED(reason)) {
+            LogHR("ID3D11Device::GetDeviceRemovedReason", reason);
+        }
+    }
+
+    initialized_ = false;
+    TryRestoreDeviceResources();
+}
+
 bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
                           UINT dpi, uint64_t seed, double density,
                           double swaySpeed, double swayAmplitude)
@@ -577,6 +614,7 @@ bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
     sim_.swaySpeedScale = swaySpeed;
     sim_.swayAmpScale   = swayAmplitude;
     initialized_ = true;
+    nextDeviceRecoveryAttemptMs_ = 0;
     return true;
 }
 
@@ -682,9 +720,15 @@ void Renderer::RenderFrame(double dt,
                            const InputEvent* events,
                            std::size_t numEvents)
 {
-    if (!initialized_) return;
-
     Tick(dt, events, numEvents);
+
+    if (!initialized_) {
+        const ULONGLONG now = GetTickCount64();
+        if (nextDeviceRecoveryAttemptMs_ == 0 || now >= nextDeviceRecoveryAttemptMs_) {
+            TryRestoreDeviceResources();
+        }
+        return;
+    }
 
     d2dContext_->BeginDraw();
     // Fully transparent background so the layered window stays click-through.
@@ -702,14 +746,7 @@ void Renderer::RenderFrame(double dt,
 
     HRESULT hr = d2dContext_->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {
-        DiscardDeviceResources();
-        dcompVisual_.Reset();
-        dcompTarget_.Reset();
-        dcompDevice_.Reset();
-        initialized_ = false;
-        if (CreateDeviceResources() && CreateSwapChainResources(widthPx_, heightPx_)) {
-            initialized_ = true;
-        }
+        HandleDeviceLoss("EndDraw", hr);
         return;
     }
     if (FAILED(hr)) { LogHR("EndDraw", hr); }
@@ -717,14 +754,7 @@ void Renderer::RenderFrame(double dt,
     DXGI_PRESENT_PARAMETERS pp{};
     hr = swapChain_->Present1(1, 0, &pp);
     if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
-        DiscardDeviceResources();
-        dcompVisual_.Reset();
-        dcompTarget_.Reset();
-        dcompDevice_.Reset();
-        initialized_ = false;
-        if (CreateDeviceResources() && CreateSwapChainResources(widthPx_, heightPx_)) {
-            initialized_ = true;
-        }
+        HandleDeviceLoss("Present1", hr);
     } else if (FAILED(hr)) {
         LogHR("Present1", hr);
     }

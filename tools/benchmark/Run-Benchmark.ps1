@@ -36,6 +36,10 @@ param(
     # Per-run duration in seconds.
     [int]$DurationSec = 60,
 
+    # Frame pacing target. Matches the production default.
+    [ValidateRange(1, 240)]
+    [int]$TargetFps = 24,
+
     # Optional: override scene seed (default = use binary's built-in seed).
     [uint64]$Seed = 0,
 
@@ -137,6 +141,7 @@ $machine = [ordered]@{
     UtcStart          = (Get-Date).ToUniversalTime().ToString('o')
     Exe               = $Exe
     DurationSec       = $DurationSec
+    TargetFps         = $TargetFps
     SampleIntervalSec = $SampleIntervalSec
     Seed              = $Seed
 }
@@ -166,6 +171,7 @@ foreach ($scene in $Scenes) {
                 '--benchmark',
                 "--scene=$scene",
                 "--duration=$DurationSec",
+                "--fps=$TargetFps",
                 "--out=$frameCsv"
             )
             if ($Seed -ne 0) {
@@ -244,6 +250,7 @@ foreach ($scene in $Scenes) {
                 Variant      = $variant
                 Run          = $run
                 DurationSec  = $DurationSec
+                TargetFps    = $TargetFps
                 FrameCsv     = (Split-Path $frameCsv -Leaf)
                 SampleCsv    = (Split-Path $sampleCsv -Leaf)
                 LogFile      = (Split-Path $logFile -Leaf)

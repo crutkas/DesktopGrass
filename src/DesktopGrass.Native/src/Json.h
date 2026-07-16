@@ -9,8 +9,10 @@
 #pragma once
 
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <optional>
 #include <string>
@@ -306,7 +308,13 @@ inline const Value* FindMember(const Value& object, const std::string& name) {
 inline std::optional<int> ReadInt(const Value& object, const std::string& name) {
     const Value* value = FindMember(object, name);
     if (!value || value->type != Value::Type::Number) return std::nullopt;
-    return static_cast<int>(value->numberValue);
+    const double number = value->numberValue;
+    if (!std::isfinite(number)
+        || number < static_cast<double>(std::numeric_limits<int>::min())
+        || number > static_cast<double>(std::numeric_limits<int>::max())) {
+        return std::nullopt;
+    }
+    return static_cast<int>(number);
 }
 
 inline std::optional<double> ReadDouble(const Value& object, const std::string& name) {

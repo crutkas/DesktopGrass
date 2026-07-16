@@ -13,6 +13,9 @@ param(
 
     [string] $Platform = $(if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'ARM64' } else { 'x64' }),
 
+    [ValidateRange(1, 120)]
+    [int] $TimeoutSeconds = 15,
+
     [switch] $ContinueOnFailure
 )
 
@@ -23,7 +26,7 @@ Import-Module "$PSScriptRoot\Smoke.Common.psm1" -Force
 
 # Relative paths follow the build-output convention from the plan:
 #   * Native (MSBuild C++):  src\DesktopGrass.Native\out\<Platform>\<Config>\DesktopGrass.Native.exe
-#   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Config>\<TFM>\DesktopGrass.Win2D.exe
+#   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Platform>\<Config>\<TFM>\DesktopGrass.Win2D.exe
 # TFM is resolved lazily at run time so we don't hardcode net8.0-windows10.0.*.
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 
@@ -31,18 +34,17 @@ function Resolve-DotnetExe {
     param(
         [Parameter(Mandatory)] [string] $ProjectDir,
         [Parameter(Mandatory)] [string] $ExeName,
-        [Parameter(Mandatory)] [string] $Configuration
+        [Parameter(Mandatory)] [string] $Configuration,
+        [Parameter(Mandatory)] [string] $Platform
     )
-    $binConfig = Join-Path $ProjectDir "bin\$Configuration"
+    $binConfig = Join-Path $ProjectDir "bin\$Platform\$Configuration"
     if (-not (Test-Path -LiteralPath $binConfig)) {
         # Return the expected-but-missing path so the error message is useful.
         return (Join-Path $binConfig "<TFM>\$ExeName")
     }
-    # Walk the bin\<Config> tree to find the most-recently-written copy of
-    # the exe. This handles both the flat layout (Win2D: bin\Release\<TFM>\app.exe)
-    # and any future RID-nested layout (bin\Release\<TFM>\<RID>\app.exe) that
-    # appears when a project declares a RuntimeIdentifier. Recursion at
-    # depth 2 is bounded and cheap.
+    # Walk the bin\<Platform>\<Config> tree to find the most-recently-written
+    # copy of the exe. This handles both framework-dependent and RID-nested
+    # publish layouts.
     $found = Get-ChildItem -LiteralPath $binConfig -Filter $ExeName -File -Recurse -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($null -ne $found) { return $found.FullName }
@@ -63,7 +65,7 @@ $Targets = [ordered]@{
         WindowClass = 'DesktopGrass.Native.Window'
     }
     'Win2D'  = @{
-        ExePath     = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.Win2D')  -ExeName 'DesktopGrass.Win2D.exe'  -Configuration $Configuration
+        ExePath     = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.Win2D') -ExeName 'DesktopGrass.Win2D.exe' -Configuration $Configuration -Platform $Platform
         WindowClass = 'DesktopGrass.Win2D.Window'
     }
 }
@@ -84,7 +86,10 @@ foreach ($name in $selected) {
     if ($spec.Contains('WindowClass')) { Write-Host "    class: $($spec.WindowClass)" }
     if ($spec.Contains('TitleMatch'))  { Write-Host "    title: $($spec.TitleMatch)" }
 
-    $invokeArgs = @{ ExePath = $spec.ExePath }
+    $invokeArgs = @{
+        ExePath       = $spec.ExePath
+        TimeoutSeconds = $TimeoutSeconds
+    }
     if ($spec.Contains('WindowClass'))  { $invokeArgs.WindowClass  = $spec.WindowClass }
     if ($spec.Contains('TitleMatch'))   { $invokeArgs.TitleMatch   = $spec.TitleMatch }
     if ($spec.Contains('BeforeLaunch')) { $invokeArgs.BeforeLaunch = $spec.BeforeLaunch }

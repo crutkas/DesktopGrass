@@ -37,6 +37,11 @@ std::wstring GetCurrentExePath() {
     }
 }
 
+std::wstring GetRunCommand() {
+    const std::wstring path = GetCurrentExePath();
+    return path.empty() ? std::wstring{} : L"\"" + path + L"\"";
+}
+
 bool IsEnabled() {
     HKEY key = nullptr;
     const std::wstring subKey = GetRegistrySubKey();
@@ -47,12 +52,28 @@ bool IsEnabled() {
     }
 
     DWORD type = 0;
+    DWORD byteCount = 0;
     const std::wstring valueName = GetRegistryValueName();
-    const LSTATUS queryStatus = RegQueryValueExW(
-        key, valueName.c_str(), nullptr, &type, nullptr, nullptr);
+    LSTATUS queryStatus = RegQueryValueExW(
+        key, valueName.c_str(), nullptr, &type, nullptr, &byteCount);
+    if (queryStatus != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+        RegCloseKey(key);
+        return false;
+    }
+
+    std::vector<wchar_t> buffer(byteCount / sizeof(wchar_t) + 1, L'\0');
+    queryStatus = RegQueryValueExW(
+        key, valueName.c_str(), nullptr, &type,
+        reinterpret_cast<BYTE*>(buffer.data()), &byteCount);
     RegCloseKey(key);
 
-    return queryStatus == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ);
+    if (queryStatus != ERROR_SUCCESS) {
+        return false;
+    }
+
+    const std::wstring expected = GetRunCommand();
+    return !expected.empty()
+        && CompareStringOrdinal(buffer.data(), -1, expected.c_str(), -1, TRUE) == CSTR_EQUAL;
 }
 
 bool SetEnabled(bool on) {
@@ -60,8 +81,8 @@ bool SetEnabled(bool on) {
     const std::wstring valueName = GetRegistryValueName();
 
     if (on) {
-        const std::wstring path = GetCurrentExePath();
-        if (path.empty()) {
+        const std::wstring command = GetRunCommand();
+        if (command.empty()) {
             return false;
         }
 
@@ -73,10 +94,10 @@ bool SetEnabled(bool on) {
             return false;
         }
 
-        const DWORD byteCount = static_cast<DWORD>((path.size() + 1) * sizeof(wchar_t));
+        const DWORD byteCount = static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t));
         const LSTATUS setStatus = RegSetValueExW(
             key, valueName.c_str(), 0, REG_SZ,
-            reinterpret_cast<const BYTE*>(path.c_str()), byteCount);
+            reinterpret_cast<const BYTE*>(command.c_str()), byteCount);
         RegCloseKey(key);
         return setStatus == ERROR_SUCCESS;
     }
@@ -97,7 +118,9 @@ bool SetEnabled(bool on) {
 }
 
 bool ReconcileWithState(bool autoStart) {
-    return IsEnabled() == autoStart || SetEnabled(autoStart);
+    return autoStart
+        ? IsEnabled() || SetEnabled(true)
+        : SetEnabled(false);
 }
 
 void SetRegistryKeyOverride(const std::wstring& subkey) {
