@@ -53,8 +53,10 @@ LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
 bool install_mouse_hook(MouseEventQueue* queue) noexcept {
     if (g_hook) return false;
-    QueryPerformanceFrequency(&g_qpcFreq);
-    QueryPerformanceCounter(&g_qpcStart);
+    if (g_qpcFreq.QuadPart == 0) {
+        QueryPerformanceFrequency(&g_qpcFreq);
+        QueryPerformanceCounter(&g_qpcStart);
+    }
     g_queue.store(queue, std::memory_order_release);
     g_hook = SetWindowsHookExW(WH_MOUSE_LL, LowLevelMouseProc,
                                GetModuleHandleW(nullptr), 0);

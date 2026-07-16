@@ -57,4 +57,9 @@ void FramePacer::WaitUntilNextFrame(double waitSec) {
         0, nullptr, waitMs, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 }
 
+void FramePacer::WaitForMessage() {
+    MsgWaitForMultipleObjectsEx(
+        0, nullptr, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+}
+
 } // namespace desktopgrass

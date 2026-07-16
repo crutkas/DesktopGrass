@@ -9,28 +9,73 @@
 #include "../resource.h"
 
 #include <dbt.h>
+#include <powersetting.h>
+#include <wtsapi32.h>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <utility>
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "User32.lib")
+#pragma comment(lib, "Wtsapi32.lib")
 
 namespace desktopgrass {
 
 namespace {
 
 constexpr const wchar_t* kMsgWindowClass = L"DesktopGrass.Native.MessageWindow";
+constexpr DWORD kTermSrvReadyTimeoutMs = 10'000;
 
+runtime::Rect make_runtime_rect(const topology::PixelRect& bounds) {
+    return runtime::Rect{
+        bounds.left, bounds.top, bounds.right, bounds.bottom,
+    };
+}
+
+runtime::Rect make_runtime_rect(const topology::SurfaceSpec& surface) {
+    return runtime::Rect{
+        surface.x,
+        surface.y,
+        surface.x + surface.widthPx,
+        surface.y + surface.heightPx,
+    };
+}
+
+bool register_session_notifications(HWND hwnd) {
+    if (WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION)) {
+        return true;
+    }
+    if (GetLastError() != RPC_S_INVALID_BINDING) {
+        return false;
+    }
+
+    HANDLE readyEvent = OpenEventW(
+        SYNCHRONIZE, FALSE, L"Global\\TermSrvReadyEvent");
+    if (!readyEvent) return false;
+
+    const DWORD waitResult =
+        WaitForSingleObject(readyEvent, kTermSrvReadyTimeoutMs);
+    CloseHandle(readyEvent);
+    if (waitResult != WAIT_OBJECT_0) {
+        SetLastError(
+            waitResult == WAIT_TIMEOUT ? ERROR_TIMEOUT : ERROR_GEN_FAILURE);
+        return false;
+    }
+
+    return WTSRegisterSessionNotification(
+               hwnd, NOTIFY_FOR_THIS_SESSION) != FALSE;
+}
 } // anonymous
 
 App::~App() {
+    SetMouseObservationEnabled(false);
+    ShutdownRuntimeNotifications();
     DestroyAllGrassWindows();
     RemoveTrayIcon();
     if (trayMenu_) { DestroyMenu(trayMenu_); trayMenu_ = nullptr; }
     DestroyMessageWindow();
-    uninstall_mouse_hook();
 }
 
 bool App::Initialize(HINSTANCE hInst) {
@@ -57,13 +102,9 @@ bool App::Initialize(HINSTANCE hInst) {
 
     if (!GrassWindow::RegisterWindowClass(hInst_)) return false;
     if (!CreateMessageWindow())                    return false;
+    if (!InitializeRuntimeNotifications())         return false;
     if (!CreateTrayIcon())                         return false;
     if (!ReconcileDisplayTopology())               return false;
-
-    if (!install_mouse_hook(&queue_)) {
-        OutputDebugStringA("[DesktopGrass] install_mouse_hook failed\n");
-        // Non-fatal — the grass will still sway, just no gusts/cuts.
-    }
 
     return true;
 }
@@ -94,6 +135,160 @@ void App::DestroyMessageWindow() {
             OutputDebugStringA(
                 "[DesktopGrass] unable to destroy message window\n");
         }
+    }
+}
+
+void App::SeedRuntimeState() {
+    runtimeState_ = {};
+
+    SYSTEM_POWER_STATUS power{};
+    if (GetSystemPowerStatus(&power)) {
+        switch (power.ACLineStatus) {
+            case 0:
+                runtimeState_.powerSource = runtime::PowerSource::Battery;
+                break;
+            case 1:
+                runtimeState_.powerSource = runtime::PowerSource::Ac;
+                break;
+            default:
+                runtimeState_.powerSource = runtime::PowerSource::Unknown;
+                break;
+        }
+        runtimeState_.saverEnabled = power.SystemStatusFlag != 0;
+    } else {
+        OutputDebugStringA(
+            "[DesktopGrass] GetSystemPowerStatus failed; power source is unknown\n");
+    }
+
+    if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId_)) {
+        sessionId_ = 0xFFFFFFFFu;
+        OutputDebugStringA(
+            "[DesktopGrass] ProcessIdToSessionId failed; session state is unknown\n");
+    }
+    runtimeState_.sessionState = QueryCurrentSessionState();
+}
+
+runtime::SessionState App::QueryCurrentSessionState() const {
+    LPWSTR buffer = nullptr;
+    DWORD bytesReturned = 0;
+    const DWORD querySession = sessionId_ == 0xFFFFFFFFu
+        ? WTS_CURRENT_SESSION
+        : sessionId_;
+
+    if (!WTSQuerySessionInformationW(
+            WTS_CURRENT_SERVER_HANDLE,
+            querySession,
+            WTSSessionInfoEx,
+            &buffer,
+            &bytesReturned)) {
+        OutputDebugStringA(
+            "[DesktopGrass] WTSQuerySessionInformation failed; session state is unknown\n");
+        return runtime::SessionState::Unknown;
+    }
+
+    runtime::SessionState result = runtime::SessionState::Unknown;
+    if (buffer && bytesReturned >= sizeof(WTSINFOEXW)) {
+        const auto* info = reinterpret_cast<const WTSINFOEXW*>(buffer);
+        if (info->Level == 1) {
+            const WTSINFOEX_LEVEL1_W& level = info->Data.WTSInfoExLevel1;
+            if (level.SessionState == WTSDisconnected) {
+                result = runtime::SessionState::Disconnected;
+            } else if (level.SessionFlags == WTS_SESSIONSTATE_LOCK) {
+                result = runtime::SessionState::Locked;
+            } else if (level.SessionFlags == WTS_SESSIONSTATE_UNLOCK) {
+                result = runtime::SessionState::Active;
+            } else if (level.SessionState == WTSActive) {
+                result = runtime::SessionState::Active;
+            }
+        }
+    }
+    WTSFreeMemory(buffer);
+    return result;
+}
+
+bool App::InitializeRuntimeNotifications() {
+    SeedRuntimeState();
+
+    acdcPowerNotification_ = RegisterPowerSettingNotification(
+        msgHwnd_, &GUID_ACDC_POWER_SOURCE, DEVICE_NOTIFY_WINDOW_HANDLE);
+    if (!acdcPowerNotification_) {
+        OutputDebugStringA(
+            "[DesktopGrass] RegisterPowerSettingNotification(AC/DC) failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    saverNotification_ = RegisterPowerSettingNotification(
+        msgHwnd_, &GUID_POWER_SAVING_STATUS, DEVICE_NOTIFY_WINDOW_HANDLE);
+    if (!saverNotification_) {
+        OutputDebugStringA(
+            "[DesktopGrass] RegisterPowerSettingNotification(Battery Saver) failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    displayNotification_ = RegisterPowerSettingNotification(
+        msgHwnd_, &GUID_SESSION_DISPLAY_STATUS, DEVICE_NOTIFY_WINDOW_HANDLE);
+    if (!displayNotification_) {
+        OutputDebugStringA(
+            "[DesktopGrass] RegisterPowerSettingNotification(display) failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    suspendResumeNotification_ = RegisterSuspendResumeNotification(
+        msgHwnd_, DEVICE_NOTIFY_WINDOW_HANDLE);
+    if (!suspendResumeNotification_) {
+        OutputDebugStringA(
+            "[DesktopGrass] RegisterSuspendResumeNotification failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    if (!register_session_notifications(msgHwnd_)) {
+        OutputDebugStringA(
+            "[DesktopGrass] WTSRegisterSessionNotification failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+    wtsNotificationRegistered_ = true;
+    runtimeState_.sessionState = QueryCurrentSessionState();
+
+    if (!visibilityTracker_.Start(
+            msgHwnd_, kVisibilityChangedMessage)) {
+        OutputDebugStringA(
+            "[DesktopGrass] visibility WinEvent registration failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    runtimeStateDirty_ = true;
+    visibilityStateDirty_ = true;
+    return true;
+}
+
+void App::ShutdownRuntimeNotifications() noexcept {
+    visibilityTracker_.Stop();
+
+    if (wtsNotificationRegistered_) {
+        WTSUnRegisterSessionNotification(msgHwnd_);
+        wtsNotificationRegistered_ = false;
+    }
+    if (suspendResumeNotification_) {
+        UnregisterSuspendResumeNotification(suspendResumeNotification_);
+        suspendResumeNotification_ = nullptr;
+    }
+    if (displayNotification_) {
+        UnregisterPowerSettingNotification(displayNotification_);
+        displayNotification_ = nullptr;
+    }
+    if (saverNotification_) {
+        UnregisterPowerSettingNotification(saverNotification_);
+        saverNotification_ = nullptr;
+    }
+    if (acdcPowerNotification_) {
+        UnregisterPowerSettingNotification(acdcPowerNotification_);
+        acdcPowerNotification_ = nullptr;
     }
 }
 
@@ -436,11 +631,129 @@ bool App::ReconcileDisplayTopology() {
         OutputDebugStringA(
             "[DesktopGrass] display topology partially applied; will retry\n");
     }
+
+    surfaceStates_.assign(windows_.size(), {});
+    runtimeDecisions_.assign(windows_.size(), {});
+    visibilityStateDirty_ = true;
+    runtimeStateDirty_ = true;
+    ApplyPendingRuntimeChanges();
+
+    for (auto& window : windows_) {
+        window->Show();
+    }
     return !windows_.empty();
 }
 
 void App::DestroyAllGrassWindows() {
     windows_.clear();
+    surfaceStates_.clear();
+    runtimeDecisions_.clear();
+    anySurfaceRendering_ = false;
+    effectiveTargetFps_ = 0;
+}
+
+void App::ApplyPendingRuntimeChanges() {
+    if (visibilityStateDirty_) {
+        RefreshVisibilityState();
+    }
+    if (runtimeStateDirty_) {
+        ApplyRuntimePolicy();
+    }
+}
+
+void App::RefreshVisibilityState() {
+    surfaceStates_.resize(windows_.size());
+
+    runtime::Rect foregroundBounds;
+    const bool hasForeground =
+        visibilityTracker_.TryGetForegroundBounds(foregroundBounds);
+
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        GrassWindow& window = *windows_[i];
+        runtime::SurfaceState state;
+        state.fullscreen = hasForeground
+            && runtime::Covers(
+                foregroundBounds,
+                make_runtime_rect(window.GetMonitor().monitorBounds));
+        state.occluded = !state.fullscreen
+            && visibilityTracker_.IsFullyOccluded(
+                window.GetHwnd(),
+                make_runtime_rect(window.GetSurface()));
+        surfaceStates_[i] = state;
+    }
+
+    visibilityStateDirty_ = false;
+    runtimeStateDirty_ = true;
+}
+
+void App::ApplyRuntimePolicy() {
+    const bool wasRendering = anySurfaceRendering_;
+    anySurfaceRendering_ = false;
+    effectiveTargetFps_ = 0;
+    runtimeDecisions_.resize(windows_.size());
+
+    const runtime::Decision globalDecision =
+        runtime::Evaluate(runtimeState_, {}, config_.targetFps);
+    const bool globallyPaused =
+        runtime::IsGlobalPause(globalDecision.pauseReason);
+
+    if (globallyPaused
+        && !hardPauseStateSaved_
+        && !windows_.empty()) {
+        SaveCurrentState();
+        hardPauseStateSaved_ = true;
+    } else if (!globallyPaused) {
+        hardPauseStateSaved_ = false;
+    }
+
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        const runtime::Decision decision = runtime::Evaluate(
+            runtimeState_, surfaceStates_[i], config_.targetFps);
+        runtimeDecisions_[i] = decision;
+
+        const bool visibilitySuppressed =
+            surfaceStates_[i].fullscreen || surfaceStates_[i].occluded;
+        windows_[i]->SetSuppressed(!decision.show || visibilitySuppressed);
+
+        if (decision.render) {
+            anySurfaceRendering_ = true;
+            effectiveTargetFps_ = effectiveTargetFps_ == 0
+                ? decision.targetFps
+                : std::min(effectiveTargetFps_, decision.targetFps);
+        }
+    }
+
+    SetMouseObservationEnabled(anySurfaceRendering_);
+
+    if (!wasRendering && anySurfaceRendering_) {
+        QueryPerformanceCounter(&qpcLast_);
+        resumeFramePending_ = true;
+        lastTopologyPollMs_ = 0;
+    } else if (wasRendering && !anySurfaceRendering_) {
+        QueryPerformanceCounter(&qpcLast_);
+    }
+
+    runtimeStateDirty_ = false;
+}
+
+void App::SetMouseObservationEnabled(bool enabled) {
+    if (enabled) {
+        if (mouseHookInstalled_) return;
+        queue_.clear();
+        if (install_mouse_hook(&queue_)) {
+            mouseHookInstalled_ = true;
+        } else {
+            OutputDebugStringA(
+                "[DesktopGrass] install_mouse_hook failed; input effects are disabled\n");
+        }
+        return;
+    }
+
+    if (mouseHookInstalled_) {
+        uninstall_mouse_hook();
+        mouseHookInstalled_ = false;
+    }
+    queue_.clear();
 }
 
 void App::DispatchMouseEvents() {
@@ -453,7 +766,14 @@ void App::DispatchMouseEvents() {
 
         for (std::size_t i = 0; i < n; ++i) {
             const RawMouseEvent& e = raw[i];
-            for (auto& w : windows_) {
+            for (std::size_t windowIndex = 0;
+                 windowIndex < windows_.size();
+                 ++windowIndex) {
+                if (windowIndex >= runtimeDecisions_.size()
+                    || !runtimeDecisions_[windowIndex].render) {
+                    continue;
+                }
+                auto& w = windows_[windowIndex];
                 const topology::SurfaceSpec& surface = w->GetSurface();
                 const int right = surface.x + surface.widthPx;
                 const int bottom = surface.y + surface.heightPx;
@@ -500,8 +820,10 @@ void App::DispatchMouseEvents() {
 
 void App::RenderAllWindows(double dt) {
     DispatchMouseEvents();
-    for (auto& w : windows_) {
-        w->RenderFrame(dt, nullptr, 0);
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        if (i < runtimeDecisions_.size() && runtimeDecisions_[i].render) {
+            windows_[i]->RenderFrame(dt, nullptr, 0);
+        }
     }
 }
 
@@ -570,13 +892,118 @@ void App::HandleSessionEnding(bool ending) {
     }
 }
 
+LRESULT App::HandlePowerBroadcast(WPARAM event, LPARAM data) {
+    if (event == PBT_APMSUSPEND) {
+        runtimeState_.suspended = true;
+        runtimeStateDirty_ = true;
+        return TRUE;
+    }
+
+    if (event == PBT_APMRESUMEAUTOMATIC
+        || event == PBT_APMRESUMESUSPEND) {
+        runtimeState_.suspended = false;
+        runtimeStateDirty_ = true;
+        visibilityStateDirty_ = true;
+        return TRUE;
+    }
+
+    if (event != PBT_POWERSETTINGCHANGE) {
+        return DefWindowProcW(msgHwnd_, WM_POWERBROADCAST, event, data);
+    }
+
+    const auto* setting =
+        reinterpret_cast<const POWERBROADCAST_SETTING*>(data);
+    if (!setting || setting->DataLength < sizeof(DWORD)) {
+        OutputDebugStringA(
+            "[DesktopGrass] Ignoring malformed power-setting notification\n");
+        return TRUE;
+    }
+
+    DWORD value = 0;
+    std::memcpy(&value, setting->Data, sizeof(value));
+    if (IsEqualGUID(setting->PowerSetting, GUID_ACDC_POWER_SOURCE)) {
+        switch (value) {
+        case 0:
+            runtimeState_.powerSource = runtime::PowerSource::Ac;
+            break;
+        case 1:
+            runtimeState_.powerSource = runtime::PowerSource::Battery;
+            break;
+        case 2:
+            runtimeState_.powerSource = runtime::PowerSource::ShortTerm;
+            break;
+        default:
+            runtimeState_.powerSource = runtime::PowerSource::Unknown;
+            break;
+        }
+    } else if (IsEqualGUID(
+                   setting->PowerSetting,
+                   GUID_POWER_SAVING_STATUS)) {
+        runtimeState_.saverEnabled = value != 0;
+    } else if (IsEqualGUID(
+                   setting->PowerSetting,
+                   GUID_SESSION_DISPLAY_STATUS)) {
+        switch (value) {
+        case 0:
+            runtimeState_.displayState = runtime::DisplayState::Off;
+            break;
+        case 1:
+            runtimeState_.displayState = runtime::DisplayState::On;
+            break;
+        case 2:
+            runtimeState_.displayState = runtime::DisplayState::Dimmed;
+            break;
+        default:
+            runtimeState_.displayState = runtime::DisplayState::Unknown;
+            break;
+        }
+    } else {
+        return TRUE;
+    }
+
+    runtimeStateDirty_ = true;
+    return TRUE;
+}
+
+void App::HandleWtsSessionChange(WPARAM event, LPARAM sessionId) {
+    if (sessionId_ != 0xFFFFFFFFu
+        && static_cast<DWORD>(sessionId) != sessionId_) {
+        return;
+    }
+
+    switch (event) {
+    case WTS_SESSION_LOCK:
+        runtimeState_.sessionState = runtime::SessionState::Locked;
+        break;
+    case WTS_CONSOLE_DISCONNECT:
+    case WTS_REMOTE_DISCONNECT:
+    case WTS_SESSION_LOGOFF:
+        runtimeState_.sessionState = runtime::SessionState::Disconnected;
+        break;
+    case WTS_SESSION_UNLOCK:
+        runtimeState_.sessionState = runtime::SessionState::Active;
+        visibilityStateDirty_ = true;
+        break;
+    case WTS_CONSOLE_CONNECT:
+    case WTS_REMOTE_CONNECT:
+    case WTS_SESSION_LOGON:
+        runtimeState_.sessionState = QueryCurrentSessionState();
+        visibilityStateDirty_ = true;
+        break;
+    default:
+        return;
+    }
+
+    runtimeStateDirty_ = true;
+}
+
+void App::HandleVisibilityNotification() {
+    visibilityTracker_.AcknowledgeNotification();
+    visibilityStateDirty_ = true;
+}
+
 int App::Run() {
     MSG msg{};
-    // Calm ambient content renders at the configured target fps (default 24
-    // via Config.h kTargetFpsDefault) to keep per-frame CPU low; motion is
-    // time-based (dt), so the rate only changes how often the same animation
-    // is sampled. The user can override this in config.json (targetFps).
-    const double kTargetFrameSec = 1.0 / static_cast<double>(config_.targetFps);
 
     while (!quitRequested_) {
         // Drain pending messages without blocking.
@@ -591,8 +1018,13 @@ int App::Run() {
         if (quitRequested_) break;
 
         // Broadcasts can be missed or arrive while Windows is still converging
-        // on a new topology. A low-frequency full snapshot is the safety net;
-        // equal snapshots produce no window or persistence work.
+        // on a new topology. A low-frequency snapshot is the safety net while
+        // rendering; equal snapshots produce no window or persistence work.
+        ApplyPendingRuntimeChanges();
+        if (!anySurfaceRendering_) {
+            pacer_.WaitForMessage();
+            continue;
+        }
         const ULONGLONG tickMs = GetTickCount64();
         if (tickMs - lastTopologyPollMs_ >= 1000ull) {
             lastTopologyPollMs_ = tickMs;
@@ -601,14 +1033,20 @@ int App::Run() {
         if (displayChangePending_) {
             displayChangePending_ = false;
             ReconcileDisplayTopology();
+            ApplyPendingRuntimeChanges();
+            if (!anySurfaceRendering_) continue;
         }
 
         // Compute dt.
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
-        const double dt = static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
-                          static_cast<double>(qpcFreq_.QuadPart);
+        double dt = static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
+                    static_cast<double>(qpcFreq_.QuadPart);
         qpcLast_ = now;
+        if (resumeFramePending_) {
+            dt = std::min(dt, 1.0 / 30.0);
+            resumeFramePending_ = false;
+        }
 
         RenderAllWindows(dt);
 
@@ -627,7 +1065,9 @@ int App::Run() {
         QueryPerformanceCounter(&after);
         const double elapsedSec = static_cast<double>(after.QuadPart - now.QuadPart) /
                                   static_cast<double>(qpcFreq_.QuadPart);
-        const double remainingSec = kTargetFrameSec - elapsedSec;
+        const double targetFrameSec =
+            1.0 / static_cast<double>(effectiveTargetFps_);
+        const double remainingSec = targetFrameSec - elapsedSec;
         pacer_.WaitUntilNextFrame(remainingSec);
     }
 
@@ -709,6 +1149,23 @@ LRESULT App::HandleMessageWindowMessage(
         case WM_DEVICECHANGE:
         case GrassWindow::kWmAppDisplayChanged:
             displayChangePending_ = true;
+            return 0;
+
+        case WM_POWERBROADCAST:
+            {
+                const LRESULT result = HandlePowerBroadcast(wp, lp);
+                ApplyPendingRuntimeChanges();
+                return result;
+            }
+
+        case WM_WTSSESSION_CHANGE:
+            HandleWtsSessionChange(wp, lp);
+            ApplyPendingRuntimeChanges();
+            return 0;
+
+        case kVisibilityChangedMessage:
+            HandleVisibilityNotification();
+            ApplyPendingRuntimeChanges();
             return 0;
 
         case WM_QUERYENDSESSION:
