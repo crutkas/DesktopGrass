@@ -49,6 +49,9 @@ persistence::AppState make_state_with_cuts() {
 
     for (int i = 0; i < 3; ++i) {
         persistence::MonitorState monitor;
+        monitor.stableId = "display-" + std::to_string(i);
+        monitor.sourceId = "source-" + std::to_string(i);
+        monitor.layoutSeed = 0xABC000ull + static_cast<std::uint64_t>(i);
         monitor.width = 1920 + i * 320;
         monitor.height = 1080 + i * 120;
         monitor.left = i * 1920;
@@ -64,7 +67,7 @@ persistence::AppState make_state_with_cuts() {
 }
 
 void assert_state_equal(const persistence::AppState& expected, const persistence::AppState& actual) {
-    REQUIRE(actual.version == 2);
+    REQUIRE(actual.version == 3);
     REQUIRE(actual.scene == expected.scene);
     REQUIRE(actual.critter == expected.critter);
     REQUIRE(actual.critterCountOverride == expected.critterCountOverride);
@@ -74,16 +77,36 @@ void assert_state_equal(const persistence::AppState& expected, const persistence
     for (std::size_t i = 0; i < expected.monitors.size(); ++i) {
         const auto& e = expected.monitors[i];
         const auto& a = actual.monitors[i];
+        REQUIRE(a.stableId == e.stableId);
+        REQUIRE(a.sourceId == e.sourceId);
+        REQUIRE(a.layoutSeed == e.layoutSeed);
         REQUIRE(a.width == e.width);
         REQUIRE(a.height == e.height);
         REQUIRE(a.left == e.left);
         REQUIRE(a.top == e.top);
+        REQUIRE(a.workAreaBounds == e.workAreaBounds);
         REQUIRE(a.cuts.size() == e.cuts.size());
         for (std::size_t j = 0; j < e.cuts.size(); ++j) {
             REQUIRE(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);
             REQUIRE(a.cuts[j].cutTime == Approx(e.cuts[j].cutTime).margin(1e-9));
         }
+
     }
+}
+
+topology::MonitorSnapshot make_monitor_snapshot(
+    std::string stableId,
+    std::string sourceId,
+    const topology::PixelRect& monitorBounds,
+    const topology::PixelRect& workArea) {
+    topology::MonitorSnapshot snapshot;
+    snapshot.identity.stableId = std::move(stableId);
+    snapshot.identity.sourceId = std::move(sourceId);
+    snapshot.monitorBounds = monitorBounds;
+    snapshot.workArea = workArea;
+    snapshot.dpi = 96;
+    snapshot.primary = true;
+    return snapshot;
 }
 
 Blade make_blade(double regrowDelay, double regrowDuration) {
@@ -203,24 +226,13 @@ TEST_CASE("persistence atomic write leaves final file and removes tmp", "[persis
 }
 
 TEST_CASE("persistence monitor key format round-trips", "[persistence]") {
-    const auto path = test_state_path("monitor-key");
-    use_state_path(path);
-
-    persistence::AppState state;
     persistence::MonitorState monitor;
     monitor.width = 1920;
     monitor.height = 1080;
     monitor.left = 0;
     monitor.top = 0;
-    state.monitors.push_back(monitor);
-
-    REQUIRE(persistence::SaveAppState(state));
-    REQUIRE(read_text(path).find("\"1920x1080@0,0\"") != std::string::npos);
-
-    persistence::AppState loaded;
-    REQUIRE(persistence::LoadAppState(loaded));
-    REQUIRE(loaded.monitors.size() == 1);
-    REQUIRE(persistence::MonitorKey(loaded.monitors[0]) == "1920x1080@0,0");
+    REQUIRE(persistence::MonitorKey(monitor) == "1920x1080@0,0");
+    REQUIRE(persistence::MonitorKey(1920, 1080, 0, 0) == "1920x1080@0,0");
 }
 
 TEST_CASE("persistence cut timestamps shift for fresh sim load", "[persistence]") {
@@ -303,4 +315,189 @@ TEST_CASE("persistence json is human readable", "[persistence]") {
     REQUIRE(text.find('\n') != std::string::npos);
     REQUIRE(text.find("  \"version\"") != std::string::npos);
     REQUIRE(text.find("    \"") != std::string::npos);
+}
+
+TEST_CASE("persistence loads version two monitor geometry for migration",
+          "[persistence]") {
+    const auto path = test_state_path("v2-migration");
+    use_state_path(path);
+    write_text(path,
+        "{"
+        "\"version\":2,"
+        "\"scene\":\"Winter\","
+        "\"monitors\":{"
+        "\"1920x1040@0,0\":{\"cuts\":[{\"bladeIndex\":7,\"cutTime\":-4.0}]}"
+        "}"
+        "}");
+
+    persistence::AppState state;
+    REQUIRE(persistence::LoadAppState(state));
+    REQUIRE(state.version == 2);
+    REQUIRE(state.monitors.size() == 1);
+    REQUIRE(state.monitors[0].workAreaBounds);
+
+    const topology::PixelRect full{ 0, 0, 1920, 1080 };
+    const topology::PixelRect work{ 0, 0, 1920, 1040 };
+    const auto snapshot = make_monitor_snapshot(
+        "stable-a", "source-a", full, work);
+    const auto* legacy = persistence::FindMonitorState(state, snapshot);
+    REQUIRE(legacy != nullptr);
+    REQUIRE(legacy->cuts.size() == 1);
+
+    persistence::MonitorState migrated;
+    migrated.stableId = snapshot.identity.stableId;
+    migrated.sourceId = snapshot.identity.sourceId;
+    migrated.layoutSeed = topology::MakeLegacyLayoutSeed(snapshot.workArea);
+    migrated.width = snapshot.monitorBounds.Width();
+    migrated.height = snapshot.monitorBounds.Height();
+    migrated.left = snapshot.monitorBounds.left;
+    migrated.top = snapshot.monitorBounds.top;
+    migrated.cuts = legacy->cuts;
+    persistence::UpsertMonitorState(state, std::move(migrated), snapshot);
+    state.version = 3;
+
+    REQUIRE(state.monitors.size() == 1);
+    REQUIRE(persistence::SaveAppState(state));
+
+    persistence::AppState reloaded;
+    REQUIRE(persistence::LoadAppState(reloaded));
+    REQUIRE(reloaded.version == 3);
+    REQUIRE(reloaded.monitors[0].stableId == "stable-a");
+    REQUIRE(reloaded.monitors[0].layoutSeed
+            == topology::MakeLegacyLayoutSeed(work));
+
+    auto moved = snapshot;
+    moved.monitorBounds = topology::PixelRect{ -1920, 0, 0, 1080 };
+    moved.workArea = topology::PixelRect{ -1920, 0, 0, 1040 };
+    REQUIRE(persistence::FindMonitorState(reloaded, moved) != nullptr);
+}
+
+TEST_CASE("persistence loads version one monitor geometry for migration",
+          "[persistence]") {
+    const auto path = test_state_path("v1-migration");
+    use_state_path(path);
+    write_text(path,
+        "{"
+        "\"version\":1,"
+        "\"currentScene\":\"Desert\","
+        "\"monitors\":{"
+        "\"1280x984@-1280,0\":{\"cuts\":[{\"bladeIndex\":3,\"cutTime\":-2.0}]}"
+        "}"
+        "}");
+
+    persistence::AppState state;
+    REQUIRE(persistence::LoadAppState(state));
+    REQUIRE(state.version == 1);
+    REQUIRE(state.scene == Scene::Desert);
+    REQUIRE(state.monitors.size() == 1);
+    REQUIRE(state.monitors[0].workAreaBounds);
+    REQUIRE(state.monitors[0].cuts.size() == 1);
+}
+
+TEST_CASE("persistence refuses ambiguous legacy geometry matches",
+          "[persistence]") {
+    persistence::AppState state;
+    state.version = 2;
+    persistence::MonitorState first;
+    first.width = 1920;
+    first.height = 1040;
+    first.workAreaBounds = true;
+    persistence::MonitorState second = first;
+    state.monitors = { first, second };
+
+    const auto snapshot = make_monitor_snapshot(
+        "stable-a", "source-a",
+        topology::PixelRect{ 0, 0, 1920, 1080 },
+        topology::PixelRect{ 0, 0, 1920, 1040 });
+    REQUIRE(persistence::FindMonitorState(state, snapshot) == nullptr);
+}
+
+TEST_CASE("persistence stable identity survives geometry changes",
+          "[persistence]") {
+    persistence::AppState state;
+    persistence::MonitorState saved;
+    saved.stableId = "stable-a";
+    saved.sourceId = "source-a";
+    saved.layoutSeed = 42;
+    saved.width = 1920;
+    saved.height = 1080;
+    state.monitors.push_back(saved);
+
+    const auto snapshot = make_monitor_snapshot(
+        "stable-a", "source-a",
+        topology::PixelRect{ -2560, -200, 0, 1240 },
+        topology::PixelRect{ -2520, -200, 0, 1240 });
+    const auto* match = persistence::FindMonitorState(state, snapshot);
+    REQUIRE(match != nullptr);
+    REQUIRE(match->layoutSeed == 42);
+}
+
+TEST_CASE("persistence does not reuse a source alias for a different stable monitor",
+          "[persistence]") {
+    persistence::AppState state;
+    persistence::MonitorState saved;
+    saved.stableId = "stable-a";
+    saved.sourceId = "source-a";
+    saved.layoutSeed = 42;
+    saved.width = 1920;
+    saved.height = 1080;
+    state.monitors.push_back(saved);
+
+    const auto replacement = make_monitor_snapshot(
+        "stable-b", "source-a",
+        topology::PixelRect{ 0, 0, 1920, 1080 },
+        topology::PixelRect{ 0, 0, 1920, 1040 });
+    REQUIRE(persistence::FindMonitorState(state, replacement) == nullptr);
+}
+
+TEST_CASE("persistence upsert retains disconnected monitor records",
+          "[persistence]") {
+    persistence::AppState state;
+    persistence::MonitorState disconnected;
+    disconnected.stableId = "disconnected";
+    disconnected.sourceId = "source-old";
+    disconnected.layoutSeed = 100;
+    disconnected.width = 1920;
+    disconnected.height = 1080;
+    state.monitors.push_back(disconnected);
+
+    const auto activeSnapshot = make_monitor_snapshot(
+        "active", "source-active",
+        topology::PixelRect{ 0, 0, 2560, 1440 },
+        topology::PixelRect{ 0, 0, 2560, 1400 });
+    persistence::MonitorState active;
+    active.stableId = "active";
+    active.sourceId = "source-active";
+    active.layoutSeed = 200;
+    active.width = 2560;
+    active.height = 1440;
+    persistence::UpsertMonitorState(
+        state, std::move(active), activeSnapshot);
+
+    REQUIRE(state.monitors.size() == 2);
+    REQUIRE(state.monitors[0].stableId == "disconnected");
+    REQUIRE(state.monitors[1].stableId == "active");
+}
+
+TEST_CASE("persistence ignores malformed version three layout seeds safely",
+          "[persistence]") {
+    const auto path = test_state_path("malformed-layout-seed");
+    use_state_path(path);
+    write_text(path,
+        "{"
+        "\"version\":3,"
+        "\"monitors\":[{"
+        "\"id\":\"stable-a\","
+        "\"source\":\"source-a\","
+        "\"layoutSeed\":\"not-hex\","
+        "\"boundsKind\":\"monitor\","
+        "\"width\":1920,\"height\":1080,\"left\":0,\"top\":0,"
+        "\"cuts\":[]"
+        "}]"
+        "}");
+
+    persistence::AppState state;
+    REQUIRE(persistence::LoadAppState(state));
+    REQUIRE(state.monitors.size() == 1);
+    REQUIRE_FALSE(state.monitors[0].layoutSeed.has_value());
 }

@@ -63,6 +63,7 @@ $Targets = [ordered]@{
     'Native' = @{
         ExePath     = Join-Path $RepoRoot "src\DesktopGrass.Native\out\$Platform\$Configuration\DesktopGrass.Native.exe"
         WindowClass = 'DesktopGrass.Native.Window'
+        AssertMonitorTopology = $true
     }
     'Win2D'  = @{
         ExePath     = Resolve-DotnetExe -ProjectDir (Join-Path $RepoRoot 'src\DesktopGrass.Win2D') -ExeName 'DesktopGrass.Win2D.exe' -Configuration $Configuration -Platform $Platform
@@ -93,6 +94,9 @@ foreach ($name in $selected) {
     if ($spec.Contains('WindowClass'))  { $invokeArgs.WindowClass  = $spec.WindowClass }
     if ($spec.Contains('TitleMatch'))   { $invokeArgs.TitleMatch   = $spec.TitleMatch }
     if ($spec.Contains('BeforeLaunch')) { $invokeArgs.BeforeLaunch = $spec.BeforeLaunch }
+    if ($spec.Contains('AssertMonitorTopology')) {
+        $invokeArgs.AssertMonitorTopology = [bool]$spec.AssertMonitorTopology
+    }
 
     $r = Invoke-AppSmoke @invokeArgs
 

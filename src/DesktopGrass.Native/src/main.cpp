@@ -25,12 +25,28 @@ bool HasBenchmarkFlag(int argc, wchar_t** argv) {
     return false;
 }
 
+bool EnsurePerMonitorV2DpiAwareness() {
+    if (!SetProcessDpiAwarenessContext(
+            DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+        && GetLastError() != ERROR_ACCESS_DENIED) {
+        return false;
+    }
+
+    return AreDpiAwarenessContextsEqual(
+        GetThreadDpiAwarenessContext(),
+        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == TRUE;
+}
+
 } // anonymous
 
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
     // Per-Monitor V2 DPI awareness. Also declared in the manifest so OSes that
     // honour the manifest pick it up before WinMain runs.
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if (!EnsurePerMonitorV2DpiAwareness()) {
+        OutputDebugStringA(
+            "[DesktopGrass] Per-Monitor V2 DPI awareness is unavailable\n");
+        return -4;
+    }
 
     HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(hr)) {

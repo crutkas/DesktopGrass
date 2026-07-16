@@ -30,7 +30,9 @@ namespace DesktopGrass.Smoke
     public static class Win32
     {
         public const int GWL_EXSTYLE = -20;
+        public const int SM_CMONITORS = 80;
         public const uint WM_CLOSE = 0x0010;
+        public const uint MONITOR_DEFAULTTONULL = 0;
 
         public const long WS_EX_LAYERED     = 0x00080000;
         public const long WS_EX_TRANSPARENT = 0x00000020;
@@ -38,6 +40,24 @@ namespace DesktopGrass.Smoke
         public const long WS_EX_NOACTIVATE  = 0x08000000;
 
         public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MONITORINFO
+        {
+            public uint cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr FindWindowExW(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
@@ -59,6 +79,24 @@ namespace DesktopGrass.Smoke
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool IsWindowVisible(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool GetMonitorInfoW(IntPtr monitor, ref MONITORINFO info);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int index);
 
         // 64-bit safe variant; on 32-bit hosts CLR will marshal to GetWindowLongW.
         [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
@@ -114,6 +152,113 @@ namespace DesktopGrass.Smoke
             int read = GetWindowTextW(hwnd, sb, sb.Capacity);
             if (read <= 0) return string.Empty;
             return sb.ToString();
+        }
+
+        public static int AssertMonitorTopology(
+            uint processId,
+            string className,
+            double surfaceHeightDip)
+        {
+            // Make all geometry APIs return physical pixels, matching the PMv2
+            // Native process rather than virtualizing into the PowerShell host.
+            IntPtr previousContext =
+                SetThreadDpiAwarenessContext(new IntPtr(-4));
+            try
+            {
+                List<IntPtr> windows =
+                    EnumerateWindowsForProcess(processId, className);
+                int monitorCount = GetSystemMetrics(SM_CMONITORS);
+                if (monitorCount <= 0)
+                {
+                    throw new InvalidOperationException(
+                        "Windows reported no active display monitors.");
+                }
+                if (windows.Count != monitorCount)
+                {
+                    throw new InvalidOperationException(
+                        "monitor surface count mismatch: found "
+                        + windows.Count + " windows for " + monitorCount
+                        + " active monitors.");
+                }
+
+                var claimedMonitors = new HashSet<IntPtr>();
+                foreach (IntPtr hwnd in windows)
+                {
+                    long exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE).ToInt64();
+                    long requiredStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
+                        | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
+                    if ((exStyle & requiredStyle) != requiredStyle)
+                    {
+                        throw new InvalidOperationException(
+                            "monitor grass window is not click-through/topmost: "
+                            + hwnd + " exStyle=0x" + exStyle.ToString("X") + ".");
+                    }
+
+                    IntPtr monitor =
+                        MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
+                    if (monitor == IntPtr.Zero)
+                    {
+                        throw new InvalidOperationException(
+                            "grass window is not on an active monitor: " + hwnd);
+                    }
+                    if (!claimedMonitors.Add(monitor))
+                    {
+                        throw new InvalidOperationException(
+                            "multiple grass windows map to the same monitor.");
+                    }
+
+                    RECT windowRect;
+                    if (!GetWindowRect(hwnd, out windowRect))
+                    {
+                        throw new InvalidOperationException(
+                            "GetWindowRect failed for grass window: " + hwnd);
+                    }
+
+                    var monitorInfo = new MONITORINFO();
+                    monitorInfo.cbSize =
+                        (uint)Marshal.SizeOf(typeof(MONITORINFO));
+                    if (!GetMonitorInfoW(monitor, ref monitorInfo))
+                    {
+                        throw new InvalidOperationException(
+                            "GetMonitorInfoW failed for grass window: " + hwnd);
+                    }
+
+                    uint dpi = GetDpiForWindow(hwnd);
+                    if (dpi == 0)
+                    {
+                        throw new InvalidOperationException(
+                            "GetDpiForWindow returned zero for: " + hwnd);
+                    }
+                    int expectedHeight = (int)Math.Floor(
+                        surfaceHeightDip * dpi / 96.0 + 0.5);
+
+                    if (windowRect.Left != monitorInfo.rcWork.Left
+                        || windowRect.Right != monitorInfo.rcWork.Right
+                        || windowRect.Bottom != monitorInfo.rcWork.Bottom
+                        || windowRect.Bottom - windowRect.Top != expectedHeight)
+                    {
+                        throw new InvalidOperationException(
+                            "grass window bounds do not match monitor work area "
+                            + "and DPI: hwnd=" + hwnd
+                            + " window=(" + windowRect.Left + ","
+                            + windowRect.Top + "," + windowRect.Right + ","
+                            + windowRect.Bottom + ") work=("
+                            + monitorInfo.rcWork.Left + ","
+                            + monitorInfo.rcWork.Top + ","
+                            + monitorInfo.rcWork.Right + ","
+                            + monitorInfo.rcWork.Bottom + ") dpi=" + dpi
+                            + " expectedHeight=" + expectedHeight + ".");
+                    }
+                }
+                return windows.Count;
+            }
+            finally
+            {
+                if (previousContext != IntPtr.Zero)
+                {
+                    SetThreadDpiAwarenessContext(previousContext);
+                }
+            }
         }
     }
 }
@@ -285,58 +430,122 @@ function Assert-ClickThroughExStyles {
 function Get-GrassStripPixelVariance {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [int] $StripHeight
+        [Parameter(Mandatory)] [int] $StripHeight,
+        [IntPtr] $Hwnd = [IntPtr]::Zero
     )
 
-    # Primary monitor's *work area* (excludes the taskbar). The grass renders
-    # immediately above a bottom-docked taskbar, so sample the strip ending at
-    # WorkingArea.Bottom rather than Bounds.Bottom.
-    $primary = [System.Windows.Forms.Screen]::PrimaryScreen
-    if ($null -eq $primary) {
-        Add-Type -AssemblyName System.Windows.Forms | Out-Null
-        $primary = [System.Windows.Forms.Screen]::PrimaryScreen
-    }
-    $workArea = $primary.WorkingArea
-    $width  = [int]$workArea.Width
-    $top    = [int]($workArea.Y + $workArea.Height - $StripHeight)
-    $left   = [int]$workArea.X
-
-    $bmp = [System.Drawing.Bitmap]::new($width, $StripHeight, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    $unique = [System.Collections.Generic.HashSet[int]]::new()
+    $previousContext = [IntPtr]::Zero
     try {
-        $g = [System.Drawing.Graphics]::FromImage($bmp)
-        try {
-            $g.CopyFromScreen($left, $top, 0, 0, [System.Drawing.Size]::new($width, $StripHeight))
-        } finally {
-            $g.Dispose()
+        if ($Hwnd -ne [IntPtr]::Zero) {
+            $previousContext =
+                [DesktopGrass.Smoke.Win32]::SetThreadDpiAwarenessContext(
+                    [IntPtr]::new(-4))
+            $windowRect = [DesktopGrass.Smoke.Win32+RECT]::new()
+            if (-not [DesktopGrass.Smoke.Win32]::GetWindowRect(
+                    $Hwnd, [ref]$windowRect)) {
+                throw "GetWindowRect failed for rendering probe hwnd=$Hwnd."
+            }
+            $width = [int]($windowRect.Right - $windowRect.Left)
+            $top = [int]($windowRect.Bottom - $StripHeight)
+            $left = [int]$windowRect.Left
+        } else {
+            $primary = [System.Windows.Forms.Screen]::PrimaryScreen
+            if ($null -eq $primary) {
+                Add-Type -AssemblyName System.Windows.Forms | Out-Null
+                $primary = [System.Windows.Forms.Screen]::PrimaryScreen
+            }
+            $workArea = $primary.WorkingArea
+            $width  = [int]$workArea.Width
+            $top    = [int]($workArea.Y + $workArea.Height - $StripHeight)
+            $left   = [int]$workArea.X
         }
 
-        $step = 4
-        for ($y = 0; $y -lt $StripHeight; $y += $step) {
-            for ($x = 0; $x -lt $width; $x += $step) {
-                $argb = $bmp.GetPixel($x, $y).ToArgb()
-                [void]$unique.Add($argb)
+        $bmp = [System.Drawing.Bitmap]::new(
+            $width,
+            $StripHeight,
+            [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $unique = [System.Collections.Generic.HashSet[int]]::new()
+        try {
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            try {
+                $g.CopyFromScreen(
+                    $left,
+                    $top,
+                    0,
+                    0,
+                    [System.Drawing.Size]::new($width, $StripHeight))
+            } finally {
+                $g.Dispose()
             }
+
+            $step = 4
+            for ($y = 0; $y -lt $StripHeight; $y += $step) {
+                for ($x = 0; $x -lt $width; $x += $step) {
+                    $argb = $bmp.GetPixel($x, $y).ToArgb()
+                    [void]$unique.Add($argb)
+                }
+            }
+            return $unique.Count
+        } finally {
+            $bmp.Dispose()
         }
     } finally {
-        $bmp.Dispose()
+        if ($previousContext -ne [IntPtr]::Zero) {
+            [void][DesktopGrass.Smoke.Win32]::SetThreadDpiAwarenessContext(
+                $previousContext)
+        }
     }
-
-    return $unique.Count
 }
 
 function Assert-GrassRendered {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [int] $StripHeight,
-        [Parameter(Mandatory)] [int] $MinUniqueColors
+        [Parameter(Mandatory)] [int] $MinUniqueColors,
+        [IntPtr] $Hwnd = [IntPtr]::Zero,
+        [int] $TimeoutSeconds = 5
     )
 
-    $count = Get-GrassStripPixelVariance -StripHeight $StripHeight
-    if ($count -lt $MinUniqueColors) {
-        throw "grass strip pixel variance too low: $count unique colors (expected >= $MinUniqueColors). Nothing meaningful drew."
-    }
-    return $count
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $count = 0
+    do {
+        $count = Get-GrassStripPixelVariance -StripHeight $StripHeight -Hwnd $Hwnd
+        if ($count -ge $MinUniqueColors) {
+            return $count
+        }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "grass strip pixel variance too low: $count unique colors (expected >= $MinUniqueColors). Nothing meaningful drew."
+}
+
+function Assert-MonitorSurfaceTopology {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [System.Diagnostics.Process] $Process,
+        [Parameter(Mandatory)] [string] $WindowClass,
+        [double] $SurfaceHeightDip = 110,
+        [int] $TimeoutSeconds = 5
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lastError = $null
+    do {
+        if ($Process.HasExited) {
+            throw "process exited before monitor surfaces stabilized."
+        }
+        try {
+            return [DesktopGrass.Smoke.Win32]::AssertMonitorTopology(
+                [uint32]$Process.Id,
+                $WindowClass,
+                $SurfaceHeightDip)
+        } catch {
+            $lastError = $_.Exception
+            Start-Sleep -Milliseconds 100
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw $lastError
 }
 
 function Stop-AppGracefully {
@@ -390,6 +599,7 @@ function Invoke-AppSmoke {
         [int] $StripHeight    = 80,
         [int] $MinUniqueColors = 50,
         [int] $TimeoutSeconds  = 5,
+        [switch] $AssertMonitorTopology,
         [scriptblock] $BeforeLaunch
     )
 
@@ -428,12 +638,11 @@ function Invoke-AppSmoke {
 
         $hwnd = Wait-ForWindow @waitArgs
         [void](Assert-ClickThroughExStyles -Hwnd $hwnd)
+        if ($AssertMonitorTopology) {
+            [void](Assert-MonitorSurfaceTopology -Process $proc -WindowClass $WindowClass -TimeoutSeconds $TimeoutSeconds)
+        }
 
-        # Give the renderer (Direct2D / Composition / XAML composition) a
-        # beat to produce its first real frame.
-        Start-Sleep -Milliseconds 1500
-
-        $result.UniqueColors = Assert-GrassRendered -StripHeight $StripHeight -MinUniqueColors $MinUniqueColors
+        $result.UniqueColors = Assert-GrassRendered -StripHeight $StripHeight -MinUniqueColors $MinUniqueColors -Hwnd $hwnd -TimeoutSeconds $TimeoutSeconds
         $result.Pass = $true
     } catch {
         $result.FailReason = $_.Exception.Message
@@ -459,6 +668,7 @@ Export-ModuleMember -Function `
     Start-AppForSmoke, `
     Wait-ForWindow, `
     Assert-ClickThroughExStyles, `
+    Assert-MonitorSurfaceTopology, `
     Get-GrassStripPixelVariance, `
     Assert-GrassRendered, `
     Stop-AppGracefully, `

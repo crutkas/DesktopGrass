@@ -11,6 +11,7 @@
 
 #include <memory>
 
+#include "DisplayTopology.h"
 #include "Renderer.h"
 #include "MouseHook.h"
 
@@ -34,31 +35,37 @@ public:
     // Creates the HWND, attaches a Renderer, generates blades using `seed`.
     bool Create(HINSTANCE hInst,
                 HWND displayChangeHwnd,
-                const RECT& monitorBounds, UINT dpi,
+                const topology::MonitorSnapshot& monitor,
+                const topology::SurfaceSpec& surface,
                 uint64_t seed, double density,
                 double swaySpeed = 1.0, double swayAmplitude = 1.0);
 
     void Show();
     void Destroy();
+    bool MoveTo(const topology::MonitorSnapshot& monitor,
+                const topology::SurfaceSpec& surface);
+    void UpdateTopology(const topology::MonitorSnapshot& monitor,
+                       const topology::SurfaceSpec& surface);
     void RenderFrame(double dt,
                      const InputEvent* events, std::size_t numEvents);
 
     HWND      GetHwnd()  const { return hwnd_; }
-    UINT      GetDpi() const { return dpi_; }
+    UINT      GetDpi() const { return surface_.dpi; }
     Renderer& GetRenderer()     { return renderer_; }
-    const RECT& GetScreenBounds() const { return screenBounds_; }
-    const RECT& GetMonitorBounds() const { return monitorBounds_; }
+    const topology::MonitorSnapshot& GetMonitor() const { return monitor_; }
+    const topology::SurfaceSpec& GetSurface() const { return surface_; }
+    uint64_t GetLayoutSeed() const { return layoutSeed_; }
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
-    LRESULT HandleMessage(UINT msg, WPARAM wp, LPARAM lp);
+    LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
     HWND       hwnd_ = nullptr;
     HWND       displayChangeHwnd_ = nullptr;
     Renderer   renderer_;
-    RECT       screenBounds_{}; // window screen-rect (left, top, right, bottom)
-    RECT       monitorBounds_{}; // monitor work-area rect used for persistence keys
-    UINT       dpi_   = 96;
+    topology::MonitorSnapshot monitor_{};
+    topology::SurfaceSpec surface_{};
+    uint64_t layoutSeed_ = 0;
 };
 
 } // namespace desktopgrass
