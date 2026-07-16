@@ -20,6 +20,10 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
 
+      - name: Test benchmark scripts
+        shell: pwsh
+        run: tests/benchmark/Run-BenchmarkTests.ps1
+
       # --- Native (C++ / Win32 + Direct2D) ---
       - name: Build Native (x64, Release)
         run: msbuild src/DesktopGrass.Native/DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo
