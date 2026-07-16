@@ -1,16 +1,26 @@
 # DesktopGrass implementation comparison
 
-> **Status (post-comparison):** the WinUI 3 and WPF implementations were **removed from `main`** after the head-to-head A/B documented below. Only Native and Win2D continue to ship. A second round of evaluation done after this document was written added a steady-state working-set measurement (Native 55 MB, Win2D 99 MB, WinUI 3 158 MB, WPF 579 MB) and confirmed the build-experience friction described here was matched by a runtime-footprint penalty. The WinUI 3 / WPF rows below are retained as the historical record that justifies the removal — do not treat them as live impls.
+> **Current support policy (2026-07-16):** Native is the supported standalone
+> implementation and only PowerToys candidate. The C#/Vortice implementation is
+> retained as a source-available comparison/reference with CI build and unit
+> coverage for reproducibility, but it is not a recommended run/download target
+> and has no ongoing feature-parity, platform-hardening, or release commitment.
+> WinUI 3 and WPF were removed after the comparison.
 
-This is a side-by-side comparison of the four DesktopGrass implementations as they stood at the comparison point on `main`.
+This document is the historical side-by-side comparison of the four
+implementations as they stood at the comparison point on `main`. A later
+steady-state working-set measurement (Native 55 MB, Win2D 99 MB, WinUI 3
+158 MB, WPF 579 MB) reinforced the runtime-footprint conclusion. Historical
+rows and recommendations below explain the selection; they do not define the
+current support policy.
 
 ## TL;DR
 
-| Impl | LoC headline | Release exe | Dependencies | Idiomatic fit | Friction level |
-| --- | ---: | ---: | --- | --- | --- |
-| Native (`src\DesktopGrass.Native`) | 2,221 | 39 KB | Win32 + Direct2D + DirectComposition; no vcpkg runtime deps | Best fit for a transparent, click-through, topmost desktop overlay | Low |
-| Win2D-ish / Vortice (`src\DesktopGrass.Win2D`) | 1,030 track headline; 1,823 current full tree | 152 KB | .NET 8 WindowsDesktop + Vortice Direct2D/DXGI/DComp + WinForms tray | Good managed mirror of the native model while retaining HWND/DComp control | Medium |
-| WinUI 3 (`src\DesktopGrass.WinUI3`) | 2,433 track headline; 2,124 current full tree | 272 KB | WinAppSDK + Microsoft.UI.Composition + Win2D geometry + H.NotifyIcon | Good when you actually want the WinUI app model; awkward for a raw overlay | High |
+| Impl | Current role | LoC headline | Release exe | Dependencies | Idiomatic fit | Friction level |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| Native (`src\DesktopGrass.Native`) | **Supported product / PowerToys candidate** | 2,221 | 39 KB | Win32 + Direct2D + DirectComposition; no vcpkg runtime deps | Best fit for a transparent, click-through, topmost desktop overlay | Low |
+| Win2D-ish / Vortice (`src\DesktopGrass.Win2D`) | **Source-available managed reference** | 1,030 track headline; 1,823 current full tree | 152 KB | .NET 8 WindowsDesktop + Vortice Direct2D/DXGI/DComp + WinForms tray | Good managed mirror of the native model at the comparison point | Medium |
+| WinUI 3 (`src\DesktopGrass.WinUI3`) | **Removed historical track** | 2,433 track headline; 2,124 current full tree | 272 KB | WinAppSDK + Microsoft.UI.Composition + Win2D geometry + H.NotifyIcon | Good when you actually want the WinUI app model; awkward for a raw overlay | High |
 
 ## Methodology
 
@@ -26,11 +36,11 @@ Measured/inspected:
 
 Not formally measured in v1:
 
-- Runtime CPU, GPU, memory, startup time, and long-run stability. The runtime notes below are smoke-run impressions only: the apps target 60 fps, run roughly 600 blades on a 1920 px monitor (after the `DEFAULT_DENSITY=2.25` density bump), and all four pass the screenshot pixel-variance gate within about three seconds of launch. Formal CPU/GPU profiling is a v2 follow-up.
+- Runtime CPU, GPU, memory, startup time, and long-run stability. The runtime notes below are smoke-run impressions only: at the comparison point, the apps targeted 60 fps, ran roughly 600 blades on a 1920 px monitor (after the `DEFAULT_DENSITY=2.25` density bump), and passed the screenshot pixel-variance gate within about three seconds of launch.
 
 Conformance signal:
 
-- The original v1 smoke runs reported the same `11,642 unique colors` for all three implementations on `main` at the time. That is not a full pixel-perfect proof, but it is the v1 conformance signal: all four ports now use the same xorshift64 PRNG, the same canonical seed (`0x6B6173746F`), and the same blade/sway/gust/cut/regrowth math from `docs\architecture.md`, yielding a near-identical bottom-strip pixel distribution. Subsequent tunings (chord-preserving bend, softer gust, larger amplitude, higher density) have shifted the absolute count downward but the four impls remain within ~25% of each other per run.
+- The original v1 smoke runs reported the same `11,642 unique colors` for all three measured implementations on `main` at the time. That was not a full pixel-perfect proof, but it was the v1 conformance signal: the comparison ports used the same xorshift64 PRNG, canonical seed (`0x6B6173746F`), and blade/sway/gust/cut/regrowth math from `docs\architecture.md`. Subsequent pre-freeze tunings shifted the absolute count downward while Native and the managed reference remained within ~25% of each other per run.
 
 Counting note:
 
@@ -168,24 +178,32 @@ The C# variants both keep the hook delegate in a field so the GC cannot collect 
 
 Native uses Catch2; both managed implementations use xUnit. That distinction did not matter much because the shared spec made the pure simulation tests straightforward: same canonical seed, same PRNG sequence, same blade vector, same sway/gust/cut behavior.
 
-The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The original v1 measurement was `11,642` for all three impls; the current four-impl baseline after later visual tuning sits roughly in the 1,600–3,500 range per impl (still well above the 50-color minimum gate).
+The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The original v1 measurement was `11,642` for all three measured impls; a later pre-removal four-impl baseline after visual tuning sat roughly in the 1,600–3,500 range per impl (still well above the 50-color minimum gate).
 
 ## Where each stack genuinely shines
 
 **Native** is the right choice when the product is fundamentally a Windows desktop primitive: transparent layered HWNDs, DirectComposition, D2D, mouse hooks, and tray integration. It has the smallest exe, fewest runtime dependencies, and the least impedance mismatch. The trade-off is C++ ownership/COM complexity and less managed test ergonomics.
 
-**Win2D-ish / Vortice** is the pragmatic managed option. It keeps the useful part of C# -- fast iteration, xUnit, safe orchestration code -- while still using the same Direct2D/DXGI/DComp model as Native. You would pick it when you want native overlay behavior without writing the whole app in C++.
+**Win2D-ish / Vortice** demonstrated the pragmatic managed alternative. It
+kept fast C# iteration and xUnit while using the same Direct2D/DXGI/DComp model
+as Native. It now remains only as the buildable managed comparison/reference;
+it is not a supported product choice and carries no ongoing parity or
+platform-hardening commitment.
 
 **WinUI 3** shines when the app needs WinAppSDK, XAML, app-window integration, and a broader Windows app model. DesktopGrass deliberately asked it to do something it is not designed around: a transparent, click-through, topmost overlay. The friction here is not an indictment of WinUI 3; it is evidence that this specific product shape sits below the layer WinUI 3 wants to own.
 
-## What v2 should change
+## Historical comparison follow-ups
+
+These were potential improvements to the comparison methodology, not the
+current product roadmap. Work involving a removed or frozen track requires an
+explicit new decision.
 
 - Add formal CPU/GPU/startup/memory measurement, ideally with repeatable ETW or Windows Performance Recorder profiles.
 - Standardize the LoC counting scope before quoting headline numbers: app only, app+tests, interop included/excluded, vendored code excluded.
 - Make the smoke harness a small `WinAppRuntime`-aware launcher that understands class-name matching, title-regex matching, `BeforeLaunch`, packaged app activation, and RID-specific .NET output paths.
 - Add a click-through probe window under the grass instead of only asserting ExStyle bits.
 - Add multi-monitor smoke and DPI-change smoke; all four codebases already have monitor-aware architecture, but v1 only gates primary-monitor rendering.
-- Standardize on Vortice for managed low-level render comparisons; it provided the most direct mapping to the native Direct2D/DComp model.
-- If WinUI remains in the comparison, decide whether the target is packaged/framework-dependent or unpackaged self-contained, then measure that deployment shape explicitly.
+- If another managed low-level render comparison is commissioned, use Vortice; it provided the most direct mapping to the native Direct2D/DComp model.
+- If a future comparison reintroduces WinUI, decide whether the target is packaged/framework-dependent or unpackaged self-contained, then measure that deployment shape explicitly.
 - Consider adding Avalonia or Uno as a cross-stack comparison only if the goal is UI-framework ergonomics; for raw overlays, they should be compared against the same HWND/DComp requirements.
-- Share snapshot fixtures across implementations so the canonical seed, blade vector, and stroke geometry cannot drift silently.
+- Retain the existing snapshots needed to reproduce the frozen comparison. Refreshing the managed baseline requires explicit scope rather than an automatic Native backport.

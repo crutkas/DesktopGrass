@@ -63,8 +63,8 @@ touches only, no engagement loops, no toys.
   regardless of taskbar position.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for a chronological list of everything that
-has shipped, and [`docs/architecture.md`](docs/architecture.md) for the shared
-algorithm contract.
+has shipped, and [`docs/architecture.md`](docs/architecture.md) for the
+simulation specification.
 
 ## Settings (`config.json`)
 
@@ -92,15 +92,20 @@ fall back to defaults without being clobbered.
 }
 ```
 
-## Two implementations
+## Support policy
 
-The same feature set is implemented two ways, both sharing the same `Sim` /
-`Constants` numerical core so behavior stays bit-identical across renderers.
+[`DesktopGrass.Native`](src/DesktopGrass.Native) is the supported standalone
+implementation and the only PowerToys candidate. User-facing features, bug
+fixes, platform hardening, release checks, and downloadable artifacts target
+Native.
 
-| Project | Stack | Renderer |
-| --- | --- | --- |
-| [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | C++ / Win32 | Direct2D + DirectComposition |
-| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | C# / .NET 10 | Vortice.Direct2D1 + DirectComposition (the "Win2D" name is historical — it uses Vortice, not `Microsoft.Graphics.Win2D`) |
+| Project | Role | Stack | Maintenance commitment |
+| --- | --- | --- | --- |
+| [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | **Supported product and PowerToys candidate** | C++ / Win32 + Direct2D + DirectComposition | Active product development, platform hardening, tests, and release artifacts |
+| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# / .NET 10 + Vortice Direct2D + DirectComposition | Build and unit coverage for reproducibility; no feature-parity, active platform-hardening, or release commitment |
+
+The managed project may receive narrowly scoped build or test maintenance needed
+to prevent source rot. Native changes do not need to be ported to it.
 
 > **History:** the repo originally shipped four parallel implementations to
 > compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the
@@ -110,92 +115,86 @@ The same feature set is implemented two ways, both sharing the same `Sim` /
 > topmost overlay. See [`docs/comparison.md`](docs/comparison.md) for the full
 > evaluation.
 
-> Working on this with Copilot CLI on a different machine? See
-> [`docs/agent-context/README.md`](docs/agent-context/README.md) — that folder
-> is a portable snapshot of the agent's plan + per-milestone checkpoints,
-> so a fresh session anywhere can pick up with full context.
+> [`docs/agent-context`](docs/agent-context/README.md) preserves the historical
+> comparison-era development record. It is not the current roadmap; the support
+> policy above and the Native migration backlog are authoritative.
 
 ## Run it
 
-Pick an implementation and launch its release exe:
+Build and launch the supported Native app:
 
 ```powershell
-# Native — C++/Direct2D (x64; use Platform=ARM64 for native ARM64)
+# x64; use Platform=ARM64 for native ARM64
 msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64
 & "src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe"
-
-# Win2D — C#/Vortice
-dotnet build src\DesktopGrass.Win2D -c Release -p:Platform=x64
-& "src\DesktopGrass.Win2D\bin\x64\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe"
 ```
 
 Right-click the tray icon for scene selection, pet count overrides, "Start with
 Windows", and quit.
 
-Both apps build for **x64** and **ARM64**. Build outputs are nested per platform
-(`out\<Platform>\<Config>\` for Native, `bin\<Platform>\<Config>\<TFM>\` for
-Win2D), so the two architectures can coexist side by side. Swap `x64` for `ARM64`
-(Win2D RID `win-arm64`) to produce native ARM64 binaries.
+Native builds for **x64** and **ARM64**. Outputs are nested under
+`out\<Platform>\<Config>\`, so both architectures can coexist side by side.
+Swap `x64` for `ARM64` to produce the ARM64 binary.
 
 The Native exe is built via MSBuild against `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj`
 (Release / x64 or ARM64). See [`docs/manual-smoke.md`](docs/manual-smoke.md) for the full
 build-from-scratch checklist.
 
-## Portability — running on another computer
+## Running on another computer
 
 | Build | What to copy | Size | Target requirements |
 | --- | --- | --- | --- |
 | **Native (Release)** | `src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe` (`<Platform>` = `x64` or `ARM64`) | ~210 KB | Windows 10 1809+, matching arch (x64 or ARM64). **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
-| **Win2D (framework-dependent)** | `src\DesktopGrass.Win2D\bin\<Platform>\Release\net10.0-windows10.0.19041.0\` (whole folder, 15 files) | ~26 MB | Windows 10 1809+ (x64 or ARM64) **and** .NET 10 desktop runtime installed (`winget install Microsoft.DotNet.DesktopRuntime.10`). |
-| **Win2D (self-contained, single file)** | `publish\win2d-selfcontained\DesktopGrass.Win2D.exe` after the publish command below | ~143 MB | Windows 10 1809+ (x64 or ARM64, matching the `-r` RID). **Nothing else** — .NET runtime + Vortice native DLLs are baked in. |
 
-To produce the Win2D self-contained single-file build:
+The managed reference is intentionally not published or documented as a
+portable/downloadable product build.
+
+## Reproducing the managed reference
+
+The C#/Vortice project remains buildable so the original comparison can be
+reproduced and accidental source rot is detected. These commands verify the
+reference; they do not produce a supported release:
 
 ```powershell
-dotnet publish src\DesktopGrass.Win2D -c Release -r win-x64 `
-  --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-  -o publish\win2d-selfcontained
+dotnet build src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj -c Release -p:Platform=x64
+dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release
 ```
-
-(Swap `-r win-x64` for `-r win-arm64` to publish a native ARM64 single-file build.)
-
-Tip: For a drop-and-run experience on a friend's box, Native is the way — one
-210 KB exe, no installer, no runtime. Win2D self-contained is the equivalent if
-you want the C# build.
 
 ## Tests
 
-- **Unit tests** — pure-logic suites for each impl in [`tests/`](tests). They
+- **Unit tests** — the Native product suite plus the managed reference suite in
+  [`tests/`](tests). They
   cover PRNG determinism, blade generation, sway, gusts, cuts, regrowth, stroke
   geometry, flowers, mushrooms, scenes, weather (snow), critters (sheep, cat,
   bunny, hedgehog), ambient flyers (butterflies, fireflies, bird flybys),
   scene-specific entities (desert tumbleweeds, winter pines, autumn leaves &
   maples, ocean coral / fish / bubbles), `config.json` parsing, "Start with
   Windows" auto-start, persistence, and click-through window styles.
-- **Cross-impl PRNG identity** — every species and weather entity is covered by
-  a side-stream PRNG identity test that walks a parallel `Prng(seed XOR salt)`
-  and asserts the bit-identical draw order. This is the cornerstone invariant
-  that lets Native and Win2D stay in lockstep.
+- **Managed baseline reproducibility** — existing side-stream PRNG identity and
+  snapshot tests preserve the comparison state at the point Managed was frozen.
+  They are evidence for the reference, not a forward feature-parity promise.
 - **Smoke tests** — [`tests/smoke/Run-SmokeTests.ps1`](tests/smoke/Run-SmokeTests.ps1)
-  launches each exe, asserts the click-through / topmost extended window styles,
-  and verifies actual rendering via screenshot pixel-variance over the bottom strip.
+  gates the supported Native binary and can optionally exercise the managed
+  reference. It asserts click-through / topmost window styles and verifies
+  rendering via screenshot pixel variance over the bottom strip.
 
-Run everything:
+Run the maintained coverage:
 
 ```powershell
 # Native unit tests (x64; build with Platform=ARM64 for the ARM64 suite)
 & ".\tests\DesktopGrass.Native.Tests\out\x64\Release\DesktopGrass.Native.Tests.exe" --reporter compact
 
-# Win2D unit tests
+# Managed reference unit tests
 dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release
 
-# Cross-impl smoke (2 targets)
+# Optional comparison smoke (supported Native + managed reference)
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
 ```
 
-## Conformance
+## Simulation specification and reference baseline
 
-Both implementations use:
+Native is governed by [`docs/architecture.md`](docs/architecture.md). At the
+managed freeze point, Native and Managed used:
 
 - The same xorshift64 PRNG seeded via SplitMix64.
 - The same canonical test seed (`0x6B6173746F`).
@@ -208,9 +207,10 @@ Both implementations use:
 - The same sway / gust / cut / regrowth / chord-bend / weather / critter math
   from [`docs/architecture.md`](docs/architecture.md).
 
-The Native impl carries a canonical snapshot
+The Native implementation carries a canonical snapshot
 (`tests/DesktopGrass.Native.Tests/snapshot_data.h`) that the Win2D impl's tests
-cross-check against indirectly via the shared spec.
+cross-check against indirectly. Future Native behavior may intentionally move
+beyond that managed baseline without being backported.
 
 ## PowerToys migration
 
@@ -220,7 +220,10 @@ work items, dependencies, and acceptance gates are tracked in
 
 ## Roadmap
 
-Possible next directions, in no particular order:
+All product roadmap and platform-hardening work applies to Native only. Managed
+has no feature-parity or product-hardening roadmap.
+
+Possible Native directions, in no particular order:
 
 - More critter species (deer, ducks crossing the strip).
 - Auto-rotation of scenes by date (e.g. Autumn in October, Winter in December).
