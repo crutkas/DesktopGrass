@@ -18,6 +18,9 @@ pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -TimeoutSeconds 30
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
 pwsh tests\smoke\Run-NativeRuntimeControlTests.ps1 -Configuration Release
+
+# CI/lab entry point (build + strict interactive preflight + artifacts)
+pwsh tests\smoke\Invoke-InteractiveCiSmoke.ps1 -Target Native
 ```
 
 `-Target` accepts `Native`, `Win2D`, or `All`. The script exits
@@ -67,16 +70,17 @@ pass.
 
 ## How `winapp ui` fits in
 
-The harness is shaped to slot into GitHub's `winapp ui` CLI (same pattern
-the [microsoft/calculator](https://github.com/microsoft/calculator) team
-uses): an interactive CI workflow can launch the app under test and invoke
-`Run-SmokeTests.ps1` against the resulting build output.
+The [`Interactive smoke`](../../.github/workflows/interactive-smoke.yml)
+workflow invokes `Invoke-InteractiveCiSmoke.ps1` on a dedicated self-hosted
+Windows runner. The script fails closed unless it is running in an active,
+unlocked, non-session-0 desktop and can capture that desktop. Native is the
+required gate. The frozen managed reference runs as an advisory comparison and
+retains its result without blocking Native work.
 
-For v1 the harness is also runnable directly against the built exe (no
-`winapp ui` required) — that's the inner loop developers actually use.
-The current GitHub Actions workflow does not run this harness because its
-runner has no guaranteed interactive desktop; migration to PowerToys must wire
-the Native assertions into that repository's supported UI-test environment.
+The direct `Run-SmokeTests.ps1` command remains the local inner loop. See the
+[runner contract](../../docs/interactive-smoke-runner.md) for required labels,
+tools, security boundaries, artifacts, cleanup, and the external provisioning
+action.
 
 ## Why no UIA assertions
 
@@ -97,6 +101,7 @@ but the rendering check has to come from the framebuffer, not from UIA.
 | ----------------------- | ---------------------------------------------------- |
 | `Smoke.Common.psm1`     | P/Invoke helpers + assertions + `Invoke-AppSmoke`.   |
 | `Run-SmokeTests.ps1`    | Entry point; resolves exe paths and runs per target. |
+| `Invoke-InteractiveCiSmoke.ps1` | CI build, session preflight, state isolation, logging, and cleanup. |
 | `Run-NativeRuntimeControlTests.ps1` | Native fullscreen, occlusion, resource-reuse, and suppressed-shutdown checks. |
 | `README.md`             | This file.                                           |
 
@@ -106,3 +111,5 @@ but the rendering check has to come from the framebuffer, not from UIA.
 - No admin elevation required.
 - Runs on the interactive desktop session (it needs to take a real
   screenshot of the primary monitor).
+- The CI entry point additionally requires the tools and runner setup in
+  [`docs/interactive-smoke-runner.md`](../../docs/interactive-smoke-runner.md).
