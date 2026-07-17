@@ -1,3 +1,7 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
 Adding **grass regrowth** (after cut, blades wait ~30-90s then linearly regrow over ~2-4s) to all three DesktopGrass impls (Native C++, Win2D C#, WinUI3 C#). Constraint: must preserve the cross-impl bit-identical pixel count (10,787 unique colors for canonical seed 0x6B6173746F) to keep the conformance gate intact. Solution: per-blade regrowth jitter sampled from a SECOND xorshift64 stream seeded `seed XOR REGROW_PRNG_SALT` so the main PRNG stream is unchanged.
 </overview>
@@ -104,39 +108,39 @@ Adding **grass regrowth** (after cut, blades wait ~30-90s then linearly regrow o
 </technical_details>
 
 <important_files>
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - generate_blades (lines ~59-100): now uses two Prng instances; new fields populated at end of inner loop.
   - advance_cut (lines ~112-148): 2-phase with guards; rewrite of the original ~12-line function.
   - sim_apply_click (lines ~175-195): added `b.regrowStart = -1.0;` after cutAnimStart assignment.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`
   - Blade struct (lines ~39-69): new regrowDelay/Duration/Start fields with in-class initializers (= 0.0, 0.0, -1.0).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - Lines ~46-58: REGROW_* constants + REGROW_PRNG_SALT.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`
   - GenerateBlades, ApplyClick, AdvanceCut all rewritten parallel to Native.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WinUI3\Sim.cs`
+- `.\src\DesktopGrass.WinUI3\Sim.cs`
   - Same changes + added `TestSetBlades(Blade[])` helper alongside existing test helpers.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\src\regrowth_tests.cpp` (new, 7 cases).
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Win2D.Tests\SimTests\RegrowthTests.cs` (new, 7 Facts).
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.WinUI3.Tests\SimTests\RegrowthTests.cs` (new, 7 Facts).
+- `.\tests\DesktopGrass.Native.Tests\src\regrowth_tests.cpp` (new, 7 cases).
+- `.\tests\DesktopGrass.Win2D.Tests\SimTests\RegrowthTests.cs` (new, 7 Facts).
+- `.\tests\DesktopGrass.WinUI3.Tests\SimTests\RegrowthTests.cs` (new, 7 Facts).
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md` (NOT yet updated — pending)
+- `.\docs\architecture.md` (NOT yet updated — pending)
   - Needs updates to: §4 Blade table (lines 99-115), §5 generation pseudocode (lines 133-175), §9 add "Regrowth" subsection (currently lines 326-379), §11 constants table (lines 437-470), §2 line 36 stale "work area is not used" comment.
 
-- `C:\Users\crutkas\.copilot\session-state\e286b6d3-8e11-4aa2-b2d7-87ceb1f5de22\plan.md`
+- `~\.copilot\session-state\<session-id>\plan.md`
   - Line 159 has "Regrowth of cut grass over minutes" under "Future iterations (parked)". After this work ships, that should move out of "future iterations" or be marked done.
 
-- Repo: `C:\Users\crutkas\source\DesktopGrass\` on `main`, last commit `531fcda` (the work-area fix). Pushed to `https://github.com/crutkas/DesktopGrass` (private).
+- Repo: `.\` on `main`, last commit `531fcda` (the work-area fix). Pushed to `https://github.com/crutkas/DesktopGrass` (private).
 </important_files>
 
 <next_steps>
 **Immediate next steps**:
-1. Run `pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release` and confirm all three show **10,787 unique colors** (or at minimum, all three show the same number ≥50 — bit-identical is the conformance bar).
+1. Run `pwsh -NoProfile -File '.\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release` and confirm all three show **10,787 unique colors** (or at minimum, all three show the same number ≥50 — bit-identical is the conformance bar).
 2. Update `docs/architecture.md`:
    - §2 line 36: replace stale "work area is not used" sentence with new "anchors to the work area" (drive-by).
    - §4 Blade data model table: add `regrowDelay`, `regrowDuration`, `regrowStart` rows.

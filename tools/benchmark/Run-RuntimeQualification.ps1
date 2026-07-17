@@ -1,7 +1,7 @@
 # Run-RuntimeQualification.ps1
 #
-# Production-path qualification driver for issue #14. This script never uses
-# --benchmark and never changes power, display, lock, or session policy.
+# Production-path qualification driver. This script never uses --benchmark and
+# never changes power, display, lock, or session policy.
 
 [CmdletBinding()]
 param(

@@ -1,5 +1,9 @@
 # Phase 3 — Desert + Winter scene content
 
+> **Archived design:** this records historical comparison-era planning. Native
+> is the supported implementation; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for current policy and commands.
+
 Draft architecture for spec §14 (Desert) and §15 (Winter). Lock to
 docs/architecture.md ONLY after Phase 2 (Win2D scene infra backport)
 ships green.

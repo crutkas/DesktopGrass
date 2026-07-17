@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-DesktopGrass (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutkas\source\DesktopGrass`) is a "just for fun" Windows desktop overlay that paints procedural grass / flowers / mushrooms on top of the taskbar. After a 4-impl comparison the codebase is now down to two parallel implementations — Native (C++/Direct2D) and Win2D (C#/Vortice) — sharing a single locked spec in `docs/architecture.md`. The user just queued three big asks: (1) random small gusts of wind, (2) extend the systray menu to switch scenes, (3) fleet out two new scenes — Desert (tumbleweeds, cactus, etc.) and Winter — and figure out the right way to parallelize the work.
+DesktopGrass (private repo `crutkas/DesktopGrass`, working tree `.`) is a "just for fun" Windows desktop overlay that paints procedural grass / flowers / mushrooms on top of the taskbar. After a 4-impl comparison the codebase is now down to two parallel implementations — Native (C++/Direct2D) and Win2D (C#/Vortice) — sharing a single locked spec in `docs/architecture.md`. The user just queued three big asks: (1) random small gusts of wind, (2) extend the systray menu to switch scenes, (3) fleet out two new scenes — Desert (tumbleweeds, cactus, etc.) and Winter — and figure out the right way to parallelize the work.
 </overview>
 
 <history>
@@ -63,17 +67,17 @@ DesktopGrass (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutka
 ```
 DesktopGrass.slnx       # only Native + Win2D projects
 src/
-  DesktopGrass.Native/      # C++ / Direct2D / DComp (REFERENCE impl)
+  DesktopGrass.Native/      # C++ / Direct2D / DComp (primary; now supported)
     src/{Constants.h, Sim.h, Sim.cpp, Renderer.h, Renderer.cpp,
          App.cpp, App.h, GrassWindow.cpp, GrassWindow.h, MouseHook.cpp,
          MouseHook.h, main.cpp, resource.h}
     DesktopGrass.Native.vcxproj, .rc, app.manifest, vcpkg.json
-    out/Release/DesktopGrass.Native.exe (Release/x64)
+    out/x64/Release/DesktopGrass.Native.exe (Release/x64)
   DesktopGrass.Win2D/       # C# / Vortice / .NET 10
     Constants.cs, Sim.cs, GrassWindow.cs, App.cs, Program.cs,
     MouseHook.cs, TrayIcon.cs, Interop/User32.cs, app.manifest,
     DesktopGrass.Win2D.csproj
-    bin/Release/net10.0-windows10.0.19041.0/DesktopGrass.Win2D.exe
+    bin/x64/Release/net10.0-windows10.0.19041.0/DesktopGrass.Win2D.exe
 tests/
   DesktopGrass.Native.Tests/   # Catch2, vendored single-header
     src/{main.cpp, prng_tests, blade_gen_tests, sway_tests,
@@ -117,12 +121,12 @@ docs/
 # Native — must stop running exe first (locks itself)
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat'
-& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
-& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact
+& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
+& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
 
 # Win2D
-cd C:\Users\crutkas\source\DesktopGrass
+cd .
 dotnet build src\DesktopGrass.Win2D -c Release --nologo
 dotnet test  tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity minimal
 
@@ -130,8 +134,8 @@ dotnet test  tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity mini
 pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release
 
 # Launch
-& 'C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe'
-& 'C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\bin\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe'
+& '.\src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe'
+& '.\src\DesktopGrass.Win2D\bin\x64\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe'
 ```
 
 ## Process/git quirks
@@ -151,7 +155,7 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 ## Fleet pattern (proven from flowers/mushrooms)
 
 - Lock spec patch in `docs/architecture.md` FIRST, commit + push standalone so agents have a SHA to anchor on
-- Implement Native (the reference) yourself, commit + push
+- Implement Native (the primary implementation) yourself, commit + push
 - Discover canonical numbers from Native (e.g. flower count = 17, mushroom count = 7)
 - Fleet ONE agent (general-purpose, background mode) for Win2D backport with:
   - Locked spec SHA reference
@@ -210,25 +214,25 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 </technical_details>
 
 <important_files>
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - **Single source of truth.** All four PRNG streams documented in §5. Mushroom feature spec in §4/§5/§7/§11. After WinUI3/WPF removal, prose says "both implementations" throughout.
   - Will need new §13 "Ambient gusts" + new §14 "Scenes" (or similar) for the next features.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`, `Sim.cpp`, `Constants.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`, `Sim.cpp`, `Constants.h`
   - Native simulation core. Currently has main + regrowth + flower + mushroom streams.
   - Will need: 5th PRNG stream for ambient gusts (or time-based RNG state); per-scene flora generator hook; roaming-entity subsystem.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.cpp`
   - DrawGrass loop already short-circuits mushroom slots BEFORE the grass+flower path. Same pattern for cactus slots.
   - Will need: scene-aware palette switching, entity rendering path (tumbleweed/snowflake), per-scene blade hiding.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\App.cpp`
+- `.\src\DesktopGrass.Native\src\App.cpp`
   - Owns `Shell_NotifyIconW` tray menu. Currently single "Quit" item.
   - Will need: scene radio-group menu items with check marks, scene-change message routing to renderer/sim.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`, `Constants.cs`, `GrassWindow.cs`, `TrayIcon.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`, `Constants.cs`, `GrassWindow.cs`, `TrayIcon.cs`
   - Win2D mirror of all the above. Fleet target #1.
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\src\mushroom_tests.cpp` and `tests/DesktopGrass.Win2D.Tests/SimTests/MushroomTests.cs`
+- `.\tests\DesktopGrass.Native.Tests\src\mushroom_tests.cpp` and `tests/DesktopGrass.Win2D.Tests/SimTests/MushroomTests.cs`
   - Templates for new feature tests (determinism, count within 3σ, non-interference with other streams).
-- `C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1`
+- `.\tests\smoke\Run-SmokeTests.ps1`
   - Smoke harness. Currently 2 targets. Probably needs a scene-cycling test mode in the future, but not required for v1 ambient-gust or scene-switcher.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\MouseHook.cpp` / `MouseHook.h` and Win2D `MouseHook.cs`
+- `.\src\DesktopGrass.Native\src\MouseHook.cpp` / `MouseHook.h` and Win2D `MouseHook.cs`
   - Existing cursor-gust dispatch path. Ambient gusts will use the same downstream gust application code path, just spawned from a timer instead of the hook.
 </important_files>
 
@@ -251,7 +255,9 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 ### Step 3 — Desert + Winter scene content (FLEET THIS)
 1. Lock framework spec: roaming-entity subsystem (tumbleweeds, snowflakes) + per-scene generator hook + per-scene PRNG salts. This is the big architectural lift.
 2. Lock per-scene specs (Desert: cacti slots, tumbleweed entities, sand palette; Winter: bare branches?, snowflake entities, frost palette).
-3. Implement scene framework + Desert + Winter in Native (the reference). May be too big for one commit — split into: framework, Desert, Winter.
+3. Implement scene framework + Desert + Winter in Native (the primary
+   implementation). May be too big for one commit — split into: framework,
+   Desert, Winter.
 4. **Fleet pattern for backport:**
    - One agent (general-purpose, background) for "Backport Desert+Winter+scene framework to Win2D". This is one agent because Win2D is the only target; parallelism doesn't help with only 1 target.
    - Provide full design from technical_details above, locked spec SHA, naming convention reminders, file list, code skeletons, validation gate (tumbleweed-count parity, snowflake-count parity, scene-switch parity, first-blade main-stream still pinned).

@@ -8,7 +8,15 @@ future feature parity.
 
 ## Running
 
-From the repo root:
+`Run-SmokeTests.ps1` launches existing build outputs; it does not build them.
+The CI/lab entry point builds first. Expected executable locations are:
+
+| Target | Support role | Build output |
+| --- | --- | --- |
+| `Native` | Required supported-product gate | `src\DesktopGrass.Native\out\<Platform>\<Configuration>\DesktopGrass.Native.exe` |
+| `Win2D` | Optional managed-reference comparison | `src\DesktopGrass.Win2D\bin\<Platform>\<Configuration>\<TFM>\DesktopGrass.Win2D.exe` |
+
+From the repository root:
 
 ```powershell
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native
@@ -45,6 +53,11 @@ Each per-target check performs, in order:
 
 The process is cleaned up in a `finally` block — even if any assertion
 throws, no orphan `DesktopGrass.*.exe` is left running.
+
+The reported `DurationMs` spans the complete smoke operation: optional
+pre-launch setup, process launch, window discovery, assertions, screenshot
+polling, and shutdown/cleanup. It is **not** startup duration or
+launch-to-first-frame timing.
 
 ### Native runtime-control smoke
 
@@ -111,5 +124,8 @@ but the rendering check has to come from the framebuffer, not from UIA.
 - No admin elevation required.
 - Runs on the interactive desktop session (it needs to take a real
   screenshot of the primary monitor).
+- Building through `Invoke-InteractiveCiSmoke.ps1` additionally requires MSVC
+  toolset `v145` plus a Windows SDK for Native and a .NET SDK accepted by
+  `global.json` for the optional managed reference.
 - The CI entry point additionally requires the tools and runner setup in
   [`docs/interactive-smoke-runner.md`](../../docs/interactive-smoke-runner.md).

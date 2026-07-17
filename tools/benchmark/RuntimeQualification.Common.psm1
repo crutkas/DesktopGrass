@@ -1,7 +1,7 @@
 # RuntimeQualification.Common.psm1
 #
-# Shared helpers for production-runtime qualification of DesktopGrass.Native
-# (issue #14). These functions support Run-RuntimeQualification.ps1 and
+# Shared helpers for production-runtime qualification of DesktopGrass.Native.
+# These functions support Run-RuntimeQualification.ps1 and
 # Aggregate-RuntimeQualification.ps1. They deliberately reuse
 # Benchmark.Common.psm1's schema-v2 sampler/statistics helpers and
 # tests\smoke\Smoke.Common.psm1's window/probe helpers instead of duplicating

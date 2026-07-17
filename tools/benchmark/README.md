@@ -12,16 +12,22 @@ repeatable. It deliberately separates:
 An unavailable metric is recorded as unavailable with its source and reason. It
 is never emitted as a synthetic zero and can never pass a budget.
 
+This is Native-only performance evidence. It does not run or compare the
+managed reference, and it does not measure application startup.
+
 ## Requirements
 
 - Windows 10 or Windows 11.
 - PowerShell 7+ (`pwsh`).
 - A Release build of `DesktopGrass.Native.exe`, or the Visual Studio C++ tools
-  needed for the script to build it.
+  needed for the script to build it: MSVC toolset `v145` plus a Windows SDK.
 - No administrator elevation for the automated harness.
 
 The harness does not install PresentMon, drivers, providers, packages, or
-tracing tools.
+tracing tools. By default it resolves the executable at
+`src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe`. The
+build driver assumes the Visual Studio 2026 (18) Enterprise `vcvars64.bat`
+location; pass `-VcvarsBat` when the installed edition or location differs.
 
 ## Quick start
 
@@ -179,9 +185,9 @@ Every invocation creates
 | `engine-results.csv` | Per-engine-type GPU aggregates |
 | `energy-results.csv` | Per-hardware-meter power aggregates |
 
-`machine.json` and each manifest entry use schema version 2. The original PR
-#13 top-level machine and manifest fields remain present, and the aggregator
-continues to read schema version 1 directories.
+`machine.json` and each manifest entry use schema version 2. The original
+schema-v1 top-level machine and manifest fields remain present, and the
+aggregator continues to read schema version 1 directories.
 
 ### Per-cell files
 
@@ -201,11 +207,17 @@ no valid rows; consult the manifest status for why.
 
 - Native frame timestamps start after window/renderer setup and stop before
   teardown.
+- `DurationSec` requests the in-process render interval. The Native `duration_s`
+  summary reports the actual QPC interval. Both exclude process launch,
+  window/renderer setup, and teardown.
 - The first external counter interval is retained only as `priming` because it
   spans process startup and the gap from the previous cell.
 - `sample_measured=True` rows define the external measurement interval.
 - The last sample is taken while the process is live; teardown is excluded.
-- `WallSec` is diagnostic process wall time and is not labeled render duration.
+- `WallSec` spans the driver's `Start-Process` call through process exit, so it
+  includes startup, rendering, teardown, and scheduling overhead. It is
+  diagnostic process wall time, not a startup measurement. `DurationMs` from
+  the smoke harness is likewise an end-to-end smoke duration, not startup.
 
 ## Runtime contract of `--benchmark`
 
@@ -334,7 +346,7 @@ The benchmark driver only produces `WorkloadState=visible`. It does not
 fabricate paused, fullscreen, occluded, or throttled labels. Use the separate
 production-runtime workflow below for those states.
 
-## Production-runtime qualification (issue #14)
+## Production-runtime qualification
 
 Everything above this section measures `DesktopGrass.Native.exe --benchmark`.
 `main.cpp` dispatches benchmark mode instead of constructing the production
@@ -557,6 +569,6 @@ during a normal qualification sweep. Use a separately approved, user-initiated
 PresentMon or elevated WPR protocol that spans the transition and proves both
 no presents while paused and resumed presents afterward.
 
-Issue #14 can close only after the strict automated matrix and every supported
-manual scenario are complete. Unsupported hardware/tooling must be reported
-with the raw artifact path; it is never converted to a pass.
+The evidence set is incomplete until the strict automated matrix and every
+supported manual scenario are complete. Unsupported hardware or tooling must
+be reported with the raw artifact path; it is never converted to a pass.

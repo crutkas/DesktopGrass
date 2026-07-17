@@ -4,8 +4,22 @@
 > phase and is not the current roadmap. Native is now the supported
 > implementation and only PowerToys candidate. The C#/Vortice implementation is
 > retained as a source-available reference with a manual build/unit recipe, no
-> active CI, and no ongoing feature-parity or platform-hardening commitment. See
-> the root [`README`](../../README.md) for current policy.
+> required product CI, and no ongoing feature-parity or platform-hardening
+> commitment. See the root [`README`](../../README.md) for current policy and
+> commands.
+
+## Current checkout note
+
+The historical plan below intentionally retains the comparison-era design. The
+current checkout uses:
+
+| Surface | Current value |
+| --- | --- |
+| Supported project | `src\DesktopGrass.Native` |
+| Native toolchain/output | C++17, MSVC `v145`; `src\DesktopGrass.Native\out\<Platform>\<Configuration>\DesktopGrass.Native.exe` |
+| Managed reference | C# 12, `net10.0-windows10.0.19041.0`, Vortice 3.6.2; `src\DesktopGrass.Win2D\bin\<Platform>\<Configuration>\<TFM>\DesktopGrass.Win2D.exe` |
+| Default cadence | 24 FPS; Native caps active rendering at 12 FPS on battery/UPS and 5 FPS under Battery Saver or display dimming |
+| Verified x64 Release tests | 368 Native; 299 managed reference |
 
 ## Problem & goals
 A small, "just for fun" Windows app that draws procedurally generated grass along the bottom edge of every monitor, on top of all windows (including the taskbar). The grass:
@@ -16,7 +30,8 @@ A small, "just for fun" Windows app that draws procedurally generated grass alon
 - Reacts to clicks: clicks "cut" the blades near the click point (visual only — the click still hits whatever's underneath).
 - Spans all monitors, anchored to the bottom of each screen regardless of taskbar position.
 
-The same v1 feature set is implemented **three times for side-by-side comparison**:
+At this archived point, the same v1 feature set was planned **three times for
+side-by-side comparison**:
 
 1. **DesktopGrass.Native** — Win32 + Direct2D in C++ (no XAML).
 2. **DesktopGrass.Win2D** — C# + Win2D (no XAML), managed mirror of #1.
@@ -35,7 +50,7 @@ Future iterations (out of scope for v1): occasional trees that grow, regrowth of
 
 ### Repository layout
 ```
-C:\Users\crutkas\source\DesktopGrass\
+.\
 ├── DesktopGrass.sln
 ├── src\
 │   ├── DesktopGrass.Native\          # Win32 + Direct2D (C++)
@@ -144,13 +159,16 @@ Multi-monitor smoke is deferred — single-monitor variant is the gate. Click-th
 | Sway period | ~3 s gentle baseline |
 | Gust radius (cursor) | 150 px |
 | Cut radius (click) | 30 px |
-| Frame rate | 60 fps (vsync) |
+| Frame rate | 60 fps (historical v1 target; current default is 24 FPS) |
 | Palette | 6 greens, seeded per blade |
 
-## Todos
-Tracked in the SQL `todos` table — IDs kebab-case, titles in gerund form.
+## Historical execution model
 
-The dependency graph is shaped for parallel fleet execution: after `repo-bootstrap` and `shared-spec`, the three impl tracks (Native / Win2D / WinUI 3) are independent. Each track's window → render → hook → tray → tests can also progress in parallel within the track where possible. Smoke tests gate on each impl being runnable; `comparison-doc` gates on all three renders.
+The original session tracked this plan in a machine-local SQL todo database that
+is not part of the repository. Its dependency graph split the three historical
+implementation tracks after repository bootstrap and shared-spec work. This
+archive does not expose an active backlog; use repository issues and the root
+README for current work.
 
 ## Risks & notes
 - **WinUI 3 click-through topmost**: not first-class. Likely needs `AppWindow` + interop to set `WS_EX_LAYERED|WS_EX_TRANSPARENT|WS_EX_TOPMOST|WS_EX_NOACTIVATE` via `SetWindowLongPtr` after window creation, plus `Microsoft.UI.Composition` for transparency. Expect more friction here than the other two.

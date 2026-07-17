@@ -29,7 +29,8 @@ Import-Module "$PSScriptRoot\Smoke.Common.psm1" -Force
 # Relative paths follow the build-output convention from the plan:
 #   * Native (MSBuild C++):  src\DesktopGrass.Native\out\<Platform>\<Config>\DesktopGrass.Native.exe
 #   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Platform>\<Config>\<TFM>\DesktopGrass.Win2D.exe
-# TFM is resolved lazily at run time so we don't hardcode net8.0-windows10.0.*.
+# TFM is resolved lazily at run time so framework updates do not require a
+# smoke-runner path change.
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 
 if ($ArtifactDirectory) {
