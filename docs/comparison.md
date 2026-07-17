@@ -33,8 +33,8 @@ the number of `[Fact]`/`[Theory]` methods.
 The default [`DesktopGrass.slnx`](../DesktopGrass.slnx) intentionally contains
 only Native and its tests. The required CI workflow builds/tests Native and
 publishes x64 and ARM64 Native artifacts. Its managed build/test recipe is
-commented for manual reproduction. The separately provisioned interactive-smoke
-workflow may build and run Managed as a non-blocking advisory comparison.
+commented for manual reproduction. The local interactive smoke harness may run
+Managed as a non-blocking advisory comparison.
 
 ### Output paths and payload shape
 

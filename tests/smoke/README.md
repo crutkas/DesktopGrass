@@ -2,14 +2,16 @@
 
 Screenshot-based smoke harness for the supported Native implementation and the
 optional managed (`Win2D`) comparison/reference. Native smoke results are a
-product gate. The managed target is retained to reproduce the historical
+local release gate. The managed target is retained to reproduce the historical
 comparison; it does not imply release support, active platform hardening, or
 future feature parity.
 
 ## Running
 
 `Run-SmokeTests.ps1` launches existing build outputs; it does not build them.
-The CI/lab entry point builds first. Expected executable locations are:
+Build first by following
+[`docs/manual-smoke.md`](../../docs/manual-smoke.md). Expected executable
+locations are:
 
 | Target | Support role | Build output |
 | --- | --- | --- |
@@ -19,21 +21,26 @@ The CI/lab entry point builds first. Expected executable locations are:
 From the repository root:
 
 ```powershell
-pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native
-pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
+$platform = if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'ARM64' } else { 'x64' }
+
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Platform $platform
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug -Platform $platform
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Platform $platform -ArtifactDirectory artifacts\manual-smoke
 
 # Optional managed-reference comparison
-pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -TimeoutSeconds 30
-pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
-pwsh tests\smoke\Run-NativeRuntimeControlTests.ps1 -Configuration Release
+dotnet build src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj -c Release -p:Platform=$platform
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -Platform $platform -TimeoutSeconds 30
+pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -Platform $platform -ContinueOnFailure
 
-# CI/lab entry point (build + strict interactive preflight + artifacts)
-pwsh tests\smoke\Invoke-InteractiveCiSmoke.ps1 -Target Native
+# Separate production runtime-control diagnostic
+pwsh tests\smoke\Run-NativeRuntimeControlTests.ps1 -Configuration Release -Platform $platform
 ```
 
 `-Target` accepts `Native`, `Win2D`, or `All`. The script exits
 non-zero (`$LASTEXITCODE = 1`) if any target failed; without
-`-ContinueOnFailure` it also `throw`s so CI noticed loudly.
+`-ContinueOnFailure` it also `throw`s so the failure is unmistakable.
+When `-ArtifactDirectory` is set, the harness retains a PNG for each attempted
+target plus structured `smoke-results.json`.
 
 Each per-target check performs, in order:
 
@@ -81,19 +88,18 @@ repeat with a fullscreen app on one monitor and confirm the other surface keeps
 animating. Run the same checks on ARM64 hardware for an end-to-end architecture
 pass.
 
-## How `winapp ui` fits in
+## Local execution boundary
 
-The [`Interactive smoke`](../../.github/workflows/interactive-smoke.yml)
-workflow invokes `Invoke-InteractiveCiSmoke.ps1` on a dedicated self-hosted
-Windows runner. The script fails closed unless it is running in an active,
-unlocked, non-session-0 desktop and can capture that desktop. Native is the
-required gate. The frozen managed reference runs as an advisory comparison and
-retains its result without blocking Native work.
+The harness runs directly against built executables in an active, unlocked
+desktop session. GitHub-hosted Windows runners do not guarantee a usable
+interactive framebuffer, and this repository does not require a dedicated
+self-hosted runner. Run the Native checks locally before a release and retain
+their artifacts with the release record.
 
-The direct `Run-SmokeTests.ps1` command remains the local inner loop. See the
-[runner contract](../../docs/interactive-smoke-runner.md) for required labels,
-tools, security boundaries, artifacts, cleanup, and the external provisioning
-action.
+`winapp ui` can supplement the manual accessibility checks, but it cannot prove
+that DirectComposition content painted. See
+[`docs/manual-smoke.md`](../../docs/manual-smoke.md) for the complete release
+procedure.
 
 ## Why no UIA assertions
 
@@ -114,7 +120,6 @@ but the rendering check has to come from the framebuffer, not from UIA.
 | ----------------------- | ---------------------------------------------------- |
 | `Smoke.Common.psm1`     | P/Invoke helpers + assertions + `Invoke-AppSmoke`.   |
 | `Run-SmokeTests.ps1`    | Entry point; resolves exe paths and runs per target. |
-| `Invoke-InteractiveCiSmoke.ps1` | CI build, session preflight, state isolation, logging, and cleanup. |
 | `Run-NativeRuntimeControlTests.ps1` | Native fullscreen, occlusion, resource-reuse, and suppressed-shutdown checks. |
 | `README.md`             | This file.                                           |
 
@@ -122,10 +127,8 @@ but the rendering check has to come from the framebuffer, not from UIA.
 
 - PowerShell 7+ (`pwsh`). Windows PowerShell 5.1 is not supported.
 - No admin elevation required.
-- Runs on the interactive desktop session (it needs to take a real
-  screenshot of the primary monitor).
-- Building through `Invoke-InteractiveCiSmoke.ps1` additionally requires MSVC
-  toolset `v145` plus a Windows SDK for Native and a .NET SDK accepted by
-  `global.json` for the optional managed reference.
-- The CI entry point additionally requires the tools and runner setup in
-  [`docs/interactive-smoke-runner.md`](../../docs/interactive-smoke-runner.md).
+- Runs on an active, unlocked desktop session because it reads the real
+  framebuffer.
+- Building Native requires MSVC toolset `v145` plus a Windows SDK.
+- Building the optional managed reference requires a .NET SDK accepted by
+  `global.json`.
