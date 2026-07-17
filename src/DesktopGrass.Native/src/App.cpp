@@ -185,7 +185,7 @@ bool App::CreateTrayIcon() {
     HICON icon = LoadIconW(hInst_, MAKEINTRESOURCEW(IDI_TRAYICON));
     if (!icon) icon = LoadIconW(nullptr, IDI_APPLICATION);
     nid_.hIcon = icon;
-    wcsncpy_s(nid_.szTip, L"Desktop Grass", _TRUNCATE);
+    wcsncpy_s(nid_.szTip, tray::kAccessibleName, _TRUNCATE);
 
     AddTrayIcon();
     return true; // non-fatal
@@ -209,6 +209,44 @@ bool App::AddTrayIcon() {
             "[DesktopGrass] Shell_NotifyIcon(NIM_SETVERSION) failed\n");
     }
     return true;
+}
+
+void App::ShowTrayMenu(
+    WPARAM callbackCoordinates, UINT notification) {
+    POINT pt = tray::CallbackAnchor(callbackCoordinates);
+    const int virtualLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int virtualTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const int virtualRight = virtualLeft + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    const int virtualBottom = virtualTop + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    const bool hasValidCallbackAnchor =
+        pt.x >= virtualLeft && pt.x < virtualRight
+        && pt.y >= virtualTop && pt.y < virtualBottom;
+
+    if (tray::UsesIconRectAnchor(notification) || !hasValidCallbackAnchor) {
+        NOTIFYICONIDENTIFIER identifier{};
+        identifier.cbSize = sizeof(identifier);
+        identifier.hWnd = nid_.hWnd;
+        identifier.uID = nid_.uID;
+        RECT iconRect{};
+        if (SUCCEEDED(Shell_NotifyIconGetRect(&identifier, &iconRect))) {
+            pt.x = iconRect.left + (iconRect.right - iconRect.left) / 2;
+            pt.y = iconRect.top + (iconRect.bottom - iconRect.top) / 2;
+        } else if (notification == WM_CONTEXTMENU
+                   || !hasValidCallbackAnchor) {
+            GetCursorPos(&pt);
+        }
+    }
+
+    SetForegroundWindow(msgHwnd_);
+    TrackPopupMenu(
+        trayMenu_,
+        TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+        pt.x, pt.y, 0, msgHwnd_, nullptr);
+    PostMessageW(msgHwnd_, WM_NULL, 0, 0);
+    if (!Shell_NotifyIconW(NIM_SETFOCUS, &nid_)) {
+        OutputDebugStringA(
+            "[DesktopGrass] Shell_NotifyIcon(NIM_SETFOCUS) failed\n");
+    }
 }
 
 void App::UpdateSceneMenuCheck() {
@@ -832,14 +870,8 @@ LRESULT App::HandleMessageWindowMessage(
 
     switch (msg) {
         case kTrayMessage:
-            if (LOWORD(lp) == WM_RBUTTONUP || LOWORD(lp) == WM_CONTEXTMENU) {
-                POINT pt;
-                GetCursorPos(&pt);
-                SetForegroundWindow(msgHwnd_);
-                TrackPopupMenu(trayMenu_,
-                               TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
-                               pt.x, pt.y, 0, msgHwnd_, nullptr);
-                PostMessageW(msgHwnd_, WM_NULL, 0, 0);
+            if (tray::IsMenuActivation(LOWORD(lp))) {
+                ShowTrayMenu(wp, LOWORD(lp));
             }
             return 0;
 
@@ -870,11 +902,21 @@ LRESULT App::HandleMessageWindowMessage(
         }
 
         case WM_DISPLAYCHANGE:
-        case WM_SETTINGCHANGE:
         case WM_DEVICECHANGE:
         case GrassWindow::kWmAppDisplayChanged:
             displayChangePending_ = true;
             return 0;
+
+        case WM_SETTINGCHANGE:
+        {
+            displayChangePending_ = true;
+            const RuntimeNotificationResult notification =
+                runtimeNotifications_.Dispatch(msg, wp, lp);
+            runtimeStateDirty_ =
+                runtimeStateDirty_ || notification.stateChanged;
+            ApplyPendingRuntimeChanges();
+            return 0;
+        }
 
         case WM_POWERBROADCAST:
         case WM_WTSSESSION_CHANGE:

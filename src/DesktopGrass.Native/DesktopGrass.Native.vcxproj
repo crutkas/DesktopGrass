@@ -170,6 +170,7 @@
     <ClInclude Include="src\RuntimePolicy.h" />
     <ClInclude Include="src\Sim.h" />
     <ClInclude Include="src\SingleInstance.h" />
+    <ClInclude Include="src\TrayIcon.h" />
     <ClInclude Include="src\VisibilityTracker.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>

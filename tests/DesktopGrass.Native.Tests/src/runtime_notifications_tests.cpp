@@ -19,6 +19,7 @@ struct FakeApiState {
     DWORD sessionId = 42;
     runtime::SessionState queriedSessionState =
         runtime::SessionState::Active;
+    bool clientAreaAnimationEnabled = true;
     std::vector<int> calls;
 };
 
@@ -72,6 +73,10 @@ runtime::SessionState FakeQuerySessionState(DWORD) {
     return fakeState->queriedSessionState;
 }
 
+bool FakeQueryClientAreaAnimationEnabled() {
+    return fakeState->clientAreaAnimationEnabled;
+}
+
 RuntimeNotificationApi MakeFakeApi() {
     return RuntimeNotificationApi{
         FakeRegisterPowerSetting,
@@ -82,6 +87,7 @@ RuntimeNotificationApi MakeFakeApi() {
         FakeUnregisterSession,
         FakeSeedState,
         FakeQuerySessionState,
+        FakeQueryClientAreaAnimationEnabled,
     };
 }
 
@@ -227,6 +233,14 @@ TEST_METHOD(RuntimeNotificationDispatchIsReceiverNeutral) {
         Assert::IsTrue(resumeResult.stateChanged);
         Assert::IsTrue(resumeResult.visibilityChanged);
         Assert::IsFalse(notifications.State().suspended);
+
+        state.clientAreaAnimationEnabled = false;
+        const RuntimeNotificationResult animationResult =
+            notifications.Dispatch(WM_SETTINGCHANGE, 0, 0);
+        Assert::IsTrue(animationResult.handled);
+        Assert::IsTrue(animationResult.stateChanged);
+        Assert::IsFalse(
+            notifications.State().clientAreaAnimationEnabled);
 
         Assert::IsFalse(notifications.Dispatch(WM_NULL, 0, 0).handled);
     }

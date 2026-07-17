@@ -158,6 +158,7 @@
     <ClCompile Include="src\runtime_notifications_tests.cpp" />
     <ClCompile Include="src\runtime_policy_tests.cpp" />
     <ClCompile Include="src\single_instance_tests.cpp" />
+    <ClCompile Include="src\tray_icon_tests.cpp" />
     <ClCompile Include="src\visibility_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Config.cpp" />
@@ -186,6 +187,7 @@
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimeNotifications.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimePolicy.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\SingleInstance.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\TrayIcon.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

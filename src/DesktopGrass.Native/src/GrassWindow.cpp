@@ -163,6 +163,16 @@ LRESULT CALLBACK GrassWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 LRESULT GrassWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
+        case WM_NCHITTEST:
+            return HTTRANSPARENT;
+
+        case WM_MOUSEACTIVATE:
+            return MA_NOACTIVATE;
+
+        case WM_GETOBJECT:
+            // The surface is decorative and intentionally has no UIA provider.
+            return 0;
+
         case WM_CLOSE:
             // The smoke harness sends WM_CLOSE. Forward to the main thread as
             // a request to terminate the message loop.

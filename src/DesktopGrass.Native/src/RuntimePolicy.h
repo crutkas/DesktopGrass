@@ -44,6 +44,7 @@ enum class PauseReason {
     DisplayOff,
     Fullscreen,
     Occluded,
+    AnimationsDisabled,
 };
 
 struct GlobalState {
@@ -52,6 +53,7 @@ struct GlobalState {
     SessionState sessionState = SessionState::Unknown;
     bool saverEnabled = false;
     bool suspended = false;
+    bool clientAreaAnimationEnabled = true;
 };
 
 struct SurfaceState {
