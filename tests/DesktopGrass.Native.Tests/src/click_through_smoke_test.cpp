@@ -52,10 +52,6 @@ void pump_messages_for(std::chrono::milliseconds duration) {
 }
 
 bool has_interactive_desktop() {
-    if (GetConsoleWindow() == nullptr) {
-        return false;
-    }
-
     HDESK inputDesktop = OpenInputDesktop(0, FALSE, DESKTOP_SWITCHDESKTOP);
     if (inputDesktop == nullptr) {
         return false;

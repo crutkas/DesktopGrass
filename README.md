@@ -187,9 +187,13 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
 Run Native coverage and, when needed, reproduce the managed baseline:
 
 ```powershell
-# Native unit tests (x64; build with Platform=ARM64 for the ARM64 suite)
+# Native unit tests (x64)
 msbuild tests\DesktopGrass.Native.Tests\DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=x64
 tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
+
+# Native ARM64 hardware lab run with a retained TRX log
+msbuild tests\DesktopGrass.Native.Tests\DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=ARM64
+tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform ARM64 -ResultsDirectory artifacts\arm64-tests
 
 # Managed reference unit tests
 dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release
@@ -197,6 +201,11 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
 # Optional comparison smoke (supported Native + managed reference)
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All
 ```
+
+The native test runner prints the OS, PowerShell process, VSTest PE, and test DLL
+architectures before execution. ARM64 runs fail unless the OS, VSTest executable,
+and test DLL are all ARM64, so x64 emulation cannot be recorded as native ARM64
+coverage. Preserve the generated TRX file with the lab result.
 
 ## Simulation specification and reference baseline
 
