@@ -218,7 +218,7 @@ internal sealed class App : IDisposable
                 monitorBounds,
                 seed, monitorWidthDip, _config.BladeDensity,
                 _config.SwaySpeed, _config.SwayAmplitude);
-            ApplyPersistedStateToWindow(grass, monitorBounds);
+            ApplyPersistedStateToWindow(grass);
 
             // Show without activating. Use NOACTIVATE-friendly path.
             Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST,
@@ -231,12 +231,8 @@ internal sealed class App : IDisposable
 
     private void RebuildWindows()
     {
-        // Persist current grass state (cuts/snow) so it can be restored against
-        // any monitors whose geometry is unchanged, then tear down and recreate
-        // every per-monitor window against the current display layout. This is
-        // the in-place equivalent of the native app's OnDisplayChanged rebuild
-        // and keeps the swap chain / blade layout matched to the live monitor
-        // geometry after a resolution or DPI change.
+        // Persist app settings, then recreate every per-monitor window against
+        // the current display layout.
         try { SaveCurrentState(); } catch { }
 
         _rebuilding = true;
@@ -280,23 +276,11 @@ internal sealed class App : IDisposable
         }
     }
 
-    private void ApplyPersistedStateToWindow(GrassWindow window, Rectangle monitorBounds)
+    private void ApplyPersistedStateToWindow(GrassWindow window)
     {
         window.SetScene(_currentScene);
         window.SetCritterCount(_currentCritterCount);
         window.SetCritter(_currentCritter);
-
-        if (_persistedState is null) return;
-
-        MonitorState? monitor = _persistedState.Monitors.Find(m =>
-            m.Width == monitorBounds.Width
-            && m.Height == monitorBounds.Height
-            && m.Left == monitorBounds.Left
-            && m.Top == monitorBounds.Top);
-        if (monitor is not null)
-        {
-            window.Sim.ApplyCuts(monitor.Cuts);
-        }
     }
 
     private AppState BuildAppState()
@@ -309,8 +293,7 @@ internal sealed class App : IDisposable
                 bounds.Width,
                 bounds.Height,
                 bounds.Left,
-                bounds.Top,
-                window.Sim.GetCuts()));
+                bounds.Top));
         }
 
         return new AppState(2, _currentScene, _currentCritter, _currentCritterCount, _autoStart, monitors);

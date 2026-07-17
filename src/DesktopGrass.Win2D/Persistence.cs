@@ -4,16 +4,11 @@ using System.Text.Json.Serialization;
 
 namespace DesktopGrass.Win2D;
 
-public sealed record CutRecord(
-    [property: JsonPropertyName("bladeIndex")] int BladeIndex,
-    [property: JsonPropertyName("cutTime")] double CutTime);
-
 public sealed record MonitorState(
     [property: JsonPropertyName("width")] int Width,
     [property: JsonPropertyName("height")] int Height,
     [property: JsonPropertyName("left")] int Left,
-    [property: JsonPropertyName("top")] int Top,
-    [property: JsonPropertyName("cuts")] List<CutRecord> Cuts);
+    [property: JsonPropertyName("top")] int Top);
 
 public sealed record AppState(
     [property: JsonPropertyName("version")] int Version,
@@ -69,14 +64,14 @@ public static class Persistence
             List<MonitorState> monitors = [];
             if (dto.Monitors is not null)
             {
-                foreach ((string key, MonitorDto? monitorDto) in dto.Monitors)
+                foreach (string key in dto.Monitors.Keys)
                 {
                     if (!TryParseMonitorKey(key, out int width, out int height, out int left, out int top))
                     {
                         continue;
                     }
 
-                    monitors.Add(new MonitorState(width, height, left, top, monitorDto?.Cuts ?? []));
+                    monitors.Add(new MonitorState(width, height, left, top));
                 }
             }
 
@@ -122,7 +117,7 @@ public static class Persistence
             AutoStart = state.AutoStart,
             Monitors = state.Monitors.ToDictionary(
                 monitor => MonitorKey(monitor.Width, monitor.Height, monitor.Left, monitor.Top),
-                monitor => new MonitorDto { Cuts = monitor.Cuts })
+                _ => new MonitorDto())
         };
 
         string json = JsonSerializer.Serialize(dto, Options) + Environment.NewLine;
@@ -179,7 +174,5 @@ public static class Persistence
 
     private sealed class MonitorDto
     {
-        [JsonPropertyName("cuts")]
-        public List<CutRecord> Cuts { get; set; } = [];
     }
 }

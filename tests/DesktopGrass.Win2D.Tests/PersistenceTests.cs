@@ -16,23 +16,16 @@ public sealed class PersistenceTests
         return path;
     }
 
-    private static AppState StateWithCuts()
+    private static AppState StateWithMonitorMetadata()
     {
         var monitors = new List<MonitorState>();
         for (int i = 0; i < 3; i++)
         {
-            var cuts = new List<CutRecord>();
-            for (int j = 0; j < 2 + i; j++)
-            {
-                cuts.Add(new CutRecord(i * 100 + j, -5.0 - i - j * 0.5));
-            }
-
             monitors.Add(new MonitorState(
                 Width: 1920 + i * 320,
                 Height: 1080 + i * 120,
                 Left: i * 1920,
-                Top: i == 2 ? -120 : 0,
-                cuts));
+                Top: i == 2 ? -120 : 0));
         }
 
         return new AppState(2, Scene.Winter, CritterKind.Cat, 4, AutoStart: true, monitors);
@@ -55,28 +48,7 @@ public sealed class PersistenceTests
             Assert.Equal(e.Height, a.Height);
             Assert.Equal(e.Left, a.Left);
             Assert.Equal(e.Top, a.Top);
-            Assert.Equal(e.Cuts.Count, a.Cuts.Count);
-            for (int j = 0; j < e.Cuts.Count; j++)
-            {
-                Assert.Equal(e.Cuts[j].BladeIndex, a.Cuts[j].BladeIndex);
-                Assert.Equal(e.Cuts[j].CutTime, a.Cuts[j].CutTime, 9);
-            }
         }
-    }
-
-    private static Blade MakeBlade(double regrowDelay, double regrowDuration)
-    {
-        Blade b = default;
-        b.BaseX = 100.0;
-        b.Height = 20.0;
-        b.Thickness = 1.0;
-        b.CutHeight = 1.0;
-        b.CutAnimStart = -1.0;
-        b.CutInitialHeight = 1.0;
-        b.RegrowDelay = regrowDelay;
-        b.RegrowDuration = regrowDuration;
-        b.RegrowStart = -1.0;
-        return b;
     }
 
     [Fact]
@@ -93,10 +65,10 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public void RoundTripWithCuts()
+    public void RoundTripWithMonitorMetadata()
     {
-        UseStatePath(nameof(RoundTripWithCuts));
-        AppState expected = StateWithCuts();
+        UseStatePath(nameof(RoundTripWithMonitorMetadata));
+        AppState expected = StateWithMonitorMetadata();
 
         Persistence.Save(expected);
         AppState? actual = Persistence.Load();
@@ -161,12 +133,43 @@ public sealed class PersistenceTests
     }
 
     [Fact]
+    public void DropsLegacyInteractionData()
+    {
+        string path = UseStatePath(nameof(DropsLegacyInteractionData));
+        File.WriteAllText(path,
+            """
+            {
+              "version": 2,
+              "scene": "Grass",
+              "cursor": { "x": 123, "y": 456 },
+              "clickHistory": [{ "x": 123, "y": 456 }],
+              "monitors": {
+                "1920x1080@0,0": {
+                  "cuts": [{ "bladeIndex": 7, "cutTime": -4.0 }]
+                }
+              }
+            }
+            """);
+
+        AppState? loaded = Persistence.Load();
+        Assert.NotNull(loaded);
+        Persistence.Save(loaded);
+
+        string saved = File.ReadAllText(path);
+        Assert.DoesNotContain("\"cursor\"", saved);
+        Assert.DoesNotContain("\"clickHistory\"", saved);
+        Assert.DoesNotContain("\"cuts\"", saved);
+        Assert.DoesNotContain("\"cutTime\"", saved);
+        Assert.DoesNotContain("\"bladeIndex\"", saved);
+    }
+
+    [Fact]
     public void MonitorKeyFormatRoundTrips()
     {
         string path = UseStatePath(nameof(MonitorKeyFormatRoundTrips));
         var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
         [
-            new MonitorState(1920, 1080, 0, 0, [])
+            new MonitorState(1920, 1080, 0, 0)
         ]);
 
         Persistence.Save(state);
@@ -180,81 +183,11 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public void CutTimestampsShiftForFreshSimLoad()
-    {
-        UseStatePath(nameof(CutTimestampsShiftForFreshSimLoad));
-        var running = new Sim
-        {
-            GlobalTime = 100.0,
-            Blades = [MakeBlade(30.0, 10.0)],
-            GroundY = 110.0,
-            WindowHeight = 110.0,
-        };
-        running.Blades[0].CutHeight = 0.0;
-        running.Blades[0].RegrowStart = 80.0 + Constants.CUT_DURATION_SEC + running.Blades[0].RegrowDelay;
-
-        List<CutRecord> cuts = running.GetCuts();
-        Assert.Single(cuts);
-        Assert.Equal(-20.0, cuts[0].CutTime, 9);
-
-        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
-        [
-            new MonitorState(1920, 1080, 0, 0, cuts)
-        ]);
-        Persistence.Save(state);
-
-        AppState? loaded = Persistence.Load();
-        Assert.NotNull(loaded);
-        Assert.True(loaded.Monitors[0].Cuts[0].CutTime < 0.0);
-
-        var fresh = new Sim
-        {
-            GlobalTime = 0.0,
-            Blades = [MakeBlade(30.0, 10.0)],
-            GroundY = 110.0,
-            WindowHeight = 110.0,
-        };
-        fresh.ApplyCuts(loaded.Monitors[0].Cuts);
-
-        Assert.Equal(0.0, fresh.Blades[0].CutHeight, 9);
-        Assert.Equal(10.0 + Constants.CUT_DURATION_SEC, fresh.Blades[0].RegrowStart, 9);
-    }
-
-    [Fact]
-    public void UnmatchedMonitorCutsAreSkipped()
-    {
-        UseStatePath(nameof(UnmatchedMonitorCutsAreSkipped));
-        var state = new AppState(2, Scene.Grass, CritterKind.None, 0, AutoStart: false,
-        [
-            new MonitorState(9999, 9999, 99, 99, [new CutRecord(0, -20.0)])
-        ]);
-        Persistence.Save(state);
-
-        AppState? loaded = Persistence.Load();
-        Assert.NotNull(loaded);
-
-        var sim = new Sim
-        {
-            Blades = [MakeBlade(30.0, 10.0)],
-            GroundY = 110.0,
-            WindowHeight = 110.0,
-        };
-        MonitorState? match = loaded.Monitors.Find(m =>
-            m.Width == 1920 && m.Height == 1080 && m.Left == 0 && m.Top == 0);
-        if (match is not null)
-        {
-            sim.ApplyCuts(match.Cuts);
-        }
-
-        Assert.Empty(sim.GetCuts());
-    }
-
-    [Fact]
     public void JsonFileIsHumanReadable()
     {
         string path = UseStatePath(nameof(JsonFileIsHumanReadable));
 
-        Persistence.Save(StateWithCuts());
+        Persistence.Save(StateWithMonitorMetadata());
         string json = File.ReadAllText(path);
 
         Assert.Contains("\n", json);

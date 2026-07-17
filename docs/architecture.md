@@ -2556,28 +2556,43 @@ Native `hedgehog_tests.cpp` and Win2D `HedgehogTests.cs` pin constants, 55% coun
 
 ## 18. Persistence
 
-DesktopGrass persists calm, invisible app state automatically. There is no user-facing save UI.
+DesktopGrass persists calm, non-interaction app state automatically. There is no user-facing save UI.
 
 ### File and schema
 
-State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Both implementations write human-readable JSON with `"version": 2` and a UTC `savedAt` timestamp. Writes are atomic: serialize to `state.json.tmp` in the same directory, then replace/rename it to `state.json` so a crash mid-write does not corrupt the previous state.
+State lives at `%LOCALAPPDATA%\\DesktopGrass\\state.json`. Native writes schema
+version 3 and the managed reference writes schema version 2. Both use
+human-readable JSON with a UTC `savedAt` timestamp. Writes are atomic: serialize
+to `state.json.tmp` in the same directory, then replace/rename it to
+`state.json` so a failure mid-write does not corrupt the previous state.
 
 Persisted fields:
 
-- `scene`: current `Scene` enum name (`Grass`, `Desert`, `Winter`).
+- `scene`: current `Scene` enum name.
 - `critter`: current `CritterKind` enum name (`None`, `Sheep`, `Cat`, `Bunny`).
 - `critterCount`: `0` for random, `1..6` for fixed per-monitor count.
 - `autoStart`: whether DesktopGrass should start with Windows; default `false`.
-- `monitors`: object keyed by monitor work-area key. Each v2 monitor has `snowDepth` plus a `cuts` array of `{ bladeIndex, cutTime }` records.
+- `monitors`: display identity and geometry metadata used to keep deterministic
+  layouts stable as displays move or reconnect.
+
+Mouse event types, cursor coordinates, click-derived cut state, and interaction
+timestamps are excluded from the schema. Older files may contain `cuts`,
+`cutTime`, or other unknown fields; current loaders ignore them and current
+saves remove them.
 
 ### Schema versions
 
-- v1: `version: 1`, monitor entries contain only `cuts`.
-- v2: `version: 2`, monitor entries add Winter `snowDepth` in DIP. All saves write v2. Loading v1 is supported and treats missing `snowDepth` as `0` with no migration file write required.
+- Native accepts versions 1, 2, and 3 and writes version 3.
+- The managed reference accepts versions 1 and 2 and writes version 2.
+- Legacy interaction fields are ignored for every accepted version.
 
 ### Load order
 
-On startup, load `state.json` before creating any `Sim`. Apply the loaded scene, critter, and critter count to every subsequently-created sim. After each sim has generated its blade set, find the matching monitor entry, apply `snowDepth` only when the loaded scene is Winter, then apply cuts. If the file is missing or malformed, start from defaults. If `version` is neither `1` nor `2`, log a warning and start fresh; never crash.
+On startup, load `state.json` before creating any `Sim`. Apply the loaded scene,
+critter, and critter count to each subsequently-created sim. Monitor metadata may
+be used to restore deterministic layout identity. Interaction-derived visual
+state is not restored. If the file is missing, malformed, or has an unsupported
+version, start from defaults.
 
 ### Save triggers
 
@@ -2589,17 +2604,26 @@ Startup does not save by itself. Save immediately after a scene, critter, critte
 
 ### Monitor matching
 
-Monitor keys use the work-area rect from monitor enumeration:
+Legacy and managed monitor keys use the work-area rect from monitor enumeration:
 
 ```text
 {width}x{height}@{left},{top}
 ```
 
-Example: `1920x1080@0,0`. If a saved monitor key does not match any current monitor (for example, a monitor was unplugged), skip that monitor's cuts silently.
+Example: `1920x1080@0,0`. Native version 3 additionally stores canonical
+display identity and a layout seed so deterministic layout survives geometry
+changes. Ambiguous or unmatched metadata is not applied.
 
-### Cut time strategy
+### Mouse-input privacy boundary
 
-The JSON field is named `cutTime`, but saved values are shifted relative to the sim time at save: `cutTime = originalCutTime - currentGlobalTime`. A cut made 20 seconds ago is saved as `-20.0`. Loading into a fresh sim with `globalTime = 0` applies that as `cutTime = -20.0`, preserving elapsed time and allowing regrowth to resume from the correct point without storing per-monitor global clocks.
+The low-level hook queues only movement and left-button-down event type,
+timestamp, and screen position in a bounded process-memory buffer. The simulation
+may temporarily retain derived visual state while the process is running, for
+example across a display reconciliation or renderer recovery. Neither raw input
+nor that derived state enters persistence, logs, diagnostics, benchmark output,
+telemetry, or application-generated crash data. The benchmark mode does not
+install the hook. The application has no telemetry, network reporting, custom
+crash reporter, or dump writer.
 
 ## 19. Day-night ambient tint (removed)
 
