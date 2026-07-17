@@ -2,7 +2,7 @@
 //
 // §17 Cat coat palette and deterministic coat variant tests. Mirrors Win2D CatCoatTests.cs.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <cmath>
@@ -39,40 +39,44 @@ uint8_t next_cat_coat_after_prefix(Prng& side) {
 
 } // namespace
 
-TEST_CASE("Cat coat variant count is pinned", "[cat][coat][constants]") {
-    REQUIRE(CAT_COAT_VARIANT_COUNT == 6);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(CatCoatTests)
+{
+public:
+TEST_METHOD(CatCoatVariantCountIsPinned) {
+    Assert::IsTrue(CAT_COAT_VARIANT_COUNT == 6);
 }
 
-TEST_CASE("Cat coat palette zero matches backward-compatible aliases", "[cat][coat][constants]") {
-    REQUIRE(CAT_COAT_PALETTES[0].body == CAT_BODY_COLOR);
-    REQUIRE(CAT_COAT_PALETTES[0].leg  == CAT_LEG_COLOR);
-    REQUIRE(CAT_COAT_PALETTES[0].face == CAT_FACE_COLOR);
-    REQUIRE(CAT_COAT_PALETTES[0].ear  == CAT_EAR_COLOR);
-    REQUIRE(CAT_COAT_PALETTES[0].ink  == CAT_INK_COLOR);
+TEST_METHOD(CatCoatPaletteZeroMatchesBackwardCompatibleAliases) {
+    Assert::IsTrue(CAT_COAT_PALETTES[0].body == CAT_BODY_COLOR);
+    Assert::IsTrue(CAT_COAT_PALETTES[0].leg  == CAT_LEG_COLOR);
+    Assert::IsTrue(CAT_COAT_PALETTES[0].face == CAT_FACE_COLOR);
+    Assert::IsTrue(CAT_COAT_PALETTES[0].ear  == CAT_EAR_COLOR);
+    Assert::IsTrue(CAT_COAT_PALETTES[0].ink  == CAT_INK_COLOR);
 }
 
-TEST_CASE("All cat coat palettes are pinned", "[cat][coat][constants]") {
+TEST_METHOD(AllCatCoatPalettesArePinned) {
     for (int i = 0; i < CAT_COAT_VARIANT_COUNT; ++i) {
-        CAPTURE(i);
-        REQUIRE(CAT_COAT_PALETTES[i].body == EXPECTED_CAT_COATS[i].body);
-        REQUIRE(CAT_COAT_PALETTES[i].leg  == EXPECTED_CAT_COATS[i].leg);
-        REQUIRE(CAT_COAT_PALETTES[i].face == EXPECTED_CAT_COATS[i].face);
-        REQUIRE(CAT_COAT_PALETTES[i].ear  == EXPECTED_CAT_COATS[i].ear);
-        REQUIRE(CAT_COAT_PALETTES[i].ink  == EXPECTED_CAT_COATS[i].ink);
+        Assert::IsTrue(CAT_COAT_PALETTES[i].body == EXPECTED_CAT_COATS[i].body);
+        Assert::IsTrue(CAT_COAT_PALETTES[i].leg  == EXPECTED_CAT_COATS[i].leg);
+        Assert::IsTrue(CAT_COAT_PALETTES[i].face == EXPECTED_CAT_COATS[i].face);
+        Assert::IsTrue(CAT_COAT_PALETTES[i].ear  == EXPECTED_CAT_COATS[i].ear);
+        Assert::IsTrue(CAT_COAT_PALETTES[i].ink  == EXPECTED_CAT_COATS[i].ink);
     }
 }
 
-TEST_CASE("Cat coat body colors are distinct", "[cat][coat][constants]") {
+TEST_METHOD(CatCoatBodyColorsAreDistinct) {
     for (int i = 0; i < CAT_COAT_VARIANT_COUNT; ++i) {
         for (int j = i + 1; j < CAT_COAT_VARIANT_COUNT; ++j) {
-            CAPTURE(i);
-            CAPTURE(j);
-            REQUIRE(CAT_COAT_PALETTES[i].body != CAT_COAT_PALETTES[j].body);
+            Assert::IsTrue(CAT_COAT_PALETTES[i].body != CAT_COAT_PALETTES[j].body);
         }
     }
 }
 
-TEST_CASE("Canonical cat flock pins deterministic coat variants", "[cat][coat][gen]") {
+TEST_METHOD(CanonicalCatFlockPinsDeterministicCoatVariants) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
 
@@ -80,14 +84,14 @@ TEST_CASE("Canonical cat flock pins deterministic coat variants", "[cat][coat][g
     int seen = 0;
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Cat) continue;
-        REQUIRE(seen < static_cast<int>(sizeof(expectedCoats) / sizeof(expectedCoats[0])));
-        REQUIRE(e.coatVariantIndex == expectedCoats[seen]);
+        Assert::IsTrue(seen < static_cast<int>(sizeof(expectedCoats) / sizeof(expectedCoats[0])));
+        Assert::IsTrue(e.coatVariantIndex == expectedCoats[seen]);
         ++seen;
     }
-    REQUIRE(seen == static_cast<int>(sizeof(expectedCoats) / sizeof(expectedCoats[0])));
+    Assert::IsTrue(seen == static_cast<int>(sizeof(expectedCoats) / sizeof(expectedCoats[0])));
 }
 
-TEST_CASE("Cat coat PRNG draw follows nameIndex", "[cat][coat][prng]") {
+TEST_METHOD(CatCoatPRNGDrawFollowsNameIndex) {
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
 
@@ -98,19 +102,19 @@ TEST_CASE("Cat coat PRNG draw follows nameIndex", "[cat][coat][prng]") {
     int expectedCount = static_cast<int>(std::floor(countDraw));
     if (expectedCount < CAT_COUNT_MIN) expectedCount = CAT_COUNT_MIN;
     if (expectedCount > CAT_COUNT_MAX) expectedCount = CAT_COUNT_MAX;
-    REQUIRE(count_kind(sim, EntityKind::Cat) == expectedCount);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == expectedCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Cat) continue;
         const uint8_t expectedCoat = next_cat_coat_after_prefix(side);
-        REQUIRE(e.coatVariantIndex == expectedCoat);
+        Assert::IsTrue(e.coatVariantIndex == expectedCoat);
         ++seen;
     }
-    REQUIRE(seen == expectedCount);
+    Assert::IsTrue(seen == expectedCount);
 }
 
-TEST_CASE("Generated cat coats always stay within palette range", "[cat][coat][gen]") {
+TEST_METHOD(GeneratedCatCoatsAlwaysStayWithinPaletteRange) {
     for (uint64_t i = 0; i < 128; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
         Sim sim = sim_init(seed, 1920.0, DEFAULT_DENSITY);
@@ -119,30 +123,30 @@ TEST_CASE("Generated cat coats always stay within palette range", "[cat][coat][g
         int seen = 0;
         for (const Entity& e : sim.entities) {
             if (e.kind != EntityKind::Cat) continue;
-            REQUIRE(e.coatVariantIndex < CAT_COAT_VARIANT_COUNT);
+            Assert::IsTrue(e.coatVariantIndex < CAT_COAT_VARIANT_COUNT);
             ++seen;
         }
-        REQUIRE(seen >= CAT_COUNT_MIN);
-        REQUIRE(seen <= CAT_COUNT_MAX);
+        Assert::IsTrue(seen >= CAT_COUNT_MIN);
+        Assert::IsTrue(seen <= CAT_COUNT_MAX);
     }
 }
 
-TEST_CASE("Sheep keep default coat variant zero", "[cat][coat][sheep]") {
+TEST_METHOD(SheepKeepDefaultCoatVariantZero) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
 
-    REQUIRE(count_kind(sim, EntityKind::Sheep) >= SHEEP_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) >= SHEEP_COUNT_MIN);
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Sheep) continue;
-        REQUIRE(e.coatVariantIndex == 0);
+        Assert::IsTrue(e.coatVariantIndex == 0);
     }
 }
 
-TEST_CASE("Fixed cat count coat PRNG skips only the count draw", "[cat][coat][count][prng]") {
+TEST_METHOD(FixedCatCountCoatPRNGSkipsOnlyTheCountDraw) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     sim_set_critter_count(sim, 3);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 3);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 3);
 
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
@@ -151,8 +155,10 @@ TEST_CASE("Fixed cat count coat PRNG skips only the count draw", "[cat][coat][co
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Cat) continue;
         const uint8_t expectedCoat = next_cat_coat_after_prefix(side);
-        REQUIRE(e.coatVariantIndex == expectedCoat);
+        Assert::IsTrue(e.coatVariantIndex == expectedCoat);
         ++seen;
     }
-    REQUIRE(seen == 3);
+    Assert::IsTrue(seen == 3);
+}
+};
 }

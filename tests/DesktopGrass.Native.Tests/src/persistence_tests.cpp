@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Persistence.h"
 #include "Sim.h"
 
@@ -67,28 +67,28 @@ persistence::AppState make_state_with_cuts() {
 }
 
 void assert_state_equal(const persistence::AppState& expected, const persistence::AppState& actual) {
-    REQUIRE(actual.version == 3);
-    REQUIRE(actual.scene == expected.scene);
-    REQUIRE(actual.critter == expected.critter);
-    REQUIRE(actual.critterCountOverride == expected.critterCountOverride);
-    REQUIRE(actual.autoStart == expected.autoStart);
-    REQUIRE(actual.monitors.size() == expected.monitors.size());
+    Assert::IsTrue(actual.version == 3);
+    Assert::IsTrue(actual.scene == expected.scene);
+    Assert::IsTrue(actual.critter == expected.critter);
+    Assert::IsTrue(actual.critterCountOverride == expected.critterCountOverride);
+    Assert::IsTrue(actual.autoStart == expected.autoStart);
+    Assert::IsTrue(actual.monitors.size() == expected.monitors.size());
 
     for (std::size_t i = 0; i < expected.monitors.size(); ++i) {
         const auto& e = expected.monitors[i];
         const auto& a = actual.monitors[i];
-        REQUIRE(a.stableId == e.stableId);
-        REQUIRE(a.sourceId == e.sourceId);
-        REQUIRE(a.layoutSeed == e.layoutSeed);
-        REQUIRE(a.width == e.width);
-        REQUIRE(a.height == e.height);
-        REQUIRE(a.left == e.left);
-        REQUIRE(a.top == e.top);
-        REQUIRE(a.workAreaBounds == e.workAreaBounds);
-        REQUIRE(a.cuts.size() == e.cuts.size());
+        Assert::IsTrue(a.stableId == e.stableId);
+        Assert::IsTrue(a.sourceId == e.sourceId);
+        Assert::IsTrue(a.layoutSeed == e.layoutSeed);
+        Assert::IsTrue(a.width == e.width);
+        Assert::IsTrue(a.height == e.height);
+        Assert::IsTrue(a.left == e.left);
+        Assert::IsTrue(a.top == e.top);
+        Assert::IsTrue(a.workAreaBounds == e.workAreaBounds);
+        Assert::IsTrue(a.cuts.size() == e.cuts.size());
         for (std::size_t j = 0; j < e.cuts.size(); ++j) {
-            REQUIRE(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);
-            REQUIRE(a.cuts[j].cutTime == Approx(e.cuts[j].cutTime).margin(1e-9));
+            Assert::IsTrue(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);
+            Assert::IsTrue(a.cuts[j].cutTime == Near(e.cuts[j].cutTime).margin(1e-9));
         }
 
     }
@@ -125,31 +125,38 @@ Blade make_blade(double regrowDelay, double regrowDuration) {
 
 } // namespace
 
-TEST_CASE("persistence round-trips empty state", "[persistence]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(PersistenceTests)
+{
+public:
+TEST_METHOD(PersistenceRoundTripsEmptyState) {
     const auto path = test_state_path("round-trip-empty");
     use_state_path(path);
 
     persistence::AppState expected;
-    REQUIRE(persistence::SaveAppState(expected));
+    Assert::IsTrue(persistence::SaveAppState(expected));
 
     persistence::AppState actual;
-    REQUIRE(persistence::LoadAppState(actual));
+    Assert::IsTrue(persistence::LoadAppState(actual));
     assert_state_equal(expected, actual);
 }
 
-TEST_CASE("persistence round-trips state with cuts", "[persistence]") {
+TEST_METHOD(PersistenceRoundTripsStateWithCuts) {
     const auto path = test_state_path("round-trip-cuts");
     use_state_path(path);
 
     const persistence::AppState expected = make_state_with_cuts();
-    REQUIRE(persistence::SaveAppState(expected));
+    Assert::IsTrue(persistence::SaveAppState(expected));
 
     persistence::AppState actual;
-    REQUIRE(persistence::LoadAppState(actual));
+    Assert::IsTrue(persistence::LoadAppState(actual));
     assert_state_equal(expected, actual);
 }
 
-TEST_CASE("persistence round-trips every scene", "[persistence]") {
+TEST_METHOD(PersistenceRoundTripsEveryScene) {
     const Scene scenes[] = {
         Scene::Grass, Scene::Desert, Scene::Winter, Scene::Autumn, Scene::Ocean
     };
@@ -159,41 +166,41 @@ TEST_CASE("persistence round-trips every scene", "[persistence]") {
 
         persistence::AppState expected;
         expected.scene = scene;
-        REQUIRE(persistence::SaveAppState(expected));
+        Assert::IsTrue(persistence::SaveAppState(expected));
 
         persistence::AppState actual;
-        REQUIRE(persistence::LoadAppState(actual));
-        REQUIRE(actual.scene == scene);
+        Assert::IsTrue(persistence::LoadAppState(actual));
+        Assert::IsTrue(actual.scene == scene);
     }
 }
 
-TEST_CASE("persistence version mismatch returns false", "[persistence]") {
+TEST_METHOD(PersistenceVersionMismatchReturnsFalse) {
     const auto path = test_state_path("version-mismatch");
     use_state_path(path);
     write_text(path, "{ \"version\": 999, \"monitors\": {} }");
 
     persistence::AppState actual;
-    REQUIRE_FALSE(persistence::LoadAppState(actual));
+    Assert::IsFalse(persistence::LoadAppState(actual));
 }
 
-TEST_CASE("persistence missing file returns false", "[persistence]") {
+TEST_METHOD(PersistenceMissingFileReturnsFalse) {
     const auto path = test_state_path("missing-file");
     use_state_path(path);
 
     persistence::AppState actual;
-    REQUIRE_FALSE(persistence::LoadAppState(actual));
+    Assert::IsFalse(persistence::LoadAppState(actual));
 }
 
-TEST_CASE("persistence malformed json returns false", "[persistence]") {
+TEST_METHOD(PersistenceMalformedJsonReturnsFalse) {
     const auto path = test_state_path("malformed-json");
     use_state_path(path);
     write_text(path, "not-json");
 
     persistence::AppState actual;
-    REQUIRE_FALSE(persistence::LoadAppState(actual));
+    Assert::IsFalse(persistence::LoadAppState(actual));
 }
 
-TEST_CASE("persistence rejects oversized integer values safely", "[persistence]") {
+TEST_METHOD(PersistenceRejectsOversizedIntegerValuesSafely) {
     const auto path = test_state_path("oversized-integers");
     use_state_path(path);
     write_text(path,
@@ -208,34 +215,34 @@ TEST_CASE("persistence rejects oversized integer values safely", "[persistence]"
         "}");
 
     persistence::AppState actual;
-    REQUIRE(persistence::LoadAppState(actual));
-    REQUIRE(actual.critterCountOverride == 0);
-    REQUIRE(actual.monitors.size() == 1);
-    REQUIRE(actual.monitors[0].cuts.empty());
+    Assert::IsTrue(persistence::LoadAppState(actual));
+    Assert::IsTrue(actual.critterCountOverride == 0);
+    Assert::IsTrue(actual.monitors.size() == 1);
+    Assert::IsTrue(actual.monitors[0].cuts.empty());
 }
 
-TEST_CASE("persistence atomic write leaves final file and removes tmp", "[persistence]") {
+TEST_METHOD(PersistenceAtomicWriteLeavesFinalFileAndRemovesTmp) {
     const auto path = test_state_path("atomic-write");
     use_state_path(path);
 
     persistence::AppState state;
-    REQUIRE(persistence::SaveAppState(state));
+    Assert::IsTrue(persistence::SaveAppState(state));
 
-    REQUIRE(std::filesystem::exists(path));
-    REQUIRE_FALSE(std::filesystem::exists(std::filesystem::path(path.wstring() + L".tmp")));
+    Assert::IsTrue(std::filesystem::exists(path));
+    Assert::IsFalse(std::filesystem::exists(std::filesystem::path(path.wstring() + L".tmp")));
 }
 
-TEST_CASE("persistence monitor key format round-trips", "[persistence]") {
+TEST_METHOD(PersistenceMonitorKeyFormatRoundTrips) {
     persistence::MonitorState monitor;
     monitor.width = 1920;
     monitor.height = 1080;
     monitor.left = 0;
     monitor.top = 0;
-    REQUIRE(persistence::MonitorKey(monitor) == "1920x1080@0,0");
-    REQUIRE(persistence::MonitorKey(1920, 1080, 0, 0) == "1920x1080@0,0");
+    Assert::IsTrue(persistence::MonitorKey(monitor) == "1920x1080@0,0");
+    Assert::IsTrue(persistence::MonitorKey(1920, 1080, 0, 0) == "1920x1080@0,0");
 }
 
-TEST_CASE("persistence cut timestamps shift for fresh sim load", "[persistence]") {
+TEST_METHOD(PersistenceCutTimestampsShiftForFreshSimLoad) {
     const auto path = test_state_path("time-shift");
     use_state_path(path);
 
@@ -246,8 +253,8 @@ TEST_CASE("persistence cut timestamps shift for fresh sim load", "[persistence]"
     running.blades[0].regrowStart = 80.0 + CUT_DURATION_SEC + running.blades[0].regrowDelay;
 
     auto cuts = sim_get_cuts(running);
-    REQUIRE(cuts.size() == 1);
-    REQUIRE(cuts[0].cutTime == Approx(-20.0).margin(1e-9));
+    Assert::IsTrue(cuts.size() == 1);
+    Assert::IsTrue(cuts[0].cutTime == Near(-20.0).margin(1e-9));
 
     persistence::AppState state;
     persistence::MonitorState monitor;
@@ -257,21 +264,21 @@ TEST_CASE("persistence cut timestamps shift for fresh sim load", "[persistence]"
     monitor.top = 0;
     monitor.cuts = cuts;
     state.monitors.push_back(monitor);
-    REQUIRE(persistence::SaveAppState(state));
+    Assert::IsTrue(persistence::SaveAppState(state));
 
     persistence::AppState loaded;
-    REQUIRE(persistence::LoadAppState(loaded));
-    REQUIRE(loaded.monitors[0].cuts[0].cutTime < 0.0);
+    Assert::IsTrue(persistence::LoadAppState(loaded));
+    Assert::IsTrue(loaded.monitors[0].cuts[0].cutTime < 0.0);
 
     Sim fresh;
     fresh.globalTime = 0.0;
     fresh.blades.push_back(make_blade(30.0, 10.0));
     sim_apply_cuts(fresh, loaded.monitors[0].cuts);
-    REQUIRE(fresh.blades[0].cutHeight == Approx(0.0).margin(1e-9));
-    REQUIRE(fresh.blades[0].regrowStart == Approx(10.0 + CUT_DURATION_SEC).margin(1e-9));
+    Assert::IsTrue(fresh.blades[0].cutHeight == Near(0.0).margin(1e-9));
+    Assert::IsTrue(fresh.blades[0].regrowStart == Near(10.0 + CUT_DURATION_SEC).margin(1e-9));
 }
 
-TEST_CASE("persistence unmatched monitor cuts are skipped", "[persistence]") {
+TEST_METHOD(PersistenceUnmatchedMonitorCutsAreSkipped) {
     const auto path = test_state_path("unmatched-monitor");
     use_state_path(path);
 
@@ -283,10 +290,10 @@ TEST_CASE("persistence unmatched monitor cuts are skipped", "[persistence]") {
     unmatched.top = 99;
     unmatched.cuts.push_back(persistence::CutRecord{ 0, -20.0 });
     state.monitors.push_back(unmatched);
-    REQUIRE(persistence::SaveAppState(state));
+    Assert::IsTrue(persistence::SaveAppState(state));
 
     persistence::AppState loaded;
-    REQUIRE(persistence::LoadAppState(loaded));
+    Assert::IsTrue(persistence::LoadAppState(loaded));
 
     Sim sim;
     sim.blades.push_back(make_blade(30.0, 10.0));
@@ -303,22 +310,21 @@ TEST_CASE("persistence unmatched monitor cuts are skipped", "[persistence]") {
         sim_apply_cuts(sim, match->cuts);
     }
 
-    REQUIRE(sim_get_cuts(sim).empty());
+    Assert::IsTrue(sim_get_cuts(sim).empty());
 }
 
-TEST_CASE("persistence json is human readable", "[persistence]") {
+TEST_METHOD(PersistenceJsonIsHumanReadable) {
     const auto path = test_state_path("human-readable");
     use_state_path(path);
 
-    REQUIRE(persistence::SaveAppState(make_state_with_cuts()));
+    Assert::IsTrue(persistence::SaveAppState(make_state_with_cuts()));
     const std::string text = read_text(path);
-    REQUIRE(text.find('\n') != std::string::npos);
-    REQUIRE(text.find("  \"version\"") != std::string::npos);
-    REQUIRE(text.find("    \"") != std::string::npos);
+    Assert::IsTrue(text.find('\n') != std::string::npos);
+    Assert::IsTrue(text.find("  \"version\"") != std::string::npos);
+    Assert::IsTrue(text.find("    \"") != std::string::npos);
 }
 
-TEST_CASE("persistence loads version two monitor geometry for migration",
-          "[persistence]") {
+TEST_METHOD(PersistenceLoadsVersionTwoMonitorGeometryForMigration) {
     const auto path = test_state_path("v2-migration");
     use_state_path(path);
     write_text(path,
@@ -331,18 +337,18 @@ TEST_CASE("persistence loads version two monitor geometry for migration",
         "}");
 
     persistence::AppState state;
-    REQUIRE(persistence::LoadAppState(state));
-    REQUIRE(state.version == 2);
-    REQUIRE(state.monitors.size() == 1);
-    REQUIRE(state.monitors[0].workAreaBounds);
+    Assert::IsTrue(persistence::LoadAppState(state));
+    Assert::IsTrue(state.version == 2);
+    Assert::IsTrue(state.monitors.size() == 1);
+    Assert::IsTrue(state.monitors[0].workAreaBounds);
 
     const topology::PixelRect full{ 0, 0, 1920, 1080 };
     const topology::PixelRect work{ 0, 0, 1920, 1040 };
     const auto snapshot = make_monitor_snapshot(
         "stable-a", "source-a", full, work);
     const auto* legacy = persistence::FindMonitorState(state, snapshot);
-    REQUIRE(legacy != nullptr);
-    REQUIRE(legacy->cuts.size() == 1);
+    Assert::IsTrue(legacy != nullptr);
+    Assert::IsTrue(legacy->cuts.size() == 1);
 
     persistence::MonitorState migrated;
     migrated.stableId = snapshot.identity.stableId;
@@ -356,24 +362,23 @@ TEST_CASE("persistence loads version two monitor geometry for migration",
     persistence::UpsertMonitorState(state, std::move(migrated), snapshot);
     state.version = 3;
 
-    REQUIRE(state.monitors.size() == 1);
-    REQUIRE(persistence::SaveAppState(state));
+    Assert::IsTrue(state.monitors.size() == 1);
+    Assert::IsTrue(persistence::SaveAppState(state));
 
     persistence::AppState reloaded;
-    REQUIRE(persistence::LoadAppState(reloaded));
-    REQUIRE(reloaded.version == 3);
-    REQUIRE(reloaded.monitors[0].stableId == "stable-a");
-    REQUIRE(reloaded.monitors[0].layoutSeed
+    Assert::IsTrue(persistence::LoadAppState(reloaded));
+    Assert::IsTrue(reloaded.version == 3);
+    Assert::IsTrue(reloaded.monitors[0].stableId == "stable-a");
+    Assert::IsTrue(reloaded.monitors[0].layoutSeed
             == topology::MakeLegacyLayoutSeed(work));
 
     auto moved = snapshot;
     moved.monitorBounds = topology::PixelRect{ -1920, 0, 0, 1080 };
     moved.workArea = topology::PixelRect{ -1920, 0, 0, 1040 };
-    REQUIRE(persistence::FindMonitorState(reloaded, moved) != nullptr);
+    Assert::IsTrue(persistence::FindMonitorState(reloaded, moved) != nullptr);
 }
 
-TEST_CASE("persistence loads version one monitor geometry for migration",
-          "[persistence]") {
+TEST_METHOD(PersistenceLoadsVersionOneMonitorGeometryForMigration) {
     const auto path = test_state_path("v1-migration");
     use_state_path(path);
     write_text(path,
@@ -386,16 +391,15 @@ TEST_CASE("persistence loads version one monitor geometry for migration",
         "}");
 
     persistence::AppState state;
-    REQUIRE(persistence::LoadAppState(state));
-    REQUIRE(state.version == 1);
-    REQUIRE(state.scene == Scene::Desert);
-    REQUIRE(state.monitors.size() == 1);
-    REQUIRE(state.monitors[0].workAreaBounds);
-    REQUIRE(state.monitors[0].cuts.size() == 1);
+    Assert::IsTrue(persistence::LoadAppState(state));
+    Assert::IsTrue(state.version == 1);
+    Assert::IsTrue(state.scene == Scene::Desert);
+    Assert::IsTrue(state.monitors.size() == 1);
+    Assert::IsTrue(state.monitors[0].workAreaBounds);
+    Assert::IsTrue(state.monitors[0].cuts.size() == 1);
 }
 
-TEST_CASE("persistence refuses ambiguous legacy geometry matches",
-          "[persistence]") {
+TEST_METHOD(PersistenceRefusesAmbiguousLegacyGeometryMatches) {
     persistence::AppState state;
     state.version = 2;
     persistence::MonitorState first;
@@ -409,11 +413,10 @@ TEST_CASE("persistence refuses ambiguous legacy geometry matches",
         "stable-a", "source-a",
         topology::PixelRect{ 0, 0, 1920, 1080 },
         topology::PixelRect{ 0, 0, 1920, 1040 });
-    REQUIRE(persistence::FindMonitorState(state, snapshot) == nullptr);
+    Assert::IsTrue(persistence::FindMonitorState(state, snapshot) == nullptr);
 }
 
-TEST_CASE("persistence stable identity survives geometry changes",
-          "[persistence]") {
+TEST_METHOD(PersistenceStableIdentitySurvivesGeometryChanges) {
     persistence::AppState state;
     persistence::MonitorState saved;
     saved.stableId = "stable-a";
@@ -428,12 +431,11 @@ TEST_CASE("persistence stable identity survives geometry changes",
         topology::PixelRect{ -2560, -200, 0, 1240 },
         topology::PixelRect{ -2520, -200, 0, 1240 });
     const auto* match = persistence::FindMonitorState(state, snapshot);
-    REQUIRE(match != nullptr);
-    REQUIRE(match->layoutSeed == 42);
+    Assert::IsTrue(match != nullptr);
+    Assert::IsTrue(match->layoutSeed == 42);
 }
 
-TEST_CASE("persistence does not reuse a source alias for a different stable monitor",
-          "[persistence]") {
+TEST_METHOD(PersistenceDoesNotReuseASourceAliasForADifferentStableMonitor) {
     persistence::AppState state;
     persistence::MonitorState saved;
     saved.stableId = "stable-a";
@@ -447,11 +449,10 @@ TEST_CASE("persistence does not reuse a source alias for a different stable moni
         "stable-b", "source-a",
         topology::PixelRect{ 0, 0, 1920, 1080 },
         topology::PixelRect{ 0, 0, 1920, 1040 });
-    REQUIRE(persistence::FindMonitorState(state, replacement) == nullptr);
+    Assert::IsTrue(persistence::FindMonitorState(state, replacement) == nullptr);
 }
 
-TEST_CASE("persistence upsert retains disconnected monitor records",
-          "[persistence]") {
+TEST_METHOD(PersistenceUpsertRetainsDisconnectedMonitorRecords) {
     persistence::AppState state;
     persistence::MonitorState disconnected;
     disconnected.stableId = "disconnected";
@@ -474,13 +475,12 @@ TEST_CASE("persistence upsert retains disconnected monitor records",
     persistence::UpsertMonitorState(
         state, std::move(active), activeSnapshot);
 
-    REQUIRE(state.monitors.size() == 2);
-    REQUIRE(state.monitors[0].stableId == "disconnected");
-    REQUIRE(state.monitors[1].stableId == "active");
+    Assert::IsTrue(state.monitors.size() == 2);
+    Assert::IsTrue(state.monitors[0].stableId == "disconnected");
+    Assert::IsTrue(state.monitors[1].stableId == "active");
 }
 
-TEST_CASE("persistence ignores malformed version three layout seeds safely",
-          "[persistence]") {
+TEST_METHOD(PersistenceIgnoresMalformedVersionThreeLayoutSeedsSafely) {
     const auto path = test_state_path("malformed-layout-seed");
     use_state_path(path);
     write_text(path,
@@ -497,7 +497,9 @@ TEST_CASE("persistence ignores malformed version three layout seeds safely",
         "}");
 
     persistence::AppState state;
-    REQUIRE(persistence::LoadAppState(state));
-    REQUIRE(state.monitors.size() == 1);
-    REQUIRE_FALSE(state.monitors[0].layoutSeed.has_value());
+    Assert::IsTrue(persistence::LoadAppState(state));
+    Assert::IsTrue(state.monitors.size() == 1);
+    Assert::IsFalse(state.monitors[0].layoutSeed.has_value());
+}
+};
 }

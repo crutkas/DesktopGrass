@@ -1,6 +1,6 @@
 // Device-independent tests for the production graphics recovery policy.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 
 #include "DeviceRecovery.h"
 #include "Sim.h"
@@ -38,7 +38,7 @@ struct SimContinuitySnapshot {
 
 Sim MakeContinuitySim() {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 960.0, DEFAULT_DENSITY);
-    REQUIRE_FALSE(sim.blades.empty());
+    Assert::IsFalse(sim.blades.empty());
     sim.currentScene = Scene::Grass;
     sim.currentCritter = CritterKind::Cat;
     sim.critterCountOverride = 4;
@@ -74,19 +74,19 @@ void RequireContinuity(
     const SimContinuitySnapshot& expected,
     Sim& actual)
 {
-    REQUIRE(&actual == expected.address);
-    REQUIRE(actual.blades.data() == expected.bladeStorage);
-    REQUIRE(actual.blades.size() == expected.layout.size());
-    REQUIRE(actual.currentScene == expected.scene);
-    REQUIRE(actual.currentCritter == expected.critter);
-    REQUIRE(actual.critterCountOverride == expected.critterCount);
-    REQUIRE(actual.blades.front().cutHeight == Approx(expected.cutHeight));
+    Assert::IsTrue(&actual == expected.address);
+    Assert::IsTrue(actual.blades.data() == expected.bladeStorage);
+    Assert::IsTrue(actual.blades.size() == expected.layout.size());
+    Assert::IsTrue(actual.currentScene == expected.scene);
+    Assert::IsTrue(actual.currentCritter == expected.critter);
+    Assert::IsTrue(actual.critterCountOverride == expected.critterCount);
+    Assert::IsTrue(actual.blades.front().cutHeight == Near(expected.cutHeight));
 
     for (std::size_t i = 0; i < expected.layout.size(); ++i) {
-        REQUIRE(actual.blades[i].baseX == expected.layout[i].baseX);
-        REQUIRE(actual.blades[i].height == expected.layout[i].height);
-        REQUIRE(actual.blades[i].thickness == expected.layout[i].thickness);
-        REQUIRE(actual.blades[i].hue == expected.layout[i].hue);
+        Assert::IsTrue(actual.blades[i].baseX == expected.layout[i].baseX);
+        Assert::IsTrue(actual.blades[i].height == expected.layout[i].height);
+        Assert::IsTrue(actual.blades[i].thickness == expected.layout[i].thickness);
+        Assert::IsTrue(actual.blades[i].hue == expected.layout[i].hue);
     }
 }
 
@@ -98,8 +98,14 @@ auto MakeReporter(std::vector<LogEntry>& log) {
 
 } // namespace
 
-TEST_CASE("Device recovery controller processes a healthy frame once",
-          "[device-recovery][unit]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(DeviceRecoveryTests)
+{
+public:
+TEST_METHOD(DeviceRecoveryControllerProcessesAHealthyFrameOnce) {
     DeviceRecoveryController controller;
     controller.StartReady();
 
@@ -117,64 +123,66 @@ TEST_CASE("Device recovery controller processes a healthy frame once",
             return DeviceRecoveryAttempt{true, 10};
         });
 
-    REQUIRE(sim.globalTime == Approx(0.01));
-    REQUIRE(drawCalls == 1);
-    REQUIRE(recreateCalls == 0);
-    REQUIRE(log.empty());
-    REQUIRE(controller.IsRunning());
-    REQUIRE(controller.IsReady());
-    REQUIRE_FALSE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 0);
+    Assert::IsTrue(sim.globalTime == Near(0.01));
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsTrue(recreateCalls == 0);
+    Assert::IsTrue(log.empty());
+    Assert::IsTrue(controller.IsRunning());
+    Assert::IsTrue(controller.IsReady());
+    Assert::IsFalse(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 0);
 }
 
-TEST_CASE("Render failures classify device loss before resources are discarded",
-          "[device-recovery][unit][classification]") {
+TEST_METHOD(RenderFailuresClassifyDeviceLossBeforeResourcesAreDiscarded) {
     int removalReasonCalls = 0;
     auto getRemovalReason = [&removalReasonCalls]() {
         ++removalReasonCalls;
         return DXGI_ERROR_DEVICE_HUNG;
     };
 
-    SECTION("D2D recreate target") {
+    {
         const auto loss = ClassifyDeviceLoss(
             RenderOperation::EndDraw,
             D2DERR_RECREATE_TARGET,
             getRemovalReason);
 
-        REQUIRE(loss.has_value());
-        REQUIRE(loss->operation == RenderOperation::EndDraw);
-        REQUIRE(loss->result == D2DERR_RECREATE_TARGET);
-        REQUIRE(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
-        REQUIRE(removalReasonCalls == 1);
+        Assert::IsTrue(loss.has_value());
+        Assert::IsTrue(loss->operation == RenderOperation::EndDraw);
+        Assert::IsTrue(loss->result == D2DERR_RECREATE_TARGET);
+        Assert::IsTrue(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
+        Assert::IsTrue(removalReasonCalls == 1);
     }
 
-    SECTION("DXGI device removed") {
+    {
+        removalReasonCalls = 0;
         const auto loss = ClassifyDeviceLoss(
             RenderOperation::Present1,
             DXGI_ERROR_DEVICE_REMOVED,
             getRemovalReason);
 
-        REQUIRE(loss.has_value());
-        REQUIRE(loss->operation == RenderOperation::Present1);
-        REQUIRE(loss->result == DXGI_ERROR_DEVICE_REMOVED);
-        REQUIRE(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
-        REQUIRE(removalReasonCalls == 1);
+        Assert::IsTrue(loss.has_value());
+        Assert::IsTrue(loss->operation == RenderOperation::Present1);
+        Assert::IsTrue(loss->result == DXGI_ERROR_DEVICE_REMOVED);
+        Assert::IsTrue(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
+        Assert::IsTrue(removalReasonCalls == 1);
     }
 
-    SECTION("DXGI device reset") {
+    {
+        removalReasonCalls = 0;
         const auto loss = ClassifyDeviceLoss(
             RenderOperation::Present1,
             DXGI_ERROR_DEVICE_RESET,
             getRemovalReason);
 
-        REQUIRE(loss.has_value());
-        REQUIRE(loss->operation == RenderOperation::Present1);
-        REQUIRE(loss->result == DXGI_ERROR_DEVICE_RESET);
-        REQUIRE(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
-        REQUIRE(removalReasonCalls == 1);
+        Assert::IsTrue(loss.has_value());
+        Assert::IsTrue(loss->operation == RenderOperation::Present1);
+        Assert::IsTrue(loss->result == DXGI_ERROR_DEVICE_RESET);
+        Assert::IsTrue(loss->deviceRemovalReason == DXGI_ERROR_DEVICE_HUNG);
+        Assert::IsTrue(removalReasonCalls == 1);
     }
 
-    SECTION("unrelated failures are not device loss") {
+    {
+        removalReasonCalls = 0;
         const auto endDrawLoss = ClassifyDeviceLoss(
             RenderOperation::EndDraw,
             E_FAIL,
@@ -184,14 +192,13 @@ TEST_CASE("Render failures classify device loss before resources are discarded",
             DXGI_ERROR_INVALID_CALL,
             getRemovalReason);
 
-        REQUIRE_FALSE(endDrawLoss.has_value());
-        REQUIRE_FALSE(presentLoss.has_value());
-        REQUIRE(removalReasonCalls == 0);
+        Assert::IsFalse(endDrawLoss.has_value());
+        Assert::IsFalse(presentLoss.has_value());
+        Assert::IsTrue(removalReasonCalls == 0);
     }
 }
 
-TEST_CASE("D2D loss restores immediately without resetting simulation",
-          "[device-recovery][unit]") {
+TEST_METHOD(D2DLossRestoresImmediatelyWithoutResettingSimulation) {
     DeviceRecoveryController controller;
     controller.StartReady();
 
@@ -222,62 +229,54 @@ TEST_CASE("D2D loss restores immediately without resetting simulation",
         },
         recreate);
 
-    REQUIRE(sim.globalTime == Approx(0.02));
-    REQUIRE(drawCalls == 1);
-    REQUIRE(recreateCalls == 1);
-    REQUIRE(controller.IsReady());
-    REQUIRE_FALSE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 0);
-    REQUIRE(log.size() == 1);
-    REQUIRE(log[0].tag == "EndDraw");
-    REQUIRE(log[0].result == D2DERR_RECREATE_TARGET);
+    Assert::IsTrue(sim.globalTime == Near(0.02));
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsTrue(recreateCalls == 1);
+    Assert::IsTrue(controller.IsReady());
+    Assert::IsFalse(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 0);
+    Assert::IsTrue(log.size() == 1);
+    Assert::IsTrue(log[0].tag == "EndDraw");
+    Assert::IsTrue(log[0].result == D2DERR_RECREATE_TARGET);
     RequireContinuity(before, sim);
 }
 
-TEST_CASE("DXGI loss reports its removal reason before immediate recovery",
-          "[device-recovery][unit][logging]") {
-    HRESULT presentResult = DXGI_ERROR_DEVICE_REMOVED;
+TEST_METHOD(DXGILossReportsItsRemovalReasonBeforeImmediateRecovery) {
+    for (const HRESULT presentResult :
+         {DXGI_ERROR_DEVICE_REMOVED, DXGI_ERROR_DEVICE_RESET}) {
+        DeviceRecoveryController controller;
+        controller.StartReady();
+        std::vector<LogEntry> log;
+        auto recreate = []() {
+            return DeviceRecoveryAttempt{true, 200};
+        };
+        auto reporter = MakeReporter(log);
 
-    SECTION("removed") {
-        presentResult = DXGI_ERROR_DEVICE_REMOVED;
+        controller.ProcessFrame(
+            200,
+            []() {},
+            [&controller, presentResult, &recreate, &reporter]() {
+                controller.HandleDeviceLoss(
+                    DeviceLossInfo{
+                        RenderOperation::Present1,
+                        presentResult,
+                        DXGI_ERROR_DEVICE_HUNG,
+                    },
+                    recreate,
+                    reporter);
+            },
+            recreate);
+
+        Assert::IsTrue(log.size() == 2);
+        Assert::IsTrue(log[0].tag == "Present1");
+        Assert::IsTrue(log[0].result == presentResult);
+        Assert::IsTrue(log[1].tag == "ID3D11Device::GetDeviceRemovedReason");
+        Assert::IsTrue(log[1].result == DXGI_ERROR_DEVICE_HUNG);
+        Assert::IsTrue(controller.IsReady());
     }
-    SECTION("reset") {
-        presentResult = DXGI_ERROR_DEVICE_RESET;
-    }
-
-    DeviceRecoveryController controller;
-    controller.StartReady();
-    std::vector<LogEntry> log;
-    auto recreate = []() {
-        return DeviceRecoveryAttempt{true, 200};
-    };
-    auto reporter = MakeReporter(log);
-
-    controller.ProcessFrame(
-        200,
-        []() {},
-        [&controller, presentResult, &recreate, &reporter]() {
-            controller.HandleDeviceLoss(
-                DeviceLossInfo{
-                    RenderOperation::Present1,
-                    presentResult,
-                    DXGI_ERROR_DEVICE_HUNG,
-                },
-                recreate,
-                reporter);
-        },
-        recreate);
-
-    REQUIRE(log.size() == 2);
-    REQUIRE(log[0].tag == "Present1");
-    REQUIRE(log[0].result == presentResult);
-    REQUIRE(log[1].tag == "ID3D11Device::GetDeviceRemovedReason");
-    REQUIRE(log[1].result == DXGI_ERROR_DEVICE_HUNG);
-    REQUIRE(controller.IsReady());
 }
 
-TEST_CASE("Successful device-removal reason is not logged",
-          "[device-recovery][unit][logging]") {
+TEST_METHOD(SuccessfulDeviceRemovalReasonIsNotLogged) {
     DeviceRecoveryController controller;
     controller.StartReady();
     std::vector<LogEntry> log;
@@ -291,13 +290,12 @@ TEST_CASE("Successful device-removal reason is not logged",
         []() { return DeviceRecoveryAttempt{true, 250}; },
         MakeReporter(log));
 
-    REQUIRE(log.size() == 1);
-    REQUIRE(log[0].tag == "Present1");
-    REQUIRE(log[0].result == DXGI_ERROR_DEVICE_REMOVED);
+    Assert::IsTrue(log.size() == 1);
+    Assert::IsTrue(log[0].tag == "Present1");
+    Assert::IsTrue(log[0].result == DXGI_ERROR_DEVICE_REMOVED);
 }
 
-TEST_CASE("Failed recreation retries once per one-second deadline",
-          "[device-recovery][unit][timing]") {
+TEST_METHOD(FailedRecreationRetriesOncePerOneSecondDeadline) {
     enum class RecoveryStage {
         D3dCreate,
         DcompCommit,
@@ -324,7 +322,7 @@ TEST_CASE("Failed recreation retries once per one-second deadline",
 
     auto tick = [&sim]() { sim_tick(sim, 0.01, nullptr, 0); };
     auto recreate = [&attempts, &nextAttempt, &observedStages]() {
-        REQUIRE(nextAttempt < attempts.size());
+        Assert::IsTrue(nextAttempt < attempts.size());
         const ScriptedAttempt& attempt = attempts[nextAttempt++];
         observedStages.push_back(attempt.stage);
         return attempt.result;
@@ -345,51 +343,50 @@ TEST_CASE("Failed recreation retries once per one-second deadline",
     };
 
     controller.ProcessFrame(5000, tick, draw, recreate);
-    REQUIRE(nextAttempt == 1);
-    REQUIRE(drawCalls == 1);
-    REQUIRE_FALSE(controller.IsReady());
-    REQUIRE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 6100);
+    Assert::IsTrue(nextAttempt == 1);
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsFalse(controller.IsReady());
+    Assert::IsTrue(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 6100);
 
     controller.ProcessFrame(6099, tick, draw, recreate);
-    REQUIRE(nextAttempt == 1);
-    REQUIRE(drawCalls == 1);
-    REQUIRE(controller.NextRetryMs() == 6100);
+    Assert::IsTrue(nextAttempt == 1);
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsTrue(controller.NextRetryMs() == 6100);
 
     controller.ProcessFrame(6100, tick, draw, recreate);
-    REQUIRE(nextAttempt == 2);
-    REQUIRE(drawCalls == 1);
-    REQUIRE_FALSE(controller.IsReady());
-    REQUIRE(controller.NextRetryMs() == 7250);
+    Assert::IsTrue(nextAttempt == 2);
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsFalse(controller.IsReady());
+    Assert::IsTrue(controller.NextRetryMs() == 7250);
 
     controller.ProcessFrame(7249, tick, draw, recreate);
-    REQUIRE(nextAttempt == 2);
-    REQUIRE(drawCalls == 1);
-    REQUIRE(controller.NextRetryMs() == 7250);
+    Assert::IsTrue(nextAttempt == 2);
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsTrue(controller.NextRetryMs() == 7250);
 
     controller.ProcessFrame(7250, tick, draw, recreate);
-    REQUIRE(nextAttempt == 3);
-    REQUIRE(drawCalls == 1);
-    REQUIRE(controller.IsReady());
-    REQUIRE_FALSE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 0);
+    Assert::IsTrue(nextAttempt == 3);
+    Assert::IsTrue(drawCalls == 1);
+    Assert::IsTrue(controller.IsReady());
+    Assert::IsFalse(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 0);
 
     controller.ProcessFrame(7256, tick, draw, recreate);
-    REQUIRE(nextAttempt == 3);
-    REQUIRE(drawCalls == 2);
-    REQUIRE(sim.globalTime == Approx(0.06));
-    REQUIRE(log.size() == 2);
+    Assert::IsTrue(nextAttempt == 3);
+    Assert::IsTrue(drawCalls == 2);
+    Assert::IsTrue(sim.globalTime == Near(0.06));
+    Assert::IsTrue(log.size() == 2);
     const std::vector<RecoveryStage> expectedStages{
         RecoveryStage::D3dCreate,
         RecoveryStage::DcompCommit,
         RecoveryStage::Success,
     };
-    REQUIRE(observedStages == expectedStages);
+    Assert::IsTrue(observedStages == expectedStages);
     RequireContinuity(before, sim);
 }
 
-TEST_CASE("Stopping recovery cancels retries and later callbacks",
-          "[device-recovery][unit][lifecycle]") {
+TEST_METHOD(StoppingRecoveryCancelsRetriesAndLaterCallbacks) {
     DeviceRecoveryController controller;
     controller.StartReady();
     int tickCalls = 0;
@@ -409,10 +406,10 @@ TEST_CASE("Stopping recovery cancels retries and later callbacks",
         },
         [&reportCalls](const char*, HRESULT) { ++reportCalls; });
 
-    REQUIRE(recreateCalls == 1);
-    REQUIRE(reportCalls == 2);
-    REQUIRE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 9050);
+    Assert::IsTrue(recreateCalls == 1);
+    Assert::IsTrue(reportCalls == 2);
+    Assert::IsTrue(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 9050);
 
     controller.Stop();
     controller.ProcessFrame(
@@ -435,12 +432,14 @@ TEST_CASE("Stopping recovery cancels retries and later callbacks",
         },
         [&reportCalls](const char*, HRESULT) { ++reportCalls; });
 
-    REQUIRE_FALSE(controller.IsRunning());
-    REQUIRE_FALSE(controller.IsReady());
-    REQUIRE_FALSE(controller.IsRetryPending());
-    REQUIRE(controller.NextRetryMs() == 0);
-    REQUIRE(tickCalls == 0);
-    REQUIRE(drawCalls == 0);
-    REQUIRE(recreateCalls == 1);
-    REQUIRE(reportCalls == 2);
+    Assert::IsFalse(controller.IsRunning());
+    Assert::IsFalse(controller.IsReady());
+    Assert::IsFalse(controller.IsRetryPending());
+    Assert::IsTrue(controller.NextRetryMs() == 0);
+    Assert::IsTrue(tickCalls == 0);
+    Assert::IsTrue(drawCalls == 0);
+    Assert::IsTrue(recreateCalls == 1);
+    Assert::IsTrue(reportCalls == 2);
+}
+};
 }

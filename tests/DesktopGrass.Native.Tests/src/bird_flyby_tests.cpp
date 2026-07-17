@@ -1,6 +1,6 @@
 // bird_flyby_tests.cpp - §17.8 ambient bird flyby tests.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -75,31 +75,38 @@ uint64_t find_v_seed(int minSize) {
 }
 } // namespace
 
-TEST_CASE("Bird flyby constants are pinned to spec values", "[bird][constants]") {
-    REQUIRE(BIRD_FLYBY_SPAWN_RATE_PER_HOUR == Approx(15.0));
-    REQUIRE(BIRD_FLOCK_SIZE_MIN == 3);
-    REQUIRE(BIRD_FLOCK_SIZE_MAX == 7);
-    REQUIRE(BIRD_FLOCK_FORMATION_SPACING == Approx(9.0));
-    REQUIRE(BIRD_FLOCK_V_ANGLE_DEG == Approx(22.0));
-    REQUIRE(BIRD_SPEED_MIN == Approx(65.0));
-    REQUIRE(BIRD_SPEED_MAX == Approx(95.0));
-    REQUIRE(BIRD_ALTITUDE_MIN == Approx(78.0));
-    REQUIRE(BIRD_ALTITUDE_MAX == Approx(96.0));
-    REQUIRE(BIRD_BODY_LENGTH == Approx(3.6));
-    REQUIRE(BIRD_WING_SPAN == Approx(5.0));
-    REQUIRE(BIRD_WING_FLAP_FREQ == Approx(7.0));
-    REQUIRE(BIRD_WING_FLAP_PHASE_JITTER == Approx(0.6));
-    REQUIRE(BIRD_BODY_COLOR == 0xFF1A1610u);
-    REQUIRE(BIRD_WING_OPEN_RATIO == Approx(1.0));
-    REQUIRE(BIRD_WING_FOLD_RATIO == Approx(0.30));
-    REQUIRE(BIRD_FADE_IN_FRAC == Approx(0.08));
-    REQUIRE(BIRD_FADE_OUT_FRAC == Approx(0.08));
-    REQUIRE(BIRD_DRIFT_AMP_Y == Approx(3.0));
-    REQUIRE(BIRD_DRIFT_FREQ_Y == Approx(0.8));
-    REQUIRE(BIRD_FLYBY_PRNG_SALT == 0xB12D1F1A1B12D1Aull);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(BirdFlybyTests)
+{
+public:
+TEST_METHOD(BirdFlybyConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(BIRD_FLYBY_SPAWN_RATE_PER_HOUR == Near(15.0));
+    Assert::IsTrue(BIRD_FLOCK_SIZE_MIN == 3);
+    Assert::IsTrue(BIRD_FLOCK_SIZE_MAX == 7);
+    Assert::IsTrue(BIRD_FLOCK_FORMATION_SPACING == Near(9.0));
+    Assert::IsTrue(BIRD_FLOCK_V_ANGLE_DEG == Near(22.0));
+    Assert::IsTrue(BIRD_SPEED_MIN == Near(65.0));
+    Assert::IsTrue(BIRD_SPEED_MAX == Near(95.0));
+    Assert::IsTrue(BIRD_ALTITUDE_MIN == Near(78.0));
+    Assert::IsTrue(BIRD_ALTITUDE_MAX == Near(96.0));
+    Assert::IsTrue(BIRD_BODY_LENGTH == Near(3.6));
+    Assert::IsTrue(BIRD_WING_SPAN == Near(5.0));
+    Assert::IsTrue(BIRD_WING_FLAP_FREQ == Near(7.0));
+    Assert::IsTrue(BIRD_WING_FLAP_PHASE_JITTER == Near(0.6));
+    Assert::IsTrue(BIRD_BODY_COLOR == 0xFF1A1610u);
+    Assert::IsTrue(BIRD_WING_OPEN_RATIO == Near(1.0));
+    Assert::IsTrue(BIRD_WING_FOLD_RATIO == Near(0.30));
+    Assert::IsTrue(BIRD_FADE_IN_FRAC == Near(0.08));
+    Assert::IsTrue(BIRD_FADE_OUT_FRAC == Near(0.08));
+    Assert::IsTrue(BIRD_DRIFT_AMP_Y == Near(3.0));
+    Assert::IsTrue(BIRD_DRIFT_FREQ_Y == Near(0.8));
+    Assert::IsTrue(BIRD_FLYBY_PRNG_SALT == 0xB12D1F1A1B12D1Aull);
 }
 
-TEST_CASE("Bird flyby PRNG salt is unique", "[bird][constants]") {
+TEST_METHOD(BirdFlybyPRNGSaltIsUnique) {
     const uint64_t salts[] = {
         REGROW_PRNG_SALT, FLOWER_PRNG_SALT, MUSHROOM_PRNG_SALT,
         AMBIENT_GUST_PRNG_SALT, CACTUS_PRNG_SALT, TUMBLEWEED_PRNG_SALT,
@@ -107,49 +114,49 @@ TEST_CASE("Bird flyby PRNG salt is unique", "[bird][constants]") {
         SNOWFLAKE_PRNG_SALT, PINE_PRNG_SALT,
     };
     for (uint64_t salt : salts) {
-        REQUIRE(BIRD_FLYBY_PRNG_SALT != salt);
+        Assert::IsTrue(BIRD_FLYBY_PRNG_SALT != salt);
     }
 }
 
-TEST_CASE("Bird flyby flock size stays in range over seeds", "[bird][spawn]") {
+TEST_METHOD(BirdFlybyFlockSizeStaysInRangeOverSeeds) {
     for (uint64_t i = 0; i < 256; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
         Sim sim = build_sim(seed);
         reset_bird_stream_fresh(sim, seed);
         sim_spawn_bird_flyby(sim);
-        REQUIRE(count_birds(sim) >= BIRD_FLOCK_SIZE_MIN);
-        REQUIRE(count_birds(sim) <= BIRD_FLOCK_SIZE_MAX);
+        Assert::IsTrue(count_birds(sim) >= BIRD_FLOCK_SIZE_MIN);
+        Assert::IsTrue(count_birds(sim) <= BIRD_FLOCK_SIZE_MAX);
     }
 }
 
-TEST_CASE("Bird flyby leader altitude stays in range", "[bird][spawn]") {
+TEST_METHOD(BirdFlybyLeaderAltitudeStaysInRange) {
     for (uint64_t i = 0; i < 128; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i;
         Sim sim = build_sim(seed);
         reset_bird_stream_fresh(sim, seed);
         sim_spawn_bird_flyby(sim);
         auto flock = birds(sim);
-        REQUIRE(!flock.empty());
-        REQUIRE(flock[0].altitudeAnchor >= BIRD_ALTITUDE_MIN);
-        REQUIRE(flock[0].altitudeAnchor <  BIRD_ALTITUDE_MAX);
+        Assert::IsTrue(!flock.empty());
+        Assert::IsTrue(flock[0].altitudeAnchor >= BIRD_ALTITUDE_MIN);
+        Assert::IsTrue(flock[0].altitudeAnchor <  BIRD_ALTITUDE_MAX);
     }
 }
 
-TEST_CASE("Bird flyby leader speed stays in range", "[bird][spawn]") {
+TEST_METHOD(BirdFlybyLeaderSpeedStaysInRange) {
     for (uint64_t i = 0; i < 128; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i;
         Sim sim = build_sim(seed);
         reset_bird_stream_fresh(sim, seed);
         sim_spawn_bird_flyby(sim);
         auto flock = birds(sim);
-        REQUIRE(!flock.empty());
-        REQUIRE(flock[0].baseSpeed >= BIRD_SPEED_MIN);
-        REQUIRE(flock[0].baseSpeed <  BIRD_SPEED_MAX);
-        REQUIRE(std::abs(flock[0].vx) == Approx(flock[0].baseSpeed));
+        Assert::IsTrue(!flock.empty());
+        Assert::IsTrue(flock[0].baseSpeed >= BIRD_SPEED_MIN);
+        Assert::IsTrue(flock[0].baseSpeed <  BIRD_SPEED_MAX);
+        Assert::IsTrue(std::abs(flock[0].vx) == Near(flock[0].baseSpeed));
     }
 }
 
-TEST_CASE("Bird flyby PRNG draw order matches side stream", "[bird][prng]") {
+TEST_METHOD(BirdFlybyPRNGDrawOrderMatchesSideStream) {
     const uint64_t seed = 0xB17D5EED1234ull;
     Sim sim = build_sim(seed);
     reset_bird_stream_fresh(sim, seed);
@@ -172,8 +179,8 @@ TEST_CASE("Bird flyby PRNG draw order matches side stream", "[bird][prng]") {
     }
 
     auto flock = birds(sim);
-    REQUIRE(static_cast<int>(flock.size()) == expectedCount);
-    REQUIRE(sim.birdFlybyPrng.state == side.state);
+    Assert::IsTrue(static_cast<int>(flock.size()) == expectedCount);
+    Assert::IsTrue(sim.birdFlybyPrng.state == side.state);
 
     const double spawnX = direction > 0.0 ? -50.0 : Monitor1920 + 50.0;
     const double sinAngle = std::sin(BIRD_FLOCK_V_ANGLE_DEG * 3.14159265358979323846 / 180.0);
@@ -189,21 +196,21 @@ TEST_CASE("Bird flyby PRNG draw order matches side stream", "[bird][prng]") {
         }
 
         const Entity& e = flock[static_cast<std::size_t>(i)];
-        REQUIRE(e.x0 == Approx(spawnX + direction * along));
-        REQUIRE(e.x == Approx(e.x0));
-        REQUIRE(e.vx == Approx(direction * leaderSpeed));
-        REQUIRE(e.baseSpeed == Approx(leaderSpeed));
-        REQUIRE(e.altitudeAnchor == Approx(leaderAltitude - perpendicular));
-        REQUIRE(e.phaseX == Approx(wingPhases[static_cast<std::size_t>(i)]));
-        REQUIRE(e.phaseY == Approx(driftPhases[static_cast<std::size_t>(i)]));
-        REQUIRE(e.formationOffsetAlongFlight == Approx(along));
-        REQUIRE(e.formationOffsetPerpendicular == Approx(perpendicular));
-        REQUIRE(e.colorVariant == static_cast<uint8_t>(formationStyle));
-        REQUIRE(e.spawnTime == Approx(sim.globalTime));
+        Assert::IsTrue(e.x0 == Near(spawnX + direction * along));
+        Assert::IsTrue(e.x == Near(e.x0));
+        Assert::IsTrue(e.vx == Near(direction * leaderSpeed));
+        Assert::IsTrue(e.baseSpeed == Near(leaderSpeed));
+        Assert::IsTrue(e.altitudeAnchor == Near(leaderAltitude - perpendicular));
+        Assert::IsTrue(e.phaseX == Near(wingPhases[static_cast<std::size_t>(i)]));
+        Assert::IsTrue(e.phaseY == Near(driftPhases[static_cast<std::size_t>(i)]));
+        Assert::IsTrue(e.formationOffsetAlongFlight == Near(along));
+        Assert::IsTrue(e.formationOffsetPerpendicular == Near(perpendicular));
+        Assert::IsTrue(e.colorVariant == static_cast<uint8_t>(formationStyle));
+        Assert::IsTrue(e.spawnTime == Near(sim.globalTime));
     }
 }
 
-TEST_CASE("Bird flybys are Grass scene only", "[bird][scene]") {
+TEST_METHOD(BirdFlybysAreGrassSceneOnly) {
     for (Scene scene : { Scene::Desert, Scene::Winter }) {
         Sim sim = build_sim();
         sim_set_scene(sim, scene);
@@ -213,11 +220,11 @@ TEST_CASE("Bird flybys are Grass scene only", "[bird][scene]") {
             sim.globalTime += 1.0;
             sim_tick_bird_flybys(sim);
         }
-        REQUIRE(count_birds(sim) == 0);
+        Assert::IsTrue(count_birds(sim) == 0);
     }
 }
 
-TEST_CASE("Bird flyby Poisson spawns when schedule elapses", "[bird][time]") {
+TEST_METHOD(BirdFlybyPoissonSpawnsWhenScheduleElapses) {
     Sim sim = build_sim(0xDAD1B17Dull);
     reset_bird_schedule(sim, 0xDAD1B17Dull);
     int flybys = 0;
@@ -232,41 +239,41 @@ TEST_CASE("Bird flyby Poisson spawns when schedule elapses", "[bird][time]") {
     }
 
     const double observedPerHour = static_cast<double>(flybys) / 10.0;
-    REQUIRE(observedPerHour == Approx(BIRD_FLYBY_SPAWN_RATE_PER_HOUR).epsilon(0.15));
+    Assert::IsTrue(observedPerHour == Near(BIRD_FLYBY_SPAWN_RATE_PER_HOUR).epsilon(0.15));
 }
 
-TEST_CASE("Bird V formation geometry is locked", "[bird][formation]") {
+TEST_METHOD(BirdVFormationGeometryIsLocked) {
     const uint64_t seed = find_v_seed(5);
     Sim sim = build_sim(seed);
     reset_bird_stream_fresh(sim, seed);
     sim_spawn_bird_flyby(sim);
     auto flock = birds(sim);
-    REQUIRE(flock.size() >= 5);
-    REQUIRE(flock[0].colorVariant == 0);
-    REQUIRE(flock[0].formationOffsetAlongFlight == Approx(0.0));
+    Assert::IsTrue(flock.size() >= 5);
+    Assert::IsTrue(flock[0].colorVariant == 0);
+    Assert::IsTrue(flock[0].formationOffsetAlongFlight == Near(0.0));
 
     for (std::size_t i = 1; i < flock.size(); ++i) {
-        REQUIRE(std::fabs(flock[0].formationOffsetAlongFlight)
+        Assert::IsTrue(std::fabs(flock[0].formationOffsetAlongFlight)
             < std::fabs(flock[i].formationOffsetAlongFlight));
-        REQUIRE(flock[i - 1].formationOffsetAlongFlight - flock[i].formationOffsetAlongFlight
-            == Approx(BIRD_FLOCK_FORMATION_SPACING));
+        Assert::IsTrue(flock[i - 1].formationOffsetAlongFlight - flock[i].formationOffsetAlongFlight
+            == Near(BIRD_FLOCK_FORMATION_SPACING));
         const double expectedSign = (i % 2 == 0) ? 1.0 : -1.0;
-        REQUIRE((flock[i].formationOffsetPerpendicular > 0.0 ? 1.0 : -1.0) == expectedSign);
+        Assert::IsTrue((flock[i].formationOffsetPerpendicular > 0.0 ? 1.0 : -1.0) == expectedSign);
     }
 }
 
-TEST_CASE("Bird wing flap scale stays in range", "[bird][wing]") {
+TEST_METHOD(BirdWingFlapScaleStaysInRange) {
     for (int i = 0; i < 200; ++i) {
         const double t = i * 0.137;
         const double phase = -BIRD_WING_FLAP_PHASE_JITTER
             + (2.0 * BIRD_WING_FLAP_PHASE_JITTER) * (static_cast<double>(i) / 199.0);
         const double scale = bird_wing_scale(t, phase);
-        REQUIRE(scale >= BIRD_WING_FOLD_RATIO);
-        REQUIRE(scale <= BIRD_WING_OPEN_RATIO);
+        Assert::IsTrue(scale >= BIRD_WING_FOLD_RATIO);
+        Assert::IsTrue(scale <= BIRD_WING_OPEN_RATIO);
     }
 }
 
-TEST_CASE("Bird wing phases decorrelate within a flock", "[bird][wing]") {
+TEST_METHOD(BirdWingPhasesDecorrelateWithinAFlock) {
     for (uint64_t i = 1; i < 10000; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i;
         Sim sim = build_sim(seed);
@@ -285,14 +292,14 @@ TEST_CASE("Bird wing phases decorrelate within a flock", "[bird][wing]") {
             if (!seen) distinct.push_back(scale);
         }
         if (distinct.size() >= 3) {
-            REQUIRE(distinct.size() >= 3);
+            Assert::IsTrue(distinct.size() >= 3);
             return;
         }
     }
-    FAIL("no decorrelated 5-bird flock found");
+    Assert::Fail(L"No decorrelated 5-bird flock found", LINE_INFO());
 }
 
-TEST_CASE("Birds despawn past opposite boundary", "[bird][despawn]") {
+TEST_METHOD(BirdsDespawnPastOppositeBoundary) {
     Sim sim = build_sim();
     sim.currentScene = Scene::Desert;
     sim.entities.clear();
@@ -307,10 +314,10 @@ TEST_CASE("Birds despawn past opposite boundary", "[bird][despawn]") {
 
     sim_tick_entities(sim, 0.2);
 
-    REQUIRE(count_birds(sim) == 0);
+    Assert::IsTrue(count_birds(sim) == 0);
 }
 
-TEST_CASE("Birds do not interact with cuts or critters", "[bird][interaction]") {
+TEST_METHOD(BirdsDoNotInteractWithCutsOrCritters) {
     Sim sim = build_sim();
     sim.entities.clear();
     Entity bird{};
@@ -338,13 +345,13 @@ TEST_CASE("Birds do not interact with cuts or critters", "[bird][interaction]") 
     ev.y = bird.y;
     sim_apply_click(sim, ev);
 
-    REQUIRE(sim.entities[0].kind == EntityKind::Bird);
-    REQUIRE(sim.entities[0].baseSpeed == Approx(BIRD_SPEED_MIN));
-    REQUIRE(sim.entities[1].state == SHEEP_STATE_WALKING);
-    for (const Blade& b : sim.blades) REQUIRE(b.cutAnimStart < 0.0);
+    Assert::IsTrue(sim.entities[0].kind == EntityKind::Bird);
+    Assert::IsTrue(sim.entities[0].baseSpeed == Near(BIRD_SPEED_MIN));
+    Assert::IsTrue(sim.entities[1].state == SHEEP_STATE_WALKING);
+    for (const Blade& b : sim.blades) Assert::IsTrue(b.cutAnimStart < 0.0);
 }
 
-TEST_CASE("Bird flyby Poisson inter-arrivals keep expected mean", "[bird][poisson]") {
+TEST_METHOD(BirdFlybyPoissonInterArrivalsKeepExpectedMean) {
     const uint64_t seed = 0x510B17D00ull;
     Sim sim = build_sim(seed);
     reset_bird_schedule(sim, seed);
@@ -361,5 +368,7 @@ TEST_CASE("Bird flyby Poisson inter-arrivals keep expected mean", "[bird][poisso
     }
 
     const double expectedMean = 3600.0 / BIRD_FLYBY_SPAWN_RATE_PER_HOUR;
-    REQUIRE((totalInterval / Events) == Approx(expectedMean).epsilon(0.20));
+    Assert::IsTrue((totalInterval / Events) == Near(expectedMean).epsilon(0.20));
+}
+};
 }

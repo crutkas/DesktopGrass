@@ -13,7 +13,7 @@
 // hiccups don't flake. Even at the loosest bound the test still distinguishes
 // high-res (~sub-ms) from default-resolution (~15.6 ms minimum tick) behaviour.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Pacing.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -35,17 +35,22 @@ double qpc_now_sec() {
 
 } // namespace
 
-TEST_CASE("FramePacer: creates a high-resolution waitable timer on supported Windows",
-          "[pacing]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(PacingTests)
+{
+public:
+TEST_METHOD(FramePacerCreatesAHighResolutionWaitableTimerOnSupportedWindows) {
     FramePacer pacer;
     // DesktopGrass requires Windows 10 1809+, which is well past the
     // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION minimum (Win 10 1803). Build/CI
     // environments below that floor are not supported.
-    REQUIRE(pacer.IsHighResolution());
+    Assert::IsTrue(pacer.IsHighResolution());
 }
 
-TEST_CASE("FramePacer: zero or negative wait returns essentially immediately",
-          "[pacing]") {
+TEST_METHOD(FramePacerZeroOrNegativeWaitReturnsEssentiallyImmediately) {
     FramePacer pacer;
     const double t0 = qpc_now_sec();
     pacer.WaitUntilNextFrame(0.0);
@@ -53,13 +58,12 @@ TEST_CASE("FramePacer: zero or negative wait returns essentially immediately",
     const double dt = qpc_now_sec() - t0;
     // Two no-op calls should complete in well under a millisecond, but allow
     // 5 ms of slop for loaded CI machines.
-    REQUIRE(dt < 0.005);
+    Assert::IsTrue(dt < 0.005);
 }
 
-TEST_CASE("FramePacer: honours sub-15.6 ms waits via the high-resolution timer",
-          "[pacing]") {
+TEST_METHOD(FramePacerHonoursSub156MsWaitsViaTheHighResolutionTimer) {
     FramePacer pacer;
-    REQUIRE(pacer.IsHighResolution());
+    Assert::IsTrue(pacer.IsHighResolution());
 
     // Five 1 ms waits. With the high-resolution timer the cumulative time
     // should sit well below 30 ms. Without it (legacy ~15.6 ms tick) each
@@ -76,13 +80,13 @@ TEST_CASE("FramePacer: honours sub-15.6 ms waits via the high-resolution timer",
 
     // Lower bound: we asked for 5 ms total — actual wait must be at least
     // a small fraction of that, otherwise we are not waiting at all.
-    REQUIRE(total >= 0.0005);
+    Assert::IsTrue(total >= 0.0005);
     // Upper bound: must beat the default ~15.6 ms tick by a comfortable
     // margin. 30 ms catches the regression (78 ms) without flaking on CI.
-    REQUIRE(total < 0.030);
+    Assert::IsTrue(total < 0.030);
 }
 
-TEST_CASE("FramePacer: paused wait wakes for queued messages", "[pacing]") {
+TEST_METHOD(FramePacerPausedWaitWakesForQueuedMessages) {
     MSG msg{};
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
     }
@@ -105,10 +109,12 @@ TEST_CASE("FramePacer: paused wait wakes for queued messages", "[pacing]") {
     const double dt = qpc_now_sec() - t0;
     poster.join();
 
-    REQUIRE(posted.load(std::memory_order_acquire));
-    REQUIRE(dt >= 0.010);
-    REQUIRE(dt < 0.500);
-    REQUIRE(PeekMessageW(
+    Assert::IsTrue(posted.load(std::memory_order_acquire));
+    Assert::IsTrue(dt >= 0.010);
+    Assert::IsTrue(dt < 0.500);
+    Assert::IsTrue(PeekMessageW(
         &msg, nullptr, kWakeMessage, kWakeMessage, PM_REMOVE));
-    REQUIRE(msg.message == kWakeMessage);
+    Assert::IsTrue(msg.message == kWakeMessage);
+}
+};
 }

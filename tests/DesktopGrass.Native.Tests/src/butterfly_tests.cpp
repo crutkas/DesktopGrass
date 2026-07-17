@@ -1,6 +1,6 @@
 // butterfly_tests.cpp - §17.6 ambient Butterfly tests.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -36,63 +36,70 @@ const Entity* first_butterfly(const Sim& sim) {
 }
 } // namespace
 
-TEST_CASE("Butterfly constants are pinned to spec values", "[butterfly][constants]") {
-    REQUIRE(BUTTERFLY_COUNT_MIN == 2);
-    REQUIRE(BUTTERFLY_COUNT_MAX == 4);
-    REQUIRE(BUTTERFLY_SPEED_MIN == Approx(18.0));
-    REQUIRE(BUTTERFLY_SPEED_MAX == Approx(32.0));
-    REQUIRE(BUTTERFLY_BODY_LENGTH == Approx(2.4));
-    REQUIRE(BUTTERFLY_WING_RADIUS == Approx(3.5));
-    REQUIRE(BUTTERFLY_WING_OFFSET == Approx(2.2));
-    REQUIRE(BUTTERFLY_FLUTTER_FREQ == Approx(16.0));
-    REQUIRE(BUTTERFLY_FLUTTER_MIN_SCALE == Approx(0.20));
-    REQUIRE(BUTTERFLY_MEANDER_FREQ_Y == Approx(0.8));
-    REQUIRE(BUTTERFLY_MEANDER_AMP_Y == Approx(16.0));
-    REQUIRE(BUTTERFLY_MEANDER_FREQ_X == Approx(0.5));
-    REQUIRE(BUTTERFLY_MEANDER_AMP_X == Approx(0.4));
-    REQUIRE(BUTTERFLY_ALTITUDE_MIN == Approx(18.0));
-    REQUIRE(BUTTERFLY_ALTITUDE_MAX == Approx(70.0));
-    REQUIRE(BUTTERFLY_BODY_COLOR == 0xFF2A2018u);
-    REQUIRE(BUTTERFLY_COLOR_COUNT == 5);
-    REQUIRE(BUTTERFLY_PRNG_SALT == 0xB07DEF1E0001ull);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(ButterflyTests)
+{
+public:
+TEST_METHOD(ButterflyConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(BUTTERFLY_COUNT_MIN == 2);
+    Assert::IsTrue(BUTTERFLY_COUNT_MAX == 4);
+    Assert::IsTrue(BUTTERFLY_SPEED_MIN == Near(18.0));
+    Assert::IsTrue(BUTTERFLY_SPEED_MAX == Near(32.0));
+    Assert::IsTrue(BUTTERFLY_BODY_LENGTH == Near(2.4));
+    Assert::IsTrue(BUTTERFLY_WING_RADIUS == Near(3.5));
+    Assert::IsTrue(BUTTERFLY_WING_OFFSET == Near(2.2));
+    Assert::IsTrue(BUTTERFLY_FLUTTER_FREQ == Near(16.0));
+    Assert::IsTrue(BUTTERFLY_FLUTTER_MIN_SCALE == Near(0.20));
+    Assert::IsTrue(BUTTERFLY_MEANDER_FREQ_Y == Near(0.8));
+    Assert::IsTrue(BUTTERFLY_MEANDER_AMP_Y == Near(16.0));
+    Assert::IsTrue(BUTTERFLY_MEANDER_FREQ_X == Near(0.5));
+    Assert::IsTrue(BUTTERFLY_MEANDER_AMP_X == Near(0.4));
+    Assert::IsTrue(BUTTERFLY_ALTITUDE_MIN == Near(18.0));
+    Assert::IsTrue(BUTTERFLY_ALTITUDE_MAX == Near(70.0));
+    Assert::IsTrue(BUTTERFLY_BODY_COLOR == 0xFF2A2018u);
+    Assert::IsTrue(BUTTERFLY_COLOR_COUNT == 5);
+    Assert::IsTrue(BUTTERFLY_PRNG_SALT == 0xB07DEF1E0001ull);
 }
 
-TEST_CASE("Grass generation produces butterfly count in range", "[butterfly][gen]") {
+TEST_METHOD(GrassGenerationProducesButterflyCountInRange) {
     for (uint64_t i = 0; i < 128; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
         Sim sim = build_grass_sim(seed);
-        REQUIRE(count_kind(sim, EntityKind::Butterfly) >= BUTTERFLY_COUNT_MIN);
-        REQUIRE(count_kind(sim, EntityKind::Butterfly) <= BUTTERFLY_COUNT_MAX);
+        Assert::IsTrue(count_kind(sim, EntityKind::Butterfly) >= BUTTERFLY_COUNT_MIN);
+        Assert::IsTrue(count_kind(sim, EntityKind::Butterfly) <= BUTTERFLY_COUNT_MAX);
     }
 }
 
-TEST_CASE("Butterflies are Grass scene only", "[butterfly][scene]") {
+TEST_METHOD(ButterfliesAreGrassSceneOnly) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(count_kind(sim, EntityKind::Butterfly) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Butterfly) == 0);
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(count_kind(sim, EntityKind::Butterfly) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Butterfly) == 0);
 }
 
-TEST_CASE("Generated butterflies have speed altitude and color ranges", "[butterfly][gen]") {
+TEST_METHOD(GeneratedButterfliesHaveSpeedAltitudeAndColorRanges) {
     Sim sim = build_grass_sim();
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Butterfly) continue;
-        REQUIRE(e.baseSpeed >= BUTTERFLY_SPEED_MIN);
-        REQUIRE(e.baseSpeed <  BUTTERFLY_SPEED_MAX);
-        REQUIRE(e.altitudeAnchor >= BUTTERFLY_ALTITUDE_MIN);
-        REQUIRE(e.altitudeAnchor <  BUTTERFLY_ALTITUDE_MAX);
-        REQUIRE(e.colorVariant < BUTTERFLY_COLOR_COUNT);
+        Assert::IsTrue(e.baseSpeed >= BUTTERFLY_SPEED_MIN);
+        Assert::IsTrue(e.baseSpeed <  BUTTERFLY_SPEED_MAX);
+        Assert::IsTrue(e.altitudeAnchor >= BUTTERFLY_ALTITUDE_MIN);
+        Assert::IsTrue(e.altitudeAnchor <  BUTTERFLY_ALTITUDE_MAX);
+        Assert::IsTrue(e.colorVariant < BUTTERFLY_COLOR_COUNT);
     }
 }
 
-TEST_CASE("Butterfly PRNG draw order matches side stream", "[butterfly][prng]") {
+TEST_METHOD(ButterflyPRNGDrawOrderMatchesSideStream) {
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ BUTTERFLY_PRNG_SALT);
     Sim sim = build_grass_sim();
 
     const int expectedCount = prng_count(side, BUTTERFLY_COUNT_MIN, BUTTERFLY_COUNT_MAX);
-    REQUIRE(count_kind(sim, EntityKind::Butterfly) == expectedCount);
+    Assert::IsTrue(count_kind(sim, EntityKind::Butterfly) == expectedCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
@@ -108,22 +115,22 @@ TEST_CASE("Butterfly PRNG draw order matches side stream", "[butterfly][prng]") 
         const double expectedAltitude = BUTTERFLY_ALTITUDE_MIN + yFrac * (BUTTERFLY_ALTITUDE_MAX - BUTTERFLY_ALTITUDE_MIN);
         const double expectedVx = expectedDir * expectedSpeed * (1.0 + BUTTERFLY_MEANDER_AMP_X * std::sin(expectedPhaseX));
 
-        REQUIRE(e.x == Approx(xFrac * Monitor1920));
-        REQUIRE(e.altitudeAnchor == Approx(expectedAltitude));
-        REQUIRE(e.baseSpeed == Approx(expectedSpeed));
-        REQUIRE(e.vx == Approx(expectedVx));
-        REQUIRE(e.colorVariant == expectedColor);
-        REQUIRE(e.phaseY == Approx(expectedPhaseY));
-        REQUIRE(e.phaseX == Approx(expectedPhaseX));
+        Assert::IsTrue(e.x == Near(xFrac * Monitor1920));
+        Assert::IsTrue(e.altitudeAnchor == Near(expectedAltitude));
+        Assert::IsTrue(e.baseSpeed == Near(expectedSpeed));
+        Assert::IsTrue(e.vx == Near(expectedVx));
+        Assert::IsTrue(e.colorVariant == expectedColor);
+        Assert::IsTrue(e.phaseY == Near(expectedPhaseY));
+        Assert::IsTrue(e.phaseX == Near(expectedPhaseX));
         ++seen;
     }
-    REQUIRE(seen == expectedCount);
+    Assert::IsTrue(seen == expectedCount);
 }
 
-TEST_CASE("Butterfly edge wrap preserves altitude anchor", "[butterfly][motion]") {
+TEST_METHOD(ButterflyEdgeWrapPreservesAltitudeAnchor) {
     Sim sim = build_grass_sim();
     auto it = std::find_if(sim.entities.begin(), sim.entities.end(), [](const Entity& e) { return e.kind == EntityKind::Butterfly; });
-    REQUIRE(it != sim.entities.end());
+    Assert::IsTrue(it != sim.entities.end());
     const double margin = BUTTERFLY_WING_OFFSET + BUTTERFLY_WING_RADIUS;
     it->x = Monitor1920 + margin + 1.0;
     it->vx = std::abs(it->vx);
@@ -132,11 +139,11 @@ TEST_CASE("Butterfly edge wrap preserves altitude anchor", "[butterfly][motion]"
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(it->x == Approx(-margin));
-    REQUIRE(it->altitudeAnchor == Approx(altitude));
+    Assert::IsTrue(it->x == Near(-margin));
+    Assert::IsTrue(it->altitudeAnchor == Near(altitude));
 }
 
-TEST_CASE("Butterflies do not interact with cuts or pets", "[butterfly][interaction]") {
+TEST_METHOD(ButterfliesDoNotInteractWithCutsOrPets) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim.entities.clear();
     Entity butterfly{};
@@ -163,18 +170,19 @@ TEST_CASE("Butterflies do not interact with cuts or pets", "[butterfly][interact
     ev.y = butterfly.y;
     sim_apply_click(sim, ev);
 
-    REQUIRE(sim.entities[0].kind == EntityKind::Butterfly);
-    REQUIRE(sim.entities[0].baseSpeed == Approx(BUTTERFLY_SPEED_MIN));
-    REQUIRE(sim.entities[1].state == SHEEP_STATE_WALKING);
-    for (const Blade& b : sim.blades) REQUIRE(b.cutAnimStart < 0.0);
+    Assert::IsTrue(sim.entities[0].kind == EntityKind::Butterfly);
+    Assert::IsTrue(sim.entities[0].baseSpeed == Near(BUTTERFLY_SPEED_MIN));
+    Assert::IsTrue(sim.entities[1].state == SHEEP_STATE_WALKING);
+    for (const Blade& b : sim.blades) Assert::IsTrue(b.cutAnimStart < 0.0);
 }
 
-TEST_CASE("Butterfly wing scale stays within flutter bounds", "[butterfly][render]") {
+TEST_METHOD(ButterflyWingScaleStaysWithinFlutterBounds) {
     for (int i = 0; i < 200; ++i) {
         const double t = i * 0.05;
         const double scale = butterfly_wing_scale(t, 1.3);
-        REQUIRE(scale >= BUTTERFLY_FLUTTER_MIN_SCALE);
-        REQUIRE(scale <= 1.0);
+        Assert::IsTrue(scale >= BUTTERFLY_FLUTTER_MIN_SCALE);
+        Assert::IsTrue(scale <= 1.0);
     }
 }
-
+};
+}

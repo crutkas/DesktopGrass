@@ -1,6 +1,6 @@
 // Real-resource integration coverage for Renderer device-loss recovery.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 
 #include "Renderer.h"
 
@@ -430,15 +430,20 @@ std::string CapabilityMessage(const CapabilityResult& capability) {
 
 } // namespace
 
-TEST_CASE("Renderer recreates and releases its real graphics resource graph",
-          "[device-recovery][integration]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(RendererRecoveryIntegrationTests)
+{
+public:
+TEST_METHOD(RendererRecreatesAndReleasesItsRealGraphicsResourceGraph) {
     ComApartment apartment;
     if (FAILED(apartment.Result())) {
         const CapabilityResult capability =
             CapabilityFailure("CoInitializeEx", apartment.Result());
         const std::string message = CapabilityMessage(capability);
-        WARN(message);
-        SUCCEED(message);
+        Logger::WriteMessage(message.c_str());
         return;
     }
 
@@ -447,21 +452,19 @@ TEST_CASE("Renderer recreates and releases its real graphics resource graph",
         const CapabilityResult capability =
             CapabilityFailure("CreateWindowExW", window.Result());
         const std::string message = CapabilityMessage(capability);
-        WARN(message);
-        SUCCEED(message);
+        Logger::WriteMessage(message.c_str());
         return;
     }
 
     const CapabilityResult capability = ProbeRendererGraphics(window.Get());
     if (!capability.available) {
         const std::string message = CapabilityMessage(capability);
-        WARN(message);
-        SUCCEED(message);
+        Logger::WriteMessage(message.c_str());
         return;
     }
 
     Renderer renderer;
-    REQUIRE(renderer.Initialize(
+    Assert::IsTrue(renderer.Initialize(
         window.Get(),
         320,
         128,
@@ -480,8 +483,8 @@ TEST_CASE("Renderer recreates and releases its real graphics resource graph",
     renderer.GetSim().blades.front().regrowStart = -1.0;
 
     renderer.RenderFrame(0.01, nullptr, 0);
-    REQUIRE(renderer.GetSim().globalTime == Approx(0.01));
-    REQUIRE(RendererTestAccess::IsReady(renderer));
+    Assert::IsTrue(renderer.GetSim().globalTime == Near(0.01));
+    Assert::IsTrue(RendererTestAccess::IsReady(renderer));
 
     const HeldRendererResources old =
         RendererTestAccess::HoldCoreResources(renderer);
@@ -493,24 +496,24 @@ TEST_CASE("Renderer recreates and releases its real graphics resource graph",
             DXGI_ERROR_DEVICE_HUNG,
         });
 
-    REQUIRE(RendererTestAccess::IsReady(renderer));
-    REQUIRE_FALSE(RendererTestAccess::IsRetryPending(renderer));
-    REQUIRE(RendererTestAccess::HasDistinctCoreResources(renderer, old));
-    REQUIRE(&renderer.GetSim() == simAddress);
-    REQUIRE(renderer.GetSim().blades.data() == bladeStorage);
-    REQUIRE(renderer.GetSim().blades.size() == bladeCount);
-    REQUIRE(renderer.GetSim().currentScene == Scene::Grass);
-    REQUIRE(renderer.GetSim().currentCritter == CritterKind::Cat);
-    REQUIRE(renderer.GetSim().critterCountOverride == 3);
-    REQUIRE(renderer.GetSim().blades.front().cutHeight == Approx(0.42));
+    Assert::IsTrue(RendererTestAccess::IsReady(renderer));
+    Assert::IsFalse(RendererTestAccess::IsRetryPending(renderer));
+    Assert::IsTrue(RendererTestAccess::HasDistinctCoreResources(renderer, old));
+    Assert::IsTrue(&renderer.GetSim() == simAddress);
+    Assert::IsTrue(renderer.GetSim().blades.data() == bladeStorage);
+    Assert::IsTrue(renderer.GetSim().blades.size() == bladeCount);
+    Assert::IsTrue(renderer.GetSim().currentScene == Scene::Grass);
+    Assert::IsTrue(renderer.GetSim().currentCritter == CritterKind::Cat);
+    Assert::IsTrue(renderer.GetSim().critterCountOverride == 3);
+    Assert::IsTrue(renderer.GetSim().blades.front().cutHeight == Near(0.42));
 
     renderer.RenderFrame(0.01, nullptr, 0);
-    REQUIRE(renderer.GetSim().globalTime == Approx(0.02));
-    REQUIRE(RendererTestAccess::IsReady(renderer));
+    Assert::IsTrue(renderer.GetSim().globalTime == Near(0.02));
+    Assert::IsTrue(RendererTestAccess::IsReady(renderer));
 
     const HeldRendererResources recovered =
         RendererTestAccess::HoldCoreResources(renderer);
-    REQUIRE(recovered.d3dDevice);
+    Assert::IsTrue(recovered.d3dDevice);
     RendererTestAccess::ForceNextRecoveryToFail(renderer);
     RendererTestAccess::ForceDeviceLoss(
         renderer,
@@ -520,20 +523,22 @@ TEST_CASE("Renderer recreates and releases its real graphics resource graph",
             DXGI_ERROR_DEVICE_HUNG,
         });
 
-    REQUIRE_FALSE(RendererTestAccess::IsReady(renderer));
-    REQUIRE(RendererTestAccess::IsRetryPending(renderer));
-    REQUIRE(RendererTestAccess::HasNoGraphicsResources(renderer));
+    Assert::IsFalse(RendererTestAccess::IsReady(renderer));
+    Assert::IsTrue(RendererTestAccess::IsRetryPending(renderer));
+    Assert::IsTrue(RendererTestAccess::HasNoGraphicsResources(renderer));
 
     renderer.RenderFrame(0.01, nullptr, 0);
-    REQUIRE(renderer.GetSim().globalTime == Approx(0.03));
-    REQUIRE(RendererTestAccess::HasNoGraphicsResources(renderer));
+    Assert::IsTrue(renderer.GetSim().globalTime == Near(0.03));
+    Assert::IsTrue(RendererTestAccess::HasNoGraphicsResources(renderer));
 
     RendererTestAccess::Cleanup(renderer);
-    REQUIRE(RendererTestAccess::HasNoGraphicsResources(renderer));
-    REQUIRE_FALSE(RendererTestAccess::IsReady(renderer));
-    REQUIRE_FALSE(RendererTestAccess::IsRetryPending(renderer));
+    Assert::IsTrue(RendererTestAccess::HasNoGraphicsResources(renderer));
+    Assert::IsFalse(RendererTestAccess::IsReady(renderer));
+    Assert::IsFalse(RendererTestAccess::IsRetryPending(renderer));
 
     renderer.RenderFrame(0.01, nullptr, 0);
-    REQUIRE(renderer.GetSim().globalTime == Approx(0.03));
-    REQUIRE(RendererTestAccess::HasNoGraphicsResources(renderer));
+    Assert::IsTrue(renderer.GetSim().globalTime == Near(0.03));
+    Assert::IsTrue(RendererTestAccess::HasNoGraphicsResources(renderer));
+}
+};
 }

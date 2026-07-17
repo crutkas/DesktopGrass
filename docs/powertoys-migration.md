@@ -11,7 +11,7 @@ Status date: 2026-07-16
 | Proposed hosting | Start with an in-process native PowerToys module, subject to explicit maintainer approval in PT-006. |
 | Managed implementation | Keep the C#/Vortice source and a commented restore/build/test recipe only as a reproducible comparison/reference. It is outside active CI; do not import it or its graphics dependencies. |
 | Standalone shell | Do not port the tray icon, Run-key auto-start, standalone entry point, private updater/installer behavior, or duplicate enable/disable lifecycle. |
-| License | DesktopGrass is MIT licensed. Catch2 remains BSL-1.0 test-only code and must retain its own notice if any of it is imported. |
+| License | DesktopGrass is MIT licensed. Native tests use Microsoft's C++ Unit Test Framework; no third-party test framework is vendored or needs to be imported. |
 | Feature scope | Port existing behavior first. Do not add scenes, critters, or other features until the PowerToys module meets its quality gates. |
 
 Managed feature parity, release packaging, smoke hardening, and platform
@@ -24,7 +24,7 @@ the supported Native product so a frozen reference cannot block product work.
 | Build | Effective toolset | Evidence | Migration rule |
 | --- | --- | --- | --- |
 | DesktopGrass Native app | Hard-pinned `v145` in all x64/ARM64 Debug/Release configurations | [`DesktopGrass.Native.vcxproj`](../src/DesktopGrass.Native/DesktopGrass.Native.vcxproj) | Do not copy the pin into PowerToys. |
-| DesktopGrass Native tests | Hard-pinned `v145` in all x64/ARM64 Debug/Release configurations | [`DesktopGrass.Native.Tests.vcxproj`](../tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj) | Port tests into PowerToys' test conventions. |
+| DesktopGrass Native tests | Hard-pinned `v145` in all x64/ARM64 Debug/Release configurations | [`DesktopGrass.Native.Tests.vcxproj`](../tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj) | The suite already uses PowerToys' Microsoft C++ Unit Test Framework conventions; inherit PowerToys central props when importing it. |
 | DesktopGrass CI | VS 2026 runner; therefore `v145` | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | This validates `v145`, not `v143`. |
 | PowerToys C++ default | `v143`, overridden to `v145` when `VisualStudioVersion == 18.0` | [`Cpp.Build.props`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/Cpp.Build.props) | Inherit `Directory.Build.props`/`Cpp.Build.props`; do not set `PlatformToolset` in the new module. |
 | PowerToys CI and release | Current default agents are `SHINE-VS18-Latest`, so official builds effectively use `v145`; preview also uses VS 18 | [`ci.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/ci.yml), [`pipeline-ci-build.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/templates/pipeline-ci-build.yml), [`release.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/release.yml) | The module must pass the official `v145` path without breaking the supported `v143` fallback. |
@@ -50,7 +50,7 @@ does not have the VS 2022 C++ toolset installed.
 | PT-002 | Ready | Obtain PowerToys product approval | None | A PowerToys issue/discussion and utility specification are accepted by the maintainers, with an agreed name, scope, owner, and ship criteria. |
 | PT-003 | Ready | Approve the runtime behavior matrix | PT-002 for final approval | The specification defines behavior for fullscreen apps/games, session lock, display-off, Remote Desktop, monitor sleep, battery saver, AC versus battery power, occlusion, and PowerToys disable/shutdown. |
 | PT-004 | Ready | Set resource budgets and measurement method | PT-003 | The [Native benchmark and energy evidence workflow](../tools/benchmark/README.md) records CPU, GPU engines, working set, a context-switch wakeup proxy, optional hardware/battery energy, machine/power context, and provisional same-machine pass/fail calculations. Maintainer approval and final visible-versus-suppressed evidence remain required. |
-| PT-005 | Ready | Complete source and third-party provenance | PT-002 | Every imported file is mapped to this MIT repository; no Vortice packages are imported; Catch2 is either replaced with PowerToys' test framework or its BSL-1.0 notice is preserved. |
+| PT-005 | Ready | Complete source and third-party provenance | PT-002 | Every imported file is mapped to this MIT repository; no Vortice packages or third-party test framework are imported; native tests use PowerToys' Microsoft C++ Unit Test Framework. |
 | PT-006 | Ready | Approve the hosting and fault-isolation model | PT-002 for final approval | Maintainers accept either in-process rendering or a worker process after reviewing GPU/device-loss blast radius, Runner stability, shutdown behavior, memory cost, and recovery. The selected model is recorded before projects are scaffolded. |
 
 ## P0: native port foundation
@@ -89,7 +89,7 @@ does not have the VS 2022 C++ toolset installed.
 
 | ID | Status | Work item | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| PT-401 | Blocked | Port deterministic unit coverage | PT-005, PT-102, PT-103 | Existing simulation/configuration regression coverage runs in the PowerToys test stack without introducing a second test framework; required snapshots and licenses are preserved. |
+| PT-401 | Blocked | Port deterministic unit coverage | PT-005, PT-102, PT-103 | Existing simulation/configuration regression coverage is moved into the PowerToys module test project and runs with the already-adopted Microsoft C++ Unit Test Framework; required snapshots are preserved. |
 | PT-402 | Blocked | Add lifecycle and Settings integration tests | PT-104, PT-203, PT-204, PT-301, PT-303 | Automated tests cover enable/disable/re-enable, malformed settings, live updates, Runner shutdown, partial startup failure, GPO override, and repeated display/device rebuilds. |
 | PT-403 | Blocked | Validate real display configurations | PT-201, PT-202, PT-203 | Manual or lab coverage passes on x64 and ARM64, one and multiple monitors, mixed DPI, every taskbar edge, portrait/landscape, monitor hot-plug, Remote Desktop, and sleep/resume. |
 | PT-404 | Blocked | Complete accessibility review | PT-302, PT-304 | Settings pass keyboard, Narrator, scaling, high-contrast, and localization checks; decorative overlay windows expose no actionable UI and do not trap input or focus. |

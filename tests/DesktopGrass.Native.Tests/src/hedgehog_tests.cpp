@@ -2,7 +2,7 @@
 //
 // §17.9 Hedgehog critter tests. Mirrors Win2D HedgehogTests.cs.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -109,110 +109,117 @@ bool hedgehog_name_in_pool(const Entity& e) {
 
 } // namespace
 
-TEST_CASE("Hedgehog constants are pinned to spec values", "[hedgehog][constants]") {
-    REQUIRE(HEDGEHOG_COUNT_MIN == 0);
-    REQUIRE(HEDGEHOG_COUNT_MAX == 1);
-    REQUIRE(HEDGEHOG_COUNT_PROBABILITY == Approx(0.55));
-    REQUIRE(HEDGEHOG_WALK_SPEED_MIN == Approx(4.0));
-    REQUIRE(HEDGEHOG_WALK_SPEED_MAX == Approx(8.0));
-    REQUIRE(HEDGEHOG_BODY_RADIUS == Approx(9.0));
-    REQUIRE(HEDGEHOG_BODY_HEIGHT == Approx(5.5));
-    REQUIRE(HEDGEHOG_HEAD_RADIUS == Approx(3.6));
-    REQUIRE(HEDGEHOG_NOSE_RADIUS == Approx(0.8));
-    REQUIRE(HEDGEHOG_LEG_LENGTH == Approx(2.5));
-    REQUIRE(HEDGEHOG_SPIKE_COUNT == 14);
-    REQUIRE(HEDGEHOG_SPIKE_LENGTH == Approx(3.0));
-    REQUIRE(HEDGEHOG_SPIKE_WIDTH == Approx(1.4));
-    REQUIRE(HEDGEHOG_SPIKE_ARC_START_DEG == Approx(-20.0));
-    REQUIRE(HEDGEHOG_SPIKE_ARC_END_DEG == Approx(200.0));
-    REQUIRE(HEDGEHOG_BODY_COLOR == 0xFF5C4633u);
-    REQUIRE(HEDGEHOG_SPIKE_COLOR == 0xFF3A2A1Fu);
-    REQUIRE(HEDGEHOG_SPIKE_TIP_COLOR == 0xFF1E150Eu);
-    REQUIRE(HEDGEHOG_NOSE_COLOR == 0xFF1A1208u);
-    REQUIRE(HEDGEHOG_EYE_COLOR == 0xFF1A1208u);
-    REQUIRE(HEDGEHOG_STATE_WALKING == 0);
-    REQUIRE(HEDGEHOG_STATE_SNUFFLING == 1);
-    REQUIRE(HEDGEHOG_STATE_IDLE == 2);
-    REQUIRE(HEDGEHOG_STATE_SLEEPING == 3);
-    REQUIRE(HEDGEHOG_STATE_CURLED == 4);
-    REQUIRE(HEDGEHOG_WALK_DURATION_MIN == Approx(6.0));
-    REQUIRE(HEDGEHOG_WALK_DURATION_MAX == Approx(12.0));
-    REQUIRE(HEDGEHOG_SNUFFLE_DURATION_MIN == Approx(3.0));
-    REQUIRE(HEDGEHOG_SNUFFLE_DURATION_MAX == Approx(6.0));
-    REQUIRE(HEDGEHOG_IDLE_DURATION_MIN == Approx(1.5));
-    REQUIRE(HEDGEHOG_IDLE_DURATION_MAX == Approx(3.0));
-    REQUIRE(HEDGEHOG_SLEEP_DURATION_MIN == Approx(10.0));
-    REQUIRE(HEDGEHOG_SLEEP_DURATION_MAX == Approx(25.0));
-    REQUIRE(HEDGEHOG_CURL_DURATION_MIN == Approx(3.0));
-    REQUIRE(HEDGEHOG_CURL_DURATION_MAX == Approx(5.5));
-    REQUIRE(HEDGEHOG_SNUFFLE_PROBABILITY == Approx(0.55));
-    REQUIRE(HEDGEHOG_IDLE_PROBABILITY == Approx(0.30));
-    REQUIRE(HEDGEHOG_SLEEP_PROB == Approx(0.50));
-    REQUIRE(HEDGEHOG_STARTLE_RADIUS == Approx(70.0));
-    REQUIRE(HEDGEHOG_SNUFFLE_HEAD_FREQ == Approx(5.0));
-    REQUIRE(HEDGEHOG_SNUFFLE_HEAD_AMP == Approx(0.7));
-    REQUIRE(HEDGEHOG_WADDLE_FREQ == Approx(4.0));
-    REQUIRE(HEDGEHOG_WADDLE_AMP == Approx(0.8));
-    REQUIRE(HEDGEHOG_ZZZ_CYCLE_SEC == Approx(SHEEP_ZZZ_CYCLE_SEC));
-    REQUIRE(HEDGEHOG_ZZZ_RISE == Approx(SHEEP_ZZZ_RISE * 0.5));
-    REQUIRE(HEDGEHOG_ZZZ_SIZE_START == Approx(SHEEP_ZZZ_SIZE_START * 0.6));
-    REQUIRE(HEDGEHOG_ZZZ_SIZE_END == Approx(SHEEP_ZZZ_SIZE_END * 0.6));
-    REQUIRE(sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]) == 12);
-    REQUIRE(std::wcscmp(HEDGEHOG_NAME_POOL[0], L"Bristle") == 0);
-    REQUIRE(std::wcscmp(HEDGEHOG_NAME_POOL[11], L"Burdock") == 0);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(HedgehogTests)
+{
+public:
+TEST_METHOD(HedgehogConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(HEDGEHOG_COUNT_MIN == 0);
+    Assert::IsTrue(HEDGEHOG_COUNT_MAX == 1);
+    Assert::IsTrue(HEDGEHOG_COUNT_PROBABILITY == Near(0.55));
+    Assert::IsTrue(HEDGEHOG_WALK_SPEED_MIN == Near(4.0));
+    Assert::IsTrue(HEDGEHOG_WALK_SPEED_MAX == Near(8.0));
+    Assert::IsTrue(HEDGEHOG_BODY_RADIUS == Near(9.0));
+    Assert::IsTrue(HEDGEHOG_BODY_HEIGHT == Near(5.5));
+    Assert::IsTrue(HEDGEHOG_HEAD_RADIUS == Near(3.6));
+    Assert::IsTrue(HEDGEHOG_NOSE_RADIUS == Near(0.8));
+    Assert::IsTrue(HEDGEHOG_LEG_LENGTH == Near(2.5));
+    Assert::IsTrue(HEDGEHOG_SPIKE_COUNT == 14);
+    Assert::IsTrue(HEDGEHOG_SPIKE_LENGTH == Near(3.0));
+    Assert::IsTrue(HEDGEHOG_SPIKE_WIDTH == Near(1.4));
+    Assert::IsTrue(HEDGEHOG_SPIKE_ARC_START_DEG == Near(-20.0));
+    Assert::IsTrue(HEDGEHOG_SPIKE_ARC_END_DEG == Near(200.0));
+    Assert::IsTrue(HEDGEHOG_BODY_COLOR == 0xFF5C4633u);
+    Assert::IsTrue(HEDGEHOG_SPIKE_COLOR == 0xFF3A2A1Fu);
+    Assert::IsTrue(HEDGEHOG_SPIKE_TIP_COLOR == 0xFF1E150Eu);
+    Assert::IsTrue(HEDGEHOG_NOSE_COLOR == 0xFF1A1208u);
+    Assert::IsTrue(HEDGEHOG_EYE_COLOR == 0xFF1A1208u);
+    Assert::IsTrue(HEDGEHOG_STATE_WALKING == 0);
+    Assert::IsTrue(HEDGEHOG_STATE_SNUFFLING == 1);
+    Assert::IsTrue(HEDGEHOG_STATE_IDLE == 2);
+    Assert::IsTrue(HEDGEHOG_STATE_SLEEPING == 3);
+    Assert::IsTrue(HEDGEHOG_STATE_CURLED == 4);
+    Assert::IsTrue(HEDGEHOG_WALK_DURATION_MIN == Near(6.0));
+    Assert::IsTrue(HEDGEHOG_WALK_DURATION_MAX == Near(12.0));
+    Assert::IsTrue(HEDGEHOG_SNUFFLE_DURATION_MIN == Near(3.0));
+    Assert::IsTrue(HEDGEHOG_SNUFFLE_DURATION_MAX == Near(6.0));
+    Assert::IsTrue(HEDGEHOG_IDLE_DURATION_MIN == Near(1.5));
+    Assert::IsTrue(HEDGEHOG_IDLE_DURATION_MAX == Near(3.0));
+    Assert::IsTrue(HEDGEHOG_SLEEP_DURATION_MIN == Near(10.0));
+    Assert::IsTrue(HEDGEHOG_SLEEP_DURATION_MAX == Near(25.0));
+    Assert::IsTrue(HEDGEHOG_CURL_DURATION_MIN == Near(3.0));
+    Assert::IsTrue(HEDGEHOG_CURL_DURATION_MAX == Near(5.5));
+    Assert::IsTrue(HEDGEHOG_SNUFFLE_PROBABILITY == Near(0.55));
+    Assert::IsTrue(HEDGEHOG_IDLE_PROBABILITY == Near(0.30));
+    Assert::IsTrue(HEDGEHOG_SLEEP_PROB == Near(0.50));
+    Assert::IsTrue(HEDGEHOG_STARTLE_RADIUS == Near(70.0));
+    Assert::IsTrue(HEDGEHOG_SNUFFLE_HEAD_FREQ == Near(5.0));
+    Assert::IsTrue(HEDGEHOG_SNUFFLE_HEAD_AMP == Near(0.7));
+    Assert::IsTrue(HEDGEHOG_WADDLE_FREQ == Near(4.0));
+    Assert::IsTrue(HEDGEHOG_WADDLE_AMP == Near(0.8));
+    Assert::IsTrue(HEDGEHOG_ZZZ_CYCLE_SEC == Near(SHEEP_ZZZ_CYCLE_SEC));
+    Assert::IsTrue(HEDGEHOG_ZZZ_RISE == Near(SHEEP_ZZZ_RISE * 0.5));
+    Assert::IsTrue(HEDGEHOG_ZZZ_SIZE_START == Near(SHEEP_ZZZ_SIZE_START * 0.6));
+    Assert::IsTrue(HEDGEHOG_ZZZ_SIZE_END == Near(SHEEP_ZZZ_SIZE_END * 0.6));
+    Assert::IsTrue(sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]) == 12);
+    Assert::IsTrue(std::wcscmp(HEDGEHOG_NAME_POOL[0], L"Bristle") == 0);
+    Assert::IsTrue(std::wcscmp(HEDGEHOG_NAME_POOL[11], L"Burdock") == 0);
 }
 
-TEST_CASE("Hedgehog count distribution is probabilistic rare sighting", "[hedgehog][gen]") {
+TEST_METHOD(HedgehogCountDistributionIsProbabilisticRareSighting) {
     constexpr int N = 1000;
     int present = 0;
     for (uint64_t i = 0; i < N; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
         Sim sim = build_grass_sim(seed);
         const int count = count_kind(sim, EntityKind::Hedgehog);
-        REQUIRE(count >= HEDGEHOG_COUNT_MIN);
-        REQUIRE(count <= HEDGEHOG_COUNT_MAX);
+        Assert::IsTrue(count >= HEDGEHOG_COUNT_MIN);
+        Assert::IsTrue(count <= HEDGEHOG_COUNT_MAX);
         present += count;
     }
-    REQUIRE(static_cast<double>(present) / N == Approx(HEDGEHOG_COUNT_PROBABILITY).margin(0.05));
+    Assert::IsTrue(static_cast<double>(present) / N == Near(HEDGEHOG_COUNT_PROBABILITY).margin(0.05));
 }
 
-TEST_CASE("Hedgehogs are Grass scene only", "[hedgehog][scene]") {
+TEST_METHOD(HedgehogsAreGrassSceneOnly) {
     Sim sim = build_sim();
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(count_kind(sim, EntityKind::Hedgehog) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Hedgehog) == 0);
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(count_kind(sim, EntityKind::Hedgehog) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Hedgehog) == 0);
 }
 
-TEST_CASE("Generated hedgehogs have speed range", "[hedgehog][gen]") {
+TEST_METHOD(GeneratedHedgehogsHaveSpeedRange) {
     bool sawHedgehog = false;
     for (uint64_t i = 0; i < 128; ++i) {
         Sim sim = build_grass_sim(CANONICAL_TEST_SEED + i * 0xD1B54A32D192ED03ull);
         for (const Entity& e : sim.entities) {
             if (e.kind != EntityKind::Hedgehog) continue;
             sawHedgehog = true;
-            REQUIRE(std::abs(e.vx) >= HEDGEHOG_WALK_SPEED_MIN);
-            REQUIRE(std::abs(e.vx) <= HEDGEHOG_WALK_SPEED_MAX);
-            REQUIRE(e.rotationSpeed == Approx(std::abs(e.vx)));
+            Assert::IsTrue(std::abs(e.vx) >= HEDGEHOG_WALK_SPEED_MIN);
+            Assert::IsTrue(std::abs(e.vx) <= HEDGEHOG_WALK_SPEED_MAX);
+            Assert::IsTrue(e.rotationSpeed == Near(std::abs(e.vx)));
         }
     }
-    REQUIRE(sawHedgehog);
+    Assert::IsTrue(sawHedgehog);
 }
 
-TEST_CASE("Generated hedgehogs have names in pool", "[hedgehog][gen]") {
+TEST_METHOD(GeneratedHedgehogsHaveNamesInPool) {
     bool sawHedgehog = false;
     for (uint64_t i = 0; i < 128; ++i) {
         Sim sim = build_grass_sim(CANONICAL_TEST_SEED + i * 0x94D049BB133111EBull);
         for (const Entity& e : sim.entities) {
             if (e.kind != EntityKind::Hedgehog) continue;
             sawHedgehog = true;
-            REQUIRE(hedgehog_name_in_pool(e));
+            Assert::IsTrue(hedgehog_name_in_pool(e));
         }
     }
-    REQUIRE(sawHedgehog);
+    Assert::IsTrue(sawHedgehog);
 }
 
-TEST_CASE("Hedgehog PRNG draw order follows sheep cats and bunnies", "[hedgehog][prng]") {
+TEST_METHOD(HedgehogPRNGDrawOrderFollowsSheepCatsAndBunnies) {
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
     Sim sim = build_grass_sim();
@@ -226,7 +233,7 @@ TEST_CASE("Hedgehog PRNG draw order follows sheep cats and bunnies", "[hedgehog]
 
     const double hasDraw = prng_uniform(side, 0.0, 1.0);
     const int hedgehogCount = hasDraw < HEDGEHOG_COUNT_PROBABILITY ? 1 : 0;
-    REQUIRE(count_kind(sim, EntityKind::Hedgehog) == hedgehogCount);
+    Assert::IsTrue(count_kind(sim, EntityKind::Hedgehog) == hedgehogCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
@@ -239,15 +246,15 @@ TEST_CASE("Hedgehog PRNG draw order follows sheep cats and bunnies", "[hedgehog]
         const double expectedSpeed = prng_uniform(side, HEDGEHOG_WALK_SPEED_MIN, HEDGEHOG_WALK_SPEED_MAX);
         const uint8_t expectedName = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]))));
-        REQUIRE(e.x == Approx(expectedX));
-        REQUIRE(e.vx == Approx(expectedDir * expectedSpeed));
-        REQUIRE(e.nameIndex == expectedName);
+        Assert::IsTrue(e.x == Near(expectedX));
+        Assert::IsTrue(e.vx == Near(expectedDir * expectedSpeed));
+        Assert::IsTrue(e.nameIndex == expectedName);
         ++seen;
     }
-    REQUIRE(seen == hedgehogCount);
+    Assert::IsTrue(seen == hedgehogCount);
 }
 
-TEST_CASE("Hedgehog edge bounce flips direction", "[hedgehog][motion]") {
+TEST_METHOD(HedgehogEdgeBounceFlipsDirection) {
     Sim sim = build_sim();
     sim.currentScene = Scene::Desert;
     sim.entities.clear();
@@ -257,10 +264,10 @@ TEST_CASE("Hedgehog edge bounce flips direction", "[hedgehog][motion]") {
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities.front().vx < 0.0);
+    Assert::IsTrue(sim.entities.front().vx < 0.0);
 }
 
-TEST_CASE("Hedgehog startle radius curls without flipping vx", "[hedgehog][click]") {
+TEST_METHOD(HedgehogStartleRadiusCurlsWithoutFlippingVx) {
     Sim sim = build_sim();
     sim.entities.clear();
     Entity e = hedgehog_entity(500.0, -HEDGEHOG_WALK_SPEED_MIN);
@@ -269,21 +276,21 @@ TEST_CASE("Hedgehog startle radius curls without flipping vx", "[hedgehog][click
     sim.entities.push_back(e);
 
     sim_apply_click(sim, click_event(e.x + 10.0, e.y));
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
-    REQUIRE(sim.entities.front().vx == Approx(-HEDGEHOG_WALK_SPEED_MIN));
-    REQUIRE(sim.entities.front().stateTimer >= HEDGEHOG_CURL_DURATION_MIN);
-    REQUIRE(sim.entities.front().stateTimer <= HEDGEHOG_CURL_DURATION_MAX);
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
+    Assert::IsTrue(sim.entities.front().vx == Near(-HEDGEHOG_WALK_SPEED_MIN));
+    Assert::IsTrue(sim.entities.front().stateTimer >= HEDGEHOG_CURL_DURATION_MIN);
+    Assert::IsTrue(sim.entities.front().stateTimer <= HEDGEHOG_CURL_DURATION_MAX);
 
     Sim outside = build_sim();
     outside.entities.clear();
     Entity far = hedgehog_entity(500.0, HEDGEHOG_WALK_SPEED_MIN);
     outside.entities.push_back(far);
     sim_apply_click(outside, click_event(far.x + HEDGEHOG_STARTLE_RADIUS + 10.0, far.y));
-    REQUIRE(outside.entities.front().state == HEDGEHOG_STATE_WALKING);
-    REQUIRE(outside.entities.front().vx == Approx(HEDGEHOG_WALK_SPEED_MIN));
+    Assert::IsTrue(outside.entities.front().state == HEDGEHOG_STATE_WALKING);
+    Assert::IsTrue(outside.entities.front().vx == Near(HEDGEHOG_WALK_SPEED_MIN));
 }
 
-TEST_CASE("Hedgehog curl auto uncurls to previous state", "[hedgehog][state]") {
+TEST_METHOD(HedgehogCurlAutoUncurlsToPreviousState) {
     Sim sim = build_sim();
     sim.entities.clear();
     Entity e = hedgehog_entity(500.0, HEDGEHOG_WALK_SPEED_MIN);
@@ -292,14 +299,14 @@ TEST_CASE("Hedgehog curl auto uncurls to previous state", "[hedgehog][state]") {
     sim.entities.push_back(e);
 
     sim_apply_click(sim, click_event(e.x, e.y));
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
     sim_tick_entities(sim, HEDGEHOG_CURL_DURATION_MAX + 0.1);
 
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_IDLE);
-    REQUIRE(sim.entities.front().vx == Approx(HEDGEHOG_WALK_SPEED_MIN));
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_IDLE);
+    Assert::IsTrue(sim.entities.front().vx == Near(HEDGEHOG_WALK_SPEED_MIN));
 }
 
-TEST_CASE("Hedgehog wakes from sleep on startle and does not resume sleep", "[hedgehog][click]") {
+TEST_METHOD(HedgehogWakesFromSleepOnStartleAndDoesNotResumeSleep) {
     Sim sim = build_sim();
     sim.entities.clear();
     Entity e = hedgehog_entity(500.0, HEDGEHOG_WALK_SPEED_MIN);
@@ -308,15 +315,15 @@ TEST_CASE("Hedgehog wakes from sleep on startle and does not resume sleep", "[he
     sim.entities.push_back(e);
 
     sim_apply_click(sim, click_event(e.x + 10.0, e.y));
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
-    REQUIRE(sim.entities.front().state != HEDGEHOG_STATE_SLEEPING);
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_CURLED);
+    Assert::IsTrue(sim.entities.front().state != HEDGEHOG_STATE_SLEEPING);
     sim_tick_entities(sim, HEDGEHOG_CURL_DURATION_MAX + 0.1);
 
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_WALKING);
-    REQUIRE(sim.entities.front().state != HEDGEHOG_STATE_SLEEPING);
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_WALKING);
+    Assert::IsTrue(sim.entities.front().state != HEDGEHOG_STATE_SLEEPING);
 }
 
-TEST_CASE("Hedgehog state transition probabilities are stable", "[hedgehog][state]") {
+TEST_METHOD(HedgehogStateTransitionProbabilitiesAreStable) {
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
     constexpr int N = 10000;
@@ -334,12 +341,12 @@ TEST_CASE("Hedgehog state transition probabilities are stable", "[hedgehog][stat
     const double activeWeight = HEDGEHOG_SNUFFLE_PROBABILITY + HEDGEHOG_IDLE_PROBABILITY;
     const double expectedSnuffle = (1.0 - sleepProb) * HEDGEHOG_SNUFFLE_PROBABILITY / activeWeight;
     const double expectedIdle = (1.0 - sleepProb) * HEDGEHOG_IDLE_PROBABILITY / activeWeight;
-    REQUIRE(static_cast<double>(sleep) / N == Approx(sleepProb).margin(0.02));
-    REQUIRE(static_cast<double>(snuffle) / N == Approx(expectedSnuffle).margin(0.02));
-    REQUIRE(static_cast<double>(idle) / N == Approx(expectedIdle).margin(0.02));
+    Assert::IsTrue(static_cast<double>(sleep) / N == Near(sleepProb).margin(0.02));
+    Assert::IsTrue(static_cast<double>(snuffle) / N == Near(expectedSnuffle).margin(0.02));
+    Assert::IsTrue(static_cast<double>(idle) / N == Near(expectedIdle).margin(0.02));
 }
 
-TEST_CASE("Hedgehog sleep probability is stable", "[hedgehog][state]") {
+TEST_METHOD(HedgehogSleepProbabilityIsStable) {
     constexpr int N = 20000;
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ 0x1234ull);
@@ -347,15 +354,15 @@ TEST_CASE("Hedgehog sleep probability is stable", "[hedgehog][state]") {
     for (int i = 0; i < N; ++i) {
         if (hedgehog_choose_rest_state(p) == HEDGEHOG_STATE_SLEEPING) ++sleep;
     }
-    REQUIRE(static_cast<double>(sleep) / N == Approx(HEDGEHOG_SLEEP_PROB).margin(0.02));
+    Assert::IsTrue(static_cast<double>(sleep) / N == Near(HEDGEHOG_SLEEP_PROB).margin(0.02));
 }
 
-TEST_CASE("Hedgehog has no active interaction states", "[hedgehog][state]") {
+TEST_METHOD(HedgehogHasNoActiveInteractionStates) {
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ 0xCAFEull);
     for (int i = 0; i < 1000; ++i) {
         const uint8_t state = hedgehog_choose_rest_state(p);
-        REQUIRE((state == HEDGEHOG_STATE_SNUFFLING
+        Assert::IsTrue((state == HEDGEHOG_STATE_SNUFFLING
               || state == HEDGEHOG_STATE_IDLE
               || state == HEDGEHOG_STATE_SLEEPING));
     }
@@ -366,6 +373,8 @@ TEST_CASE("Hedgehog has no active interaction states", "[hedgehog][state]") {
     e.stateTimer = 10.0;
     sim.entities.push_back(e);
     sim_tick_entities(sim, 0.016);
-    REQUIRE(sim.entities.front().state == HEDGEHOG_STATE_WALKING);
-    REQUIRE(std::abs(sim.entities.front().vx) == Approx(HEDGEHOG_WALK_SPEED_MIN));
+    Assert::IsTrue(sim.entities.front().state == HEDGEHOG_STATE_WALKING);
+    Assert::IsTrue(std::abs(sim.entities.front().vx) == Near(HEDGEHOG_WALK_SPEED_MIN));
+}
+};
 }

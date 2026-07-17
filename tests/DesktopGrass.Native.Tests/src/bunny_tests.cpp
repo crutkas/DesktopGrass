@@ -2,7 +2,7 @@
 //
 // §18 Bunny critter tests. Mirrors Win2D BunnyTests.cs.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -94,100 +94,107 @@ bool bunny_name_in_pool(const Entity& e) {
 
 } // namespace
 
-TEST_CASE("Bunny constants are pinned to spec values", "[bunny][constants]") {
-    REQUIRE(BUNNY_COUNT_MIN == 1);
-    REQUIRE(BUNNY_COUNT_MAX == 2);
-    REQUIRE(BUNNY_HOP_SPEED_MIN == Approx(22.0));
-    REQUIRE(BUNNY_HOP_SPEED_MAX == Approx(38.0));
-    REQUIRE(BUNNY_BODY_RADIUS == Approx(8.0));
-    REQUIRE(BUNNY_BODY_HEIGHT == Approx(6.5));
-    REQUIRE(BUNNY_HEAD_RADIUS == Approx(4.2));
-    REQUIRE(BUNNY_EAR_HEIGHT == Approx(9.0));
-    REQUIRE(BUNNY_EAR_WIDTH == Approx(2.2));
-    REQUIRE(BUNNY_EAR_SPACING == Approx(3.0));
-    REQUIRE(BUNNY_LEG_LENGTH == Approx(4.0));
-    REQUIRE(BUNNY_TAIL_RADIUS == Approx(2.4));
-    REQUIRE(BUNNY_BODY_COLOR == 0xFF8A6A4Au);
-    REQUIRE(BUNNY_BELLY_COLOR == 0xFFC4A98Du);
-    REQUIRE(BUNNY_EAR_COLOR == 0xFF8A6A4Au);
-    REQUIRE(BUNNY_EAR_INNER_COLOR == 0xFFD9A0A0u);
-    REQUIRE(BUNNY_TAIL_COLOR == 0xFFF7F4EBu);
-    REQUIRE(BUNNY_EYE_COLOR == 0xFF1A1208u);
-    REQUIRE(BUNNY_NOSE_COLOR == 0xFF8A4040u);
-    REQUIRE(BUNNY_STATE_HOPPING == 0);
-    REQUIRE(BUNNY_STATE_GRAZING == 1);
-    REQUIRE(BUNNY_STATE_IDLE == 2);
-    REQUIRE(BUNNY_STATE_SLEEPING == 3);
-    REQUIRE(BUNNY_STATE_STARTLED == 4);
-    REQUIRE(BUNNY_HOP_DURATION == Approx(0.40));
-    REQUIRE(BUNNY_HOP_HEIGHT == Approx(8.0));
-    REQUIRE(BUNNY_HOP_GAP_MIN == Approx(0.05));
-    REQUIRE(BUNNY_HOP_GAP_MAX == Approx(0.20));
-    REQUIRE(BUNNY_GRAZE_DURATION_MIN == Approx(2.5));
-    REQUIRE(BUNNY_GRAZE_DURATION_MAX == Approx(4.5));
-    REQUIRE(BUNNY_IDLE_DURATION_MIN == Approx(2.0));
-    REQUIRE(BUNNY_IDLE_DURATION_MAX == Approx(4.0));
-    REQUIRE(BUNNY_SLEEP_DURATION_MIN == Approx(6.0));
-    REQUIRE(BUNNY_SLEEP_DURATION_MAX == Approx(12.0));
-    REQUIRE(BUNNY_GRAZE_PROBABILITY == Approx(0.55));
-    REQUIRE(BUNNY_IDLE_PROBABILITY == Approx(0.30));
-    REQUIRE(BUNNY_SLEEP_PROB == Approx(0.05));
-    REQUIRE(BUNNY_STARTLE_RADIUS == Approx(90.0));
-    REQUIRE(BUNNY_STARTLE_BOOST == Approx(2.0));
-    REQUIRE(BUNNY_STARTLE_HOP_HEIGHT == Approx(14.0));
-    REQUIRE(BUNNY_STARTLE_DURATION == Approx(3.0));
-    REQUIRE(BUNNY_NOSE_TWITCH_FREQ == Approx(6.0));
-    REQUIRE(BUNNY_NOSE_TWITCH_AMP == Approx(0.5));
-    REQUIRE(BUNNY_EAR_WIGGLE_FREQ == Approx(1.2));
-    REQUIRE(BUNNY_EAR_WIGGLE_AMP == Approx(0.20));
-    REQUIRE(BUNNY_ZZZ_CYCLE_SEC == Approx(SHEEP_ZZZ_CYCLE_SEC));
-    REQUIRE(BUNNY_ZZZ_RISE == Approx(SHEEP_ZZZ_RISE * 0.7));
-    REQUIRE(BUNNY_ZZZ_SIZE_START == Approx(SHEEP_ZZZ_SIZE_START * 0.7));
-    REQUIRE(BUNNY_ZZZ_SIZE_END == Approx(SHEEP_ZZZ_SIZE_END * 0.7));
-    REQUIRE(sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]) == 12);
-    REQUIRE(std::wcscmp(BUNNY_NAME_POOL[0], L"Clover") == 0);
-    REQUIRE(std::wcscmp(BUNNY_NAME_POOL[11], L"Snowdrop") == 0);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(BunnyTests)
+{
+public:
+TEST_METHOD(BunnyConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(BUNNY_COUNT_MIN == 1);
+    Assert::IsTrue(BUNNY_COUNT_MAX == 2);
+    Assert::IsTrue(BUNNY_HOP_SPEED_MIN == Near(22.0));
+    Assert::IsTrue(BUNNY_HOP_SPEED_MAX == Near(38.0));
+    Assert::IsTrue(BUNNY_BODY_RADIUS == Near(8.0));
+    Assert::IsTrue(BUNNY_BODY_HEIGHT == Near(6.5));
+    Assert::IsTrue(BUNNY_HEAD_RADIUS == Near(4.2));
+    Assert::IsTrue(BUNNY_EAR_HEIGHT == Near(9.0));
+    Assert::IsTrue(BUNNY_EAR_WIDTH == Near(2.2));
+    Assert::IsTrue(BUNNY_EAR_SPACING == Near(3.0));
+    Assert::IsTrue(BUNNY_LEG_LENGTH == Near(4.0));
+    Assert::IsTrue(BUNNY_TAIL_RADIUS == Near(2.4));
+    Assert::IsTrue(BUNNY_BODY_COLOR == 0xFF8A6A4Au);
+    Assert::IsTrue(BUNNY_BELLY_COLOR == 0xFFC4A98Du);
+    Assert::IsTrue(BUNNY_EAR_COLOR == 0xFF8A6A4Au);
+    Assert::IsTrue(BUNNY_EAR_INNER_COLOR == 0xFFD9A0A0u);
+    Assert::IsTrue(BUNNY_TAIL_COLOR == 0xFFF7F4EBu);
+    Assert::IsTrue(BUNNY_EYE_COLOR == 0xFF1A1208u);
+    Assert::IsTrue(BUNNY_NOSE_COLOR == 0xFF8A4040u);
+    Assert::IsTrue(BUNNY_STATE_HOPPING == 0);
+    Assert::IsTrue(BUNNY_STATE_GRAZING == 1);
+    Assert::IsTrue(BUNNY_STATE_IDLE == 2);
+    Assert::IsTrue(BUNNY_STATE_SLEEPING == 3);
+    Assert::IsTrue(BUNNY_STATE_STARTLED == 4);
+    Assert::IsTrue(BUNNY_HOP_DURATION == Near(0.40));
+    Assert::IsTrue(BUNNY_HOP_HEIGHT == Near(8.0));
+    Assert::IsTrue(BUNNY_HOP_GAP_MIN == Near(0.05));
+    Assert::IsTrue(BUNNY_HOP_GAP_MAX == Near(0.20));
+    Assert::IsTrue(BUNNY_GRAZE_DURATION_MIN == Near(2.5));
+    Assert::IsTrue(BUNNY_GRAZE_DURATION_MAX == Near(4.5));
+    Assert::IsTrue(BUNNY_IDLE_DURATION_MIN == Near(2.0));
+    Assert::IsTrue(BUNNY_IDLE_DURATION_MAX == Near(4.0));
+    Assert::IsTrue(BUNNY_SLEEP_DURATION_MIN == Near(6.0));
+    Assert::IsTrue(BUNNY_SLEEP_DURATION_MAX == Near(12.0));
+    Assert::IsTrue(BUNNY_GRAZE_PROBABILITY == Near(0.55));
+    Assert::IsTrue(BUNNY_IDLE_PROBABILITY == Near(0.30));
+    Assert::IsTrue(BUNNY_SLEEP_PROB == Near(0.05));
+    Assert::IsTrue(BUNNY_STARTLE_RADIUS == Near(90.0));
+    Assert::IsTrue(BUNNY_STARTLE_BOOST == Near(2.0));
+    Assert::IsTrue(BUNNY_STARTLE_HOP_HEIGHT == Near(14.0));
+    Assert::IsTrue(BUNNY_STARTLE_DURATION == Near(3.0));
+    Assert::IsTrue(BUNNY_NOSE_TWITCH_FREQ == Near(6.0));
+    Assert::IsTrue(BUNNY_NOSE_TWITCH_AMP == Near(0.5));
+    Assert::IsTrue(BUNNY_EAR_WIGGLE_FREQ == Near(1.2));
+    Assert::IsTrue(BUNNY_EAR_WIGGLE_AMP == Near(0.20));
+    Assert::IsTrue(BUNNY_ZZZ_CYCLE_SEC == Near(SHEEP_ZZZ_CYCLE_SEC));
+    Assert::IsTrue(BUNNY_ZZZ_RISE == Near(SHEEP_ZZZ_RISE * 0.7));
+    Assert::IsTrue(BUNNY_ZZZ_SIZE_START == Near(SHEEP_ZZZ_SIZE_START * 0.7));
+    Assert::IsTrue(BUNNY_ZZZ_SIZE_END == Near(SHEEP_ZZZ_SIZE_END * 0.7));
+    Assert::IsTrue(sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]) == 12);
+    Assert::IsTrue(std::wcscmp(BUNNY_NAME_POOL[0], L"Clover") == 0);
+    Assert::IsTrue(std::wcscmp(BUNNY_NAME_POOL[11], L"Snowdrop") == 0);
 }
 
-TEST_CASE("Grass generation produces bunny count in range", "[bunny][gen]") {
+TEST_METHOD(GrassGenerationProducesBunnyCountInRange) {
     for (uint64_t i = 0; i < 128; ++i) {
         const uint64_t seed = CANONICAL_TEST_SEED + i * 0x9E3779B97F4A7C15ull;
         Sim sim = build_grass_sim(seed);
         const int bunnies = count_kind(sim, EntityKind::Bunny);
-        REQUIRE(bunnies >= BUNNY_COUNT_MIN);
-        REQUIRE(bunnies <= BUNNY_COUNT_MAX);
+        Assert::IsTrue(bunnies >= BUNNY_COUNT_MIN);
+        Assert::IsTrue(bunnies <= BUNNY_COUNT_MAX);
     }
 }
 
-TEST_CASE("Bunnies are Grass scene only", "[bunny][scene]") {
+TEST_METHOD(BunniesAreGrassSceneOnly) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
     sim_set_critter(sim, CritterKind::Bunny);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
 }
 
-TEST_CASE("Generated bunnies have speed range", "[bunny][gen]") {
+TEST_METHOD(GeneratedBunniesHaveSpeedRange) {
     Sim sim = build_grass_sim();
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Bunny) continue;
-        REQUIRE(std::abs(e.vx) >= BUNNY_HOP_SPEED_MIN);
-        REQUIRE(std::abs(e.vx) < BUNNY_HOP_SPEED_MAX);
-        REQUIRE(e.rotationSpeed == Approx(std::abs(e.vx)));
+        Assert::IsTrue(std::abs(e.vx) >= BUNNY_HOP_SPEED_MIN);
+        Assert::IsTrue(std::abs(e.vx) < BUNNY_HOP_SPEED_MAX);
+        Assert::IsTrue(e.rotationSpeed == Near(std::abs(e.vx)));
     }
 }
 
-TEST_CASE("Generated bunnies have names in pool", "[bunny][gen]") {
+TEST_METHOD(GeneratedBunniesHaveNamesInPool) {
     Sim sim = build_grass_sim();
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Bunny) continue;
-        REQUIRE(bunny_name_in_pool(e));
+        Assert::IsTrue(bunny_name_in_pool(e));
     }
 }
 
-TEST_CASE("Bunny PRNG draw order follows sheep and cats", "[bunny][prng]") {
+TEST_METHOD(BunnyPRNGDrawOrderFollowsSheepAndCats) {
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
 
@@ -198,7 +205,7 @@ TEST_CASE("Bunny PRNG draw order follows sheep and cats", "[bunny][prng]") {
     const int catCount = prng_count(side, CAT_COUNT_MIN, CAT_COUNT_MAX);
     advance_cats(side, catCount);
     const int bunnyCount = prng_count(side, BUNNY_COUNT_MIN, BUNNY_COUNT_MAX);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == bunnyCount);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == bunnyCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
@@ -211,15 +218,15 @@ TEST_CASE("Bunny PRNG draw order follows sheep and cats", "[bunny][prng]") {
         const double expectedSpeed = prng_uniform(side, BUNNY_HOP_SPEED_MIN, BUNNY_HOP_SPEED_MAX);
         const uint8_t expectedName = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(sizeof(BUNNY_NAME_POOL) / sizeof(BUNNY_NAME_POOL[0]))));
-        REQUIRE(e.x == Approx(expectedX));
-        REQUIRE(e.vx == Approx(expectedDir * expectedSpeed));
-        REQUIRE(e.nameIndex == expectedName);
+        Assert::IsTrue(e.x == Near(expectedX));
+        Assert::IsTrue(e.vx == Near(expectedDir * expectedSpeed));
+        Assert::IsTrue(e.nameIndex == expectedName);
         ++seen;
     }
-    REQUIRE(seen == bunnyCount);
+    Assert::IsTrue(seen == bunnyCount);
 }
 
-TEST_CASE("Bunny edge bounce flips direction", "[bunny][motion]") {
+TEST_METHOD(BunnyEdgeBounceFlipsDirection) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim.currentScene = Scene::Desert;
     sim.entities.clear();
@@ -229,10 +236,10 @@ TEST_CASE("Bunny edge bounce flips direction", "[bunny][motion]") {
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities.front().vx < 0.0);
+    Assert::IsTrue(sim.entities.front().vx < 0.0);
 }
 
-TEST_CASE("Bunny startle radius hops away and outside click does nothing", "[bunny][click]") {
+TEST_METHOD(BunnyStartleRadiusHopsAwayAndOutsideClickDoesNothing) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim.entities.clear();
     Entity e = bunny_entity(500.0, -BUNNY_HOP_SPEED_MIN);
@@ -241,19 +248,19 @@ TEST_CASE("Bunny startle radius hops away and outside click does nothing", "[bun
     sim.entities.push_back(e);
 
     sim_apply_click(sim, click_event(500.0 - 20.0, e.y));
-    REQUIRE(sim.entities.front().state == BUNNY_STATE_STARTLED);
-    REQUIRE(sim.entities.front().vx > 0.0);
-    REQUIRE(sim.entities.front().stateTimer == Approx(BUNNY_STARTLE_DURATION));
+    Assert::IsTrue(sim.entities.front().state == BUNNY_STATE_STARTLED);
+    Assert::IsTrue(sim.entities.front().vx > 0.0);
+    Assert::IsTrue(sim.entities.front().stateTimer == Near(BUNNY_STARTLE_DURATION));
 
     Entity after = sim.entities.front();
     const double vxBefore = after.vx;
     const uint8_t stateBefore = after.state;
     sim_apply_click(sim, click_event(after.x + BUNNY_STARTLE_RADIUS + 10.0, after.y));
-    REQUIRE(sim.entities.front().state == stateBefore);
-    REQUIRE(sim.entities.front().vx == Approx(vxBefore));
+    Assert::IsTrue(sim.entities.front().state == stateBefore);
+    Assert::IsTrue(sim.entities.front().vx == Near(vxBefore));
 }
 
-TEST_CASE("Bunny wakes from sleep on startle", "[bunny][click]") {
+TEST_METHOD(BunnyWakesFromSleepOnStartle) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, Monitor1920, DEFAULT_DENSITY);
     sim.entities.clear();
     Entity e = bunny_entity(500.0, BUNNY_HOP_SPEED_MIN);
@@ -263,20 +270,20 @@ TEST_CASE("Bunny wakes from sleep on startle", "[bunny][click]") {
 
     sim_apply_click(sim, click_event(e.x + 10.0, e.y));
 
-    REQUIRE(sim.entities.front().state == BUNNY_STATE_STARTLED);
-    REQUIRE(sim.entities.front().state != BUNNY_STATE_SLEEPING);
-    REQUIRE(sim.entities.front().vx < 0.0);
+    Assert::IsTrue(sim.entities.front().state == BUNNY_STATE_STARTLED);
+    Assert::IsTrue(sim.entities.front().state != BUNNY_STATE_SLEEPING);
+    Assert::IsTrue(sim.entities.front().vx < 0.0);
 }
 
-TEST_CASE("Bunny hop arc is bounded", "[bunny][motion]") {
-    REQUIRE(bunny_hop_y_offset(0.0, false) == Approx(0.0));
-    REQUIRE(bunny_hop_y_offset(BUNNY_HOP_DURATION, false) == Approx(0.0).margin(1e-12));
+TEST_METHOD(BunnyHopArcIsBounded) {
+    Assert::IsTrue(bunny_hop_y_offset(0.0, false) == Near(0.0));
+    Assert::IsTrue(bunny_hop_y_offset(BUNNY_HOP_DURATION, false) == Near(0.0).margin(1e-12));
     const double peak = bunny_hop_y_offset(BUNNY_HOP_DURATION * 0.5, false);
-    REQUIRE(peak > 0.0);
-    REQUIRE(peak <= BUNNY_HOP_HEIGHT);
+    Assert::IsTrue(peak > 0.0);
+    Assert::IsTrue(peak <= BUNNY_HOP_HEIGHT);
 }
 
-TEST_CASE("Bunny state transition probabilities are stable", "[bunny][state]") {
+TEST_METHOD(BunnyStateTransitionProbabilitiesAreStable) {
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
     constexpr int N = 10000;
@@ -294,12 +301,12 @@ TEST_CASE("Bunny state transition probabilities are stable", "[bunny][state]") {
     const double activeWeight = BUNNY_GRAZE_PROBABILITY + BUNNY_IDLE_PROBABILITY;
     const double expectedGraze = (1.0 - sleepProb) * BUNNY_GRAZE_PROBABILITY / activeWeight;
     const double expectedIdle = (1.0 - sleepProb) * BUNNY_IDLE_PROBABILITY / activeWeight;
-    REQUIRE(static_cast<double>(sleep) / N == Approx(sleepProb).margin(0.02));
-    REQUIRE(static_cast<double>(graze) / N == Approx(expectedGraze).margin(0.02));
-    REQUIRE(static_cast<double>(idle) / N == Approx(expectedIdle).margin(0.02));
+    Assert::IsTrue(static_cast<double>(sleep) / N == Near(sleepProb).margin(0.02));
+    Assert::IsTrue(static_cast<double>(graze) / N == Near(expectedGraze).margin(0.02));
+    Assert::IsTrue(static_cast<double>(idle) / N == Near(expectedIdle).margin(0.02));
 }
 
-TEST_CASE("Bunny sleep probability is stable", "[bunny][state]") {
+TEST_METHOD(BunnySleepProbabilityIsStable) {
     constexpr int N = 20000;
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ 0x1234ull);
@@ -307,5 +314,7 @@ TEST_CASE("Bunny sleep probability is stable", "[bunny][state]") {
     for (int i = 0; i < N; ++i) {
         if (bunny_choose_rest_state(p) == BUNNY_STATE_SLEEPING) ++sleep;
     }
-    REQUIRE(static_cast<double>(sleep) / N == Approx(BUNNY_SLEEP_PROB).margin(0.02));
+    Assert::IsTrue(static_cast<double>(sleep) / N == Near(BUNNY_SLEEP_PROB).margin(0.02));
+}
+};
 }
