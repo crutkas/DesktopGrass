@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutkas\source\DesktopGrass`, branch `main`) that paints procedural grass/flowers/mushrooms across every monitor's bottom strip, click-through, over the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. This segment landed: Phase 3 content (Desert §14 + Winter §15), fixed a cactus-persistence bug on scene switches, scaled down Desert grass height so cacti dominate, and is currently mid-implementation of **§15.1 Pine Trees** (Winter biome anchor mirroring Desert cacti).
+DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `.`, branch `main`) that paints procedural grass/flowers/mushrooms across every monitor's bottom strip, click-through, over the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. This segment landed: Phase 3 content (Desert §14 + Winter §15), fixed a cactus-persistence bug on scene switches, scaled down Desert grass height so cacti dominate, and is currently mid-implementation of **§15.1 Pine Trees** (Winter biome anchor mirroring Desert cacti).
 </overview>
 
 <history>
@@ -109,12 +113,12 @@ This `tierStride` variable is declared but **NOT actually used** — the loop bo
 
 ## Build / test commands (proven this segment)
 ```pwsh
-cd C:\Users\crutkas\source\DesktopGrass
+cd .
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat'
-$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1 && cd /d C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
+$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1 && cd /d .\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
 $out | Select-Object -Last 6
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact 2>&1 | Select-Object -Last 3
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64 2>&1 | Select-Object -Last 3
 
 # Win2D
 Get-Process DesktopGrass.Win2D -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
@@ -135,31 +139,31 @@ dotnet test  tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity mini
 
 <important_files>
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - **Spec source of truth.** §15.1 just added (committed `9222c21`). Defines pine generator algorithm, render approach, and snow-tip-exclusion amendment. §11 has 13 new PINE_* constants table entries.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - **Uncommitted**: 13 PINE_* constants added after `SNOW_TIP_COLOR` (look ~line 234).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`
   - **Uncommitted**: pine fields added to `Blade` after cactus block (around line 102: `isPine`, `pineTierCount`, `pineHeight`, `pineWidth`). `void generate_pines_for_winter(Sim&) noexcept;` declared after `generate_tumbleweeds` (around line 263).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - **Uncommitted**: pine clearing added to `restore_original_variants` (line 168), `generate_pines_for_winter` implemented after `generate_tumbleweeds` (around line 260), call added in `case Scene::Winter:` in `sim_set_scene` (around line 450, BEFORE snowflake scheduler init).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.h`
+- `.\src\DesktopGrass.Native\src\Renderer.h`
   - **Uncommitted**: `ComPtr<ID2D1SolidColorBrush> pineBrush_;` added after `snowTipBrush_` (line 93).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.cpp`
   - **Uncommitted**: `pineBrush_` init after `snowTipBrush_` init (~line 166), `pineBrush_.Reset()` in Cleanup (~line 233), pine render branch ~70 lines added after cactus branch (around line 420-490), snow-tip predicate amended to `!b.isPine` (around line 504). **Has unused `tierStride` variable that should be removed before build.**
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`
   - **Not yet touched for pines.** Needs 13 PINE_* constants after SNOW_TIP block (around line 212).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`
   - **Not yet touched for pines.** Needs Blade pine fields after cactus block, `RestoreOriginalVariants` clearing patch, `GeneratePinesForWinter(Sim)` method, call from `case Scene.Winter:` in `SetScene`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\GrassWindow.cs`
+- `.\src\DesktopGrass.Win2D\GrassWindow.cs`
   - **Not yet touched for pines.** Needs `_pineBrush` field (after `_snowTipBrush` line 51), init (after `_snowTipBrush` init), dispose, pine render branch after cactus branch (around line 304), snow-tip predicate amend (line 413).
 
 - `tests/DesktopGrass.Native.Tests/src/` and `tests/DesktopGrass.Win2D.Tests/SimTests/`

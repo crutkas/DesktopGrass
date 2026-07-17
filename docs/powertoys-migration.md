@@ -9,7 +9,7 @@ Status date: 2026-07-16
 | Repository support | Native is the supported standalone implementation and only PowerToys candidate. |
 | Implementation | Port the Native C++/Direct2D/DirectComposition implementation. |
 | Proposed hosting | Start with an in-process native PowerToys module, subject to explicit maintainer approval in PT-006. |
-| Managed implementation | Keep the C#/Vortice source and a commented restore/build/test recipe only as a reproducible comparison/reference. It is outside active CI; do not import it or its graphics dependencies. |
+| Managed implementation | Keep the C#/Vortice source and a commented restore/build/test recipe only as a reproducible comparison/reference. It is outside required product CI; an optional advisory smoke does not change that status. Do not import it or its graphics dependencies. |
 | Standalone shell | Do not port the tray icon, Run-key auto-start, standalone entry point, private updater/installer behavior, or duplicate enable/disable lifecycle. |
 | License | DesktopGrass is MIT licensed. Native tests use Microsoft's C++ Unit Test Framework; no third-party test framework is vendored or needs to be imported. |
 | Feature scope | Port existing behavior first. Do not add scenes, critters, or other features until the PowerToys module meets its quality gates. |
@@ -29,9 +29,9 @@ the supported Native product so a frozen reference cannot block product work.
 | PowerToys C++ default | `v143`, overridden to `v145` when `VisualStudioVersion == 18.0` | [`Cpp.Build.props`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/Cpp.Build.props) | Inherit `Directory.Build.props`/`Cpp.Build.props`; do not set `PlatformToolset` in the new module. |
 | PowerToys CI and release | Current default agents are `SHINE-VS18-Latest`, so official builds effectively use `v145`; preview also uses VS 18 | [`ci.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/ci.yml), [`pipeline-ci-build.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/templates/pipeline-ci-build.yml), [`release.yml`](https://github.com/microsoft/PowerToys/blob/5c9c93d56d0c63fcc485f65bebba5315775c919b/.pipelines/v2/release.yml) | The module must pass the official `v145` path without breaking the supported `v143` fallback. |
 
-DesktopGrass passes x64 and ARM64 Release builds with `v145`. A `v143` source
-compatibility build remains required because the current development machine
-does not have the VS 2022 C++ toolset installed.
+DesktopGrass's checked-in projects and CI use `v145` for x64 and ARM64. A
+`v143` source-compatibility build is a PowerToys migration gate, not a supported
+DesktopGrass project configuration.
 
 ## Status definitions
 

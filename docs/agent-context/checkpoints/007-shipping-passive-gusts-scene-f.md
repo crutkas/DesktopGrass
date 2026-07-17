@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutkas\source\DesktopGrass`) that paints procedural grass / flowers / mushrooms across the bottom of every monitor, click-through, on top of the taskbar. Two parallel implementations — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. The user just queued three asks: (1) random small gusts of wind ✅ shipped; (2) extend the tray to switch scenes ← in progress; (3) fleet out a Desert scene (tumbleweeds + cactus + stuff) and a Winter scene. My approach: lock spec → implement Native (reference) → fleet a Win2D backport agent → validate + commit. Three phases, parallel agents only for the per-scene content (Phase 3).
+DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `.`) that paints procedural grass / flowers / mushrooms across the bottom of every monitor, click-through, on top of the taskbar. Two parallel implementations — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. The user just queued three asks: (1) random small gusts of wind ✅ shipped; (2) extend the tray to switch scenes ← in progress; (3) fleet out a Desert scene (tumbleweeds + cactus + stuff) and a Winter scene. My approach: lock spec → implement Native (the primary implementation) → fleet a Win2D backport agent → validate + commit. Three phases, parallel agents only for the per-scene content (Phase 3).
 </overview>
 
 <history>
@@ -79,13 +83,13 @@ DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopG
 # Native — must stop running exe first (locks itself)
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat'
-$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
+$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
 $out | Select-Object -Last 30
 # Same for tests/DesktopGrass.Native.Tests
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
 
 # Win2D
-cd C:\Users\crutkas\source\DesktopGrass
+cd .
 dotnet build src\DesktopGrass.Win2D -c Release --nologo
 dotnet test  tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity minimal
 
@@ -105,7 +109,7 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 
 ## Fleet pattern (proven from flowers/mushrooms/ambient)
 - Lock spec patch in `docs/architecture.md` FIRST, commit + push standalone so agents have a SHA to anchor on
-- Implement Native (the reference) yourself, commit + push
+- Implement Native (the primary implementation) yourself, commit + push
 - Fleet ONE general-purpose agent (background mode is fine for parallelism but sync is fine for single backport) for Win2D backport with: locked spec SHA, full design, naming reminders (PascalCase fields, SCREAMING_SNAKE constants, `internal` Sim → make new members `public` for tests), files to edit, exact code skeletons, test file additions, build + test commands, validation gate (count/snapshot match Native's, first-blade main-stream pinned)
 - Validate, single feature commit, push, relaunch
 
@@ -133,27 +137,27 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 
 <important_files>
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - **Single source of truth.** Now contains §8.1 ambient gusts + §13 scene infrastructure framework. §11 has ambient gust constants and scene palette tables.
   - Will need §14 (Desert content) and §15 (Winter content) in Phase 3.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - **MODIFIED uncommitted.** Added Scene enum, SCENE_COUNT, SCENE_DEFAULT, DESERT_PALETTE[6], WINTER_PALETTE[6], SCENE_PALETTES[3][6] (2D lookup, Grass row = original PALETTE).
   - All Native constants live here. Both Phase 1 (ambient gust block ~lines after mushroom palette) and Phase 2 (scene block right after) are present.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`
   - **MODIFIED uncommitted.** Sim struct gained `Scene currentScene = SCENE_DEFAULT;` (after the ambient gust fields). New free function `void sim_set_scene(Sim&, Scene) noexcept;` declared right after `sim_tick_ambient_gusts`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - **MODIFIED uncommitted.** Added `sim_set_scene` impl after `sim_tick_ambient_gusts` — pure field assign, no other side effects. Section header comment "Scenes (§13)".
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.h` + `Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.h` + `Renderer.cpp`
   - **NEXT TO MODIFY.** `Renderer.h:84` is `ComPtr<ID2D1SolidColorBrush> brushes_[PALETTE_SIZE];` — change to `brushes_[SCENE_COUNT][PALETTE_SIZE]`. `Renderer.cpp:118-123` is the brush-creation loop; `Renderer.cpp:398` is the draw-time lookup `brushes_[b.hue]`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\App.h` + `App.cpp`
+- `.\src\DesktopGrass.Native\src\App.h` + `App.cpp`
   - **NEXT TO MODIFY.** App.h has `kMenuQuit = 1001` only (line 24). App.cpp:109-132 `CreateTrayIcon` builds the menu with one item; App.cpp:288-322 `HandleMessageWindowMessage` handles WM_COMMAND with one branch. Need to refactor to scene submenu + WM_COMMAND switch + new `SetScene` method that broadcasts to every `w->GetRenderer().GetSim()`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`, `Sim.cs`, `GrassWindow.cs`, `TrayIcon.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`, `Sim.cs`, `GrassWindow.cs`, `TrayIcon.cs`
   - **WILL BE BACKPORTED BY FLEETED AGENT.** Win2D mirror of all the above. `TrayIcon.cs` uses WinForms `NotifyIcon` + `ContextMenuStrip` on STA thread — totally different API from C++ Win32 menu, hence worth fleeting.
 
 - `tests/DesktopGrass.Native.Tests/src/ambient_gust_tests.cpp` and `SimTests/AmbientGustTests.cs`

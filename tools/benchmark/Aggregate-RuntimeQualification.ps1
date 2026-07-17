@@ -2599,9 +2599,8 @@ if ($notEvaluatedReasons.Count -eq 0) {
 }
 $markdown.Add('')
 $markdown.Add(
-    'A passing automated budget set is not by itself authorization to close ' +
-    'issue #14; manual display/session/suspend evidence and hardware support ' +
-    'must still be assessed separately.'
+    'A passing automated budget set is incomplete without separately assessed ' +
+    'manual display/session/suspend evidence and hardware support.'
 )
 $markdown |
     Out-File -LiteralPath $OutMarkdown -Encoding utf8

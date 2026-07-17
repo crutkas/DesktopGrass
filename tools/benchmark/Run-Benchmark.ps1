@@ -10,8 +10,8 @@ param(
 
     [string[]] $Variants = @('baseline'),
 
-    # Only the visible state exists until issues #22/#23 add real suppressed
-    # states. The field is present now to keep future evidence comparable.
+    # This benchmark-mode driver measures only the visible state. Production
+    # suppression states use Run-RuntimeQualification.ps1.
     [ValidateSet('visible')]
     [string] $WorkloadState = 'visible',
 
@@ -314,7 +314,7 @@ try {
         -CounterSampler $counterSampler `
         -SweepParameters $sweepParameters
 
-    # Preserve the PR #13 top-level fields for existing consumers.
+    # Preserve the schema-v1 top-level fields for existing consumers.
     $machine['HostName'] = $machine.host_name
     $machine['OSVersion'] = $machine.os.version
     $machine['LogicalCpus'] = $machine.logical_cpus

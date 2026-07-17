@@ -1,131 +1,151 @@
 # DesktopGrass implementation comparison
 
-> **Current support policy (2026-07-16):** Native is the supported standalone
-> implementation and only PowerToys candidate. The C#/Vortice implementation is
-> retained as a source-available comparison/reference with a manual build/unit
-> recipe for reproducibility, but it is outside active CI, is not a recommended
-> run/download target, and has no ongoing feature-parity, platform-hardening, or
-> release commitment. WinUI 3 and WPF were removed after the comparison.
+> **Current support decision:** [`DesktopGrass.Native`](../src/DesktopGrass.Native)
+> is the supported standalone product and the only PowerToys candidate.
+> [`DesktopGrass.Win2D`](../src/DesktopGrass.Win2D) is retained only as a
+> source-available managed comparison/reference. It has no required product CI,
+> feature-parity, platform-hardening, release, or downloadable-artifact
+> commitment. WinUI 3 and WPF were removed after the historical comparison.
 
-This document is the historical side-by-side comparison of the four
-implementations as they stood at the comparison point on `main`. A later
-steady-state working-set measurement (Native 55 MB, Win2D 99 MB, WinUI 3
-158 MB, WPF 579 MB) reinforced the runtime-footprint conclusion. Historical
-rows and recommendations below explain the selection; they do not define the
-current support policy.
+This document separates the **current checkout** from the **historical
+comparison snapshot** that led to the Native decision. Historical measurements
+remain useful selection evidence, but they are not current product claims.
 
-## TL;DR
+## Current checkout
 
-| Impl | Current role | LoC headline | Release exe | Dependencies | Idiomatic fit | Friction level |
-| --- | --- | ---: | ---: | --- | --- | --- |
-| Native (`src\DesktopGrass.Native`) | **Supported product / PowerToys candidate** | 2,221 | 39 KB | Win32 + Direct2D + DirectComposition; no vcpkg runtime deps | Best fit for a transparent, click-through, topmost desktop overlay | Low |
-| Win2D-ish / Vortice (`src\DesktopGrass.Win2D`) | **Source-available managed reference** | 1,030 track headline; 1,823 current full tree | 152 KB | .NET 8 WindowsDesktop + Vortice Direct2D/DXGI/DComp + WinForms tray | Good managed mirror of the native model at the comparison point | Medium |
-| WinUI 3 (`src\DesktopGrass.WinUI3`) | **Removed historical track** | 2,433 track headline; 2,124 current full tree | 272 KB | WinAppSDK + Microsoft.UI.Composition + Win2D geometry + H.NotifyIcon | Good when you actually want the WinUI app model; awkward for a raw overlay | High |
+### Support and toolchain
 
-## Methodology
+| Concern | Supported Native | Managed reference |
+| --- | --- | --- |
+| Project | `src\DesktopGrass.Native\DesktopGrass.Native.vcxproj` | `src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj` |
+| Role | Supported product; required CI; release artifacts; PowerToys candidate | Reproducible reference only; optional advisory smoke |
+| Stack | C++17, Win32, D3D11, DXGI, Direct2D, DirectComposition | C# 12, Win32 interop, D3D11, DXGI, Direct2D, DirectComposition |
+| Build target | MSVC PlatformToolset `v145`; Windows SDK `10.0`; x64 and ARM64 | .NET SDK requested by `global.json`: 10.0.300 with compatible feature-band roll-forward; x64 and ARM64 |
+| App target framework | Native Win32 executable | `net10.0-windows10.0.19041.0`; minimum Windows version `10.0.17763.0` |
+| Graphics packages | No vcpkg-managed runtime dependencies | `Vortice.Direct2D1`, `Vortice.Direct3D11`, `Vortice.DXGI`, and `Vortice.DirectComposition`, all 3.6.2 |
+| Test framework | Microsoft Visual Studio C++ Unit Test Framework | xUnit on `net10.0` |
+| Verified x64 Release tests | **368 passed** | **299 passed** |
 
-Measured/inspected:
+The verified test counts are runner-reported test cases at this revision, not
+source-method counts. Parameterized managed theories can produce more cases than
+the number of `[Fact]`/`[Theory]` methods.
 
-- Source lines with a PowerShell equivalent of `git ls-files | rg 'src/DesktopGrass\.<name>/' | xargs wc -l`, plus matching test-project counts.
-- Release exe sizes with `Get-ChildItem -Recurse -Filter *.exe` under each implementation output directory.
-- Deploy-output payload from the current `Release` output folders.
-- Package/project references from the `.vcxproj`, `.csproj`, `vcpkg.json`, and WinAppSDK target-stub files.
-- Window, rendering, mouse-hook, and tray behavior from the checked-in source.
-- Commit cadence from `git log --oneline --no-decorate`.
-- Smoke-harness behavior from `tests\smoke\Smoke.Common.psm1` and `tests\smoke\Run-SmokeTests.ps1`.
+The default [`DesktopGrass.slnx`](../DesktopGrass.slnx) intentionally contains
+only Native and its tests. The required CI workflow builds/tests Native and
+publishes x64 and ARM64 Native artifacts. Its managed build/test recipe is
+commented for manual reproduction. The separately provisioned interactive-smoke
+workflow may build and run Managed as a non-blocking advisory comparison.
 
-Not formally measured in v1:
+### Output paths and payload shape
 
-- Runtime CPU, GPU, memory, startup time, and long-run stability. The runtime notes below are smoke-run impressions only: at the comparison point, the apps targeted 60 fps, ran roughly 600 blades on a 1920 px monitor (after the `DEFAULT_DENSITY=2.25` density bump), and passed the screenshot pixel-variance gate within about three seconds of launch.
+| Output | Repository-root path | Notes |
+| --- | --- | --- |
+| Native app | `src\DesktopGrass.Native\out\<Platform>\<Configuration>\DesktopGrass.Native.exe` | Release uses the static CRT (`/MT`); no VC++ redistributable or vcpkg runtime payload |
+| Native tests | `tests\DesktopGrass.Native.Tests\out\<Platform>\<Configuration>\DesktopGrass.Native.Tests.dll` | Run through `tests\DesktopGrass.Native.Tests\Run-Tests.ps1` and Visual Studio VSTest |
+| Managed app | `src\DesktopGrass.Win2D\bin\<Platform>\<Configuration>\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe` | Framework-dependent reference output with .NET/Vortice companion DLLs |
+| Managed tests | `tests\DesktopGrass.Win2D.Tests\bin\<Configuration>\net10.0\DesktopGrass.Win2D.Tests.dll` | Plain `net10.0` test assembly |
 
-Conformance signal:
+For scale only, the verified 2026-07-17 x64 Release build produced a
+1,347,072-byte Native executable. The managed build folder contained 15 files
+and 28,582,704 bytes including its PDB; the managed apphost itself was 533,504
+bytes. These values depend on the installed toolchain and restored packages and
+are not release-size guarantees. The paths and dependency shapes above are the
+stable contract.
 
-- The original v1 smoke runs reported the same `11,642 unique colors` for all three measured implementations on `main` at the time. That was not a full pixel-perfect proof, but it was the v1 conformance signal: the comparison ports used the same xorshift64 PRNG, canonical seed (`0x6B6173746F`), and blade/sway/gust/cut/regrowth math from `docs\architecture.md`. Subsequent pre-freeze tunings shifted the absolute count downward while Native and the managed reference remained within ~25% of each other per run.
+### Cadence defaults
 
-Counting note:
+Both projects default `targetFps` to **24**, accept configured values from 5
+through 144, and default blade density to **2.53125**. Native additionally
+applies production runtime caps:
 
-- The original Native headline LoC excluded the binary icon and the then-vendored Catch2 header. Catch2 has since been removed.
-- The Win2D and WinUI 3 track-agent headline LoC counts use a different scope than the exact current `git ls-files` tables below. The tables below are the current-tree counts and include interop/build glue and tests where shown.
+- 12 FPS on battery or short-term/UPS power;
+- 5 FPS under Battery Saver or a dimmed display; and
+- zero rendering while suspended, locked/disconnected, display-off,
+  fullscreen-covered, or fully occluded.
 
-## Measured summary
+The Native `--benchmark` mode also defaults to 24 FPS. It does not exercise
+those production suppression policies.
 
-| Metric | Native | Win2D-ish / Vortice | WinUI 3 |
-| --- | ---: | ---: | ---: |
-| Track-reported source LoC | 2,221 | 1,030 | 2,433 (1,637 app + 796 tests) |
-| Current `git ls-files` source tree | 1,511 app + 710 tests | 1,229 app + 594 tests | 1,412 app + 712 tests |
-| Release exe size | 39,936 B | 152,576 B | 272,384 B |
-| Unit tests | 34 cases / 58,266 assertions | 38 cases | 42 cases |
-| Unit test runtime | ms-scale | 27 ms | 25 ms |
-| Smoke unique colors | 11,642 | 11,642 | 11,642 |
-| Build time | 4.5 s app / 7.0 s tests | not captured | not captured |
+## Current verification boundaries
 
-## LoC breakdown
+### Smoke
 
-These are file-level counts from the current checkout. Mixed-purpose files are assigned to their primary role; Native tray code lives in `App.cpp`/`App.h`, so it is included under lifecycle rather than counted twice.
+[`tests/smoke/Run-SmokeTests.ps1`](../tests/smoke/Run-SmokeTests.ps1)
+resolves the architecture-qualified output paths above. Native is the product
+gate; Managed is optional. The harness checks required extended window styles,
+Native per-monitor window count and work-area/DPI geometry, and screenshot pixel
+variance with a 50-color minimum.
 
-### Native
+The harness's `DurationMs` covers the entire smoke operation: optional
+pre-launch work, process launch, window discovery, assertions, screenshot
+polling, and shutdown/cleanup. It is **not** a startup or
+launch-to-first-frame metric.
 
-| Category | Files | Lines |
-| --- | --- | ---: |
-| Window/lifecycle | `src\App.cpp` (268), `src\App.h` (50), `src\GrassWindow.cpp` (128), `src\GrassWindow.h` (43), `src\main.cpp` (27) | 516 |
-| Renderer | `src\Renderer.cpp` (271), `src\Renderer.h` (75) | 346 |
-| Simulation core | `src\Constants.h` (50), `src\Sim.cpp` (213), `src\Sim.h` (112) | 375 |
-| Mouse hook | `src\MouseHook.cpp` (60), `src\MouseHook.h` (58) | 118 |
-| Tray | `Shell_NotifyIconW` code is in `src\App.cpp`/`src\App.h` | included above |
-| Interop/glue/build | `DesktopGrass.Native.vcxproj` (108), `DesktopGrass.Native.rc` (8), `resource.h` (4), `app.manifest` (30), `vcpkg.json` (6) | 156 |
-| Tests | test `.vcxproj` (85), `snapshot_gen.cpp` (46), `blade_gen_tests.cpp` (98), `cut_tests.cpp` (138), `gust_tests.cpp` (112), test `main.cpp` (6), `prng_tests.cpp` (69), `snapshot_data.h` (70), `sway_tests.cpp` (80), test `vcpkg.json` (6) | 710 |
-| **Total** | Historical comparison total; excluded `res\icon.ico` and the then-vendored Catch2 files | **2,221** |
+### Benchmark
 
-### Win2D-ish / Vortice
+[`tools/benchmark`](../tools/benchmark/README.md) collects Native-only
+performance and energy evidence.
 
-| Category | Files | Lines |
-| --- | --- | ---: |
-| Window/lifecycle | `App.cs` (244), `Program.cs` (23) | 267 |
-| Renderer | `GrassWindow.cs` (244) | 244 |
-| Simulation core | `Constants.cs` (52), `Sim.cs` (244) | 296 |
-| Mouse hook | `MouseHook.cs` (98) | 98 |
-| Tray | `TrayIcon.cs` (86) | 86 |
-| Interop/glue/build | `Interop\User32.cs` (178), `DesktopGrass.Win2D.csproj` (37), `app.manifest` (23) | 238 |
-| Tests | test `.csproj` (34), `InternalsVisible.cs` (7), `BladeGenTests.cs` (94), `CutTests.cs` (165), `GustTests.cs` (117), `PrngTests.cs` (87), `SwayTests.cs` (90) | 594 |
-| **Total current tree** | Source + tests | **1,823** |
+- `--benchmark` uses one primary-monitor window and bypasses the tray, mouse
+  hook, persistence, multi-monitor lifecycle, and production runtime policy.
+- Its requested duration and reported `duration_s` begin after window/renderer
+  setup and end before teardown.
+- The external driver's first counter interval is priming because it spans
+  startup; it is excluded from measured samples.
+- `WallSec` includes startup, rendering, teardown, and scheduling overhead and
+  is diagnostic process wall time.
+- No field isolates startup, launch-to-window, or launch-to-first-frame
+  duration. Subtracting render duration from `WallSec` is not a valid startup
+  measurement.
+- The production-runtime qualification path exercises the unmodified Native
+  app, but display-dim, lock/display-off, and suspend/resume transitions still
+  require separately controlled manual evidence.
 
-### WinUI 3
+Consequently, neither the smoke harness nor the benchmark can support a current
+startup-performance claim or a current Native-versus-managed runtime comparison.
 
-| Category | Files | Lines |
-| --- | --- | ---: |
-| Window/lifecycle | `App.xaml` (8), `App.xaml.cs` (55), `MainWindow.xaml` (10), `MainWindow.xaml.cs` (120), `MonitorEnumerator.cs` (25) | 218 |
-| Renderer | `GrassRenderer.cs` (109) | 109 |
-| Simulation core | `Constants.cs` (62), `Sim.cs` (328) | 390 |
-| Mouse hook | `MouseHook.cs` (87) | 87 |
-| Tray | `TrayHost.cs` (64) | 64 |
-| Interop/glue/build | `InternalsVisibleTo.cs` (8), `Interop\Types.cs` (36), `Interop\User32.cs` (56), `WindowAttacher.cs` (71), `DesktopGrass.WinUI3.csproj` (54), `WinAppSdkTaskStubs.targets` (299), `app.manifest` (20) | 544 |
-| Tests | test `.csproj` (38), `BladeGenTests.cs` (125), `CutTests.cs` (129), `GustTests.cs` (131), `PrngTests.cs` (96), `StrokeTests.cs` (94), `SwayTests.cs` (99) | 712 |
-| **Total current tree** | Source + tests | **2,124** |
+## Historical comparison snapshot
 
-## Binary size and dependencies
+The repository originally explored four independent implementations for the
+same transparent, click-through, topmost overlay:
 
-| Impl | Release exe | Current deploy/output payload | Packages and notable DLLs | Runtime requirements |
-| --- | ---: | ---: | --- | --- |
-| Native | 39,936 B | 39,936 B exe-only; `out\Release` is 1,920,000 B including PDB | `vcpkg.json` has no runtime deps. Tests use Microsoft's Visual Studio C++ Unit Test Framework with no vendored test framework. Links Win32, D3D11, DXGI, D2D1, DComp, Shell32, Shcore. | Windows with Direct2D/DirectComposition/D3D11; MSVC runtime because Release uses `/MD`. |
-| Win2D-ish / Vortice | 152,576 B | 27,316,872 B framework-dependent `bin\Release\net8.0-windows10.0.19041.0` output, 15 files | `Vortice.Direct2D1`, `Vortice.Direct3D11`, `Vortice.DXGI`, `Vortice.DirectComposition` 3.6.2; SharpGen runtime DLLs; `Microsoft.Windows.SDK.NET.dll`; tests use xUnit. | .NET 8 WindowsDesktop/WinForms runtime; Windows 10 1809+ APIs. |
-| WinUI 3 | 272,384 B | 168,842,065 B self-contained `bin\Release\net8.0-windows10.0.19041.0\win-x64` output, 447 files | `Microsoft.WindowsAppSDK` 1.6.250108002, `Microsoft.Windows.SDK.BuildTools`, `Microsoft.Graphics.Win2D`, `H.NotifyIcon.WinUI`; output carries WinUI/XAML and .NET runtime payload. | Current project is `WindowsPackageType=None`, `SelfContained=true`, `WindowsAppSDKSelfContained=true`. A framework-dependent packaged variant would require the WinAppSDK runtime, 1.5+ class / 1.6 for this package line. |
-| WPF | (not measured) | (not measured) framework-dependent `bin\Release\net10.0-windows10.0.19041.0` output | No package references; uses WindowsDesktop WPF plus WindowsForms `NotifyIcon`; tests use xUnit. | .NET 10 WindowsDesktop/WPF runtime; Windows 10 1809+ APIs. |
+1. Native Win32 + Direct2D/DirectComposition.
+2. Managed C# using Vortice over the same low-level graphics stack.
+3. WinUI 3 using Windows App SDK/XAML/Composition.
+4. WPF.
 
-## Build experience
+The comparison-era measurements below are preserved as historical evidence.
+They describe the implementation state at the time and must not be combined
+with the current counts, binaries, or toolchains above.
 
-| Impl | Build path | Commit cadence on `main` | Observations |
-| --- | --- | --- | --- |
-| Native | `msbuild` over the `.vcxproj`/solution, x64 Release, toolset `v145` | 8 native-specific commits from bootstrap through smoke registration | Most direct build. The project is conventional C++/MSBuild, uses Windows SDK libraries, and runs its native test DLL through Visual Studio's `vstest.console`. Track agents measured 4.5 s app build and 7.0 s tests at the comparison point. |
-| Win2D-ish / Vortice | `dotnet build` on `DesktopGrass.Win2D.csproj` | 7 Win2D-specific commits: bootstrap, sim, tests, Vortice switch, interop, hook/tray, renderer/window | The project name stayed "Win2D" as the comparison track label, but the renderer uses Vortice Direct2D/DXGI/DComp. The win2d-track summary explicitly called **"Vortice is the path of least resistance"** and described the alternative as bridging Microsoft Win2D `CanvasSwapChain` through WinRT/CsWinRT. The checked-in `.csproj` repeats that this avoids the WinRT/CsWinRT bridge needed to feed a Vortice swap chain into a Win2D `CanvasSwapChain`. |
-| WinUI 3 | `dotnet build` with explicit SDK imports plus `WinAppSdkTaskStubs.targets` | 2 WinUI implementation/test commits plus 1 smoke-harness commit | This was the noisiest build. `DesktopGrass.WinUI3.csproj` uses explicit `Sdk.props`/`Sdk.targets` imports so `WinAppSdkTaskStubs.targets` can be imported after WindowsAppSDK targets. The stubs override `MrtCore.PriGen.targets` paths that point at Visual Studio-only Appx/Pri task assemblies. That is exactly the kind of non-product-code friction this comparison was meant to reveal. |
+| Historical metric | Native | Managed/Vortice | WinUI 3 | WPF |
+| --- | ---: | ---: | ---: | ---: |
+| Track-reported source LoC headline | 2,221 | 1,030 | 2,433 | Not standardized |
+| Release executable | 39,936 B | 152,576 B | 272,384 B | Not measured |
+| Unit-test headline | 34 cases / 58,266 assertions | 38 cases | 42 cases | Not retained |
+| Initial smoke unique colors | 11,642 | 11,642 | 11,642 | Not part of that run |
+| Later steady-state working set | 55 MB | 99 MB | 158 MB | 579 MB |
 
-The smoke harness also changed for WinUI 3: `Smoke.Common.psm1` gained `-TitleMatch` support by enumerating all top-level windows for a process and regex-matching titles; `Invoke-AppSmoke` gained a `BeforeLaunch` hook; `Run-SmokeTests.ps1` gained RID-aware .NET exe resolution so WinUI 3's `bin\Release\<TFM>\win-x64` layout is found.
+The original source-count scopes were not fully standardized. Native excluded
+the icon and then-vendored Catch2 header; managed-track reports did not always
+use the same app/test/interop boundaries. The exact values are useful only as
+the archived comparison headline.
 
-## Window model: the actually interesting part
+The 11,642-color result was a screenshot conformance signal, not pixel-perfect
+proof. The ports used the same xorshift64 PRNG, canonical seed
+`0x6B6173746F`, and then-current blade/sway/gust/cut math. Later visual tuning
+changed the absolute color counts.
 
-### Native
+Runtime CPU, GPU, energy, startup, and long-run stability were **not formally
+measured in the original comparison**. The historical apps targeted 60 FPS and
+typically crossed the smoke rendering threshold within a few seconds, but that
+end-to-end observation was never a startup benchmark.
 
-The native implementation is the clean baseline. `GrassWindow::Create` calls `CreateWindowExW` directly with:
+## Why Native was selected
+
+### Direct fit for the window model
+
+Native directly owns the popup HWND and applies:
 
 - `WS_EX_LAYERED`
 - `WS_EX_TRANSPARENT`
@@ -133,77 +153,40 @@ The native implementation is the clean baseline. `GrassWindow::Create` calls `Cr
 - `WS_EX_TOOLWINDOW`
 - `WS_EX_NOACTIVATE`
 
-It then initializes the renderer against the HWND. `Renderer.cpp` creates a D3D11 device, DXGI composition swap chain with premultiplied alpha, D2D device context, DirectComposition target, and visual root. The swap chain is assigned as the DComp visual content and the visual is set as the HWND target root. This is the cleanest mapping from product requirement to Windows primitives.
+It creates the D3D11 device, DXGI composition swap chain, Direct2D device
+context, and DirectComposition visual/target without a framework-owned window
+or XAML layer. That maps closely to the product requirement.
 
-### Win2D-ish / Vortice
+The managed reference proved that C# plus Vortice can mirror the same design,
+but it needs hand-written P/Invoke, managed delegate lifetime handling, a .NET
+runtime, and the Vortice/SharpGen payload. It remains useful as a readable
+comparison and frozen deterministic baseline, not as a second product.
 
-The C# implementation follows the same model through hand-written P/Invoke. `App.cs` registers a custom window class, keeps the managed WNDPROC delegate alive in a field, and calls `CreateWindowExW` with the same overlay styles plus `WS_EX_NOREDIRECTIONBITMAP`. `GrassWindow.cs` then builds the D3D11/DXGI/D2D/DComp chain through Vortice and sets the swap chain as DComp visual content. It is more glue than C++, but still maps directly to the native overlay design.
+WinUI 3 required framework-window style retrofits, Composition geometry glue,
+and a much larger deployment shape for an app that does not need XAML controls
+or the broader Windows App SDK model. WPF had the largest measured working set.
+Those results reflect DesktopGrass's unusually low-level overlay shape, not a
+general judgment on either UI framework.
 
-### WinUI 3
+### Product ownership
 
-WinUI 3 creates the HWND for `Microsoft.UI.Xaml.Window`; the app does not own the class name. `WindowAttacher.cs` retroactively replaces the style with `WS_POPUP | WS_VISIBLE`, ORs in the click-through/topmost extended styles, calls `SetLayeredWindowAttributes(hwnd, alpha=255, LWA_ALPHA)`, and forces `SetWindowPos(... SWP_FRAMECHANGED ...)`. The fully opaque layered-window alpha lets the compositor's per-pixel transparency take over.
+Native now owns product behavior, runtime suppression, monitor/DPI hardening,
+accessibility validation, smoke/soak/fault qualification, release artifacts,
+and the PowerToys migration path. Native behavior may intentionally advance
+beyond the managed freeze point without a backport.
 
-The fixed framework class name (`WinUIDesktopWin32WindowClass`) also affected tests. `MainWindow.xaml.cs` sets `Title = "DesktopGrass.WinUI3.Window"`; the smoke harness matches `^DesktopGrass\.WinUI3\.Window$` with `-TitleMatch` instead of relying on a unique class name.
+Managed may receive narrowly scoped build or test maintenance needed to keep
+the reference reproducible. Such maintenance does not change its support
+status.
 
-## Rendering
+## Reproducing the managed reference
 
-| Impl | How blades reach the screen |
-| --- | --- |
-| Native | Direct2D path geometry per blade. `Renderer::DrawGrass` creates an `ID2D1PathGeometry`, adds a quadratic Bezier, and calls `DrawGeometry` with a palette brush. |
-| Win2D-ish / Vortice | Vortice Direct2D on a DXGI composition swap chain. The current code computes the same quadratic Bezier stroke but tessellates it into six `DrawLine` segments instead of creating a path geometry per blade per frame; the comment calls this cheaper than constructing a path every frame. |
-| WinUI 3 | Microsoft.UI.Composition `ShapeVisual` with one `CompositionSpriteShape` / `CompositionPathGeometry` per blade. `GrassRenderer.cs` uses Win2D `CanvasPathBuilder` and `CanvasGeometry.CreatePath` because Composition requires an `IGeometrySource2D` and WinUI 3 alone does not ship a practical path-builder implementation. |
+From the repository root:
 
-The WinUI 3 renderer is the clearest "WinUI 3 alone is not enough" data point: even without XAML controls, the path geometry source comes from Win2D.
+```powershell
+dotnet build src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj -c Release -p:Platform=x64
+dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release --nologo
+```
 
-## Mouse hook
-
-All four implementations use the same observe-only pattern:
-
-- Install `SetWindowsHookExW(WH_MOUSE_LL, ...)`.
-- Handle `WM_MOUSEMOVE` and `WM_LBUTTONDOWN`.
-- Queue or dispatch lightweight events to the render/UI thread.
-- Always return `CallNextHookEx` and never consume input.
-
-The C# variants both keep the hook delegate in a field so the GC cannot collect it while installed. Win2D queues through a bounded `Channel<HookEvent>`; WinUI 3 invokes an `Action<InputEvent>` sink that enqueues into each window's mailbox; Native uses a lock-free SPSC queue drained by the render loop.
-
-## Tray icon
-
-| Impl | Tray approach |
-| --- | --- |
-| Native | `Shell_NotifyIconW` from `App.cpp`, with a message-only window and a Quit menu. |
-| Win2D-ish / Vortice | WinForms `NotifyIcon` on a dedicated STA message-loop thread with a hidden form and a Quit action. |
-| WinUI 3 | `H.NotifyIcon.Core.TrayIcon`, not the WinUI XAML `TaskbarIcon` wrapper. `TrayHost.cs` documents why: the XAML control is designed to be created by loading a `FrameworkElement`, which does not fit a transparent click-through grass-strip window. |
-
-## Testing
-
-At the comparison point Native used Catch2 and the managed implementations used xUnit. Native has since moved to the Microsoft C++ Unit Test Framework used by PowerToys. The shared spec keeps the same deterministic coverage straightforward across frameworks: canonical seed, PRNG sequence, blade vector, and sway/gust/cut behavior.
-
-The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The original v1 measurement was `11,642` for all three measured impls; a later pre-removal four-impl baseline after visual tuning sat roughly in the 1,600–3,500 range per impl (still well above the 50-color minimum gate).
-
-## Where each stack genuinely shines
-
-**Native** is the right choice when the product is fundamentally a Windows desktop primitive: transparent layered HWNDs, DirectComposition, D2D, mouse hooks, and tray integration. It has the smallest exe, fewest runtime dependencies, and the least impedance mismatch. The trade-off is C++ ownership/COM complexity and less managed test ergonomics.
-
-**Win2D-ish / Vortice** demonstrated the pragmatic managed alternative. It
-kept fast C# iteration and xUnit while using the same Direct2D/DXGI/DComp model
-as Native. It now remains only as the buildable managed comparison/reference;
-it is not a supported product choice and carries no ongoing parity or
-platform-hardening commitment.
-
-**WinUI 3** shines when the app needs WinAppSDK, XAML, app-window integration, and a broader Windows app model. DesktopGrass deliberately asked it to do something it is not designed around: a transparent, click-through, topmost overlay. The friction here is not an indictment of WinUI 3; it is evidence that this specific product shape sits below the layer WinUI 3 wants to own.
-
-## Historical comparison follow-ups
-
-These were potential improvements to the comparison methodology, not the
-current product roadmap. Work involving a removed or frozen track requires an
-explicit new decision.
-
-- Add formal CPU/GPU/startup/memory measurement, ideally with repeatable ETW or Windows Performance Recorder profiles.
-- Standardize the LoC counting scope before quoting headline numbers: app only, app+tests, interop included/excluded, vendored code excluded.
-- Make the smoke harness a small `WinAppRuntime`-aware launcher that understands class-name matching, title-regex matching, `BeforeLaunch`, packaged app activation, and RID-specific .NET output paths.
-- Add a click-through probe window under the grass instead of only asserting ExStyle bits.
-- Add multi-monitor smoke and DPI-change smoke; all four codebases already have monitor-aware architecture, but v1 only gates primary-monitor rendering.
-- If another managed low-level render comparison is commissioned, use Vortice; it provided the most direct mapping to the native Direct2D/DComp model.
-- If a future comparison reintroduces WinUI, decide whether the target is packaged/framework-dependent or unpackaged self-contained, then measure that deployment shape explicitly.
-- Consider adding Avalonia or Uno as a cross-stack comparison only if the goal is UI-framework ergonomics; for raw overlays, they should be compared against the same HWND/DComp requirements.
-- Retain the existing snapshots needed to reproduce the frozen comparison. Refreshing the managed baseline requires explicit scope rather than an automatic Native backport.
+These commands validate source availability and the frozen test baseline. They
+do not produce a supported release or a product gate.

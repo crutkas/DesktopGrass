@@ -1,3 +1,7 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
 Building **DesktopGrass** — a "just for fun" Windows overlay that draws procedurally generated, click-through grass along the bottom of every monitor with cursor-driven gusts and cut-on-click. The user wants three side-by-side implementations (Win32+Direct2D in C++, C#+Win2D, WinUI 3) for comparison, with light unit tests + winapp ui smoke tests, fleeted out via parallel sub-agents. v1 has been shipped and pushed to a private GitHub repo; now iterating on two user-reported issues from running the Native build.
 </overview>
@@ -12,7 +16,7 @@ Building **DesktopGrass** — a "just for fun" Windows overlay that draws proced
    - Plan accepted with `autopilot_fleet`.
 
 3. **Fleeted out the work in 4 waves**:
-   - **Wave 1** (me): repo bootstrap at `C:\Users\crutkas\source\DesktopGrass\` — directory skeleton, `.gitignore`, `README.md`, empty `DesktopGrass.slnx`, `git init`, initial commit.
+   - **Wave 1** (me): repo bootstrap at `.\` — directory skeleton, `.gitignore`, `README.md`, empty `DesktopGrass.slnx`, `git init`, initial commit.
    - **Wave 2** (parallel sub-agents): `shared-spec` → `docs/architecture.md` (501 lines, xorshift64 PRNG, blade model, sway/gust/cut spec); `smoke-harness` → `tests/smoke/*` (526 lines PS, P/Invoke-based, pixel-variance check).
    - **Wave 3** (3 parallel sub-agents, one per impl): each owned its full track (window + render + hook + tray + unit tests + smoke). All three passed smoke with **identical 11,642 unique colors** (conformance confirmed).
    - **Wave 4** (parallel): `comparison-doc` → `docs/comparison.md`; `manual-smoke-doc` → `docs/manual-smoke.md`.
@@ -34,7 +38,7 @@ Building **DesktopGrass** — a "just for fun" Windows overlay that draws proced
 </history>
 
 <work_done>
-**Repo state** (`C:\Users\crutkas\source\DesktopGrass\`, on `main`, pushed to private `github.com/crutkas/DesktopGrass`):
+**Repo state** (`.\`, on `main`, pushed to private `github.com/crutkas/DesktopGrass`):
 - 23 commits including bootstrap, spec, smoke harness, three full impl tracks (Native/Win2D-Vortice/WinUI3), comparison doc, manual smoke checklist.
 - All 23 SQL todos `done`.
 - All three impls build and pass end-to-end smoke run with 11,642 unique colors each.
@@ -46,7 +50,7 @@ Building **DesktopGrass** — a "just for fun" Windows overlay that draws proced
 
 1. **Grass behind taskbar** — needs to anchor at `rcWork.bottom` (top of taskbar) instead of `rcMonitor.bottom` (bottom of monitor). For all three impls.
 
-2. **Click cuts "everything"** — read `sim_apply_click` in `src/DesktopGrass.Native/src/Sim.cpp` lines 175-190. Logic looks correct: filters by `cutBandTop ≤ y ≤ cutBandBottom`, then `|baseX - clickX| < CUT_RADIUS (30 DIP)`. Hypothesis: probably visual illusion — with grass mostly hidden behind the taskbar, the user only sees the top sliver, and clicking cuts ~12 visible-tip blades which animate down and disappear below the taskbar line, looking like "everything." Fixing issue #1 should likely fix the perceived #2; will verify after.
+2. **Click cuts "everything"** — read `sim_apply_click` in `src/DesktopGrass.Native/src/Sim.cpp` lines 175-190. Logic looks correct: filters by `cutBandTop ≤ y ≤ cutBandBottom`, then `|baseX - clickX| < CUT_RADIUS (30 DIP)`. Hypothesis: probably visual illusion — with grass mostly hidden behind the taskbar, the user only sees the top sliver, and clicking cuts ~12 visible-tip blades which animate down and disappear below the taskbar line, looking like "everything." Fixing the first reported symptom should likely fix the second; will verify after.
 
 **Smoke harness implication** — `Get-GrassStripPixelVariance` currently captures the bottom `StripHeight` (80 px) of the **primary screen bounds** (line ~292 of Smoke.Common.psm1). If the grass moves above the taskbar, those bottom 80 px will be entirely taskbar, and pixel variance will collapse to taskbar-only colors. Harness needs to change to sample either the work-area bottom or shift up by the taskbar height. Equivalent fix needed across the harness so all three impls keep passing smoke.
 
@@ -66,42 +70,44 @@ Building **DesktopGrass** — a "just for fun" Windows overlay that draws proced
 - **Windows token in git credential manager** — already stored, can be reused for git push without prompting.
 - **VS toolset**: Native impl uses `v145` (VS 18 Enterprise default), not `v143`. Per stored memory, VS 2022 MSBuild 17.14 can't host .NET SDK 10 — DesktopGrass.Native uses `msbuild` from VS 18.
 - **Cut logic location**: `src\DesktopGrass.Native\src\Sim.cpp` lines 175-190 — `sim_apply_click` checks band then filters blades by `std::fabs(b.baseX - e.x) >= CUT_RADIUS`. Click dispatch happens in `App::DispatchMouseEvents` (App.cpp lines 169-220), which routes each event to the window whose screen rect contains it, then converts to window-local DIP.
-- **Unanswered question about issue #2**: cut math looks correct; need to actually verify after fixing taskbar position whether the user still sees "everything" cut. Most likely a visual artifact of grass being hidden.
+- **Unanswered question about the second reported symptom**: cut math looks
+  correct; need to verify after fixing taskbar position whether the user still
+  sees "everything" cut. Most likely a visual artifact of grass being hidden.
 </technical_details>
 
 <important_files>
-- `C:\Users\crutkas\.copilot\session-state\e286b6d3-8e11-4aa2-b2d7-87ceb1f5de22\plan.md`
+- `~\.copilot\session-state\<session-id>\plan.md`
   - The authoritative plan; sub-agents read it first.
   - Includes Testing section, fleet-execution waves, future iterations parked.
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - Shared spec all three impls port from. 501 lines, 12 sections, full xorshift64 + blade gen + sway/gust/cut pseudocode + canonical test seed `0x6B6173746F`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\App.cpp`
+- `.\src\DesktopGrass.Native\src\App.cpp`
   - Native lifecycle, monitor enumeration, mouse event dispatch.
   - **Lines 36-39** (`MonitorEnumProc`): currently pushes `mi.rcMonitor` — **need to change to `mi.rcWork`** (or push both and use `rcWork.bottom` for positioning).
   - Lines 169-220 (`DispatchMouseEvents`): event routing to per-window sim — looks correct.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\GrassWindow.cpp`
+- `.\src\DesktopGrass.Native\src\GrassWindow.cpp`
   - Window creation per monitor.
   - **Lines 49-69**: uses `monitorBounds.bottom` for window placement — needs to use `rcWork.bottom` instead. Would require passing the work-area rect from `App::EnumerateMonitorsAndCreateWindows`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - Pure sim. `sim_apply_click` at lines 175-190 — cut logic. Verified correct on inspection.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - Shared constants (STRIP_HEIGHT=80, HEADROOM=30, CUT_RADIUS=30, GUST_RADIUS=150). Single source of truth on the Native side; mirrors spec.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\App.cs`
+- `.\src\DesktopGrass.Win2D\App.cs`
   - Win2D equivalent of App.cpp. **Line 96** pushes `mi.rcMonitor` — needs same fix.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WinUI3\MonitorEnumerator.cs`
+- `.\src\DesktopGrass.WinUI3\MonitorEnumerator.cs`
   - WinUI3 equivalent — needs same fix.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\smoke\Smoke.Common.psm1`
+- `.\tests\smoke\Smoke.Common.psm1`
   - Smoke harness. **Lines ~287-318** (`Get-GrassStripPixelVariance`): captures bottom `StripHeight` (80) px of primary screen `bounds`. When grass moves above taskbar, this region becomes taskbar-only and unique-color count collapses. Needs to subtract taskbar height (use `WorkingArea.Bottom` instead of `bounds.Bottom`) for the sample top.
 
-- `C:\Users\crutkas\source\powertoys\src\modules\cmdpal\Microsoft.CmdPal.UI\Dock\DockWindow.xaml.cs`
+- `<PowerToys-repo>\src\modules\cmdpal\Microsoft.CmdPal.UI\Dock\DockWindow.xaml.cs`
   - Reference: CmdPal dock positioning via AppBar API. Not the path we want for DesktopGrass (AppBar reserves work area) but confirms the right Win32 APIs exist.
 </important_files>
 
@@ -112,7 +118,10 @@ Building **DesktopGrass** — a "just for fun" Windows overlay that draws proced
 3. Rebuild all three impls.
 4. Run end-to-end smoke `Run-SmokeTests.ps1 -Target All` to confirm still passing.
 5. Relaunch Native for the user to see grass above the taskbar.
-6. Visually verify issue #2 (cut should only affect a section) — likely resolved by issue #1 fix; if still buggy, debug `sim_apply_click` further. Add temporary debug output to capture click x/y in window-local DIP if needed.
+6. Visually verify the second reported symptom (cut should only affect a
+   section) — likely resolved by the taskbar-position fix; if still buggy, debug
+   `sim_apply_click` further. Add temporary debug output to capture click x/y in
+   window-local DIP if needed.
 7. Commit changes per-impl + harness on `main`, push to `origin/main`.
 
 **Immediate next steps**:

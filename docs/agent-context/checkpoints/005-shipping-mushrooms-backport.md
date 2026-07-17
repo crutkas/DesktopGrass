@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-The user is iterating on **DesktopGrass**, a fun Windows desktop overlay app that renders procedural grass on top of the taskbar. The repo (`C:\Users\crutkas\source\DesktopGrass`, private at `crutkas/DesktopGrass`) has four parallel implementations sharing a single algorithmic spec — Native C++, Win2D (Vortice-based C#), WinUI3 (WindowsAppSDK C#), and WPF (vanilla .NET 10 C#). Just shipped flowers feature; now mid-flight on **mushrooms feature** — user accepted Native prototype and asked to "ship it to others" with a stump-stub addition. Strategy: lock spec first (single commit), then commit Native impl, then fleet 3 backport agents in parallel (Win2D, WinUI3, WPF), validate + commit feature + push + relaunch Native.
+The user is iterating on **DesktopGrass**, a fun Windows desktop overlay app that renders procedural grass on top of the taskbar. The repo (`.`, private at `crutkas/DesktopGrass`) has four parallel implementations sharing a single algorithmic spec — Native C++, Win2D (Vortice-based C#), WinUI3 (WindowsAppSDK C#), and WPF (vanilla .NET 10 C#). Just shipped flowers feature; now mid-flight on **mushrooms feature** — user accepted Native prototype and asked to "ship it to others" with a stump-stub addition. Strategy: lock spec first (single commit), then commit Native impl, then fleet 3 backport agents in parallel (Win2D, WinUI3, WPF), validate + commit feature + push + relaunch Native.
 </overview>
 
 <history>
@@ -47,7 +51,8 @@ The user is iterating on **DesktopGrass**, a fun Windows desktop overlay app tha
 
 **Builds verified just now:**
 - DesktopGrass.Native.exe built clean (Release x64)
-- DesktopGrass.Native.Tests.exe built clean (Release x64)
+- Native test target built clean (historical Catch2 executable; the current
+  suite is a VSTest DLL)
 
 **Pending (in order):**
 - [ ] Run Native tests to confirm no regression
@@ -128,18 +133,18 @@ $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\V
 # Stop running exe first - it locks itself on rebuild
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 # Build app
-& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
+& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
 # Build tests
-& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
+& $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m"
 # Run tests
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
 
 # C# build/test
 dotnet build src\DesktopGrass.{Win2D,WinUI3,WPF}\... -c Release --nologo
 dotnet test tests\DesktopGrass.{Win2D,WinUI3,WPF}.Tests\... -c Release --nologo --verbosity minimal
 
 # Smoke
-pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release
+pwsh -NoProfile -File '.\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release
 ```
 
 **Naming convention quirk**: 
@@ -178,49 +183,53 @@ pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-Smok
 </technical_details>
 
 <important_files>
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md` (~520 lines)
+- `.\docs\architecture.md` (~520 lines)
   - **Authoritative spec for all 4 impls.** Mushroom feature spec patches in working tree across §4 (blade fields lines ~109-117 add 6 fields after heightBonus; Mushroom palette section after Flower palette around line 130), §5 (added `pm` Prng init, added mushroom draw block in pseudocode, updated field-draw-order paragraph for 4 streams around lines 200-220), §7 (added "Mushroom" subsection with full pseudocode after the chord-preservation paragraph around line 280), §11 (added 13 mushroom constant rows after FLOWER_PRNG_SALT around line 530; updated palette closing line ~540).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - Added at end of namespace (around line 90+): 11 new mushroom constants + MUSHROOM_PALETTE[6] + MUSHROOM_STEM_COLOR.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`
   - In `struct Blade`, after flower fields (`heightBonus = 1.0`), before `effectiveLean`: added 6 mushroom fields with defaults.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - In `generate_blades`: after `Prng pFlower; prng_init(pFlower, seed ^ FLOWER_PRNG_SALT);` added `Prng pMushroom; prng_init(pMushroom, seed ^ MUSHROOM_PRNG_SALT);`. In the loop, after the flower draws block, added the mushroom draws block (1 unconditional + 5 conditional draws + else branch with defaults).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.h` (line ~85)
+- `.\src\DesktopGrass.Native\src\Renderer.h` (line ~85)
   - Added `ComPtr<ID2D1SolidColorBrush> mushroomCapBrushes_[MUSHROOM_PALETTE_SIZE];` and `ComPtr<ID2D1SolidColorBrush> mushroomStemBrush_;` after `flowerHeadBrushes_`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.cpp`
   - CreateDeviceResources (~line 125-145): added mushroom cap brushes loop + stem brush creation after the flower brushes loop.
   - DiscardDeviceResources (~line 185): added `for (auto& b : mushroomCapBrushes_) b.Reset(); mushroomStemBrush_.Reset();`
   - DrawGrass (~line 315): added mushroom render block at the TOP of the per-blade for loop, BEFORE `compute_blade_stroke`. Block: if `isMushroom`, check stump-stub short-circuit (draw stem stub at STUMP_HEIGHT, continue), else draw stem + filled cap, continue. Preempts grass+flower for that slot.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`, `Sim.cs`, `GrassWindow.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`, `Sim.cs`, `GrassWindow.cs`
   - Untouched yet; backport target #1. SCREAMING_SNAKE_CASE constants. `DrawBlade` ~line 203; renderer uses `_dc.DrawLine` + needs `_dc.FillEllipse` for cap, allocate 6 `_mushroomCapBrushes` + 1 `_mushroomStemBrush`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WinUI3\Constants.cs`, `Sim.cs`, `GrassRenderer.cs`
+- `.\src\DesktopGrass.WinUI3\Constants.cs`, `Sim.cs`, `GrassRenderer.cs`
   - Untouched yet; backport target #2. **PascalCase** constants. Renderer is `GrassRenderer.cs`, uses Composition (`CompositionPathGeometry`, `CompositionEllipseGeometry`). Two stroke call sites: static `ComputeBladeStroke` ~line 237, instance `GetStroke` ~line 411. For mushrooms, allocate `_mushroomCapGeometries` + `_mushroomStemGeometries` parallel to `_flowerHeadGeometries`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WPF\Constants.cs`, `Sim.cs`, `GrassCanvas.cs`
+- `.\src\DesktopGrass.WPF\Constants.cs`, `Sim.cs`, `GrassCanvas.cs`
   - Untouched yet; backport target #3. SCREAMING_SNAKE_CASE. `GrassCanvas.OnRender(DrawingContext dc)` — add `dc.DrawLine` for stem + `dc.DrawEllipse` for cap, with 6 frozen `_mushroomCapBrushes` + 1 `_mushroomStemBrush`.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\src\flower_tests.cpp`
+- `.\tests\DesktopGrass.Native.Tests\src\flower_tests.cpp`
   - Template for `mushroom_tests.cpp`. Pattern: 3 TEST_CASEs — determinism, count within 3-sigma, main-stream non-interference.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.{Win2D,WinUI3,WPF}.Tests\SimTests\FlowerTests.cs`
+- `.\tests\DesktopGrass.{Win2D,WinUI3,WPF}.Tests\SimTests\FlowerTests.cs`
   - Templates for `MushroomTests.cs` per impl. Pattern: 4 [Fact] tests — determinism, count within 3-sigma, main-stream non-interference, non-mushroom blades have zero fields.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1`
+- `.\tests\smoke\Run-SmokeTests.ps1`
   - No changes needed (supports all 4 impls). Expected mushroom impact on unique-color counts: +6 colors per impl × small count.
 </important_files>
 
 <next_steps>
 **Immediate next steps in order:**
 
-1. **Run Native tests** to confirm no regression: `& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact` — expect 45 cases / 63,831+ assertions, all pass. Mushroom fields default to zero so existing tests should not break.
+1. **Run Native tests** to confirm no regression:
+   `pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64`.
+   This checkpoint historically expected 45 Catch2 cases; use the root README
+   for the current VSTest count. Mushroom fields default to zero so existing
+   tests should not break.
 
 2. **Note actual mushroom count for canonical seed** — write a quick scratch program or just inspect once Native is running. Estimated ~8. This is the number all 4 impls must match for conformance.
 
@@ -244,7 +253,7 @@ pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-Smok
 
 7. **Commit feature commit** with message describing the mushroom feature, the 2.5% probability, separate PRNG stream conformance, mushroom-preempts-flower rule, stump-stub on cut, and validation results. Push.
 
-8. **Relaunch Native** so user can verify: `Start-Process 'C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe' -PassThru`.
+8. **Relaunch Native** so user can verify: `Start-Process '.\src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe' -PassThru`.
 
 9. **Call `task_complete`** with summary.
 

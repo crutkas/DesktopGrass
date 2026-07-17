@@ -1,5 +1,10 @@
 # Checkpoint History
 
+> **Archive notice:** these checkpoints record historical implementation work,
+> tool output, and plans. They do not define current support or provide current
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 Checkpoints are listed in chronological order. Checkpoint 1 is the oldest, higher numbers are more recent.
 
 | # | Title | File |

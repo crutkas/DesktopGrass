@@ -1,3 +1,7 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
 Iteratively tuning the **DesktopGrass** desktop-overlay app (3 parallel impls: Native C++, Win2D C#, WinUI3 C#) for visual quality. Each tuning round is **fleeted out** to 4 parallel sub-agents (one per impl + spec), then validated with cross-impl smoke + committed + pushed. Most recent ask: blades still "stretch" when bent because tip stays at the same Y while moving sideways, making the painted Bezier path longer than the blade. Fixing with **chord-preservation geometry** (tip arcs over and drops vertically as it leans, like a rigid stick on a hinge).
 </overview>
@@ -67,7 +71,7 @@ At zero lean: dropFactor=1 → tipY/controlY identical to prior rooted-bend form
 **Build commands** (verified working):
 - Native: `& $env:ComSpec /c 'call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul && cd /d <dir> && msbuild <proj>.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m'`
 - C#: `dotnet build -c Release --nologo -v:m` / `dotnet test -c Release --nologo -v:m`
-- Smoke: `pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release`
+- Smoke: `pwsh -NoProfile -File '.\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release`
 
 **Native exe lock**: Must `Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | Stop-Process -Force` before rebuilding if running.
 
@@ -89,30 +93,30 @@ At zero lean: dropFactor=1 → tipY/controlY identical to prior rooted-bend form
 </technical_details>
 
 <important_files>
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - `compute_blade_stroke` ~line 240. Agent `tune-native-4` is rewriting the main branch to chord-preserving geometry.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - Agent `tune-native-4` adding `MAX_LEAN_FRACTION = 0.95` constant.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`
   - `ComputeBladeStroke` ~line 316. Agent `tune-win2d-4` rewriting.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`
   - Agent `tune-win2d-4` adding `MAX_LEAN_FRACTION = 0.95`.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WinUI3\Sim.cs`
+- `.\src\DesktopGrass.WinUI3\Sim.cs`
   - TWO call sites: static `ComputeBladeStroke` ~line 237, instance `GetStroke` ~line 417. Agent `tune-winui3-4` rewriting both.
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.WinUI3\Constants.cs`
+- `.\src\DesktopGrass.WinUI3\Constants.cs`
   - Agent `tune-winui3-4` adding `MaxLeanFraction = 0.95`.
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Win2D.Tests\SimTests\CutTests.cs`
+- `.\tests\DesktopGrass.Win2D.Tests\SimTests\CutTests.cs`
   - `UncutBladeStrokeUsesEffectiveLean` ~line 164. Agent updating TipY 80.0 → `110 - Math.Sqrt(875)`.
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.WinUI3.Tests\SimTests\StrokeTests.cs`
+- `.\tests\DesktopGrass.WinUI3.Tests\SimTests\StrokeTests.cs`
   - `UncutBladeStrokeUsesEffectiveLean` ~line 31. Agent updating same.
   - `ZeroLeanStrokeIsVertical` ~line 53. UNCHANGED (zero lean → dropFactor=1).
   - `GetStrokeMatchesStaticComputeBladeStroke` ~line 77. Will catch any divergence between Sim.cs's two call sites.
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - §7 (currently rooted bend) being rewritten by `tune-spec-4`. §11 constants table gets new MAX_LEAN_FRACTION row.
-- `C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1` — Cross-impl smoke harness (no edits needed).
-- `C:\Users\crutkas\.copilot\session-state\e286b6d3-8e11-4aa2-b2d7-87ceb1f5de22\plan.md` — Session plan.
+- `.\tests\smoke\Run-SmokeTests.ps1` — Cross-impl smoke harness (no edits needed).
+- `~\.copilot\session-state\<session-id>\plan.md` — Session plan.
 
-Repo: `C:\Users\crutkas\source\DesktopGrass` on `main`, pushed to `https://github.com/crutkas/DesktopGrass` (private).
+Repo: `.` on `main`, pushed to `https://github.com/crutkas/DesktopGrass` (private).
 </important_files>
 
 <next_steps>
@@ -121,11 +125,11 @@ Repo: `C:\Users\crutkas\source\DesktopGrass` on `main`, pushed to `https://githu
 2. **Run cross-impl smoke** once all 4 are green:
    ```
    Get-Process DesktopGrass* -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
-   pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release
+   pwsh -NoProfile -File '.\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release
    ```
    Expect: all 3 PASS, unique-color counts will shift (likely lower since blades occupy less vertical extent when bent — but >> 50 threshold).
 3. **Commit + push** with message describing chord preservation, the new `MAX_LEAN_FRACTION = 0.95` constant, the `dropFactor = sqrt(1 - (lean/L)²)` formula, and the two updated C# test expectations. Include `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer.
-4. **Relaunch Native** for user to verify: `Start-Process 'C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe' -PassThru`
+4. **Relaunch Native** for user to verify: `Start-Process '.\src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe' -PassThru`
 5. **Call `task_complete`** with summary including: diagnosis ("tip stayed at fixed Y → painted Bezier path grew with lean"), fix ("chord preservation: tip arcs over and drops as it leans"), test counts, smoke results.
 
 **Possible follow-up** (only if user reports more issues): reduce `GUST_TO_LEAN_FACTOR` from 1.5 or `IMPULSE_SCALE` from 0.003 so the chord-preservation clamp isn't hit as often under fast cursor passes.

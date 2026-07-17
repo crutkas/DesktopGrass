@@ -35,7 +35,8 @@ Install these prerequisites for the runner user:
 - PowerShell 7 (`pwsh`)
 - Visual Studio 2026 C++ build tools with MSBuild, toolset `v145`, and a Windows
   SDK
-- .NET SDK compatible with `global.json` (currently .NET 10.0.300)
+- .NET SDK accepted by `global.json` (10.0.300 feature band with compatible
+  roll-forward)
 - Network access to GitHub Actions and NuGet
 
 Do not store credentials in the repository or inject desktop-login credentials
@@ -91,8 +92,9 @@ and must not be interpreted as smoke coverage.
 ## External owner action
 
 Repository-side automation is complete, but it cannot provision the lab.
-Before treating issue #26 as complete, a repository owner must register the
-dedicated runner with the labels above, set
+Before treating [issue #26](https://github.com/crutkas/DesktopGrass/issues/26)
+as complete, a repository owner must register the dedicated runner with the
+labels above, set
 `DESKTOPGRASS_INTERACTIVE_SMOKE_ENABLED=true`, trigger `Interactive smoke`, and
 retain one successful run showing the required Native step and the attempted
 managed reference step. Keep the issue open until that end-to-end run exists.

@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutkas\source\DesktopGrass`, branch `main`) that paints procedural grass / flowers / mushrooms across the bottom of every monitor, click-through, on top of the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. The user queued three asks: (1) random small ambient gusts ✅ shipped (`75c27bd`); (2) extend the tray to switch scenes ✅ shipped (`af3cae6` Native + `5f8c18b` Win2D); (3) fleet out a Desert scene (cacti + tumbleweeds) and a Winter scene (snowflakes + snow-tipped blades) ← Phase 3 in progress. Phase 3 plan: lock spec → ship cross-impl entity subsystem skeleton → fleet two parallel agents (Desert + Winter content) → validate + commit.
+DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `.`, branch `main`) that paints procedural grass / flowers / mushrooms across the bottom of every monitor, click-through, on top of the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. The user queued three asks: (1) random small ambient gusts ✅ shipped (`75c27bd`); (2) extend the tray to switch scenes ✅ shipped (`af3cae6` Native + `5f8c18b` Win2D); (3) fleet out a Desert scene (cacti + tumbleweeds) and a Winter scene (snowflakes + snow-tipped blades) ← Phase 3 in progress. Phase 3 plan: lock spec → ship cross-impl entity subsystem skeleton → fleet two parallel agents (Desert + Winter content) → validate + commit.
 </overview>
 
 <history>
@@ -88,13 +92,13 @@ DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopG
 # Native — stop running exe first (locks itself)
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat'
-$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
+$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
 $out | Select-Object -Last 30
 # Same pattern for tests/DesktopGrass.Native.Tests
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
 
 # Win2D
-cd C:\Users\crutkas\source\DesktopGrass
+cd .
 Get-Process DesktopGrass.Win2D -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 dotnet build src\DesktopGrass.Win2D -c Release --nologo
 dotnet test  tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity minimal
@@ -113,7 +117,8 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 
 ## Fleet pattern (proven 4× now: regrowth, flowers, mushrooms, ambient, scene-infra)
 1. Lock spec patch in `docs/architecture.md` FIRST, commit + push standalone (anchor SHA).
-2. Implement Native (reference) yourself, commit + push (another anchor SHA).
+2. Implement Native (the primary implementation) yourself, commit + push
+   (another anchor SHA).
 3. Fleet ONE general-purpose agent (background mode is fine) for Win2D backport with: anchor SHAs, full design, naming reminders (PascalCase Win2D, SCREAMING_SNAKE constants, public where tests need it), files to edit, exact code skeletons, test additions, build + test commands, validation gates. **DO NOT commit/push** — orchestrator handles single commit.
 4. Validate + commit + push.
 
@@ -125,35 +130,35 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 
 <important_files>
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - **Single source of truth.** Now contains §8.1 ambient gusts, §13 scene infra, §13.1 amendment, §13.2 entity subsystem, §14 Desert, §15 Winter. §11 constants table has 28 new Phase 3 entries.
   - Phase 3 agents will reference §13.1/§13.2/§14 (Desert) or §13.1/§13.2/§15 (Winter).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - All Native constants. Phase 3 added `EntityKind` enum + `MAX_ENTITIES_PER_MONITOR = 64` right after `SCENE_PALETTES`. Phase 3 agents will add `CACTUS_*`, `TUMBLEWEED_*`, `SNOWFLAKE_*`, `SNOW_TIP_*` constants + the 3 PRNG salts here.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.h`
+- `.\src\DesktopGrass.Native\src\Sim.h`
   - Sim struct + free functions. Phase 3 added `Entity` struct, `std::vector<Entity> entities`, `uint64_t entitySeed`, `void sim_tick_entities(Sim&, double dt)`. Phase 3 agents will add `void generate_tumbleweeds(Sim&)` / `void respawn_tumbleweed(...)` (Desert) or `void emit_snowflakes(Sim&, double dt)` (Winter).
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - Phase 3: `sim_set_scene` now calls `sim.entities.clear()` and has comment-blocked switch stubs for per-kind generator dispatch. `sim_tick_entities` implements generic integration loop. `sim_init`/`sim_regenerate` reserve capacity + set `entitySeed`. `sim_tick` calls `sim_tick_entities` after blade physics.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.h` + `Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.h` + `Renderer.cpp`
   - Phase 2: `brushes_[SCENE_COUNT][PALETTE_SIZE]` + scene-aware DrawGrass. Phase 3: added `void DrawEntities()` no-op called from `RenderFrame` after `DrawGrass()`. Phase 3 agents will fill in per-kind render branches here.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\App.h` + `App.cpp`
+- `.\src\DesktopGrass.Native\src\App.h` + `App.cpp`
   - Phase 2: Scene submenu with `kMenuSceneGrass/Desert/Winter = 1010..1012`, `SetScene` broadcasts to all windows, `UpdateSceneMenuCheck` uses `CheckMenuRadioItem`.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`
   - Win2D constants. Phase 2: `Scene` enum top-level, `SCENE_COUNT`, `DESERT_PALETTE`, `WINTER_PALETTE`, `SCENE_PALETTES[,]`. Phase 3: `MAX_ENTITIES_PER_MONITOR = 64`. Phase 3 agents will add Desert/Winter content constants here.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`
   - Phase 2: `CurrentScene`, `SetScene`, `ComputeBladeStroke(...Scene scene)`. Phase 3: `EntityKind` enum, `Entity` struct, `List<Entity> Entities` (pre-reserved capacity 64), `ulong EntitySeed`, `SetScene` clears entities, `ResetEntities(seed)`, `TickEntities(dt)`. `Tick` calls `TickEntities` after blade loop.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\GrassWindow.cs`
+- `.\src\DesktopGrass.Win2D\GrassWindow.cs`
   - Phase 2: `_brushes[,]` 2D + scene-aware draw + SetScene forwarder. Phase 3: `private void DrawEntities(float groundY)` no-op called after blade loop.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\App.cs` + `TrayIcon.cs`
+- `.\src\DesktopGrass.Win2D\App.cs` + `TrayIcon.cs`
   - Phase 2: `Win32App.RequestSceneChange/ConsumePendingSceneChange` (Interlocked), App polls between PeekMessage and render. Tray has Scene ▸ submenu with sibling-uncheck radio.
 
 - `tests/DesktopGrass.Native.Tests/src/entity_skeleton_tests.cpp` + `tests/DesktopGrass.Win2D.Tests/SimTests/EntitySkeletonTests.cs`
@@ -167,7 +172,7 @@ pwsh -NoProfile -File 'tests\smoke\Run-SmokeTests.ps1' -Target All -Configuratio
 
 - `tests/DesktopGrass.Native.Tests/src/snapshot_data.h` — `desktopgrass::test::CANONICAL_BLADE_COUNT = 321`. Used by tests for stream independence checks.
 
-- `C:/Users/crutkas/.copilot/session-state/e286b6d3-8e11-4aa2-b2d7-87ceb1f5de22/files/phase3-design.md`
+- `~\.copilot\session-state\<session-id>\files\phase3-design.md`
   - Session-only draft (not committed). Pre-spec brainstorm — now superseded by committed §13.1/§13.2/§14/§15. Kept for reference; ignore where it conflicts with the committed spec.
 
 </important_files>

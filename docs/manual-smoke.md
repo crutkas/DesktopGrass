@@ -11,6 +11,8 @@ changes, tray behavior, and resource hygiene. Run it before tagging a release.
 
 Run commands from the repository root.
 
+- Use a Visual Studio 2026 Developer PowerShell with MSVC toolset `v145` and a
+  Windows SDK.
 - Build Native from scratch:
   ```powershell
   msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64
@@ -27,7 +29,9 @@ gate.
 
 ## Checklist — supported Native release
 
-Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment and DIPs, §8 for the gust band/radius, §9 for the cut band/radius/duration/session state, and the constants table for v1 values.
+Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment
+and DIPs, §8 for the gust band/radius, §9 for the cut
+band/radius/duration/regrowth state, and the constants table for current values.
 
 ### Launch & basic rendering
 
@@ -149,8 +153,8 @@ Release build:
 
 ### Cut-on-click
 
-- [ ] Left-click in the grass strip; blades within the cut radius visibly drop to a stump within ~200 ms (`docs/architecture.md` §9: 30 DIP radius, 0.2 sec duration).
-- [ ] Cut blades stay cut for the session.
+- [ ] Left-click in the grass strip; blades within the cut radius visibly drop to a stump within ~200 ms (`docs/architecture.md` §9: 15 DIP radius, 0.2 sec duration).
+- [ ] Cut blades rest at their stubble floor for 30–90 seconds, then regrow over 2–4 seconds.
 - [ ] Repeat-clicking already-cut blades is a no-op (no visual glitch, no stutter).
 - [ ] Clicking causes only a visual cut — the underlying app or desktop surface still receives the click.
 

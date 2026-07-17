@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `C:\Users\crutkas\source\DesktopGrass`, branch `main`) painting procedural grass/flowers/mushrooms/cacti/pines across every monitor's bottom strip — click-through, over the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. This segment: shipped Winter biome polish (-50% grass, +25% pine height, mushroom suppression), then added a second tree variant (birch) at +25% density, but user reported the birch "looks like a skeleton" — I'm now mid-redesign to break the cross/microphone-stand silhouette by replacing horizontal T-arm branches with an upward-angled branch fan with snow-tipped blobs.
+DesktopGrass is a "just for fun" Windows overlay (private repo `crutkas/DesktopGrass`, working tree `.`, branch `main`) painting procedural grass/flowers/mushrooms/cacti/pines across every monitor's bottom strip — click-through, over the taskbar. Two parallel impls — Native (C++/Direct2D) and Win2D (C#/Vortice) — share a single locked spec in `docs/architecture.md`. This segment: shipped Winter biome polish (-50% grass, +25% pine height, mushroom suppression), then added a second tree variant (birch) at +25% density, but user reported the birch "looks like a skeleton" — I'm now mid-redesign to break the cross/microphone-stand silhouette by replacing horizontal T-arm branches with an upward-angled branch fan with snow-tipped blobs.
 </overview>
 
 <history>
@@ -115,12 +119,12 @@ Both `pine_tests.cpp` and `PineTests.cs` have `BirchConstantsArePinned` that ass
 
 ## Build/test commands (proven this segment)
 ```pwsh
-cd C:\Users\crutkas\source\DesktopGrass
+cd .
 Get-Process DesktopGrass.Native -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }
 $vsBat = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat'
-$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1 && cd /d C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
+$out = & $env:ComSpec /c "call `"$vsBat`" -arch=x64 -host_arch=x64 >nul && cd /d .\src\DesktopGrass.Native && msbuild DesktopGrass.Native.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1 && cd /d .\tests\DesktopGrass.Native.Tests && msbuild DesktopGrass.Native.Tests.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m 2>&1"
 $out | Select-Object -Last 8
-& 'C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\out\Release\DesktopGrass.Native.Tests.exe' --reporter compact 2>&1 | Select-Object -Last 3
+pwsh .\tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64 2>&1 | Select-Object -Last 3
 
 dotnet test tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity minimal 2>&1 | Select-Object -Last 4
 ```
@@ -134,31 +138,31 @@ dotnet test tests\DesktopGrass.Win2D.Tests -c Release --nologo --verbosity minim
 
 <important_files>
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Constants.h`
+- `.\src\DesktopGrass.Native\src\Constants.h`
   - **Uncommitted**: BIRCH_BARK_MARK_COUNT=5, BIRCH_BARK_MARK_LENGTH_FRAC=0.50, BIRCH_BRANCH_COUNT=6 (renamed from PAIRS=3). Lines ~258-267.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Constants.cs`
+- `.\src\DesktopGrass.Win2D\Constants.cs`
   - **Uncommitted**: same constant updates around lines ~230-235.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Renderer.cpp`
+- `.\src\DesktopGrass.Native\src\Renderer.cpp`
   - **MUST FIX**: still references `BIRCH_BRANCH_PAIRS` (now removed → compile error). Birch render block at ~lines 425-510 needs complete rewrite using new branch fan table (see Technical Details). Existing `drawFilledTri` lambda is local to the pine branch — reuse it for the apex cap.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\GrassWindow.cs`
+- `.\src\DesktopGrass.Win2D\GrassWindow.cs`
   - **MUST FIX**: same compile-error risk for `Constants.BIRCH_BRANCH_PAIRS`. Birch render block at ~lines 353-410 needs rewrite mirroring Native. Helper `DrawFilledPineTri` is available for the apex cap.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Native.Tests\src\pine_tests.cpp`
+- `.\tests\DesktopGrass.Native.Tests\src\pine_tests.cpp`
   - **MUST FIX**: `Birch constants are pinned` test (TEST_CASE around line 70) asserts `BIRCH_BARK_MARK_COUNT == 4` (now 5) and `BIRCH_BRANCH_PAIRS == 2` (now removed → `BIRCH_BRANCH_COUNT == 6`). Add assertion for `BIRCH_BARK_MARK_LENGTH_FRAC == 0.50`.
 
-- `C:\Users\crutkas\source\DesktopGrass\tests\DesktopGrass.Win2D.Tests\SimTests\PineTests.cs`
+- `.\tests\DesktopGrass.Win2D.Tests\SimTests\PineTests.cs`
   - **MUST FIX**: `BirchConstantsArePinned` Fact mirrors the Native test issues. Update assertions accordingly.
 
-- `C:\Users\crutkas\source\DesktopGrass\docs\architecture.md`
+- `.\docs\architecture.md`
   - **MUST UPDATE**: §11 constants table BIRCH_* rows; §15.1 birch variant description (rewrite branch design from "symmetric pairs of horizontal stubs" to "upward-angled branch fan with snow-tipped blobs"). Both currently still describe the v1 design.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\src\Sim.cpp`
+- `.\src\DesktopGrass.Native\src\Sim.cpp`
   - Generator (`generate_pines_for_winter`) is **STABLE** at `1c1a211`. Do not touch PRNG draw order. The 5-draw sequence `r, variantDraw, height, width, tierDraw` is locked.
 
-- `C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Win2D\Sim.cs`
+- `.\src\DesktopGrass.Win2D\Sim.cs`
   - `GeneratePinesForWinter` mirrors Native — stable, do not touch.
 
 </important_files>

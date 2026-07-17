@@ -1,5 +1,9 @@
+> **Archived checkpoint:** this records historical work, not current support or
+> commands. Native is supported; the managed implementation is reference-only.
+> Use the root [`README`](../../../README.md) for the current checkout.
+
 <overview>
-The user is iterating on **DesktopGrass**, a fun Windows desktop overlay app that renders procedural grass on top of the taskbar. The repo (`C:\Users\crutkas\source\DesktopGrass`, pushed to `crutkas/DesktopGrass` as private) has four parallel implementations sharing a single algorithmic spec — Native C++, Win2D (Vortice-based C#), WinUI3 (WindowsAppSDK C#), and WPF (vanilla C#). Current task: **add procedurally-generated flowers** ("non-grass things") to all 4 impls via a fleet of sub-agents, with conformance preserved through a separate PRNG stream. Strategy: lock the spec in `docs/architecture.md` first, then fleet 4 impl agents in parallel against the locked spec, then validate + commit + relaunch.
+The user is iterating on **DesktopGrass**, a fun Windows desktop overlay app that renders procedural grass on top of the taskbar. The repo (`.`, pushed to `crutkas/DesktopGrass` as private) has four parallel implementations sharing a single algorithmic spec — Native C++, Win2D (Vortice-based C#), WinUI3 (WindowsAppSDK C#), and WPF (vanilla C#). Current task: **add procedurally-generated flowers** ("non-grass things") to all 4 impls via a fleet of sub-agents, with conformance preserved through a separate PRNG stream. Strategy: lock the spec in `docs/architecture.md` first, then fleet 4 impl agents in parallel against the locked spec, then validate + commit + relaunch.
 </overview>
 
 <history>
@@ -103,7 +107,7 @@ Native gets equivalent `flower_tests.cpp`.
 **Build commands (all verified post-.NET-10):**
 - Native: `& $env:ComSpec /c 'call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul && cd /d <dir> && msbuild <proj>.vcxproj -p:Configuration=Release -p:Platform=x64 -nologo -v:m'`
 - C# build/test: `dotnet build -c Release --nologo` / `dotnet test -c Release --nologo`
-- Smoke: `pwsh -NoProfile -File 'C:\Users\crutkas\source\DesktopGrass\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release`
+- Smoke: `pwsh -NoProfile -File '.\tests\smoke\Run-SmokeTests.ps1' -Target All -Configuration Release`
 
 **Critical sub-agent failure mode learned**: The WPF agent took 23 min and failed with a CAPIError connection error after producing all files. Files were salvageable; I just ran the validation manually. So future fleets: if an agent fails, check whether files landed before retrying.
 
@@ -128,9 +132,9 @@ Native gets equivalent `flower_tests.cpp`.
 - `tests/DesktopGrass.{Win2D,WinUI3,WPF}.Tests/SimTests/BladeGenTests.cs`
   - Add flower stream determinism + probability tests.
 - `tests/smoke/Run-SmokeTests.ps1` — no changes needed (already supports all 4 impls).
-- `C:/Users/crutkas/.copilot/session-state/e286b6d3-8e11-4aa2-b2d7-87ceb1f5de22/plan.md` — Session plan.
+- `~\.copilot\session-state\<session-id>\plan.md` — Session plan.
 
-Repo: `C:\Users\crutkas\source\DesktopGrass` on `main`, pushed to `https://github.com/crutkas/DesktopGrass` (private).
+Repo: `.` on `main`, pushed to `https://github.com/crutkas/DesktopGrass` (private).
 </important_files>
 
 <next_steps>
@@ -164,7 +168,7 @@ Repo: `C:\Users\crutkas\source\DesktopGrass` on `main`, pushed to `https://githu
 
 6. **Commit feature commit** with message describing the flower feature, the 4% probability, the separate PRNG stream conformance-preservation, and validation results. Push.
 
-7. **Relaunch Native** so user can verify on resume: `Start-Process 'C:\Users\crutkas\source\DesktopGrass\src\DesktopGrass.Native\out\Release\DesktopGrass.Native.exe' -PassThru`.
+7. **Relaunch Native** so user can verify on resume: `Start-Process '.\src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe' -PassThru`.
 
 8. **Call `task_complete`** with summary including diagnosis ("user requested non-grass things"), implementation ("4% of blade slots randomly become flowers via separate PRNG stream"), test/smoke results, and a note about possible follow-ups (small tree, mushrooms, day/night palette).
 

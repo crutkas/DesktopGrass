@@ -121,15 +121,16 @@ Native.
 
 | Project | Role | Stack | Maintenance commitment |
 | --- | --- | --- | --- |
-| [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | **Supported product and PowerToys candidate** | C++ / Win32 + Direct2D + DirectComposition | Active product development, platform hardening, tests, and release artifacts |
-| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# / .NET 10 + Vortice Direct2D + DirectComposition | Manual build/unit recipe retained for reproducibility; no active CI, feature-parity, platform-hardening, or release commitment |
+| [`src/DesktopGrass.Native`](src/DesktopGrass.Native) | **Supported product and PowerToys candidate** | C++17 / MSVC `v145` + Win32, Direct2D, and DirectComposition | Active product development, platform hardening, tests, and release artifacts |
+| [`src/DesktopGrass.Win2D`](src/DesktopGrass.Win2D) | **Source-available managed comparison/reference** | C# 12 / `net10.0-windows10.0.19041.0` + Vortice 3.6.2 | Manual build/unit recipe retained for reproducibility; no required product CI, feature-parity, platform-hardening, or release commitment |
 
 The managed project may receive narrowly scoped build or test maintenance needed
 to prevent source rot. Native changes do not need to be ported to it. The
 default [`DesktopGrass.slnx`](DesktopGrass.slnx) contains only the supported
 Native app and tests. Managed can be built and tested directly from its project
-files; CI retains those steps as a commented manual recipe rather than a
-required product gate.
+files; required CI retains those steps as a commented manual recipe rather than
+a product gate. The optional interactive-smoke workflow may run Managed as a
+non-blocking advisory comparison.
 
 > **History:** the repo originally shipped four parallel implementations to
 > compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the
@@ -144,6 +145,10 @@ required product gate.
 > policy above and the Native migration backlog are authoritative.
 
 ## Run it
+
+Use a Visual Studio 2026 Developer PowerShell with the MSVC `v145` C++ tools and
+a Windows SDK. The project targets C++17. Commands below run from the repository
+root.
 
 Build and launch the supported Native app:
 
@@ -170,7 +175,7 @@ build-from-scratch checklist.
 
 | Build | What to copy | Size | Target requirements |
 | --- | --- | --- | --- |
-| **Native (Release)** | `src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe` (`<Platform>` = `x64` or `ARM64`) | ~210 KB | Windows 10 1809+, matching arch (x64 or ARM64). **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
+| **Native (Release)** | `src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe` (`<Platform>` = `x64` or `ARM64`) | ~1.3 MB for the verified x64 `v145` build | Windows 10 1809+, matching arch (x64 or ARM64). **Nothing else** — Release is statically linked against the CRT (`/MT`), so no VC++ redistributable is needed. |
 
 The managed reference is intentionally not published or documented as a
 portable/downloadable product build.
@@ -179,12 +184,19 @@ portable/downloadable product build.
 
 The C#/Vortice project remains source-available so the original comparison can
 be reproduced on demand. These commands verify the reference manually; they do
-not run in active CI or produce a supported release:
+not run as required product CI or produce a supported release. `global.json`
+requests the .NET SDK 10.0.300 feature band with compatible roll-forward. The
+app targets `net10.0-windows10.0.19041.0`, supports Windows 10 1809+, and pins
+all four Vortice packages to 3.6.2.
 
 ```powershell
 dotnet build src\DesktopGrass.Win2D\DesktopGrass.Win2D.csproj -c Release -p:Platform=x64
 dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release
 ```
+
+The app build lands at
+`src\DesktopGrass.Win2D\bin\x64\Release\net10.0-windows10.0.19041.0\DesktopGrass.Win2D.exe`.
+It is a framework-dependent reference output, not a published artifact.
 
 ## Tests
 
@@ -197,7 +209,8 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
   maples, ocean coral / fish / bubbles), `config.json` parsing, "Start with
   Windows" auto-start, persistence, and click-through window styles. Native
   tests use the same Microsoft C++ Unit Test Framework as PowerToys and run
-  through Visual Studio's `vstest.console`.
+  through Visual Studio's `vstest.console`. The verified x64 Release runs at
+  this revision report **368 Native tests** and **299 managed-reference tests**.
 - **Managed baseline reproducibility** — existing side-stream PRNG identity and
   snapshot tests preserve the comparison state at the point Managed was frozen.
   They are evidence for the reference, not a forward feature-parity promise.

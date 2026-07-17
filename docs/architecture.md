@@ -4,8 +4,9 @@ This document is the **single source of truth** for the supported
 `DesktopGrass.Native` grass simulation. `DesktopGrass.Win2D` contains the
 source-available managed port captured at the comparison freeze point. Its
 restore/build/test commands are retained as a commented CI recipe for manual
-reproduction, but it is not an active CI gate and future Native changes do not
-need to be ported to it.
+reproduction, but it is not a required product CI gate and future Native changes
+do not need to be ported to it. An optional interactive-smoke workflow can
+exercise the managed build as a non-blocking advisory comparison.
 
 > **History:** the repo originally shipped four parallel implementations (Native, Win2D, packaged WinUI 3, vanilla WPF). The WinUI 3 and WPF impls were dropped after a head-to-head A/B because they were 3–10× heavier on working set than the Native and Win2D builds while offering no behavioral advantage for a transparent, click-through, topmost overlay. See `docs/comparison.md` for the full evaluation.
 
@@ -316,7 +317,9 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
 
 **Field-draw order is fixed, per stream.** From the main stream `p`, implementations MUST draw the six static fields in this exact order: `step`, `height`, `thickness`, `hue`, `swayPhaseOffset`, `stiffness`. From the regrowth stream `pr`, the order is `regrowDelay`, then `regrowDuration`. From the flower stream `pf`, the order is `isFlower` decision (always one draw), and **only if** `isFlower == true`, then `flowerHeadColorIdx`, `flowerHeadRadius`, `heightBonus`. From the mushroom stream `pm`, the order is `isMushroom` decision (always one draw), and **only if** `isMushroom == true`, then `mushroomCapColorIdx`, `mushroomCapWidth`, `mushroomCapHeight`, `mushroomStemHeight`, `mushroomStemThickness`. Reordering or interleaving the four streams changes the per-blade values for a given seed and breaks the snapshot tests. The four streams are completely independent — the main stream's draw count per blade does not depend on whether regrowth, flowers, or mushrooms are enabled. Both impls MUST emit the same per-stream sequence; cross-impl tests pin this.
 
-At a 1920-DIP-wide monitor with `density = 2.25`, the expected blade count is approximately `2 * 1920 * 2.25 / (4 + 8) ≈ 720`; this is the current app default tuning for a denser field.
+At a 1920-DIP-wide monitor with `density = 2.53125`, the expected blade count is
+approximately `2 * 1920 * 2.53125 / (4 + 8) ≈ 810`; this is the current app
+default tuning for a denser field.
 
 ---
 
@@ -583,7 +586,10 @@ while (sim->globalTime >= sim->nextAmbientGustTime) {
 
 **Field-draw order is fixed: `x`, `signDir`, `magFactor`, `interval`** — exactly four draws per puff. Both impls MUST emit them in this order; reordering breaks the cross-impl scheduler snapshot.
 
-The `while` (not `if`) is intentional: if `dt` was large enough to skip multiple intervals, all of them fire in chronological order. In practice `dt ≈ 1/60` and `AMBIENT_GUST_INTERVAL_MIN = 5.0`, so the loop almost always runs zero or one iterations.
+The `while` (not `if`) is intentional: if `dt` was large enough to skip multiple
+intervals, all of them fire in chronological order. At the default 24 FPS,
+`dt ≈ 1/24`, and `AMBIENT_GUST_INTERVAL_MIN = 5.0`, so the loop almost always
+runs zero or one iterations.
 
 ### Impulse kernel
 
@@ -645,7 +651,7 @@ void apply_click(BladeList* blades, double clickX, double globalTime) {
 }
 ```
 
-`CUT_RADIUS = 30` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion. The `cutHeight <= cutFloor` check makes clicks on a blade already mowed to its stubble floor a no-op (with `cutFloor == 0` for test fixtures this is the original `cutHeight <= 0` stump check); clicks on a mid-regrowing blade (`cutHeight ∈ (cutFloor, 1)`) do re-cut, and the cancellation of `regrowStart` keeps phase 2 from firing on top of phase 1.
+`CUT_RADIUS = 15` DIP. The "already animating" guard makes repeated clicks on an in-flight blade a no-op — the original 200 ms animation runs to completion. The `cutHeight <= cutFloor` check makes clicks on a blade already mowed to its stubble floor a no-op (with `cutFloor == 0` for test fixtures this is the original `cutHeight <= 0` stump check); clicks on a mid-regrowing blade (`cutHeight ∈ (cutFloor, 1)`) do re-cut, and the cancellation of `regrowStart` keeps phase 2 from firing on top of phase 1.
 
 ### Advance animation (per frame)
 
@@ -777,7 +783,12 @@ for (Blade* b in sim.blades) {
 }
 ```
 
-`dt` is the time since the previous `tick`. It SHOULD be the frame interval as measured by the swap chain / composition target (≈ 1/60 sec at vsync). If the implementation pauses (e.g., the window is occluded), it should resume with a small `dt` (≤ 1/30 sec); never feed in a multi-second `dt`, since that would cause `exp(-DECAY_RATE * dt)` to underflow predictably and `sin(globalTime * BASE_SWAY_SPEED)` to jump, both of which are visible artifacts.
+`dt` is the time since the previous `tick`. It SHOULD be the measured frame
+interval (≈ 1/24 sec at the default configured cadence). If the implementation
+pauses (e.g., the window is occluded), it should resume with a small `dt`
+(≤ 1/30 sec); never feed in a multi-second `dt`, since that would cause
+`exp(-DECAY_RATE * dt)` to underflow predictably and
+`sin(globalTime * BASE_SWAY_SPEED)` to jump, both of which are visible artifacts.
 
 ---
 
@@ -785,13 +796,18 @@ for (Blade* b in sim.blades) {
 
 All constants are referenced by name in the pseudocode above. Implementations SHOULD declare them as `const` / `constexpr` / `readonly static` in a single file per project.
 
+Render cadence is application configuration rather than a simulation constant.
+Native and the managed reference default `targetFps` to 24 and clamp configured
+values to 5–144. Native additionally caps active rendering at 12 FPS on battery
+or UPS power and 5 FPS under Battery Saver or a dimmed display.
+
 | Constant | Value | Unit | Section |
 | --- | --- | --- | --- |
 | `STRIP_HEIGHT` | 80 | DIP | §2, §8, §9 |
 | `HEADROOM` | 30 | DIP | §2, §8 |
 | `BLADE_SPACING_MIN` | 4.0 | DIP | §5 |
 | `BLADE_SPACING_MAX` | 8.0 | DIP | §5 |
-| `DEFAULT_DENSITY` | 2.25 | (unitless) | §5 |
+| `DEFAULT_DENSITY` | 2.53125 | (unitless) | §5 |
 | `BLADE_HEIGHT_MIN` | 6.0 | DIP | §4, §5 |
 | `BLADE_HEIGHT_MAX` | 30.0 | DIP | §4, §5 |
 | `BLADE_THICKNESS_MIN` | 1.0 | DIP | §4, §5 |
@@ -806,7 +822,7 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `MAX_CURSOR_SPEED` | 4000.0 | DIP/sec | §8 |
 | `IMPULSE_SCALE` | 0.003 | rad/DIP | §8 |
 | `GUST_RADIUS` | 150.0 | DIP | §8 |
-| `CUT_RADIUS` | 30.0 | DIP | §9 |
+| `CUT_RADIUS` | 15.0 | DIP | §9 |
 | `CUT_DURATION_SEC` | 0.2 | sec | §9 |
 | `REGROW_DELAY_MIN` | 30.0 | sec | §4, §5, §9 |
 | `REGROW_DELAY_MAX` | 90.0 | sec | §4, §5, §9 |
@@ -856,8 +872,8 @@ All constants are referenced by name in the pseudocode above. Implementations SH
 | `TUMBLEWEED_COUNT_PER_1920DIP` | 4 | count | §14 |
 | `TUMBLEWEED_SIZE_MIN` | 8.0 | DIP | §14 |
 | `TUMBLEWEED_SIZE_MAX` | 18.0 | DIP | §14 |
-| `TUMBLEWEED_SPEED_MIN` | 30.0 | DIP/sec | §14 |
-| `TUMBLEWEED_SPEED_MAX` | 90.0 | DIP/sec | §14 |
+| `TUMBLEWEED_SPEED_MIN` | 24.0 | DIP/sec | §14 |
+| `TUMBLEWEED_SPEED_MAX` | 72.0 | DIP/sec | §14 |
 | `TUMBLEWEED_Y_OFFSET_MIN` | 8.0 | DIP above groundY | §14 |
 | `TUMBLEWEED_Y_OFFSET_MAX` | 20.0 | DIP above groundY | §14 |
 | `TUMBLEWEED_COLOR` | `0xFF8A6A3D` | uint32 ARGB | §14 |
@@ -1773,7 +1789,9 @@ The three Ocean streams are independent and MUST NOT be interleaved with each ot
 
 `DesktopGrass.Native.Tests` enforces the supported implementation's current
 contract. `DesktopGrass.Win2D.Tests` preserves the managed comparison baseline
-and detects accidental source rot against its existing snapshots.
+and detects accidental source rot against its existing snapshots. The verified
+x64 Release runs at this revision report 368 Native tests and 299 managed
+reference tests.
 
 ### Canonical test seed
 
@@ -2721,9 +2739,9 @@ uses a fresh QPC baseline and caps `dt` at `1/30` second.
 Precedence is suspend, session lock/disconnect, display off, per-monitor
 fullscreen, per-monitor occlusion, Saver/dimmed, battery/UPS, then AC cadence.
 The 12 FPS battery/UPS and 5 FPS Saver/dimmed values are initial conservative
-caps subject to measurement and tuning in GitHub issue #14. They are always
-applied as `min(configured FPS, cap)`, so a lower configured cadence is never
-increased.
+caps subject to the benchmark and production-runtime qualification evidence.
+They are always applied as `min(configured FPS, cap)`, so a lower configured
+cadence is never increased.
 `WM_CLOSE`, tray quit, and end-session messages remain available in every
 state. If every surface is paused, `FramePacer::WaitForMessage` performs an
 infinite message-aware wait, so there are no frame wakeups or shutdown delay.
@@ -2734,11 +2752,11 @@ can render, preventing hidden-time input from replaying after resume.
 
 `RuntimeNotifications` owns power, suspend, and WTS registrations, seeds their
 state, and decodes receiver messages independently of `RuntimePolicy`. `App`'s
-message-only HWND is the current receiver, but issue #28 can move those
-broadcasts to a hidden top-level HWND without changing policy or duplicating
-topology reconciliation and persistence. Partial startup failure rolls back
-successful registrations, and normal teardown unregisters everything in
-reverse order before the receiver HWND is destroyed:
+message-only HWND is the current receiver. That ownership can move to another
+receiver HWND without changing policy or duplicating topology reconciliation
+and persistence. Partial startup failure rolls back successful registrations,
+and normal teardown unregisters everything in reverse order before the receiver
+HWND is destroyed:
 
 - `GetSystemPowerStatus` seeds power source and Saver state.
 - `RegisterPowerSettingNotification` supplies AC/DC,
