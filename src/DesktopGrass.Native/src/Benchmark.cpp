@@ -4,8 +4,11 @@
 
 #include "Benchmark.h"
 
+#include "DeviceRecovery.h"
 #include "GrassWindow.h"
+#include "GraphicsDeviceRecovery.h"
 #include "Pacing.h"
+#include "SharedGraphicsDevices.h"
 #include "Sim.h"
 
 #include <shellscalingapi.h>
@@ -15,6 +18,7 @@
 #include <cwchar>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #pragma comment(lib, "Shcore.lib")
 #pragma comment(lib, "User32.lib")
@@ -213,10 +217,19 @@ int Run(HINSTANCE hInst, const Options& opts) {
         return 1;
     }
 
+    // A standalone, App-independent copy of the shared device graph: the
+    // benchmark harness never runs alongside App, so it owns its own
+    // SharedGraphicsDevices instead of depending on one.
+    SharedGraphicsDevices sharedDevices;
+    if (!sharedDevices.Initialize()) {
+        std::fwprintf(stderr, L"[benchmark] shared graphics device initialization failed\n");
+        return 1;
+    }
+
     const uint64_t seed = opts.seed != 0 ? opts.seed : kBenchmarkDefaultSeed;
 
     GrassWindow window;
-    if (!window.Create(hInst, nullptr, monitor, surface, seed,
+    if (!window.Create(sharedDevices, hInst, nullptr, monitor, surface, seed,
                        /*density=*/1.0, /*swaySpeed=*/1.0, /*swayAmplitude=*/1.0)) {
         std::fwprintf(stderr, L"[benchmark] GrassWindow::Create failed\n");
         return 1;
@@ -265,6 +278,9 @@ int Run(HINSTANCE hInst, const Options& opts) {
     bool userClosed = false;
     FramePacer pacer;
     int  exitCode = 0;
+    bool sharedDeviceRecoveryPending = false;
+    ULONGLONG sharedDeviceRecoveryNextAttemptMs = 0;
+    bool sharedGraphReplacementPending = false;
 
     MSG msg{};
     while (true) {
@@ -311,6 +327,29 @@ int Run(HINSTANCE hInst, const Options& opts) {
                           frameIndex, elapsedSinceStart, dt * 1000.0, renderMs);
         }
         ++frameIndex;
+
+        if (!window.GetRenderer().IsGraphicsReady()) {
+            sharedGraphReplacementPending =
+                sharedGraphReplacementPending
+                || window.GetRenderer().NeedsSharedDeviceRecovery();
+            const ULONGLONG nowMs = GetTickCount64();
+            if (!sharedDeviceRecoveryPending || nowMs >= sharedDeviceRecoveryNextAttemptMs) {
+                const std::vector<Renderer*> renderers{ &window.GetRenderer() };
+                const bool replacingSharedGraph = sharedGraphReplacementPending;
+                if (RecoverSharedGraphicsDevices(
+                        sharedDevices, renderers, replacingSharedGraph)) {
+                    sharedDeviceRecoveryPending = false;
+                    sharedGraphReplacementPending = false;
+                } else {
+                    if (replacingSharedGraph && sharedDevices.IsReady()) {
+                        sharedGraphReplacementPending = false;
+                    }
+                    sharedDeviceRecoveryPending = true;
+                    sharedDeviceRecoveryNextAttemptMs =
+                        nowMs + DeviceRecoveryController::kRetryDelayMs;
+                }
+            }
+        }
 
     }
 

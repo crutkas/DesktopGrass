@@ -56,59 +56,29 @@ Renderer::~Renderer() {
 
 void Renderer::Cleanup() {
     recovery_.Stop();
+    sharedDeviceRecoveryRequired_ = false;
     DiscardAllGraphicsResources();
 }
 
 bool Renderer::CreateDeviceResources() {
-    HRESULT hr = S_OK;
-
-    UINT d3dFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-#ifdef _DEBUG
-    // d3dFlags |= D3D11_CREATE_DEVICE_DEBUG; // skip — requires SDK debug layer
-#endif
-
-    static const D3D_FEATURE_LEVEL kFeatures[] = {
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0,
-    };
-
-    hr = D3D11CreateDevice(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, d3dFlags,
-        kFeatures, ARRAYSIZE(kFeatures), D3D11_SDK_VERSION,
-        d3dDevice_.ReleaseAndGetAddressOf(), nullptr,
-        d3dContext_.ReleaseAndGetAddressOf());
-
-    if (FAILED(hr)) {
-        // Fall back to WARP (software).
-        hr = D3D11CreateDevice(
-            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, d3dFlags,
-            kFeatures, ARRAYSIZE(kFeatures), D3D11_SDK_VERSION,
-            d3dDevice_.ReleaseAndGetAddressOf(), nullptr,
-            d3dContext_.ReleaseAndGetAddressOf());
-        if (FAILED(hr)) { LogHR("D3D11CreateDevice", hr); return false; }
+    // The D3D11 device, DXGI device/factory, D2D factory/device, and DComp
+    // device are process-wide; Renderer only ever borrows copies of them
+    // from the shared graph its owner maintains. If that graph isn't ready
+    // (not yet initialized, or discarded pending a coordinated recovery),
+    // there is nothing this window can build on its own.
+    if (!shared_ || !shared_->IsReady()) {
+        return false;
     }
 
-    hr = d3dDevice_.As(&dxgiDevice_);
-    if (FAILED(hr)) { LogHR("d3dDevice.As<IDXGIDevice1>", hr); return false; }
-    dxgiDevice_->SetMaximumFrameLatency(1);
+    HRESULT hr = S_OK;
 
-    ComPtr<IDXGIAdapter> adapter;
-    hr = dxgiDevice_->GetAdapter(&adapter);
-    if (FAILED(hr)) { LogHR("GetAdapter", hr); return false; }
-    hr = adapter->GetParent(IID_PPV_ARGS(dxgiFactory_.ReleaseAndGetAddressOf()));
-    if (FAILED(hr)) { LogHR("adapter.GetParent<IDXGIFactory2>", hr); return false; }
-
-    D2D1_FACTORY_OPTIONS opts{};
-    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED,
-                           __uuidof(ID2D1Factory1), &opts,
-                           reinterpret_cast<void**>(d2dFactory_.ReleaseAndGetAddressOf()));
-    if (FAILED(hr)) { LogHR("D2D1CreateFactory", hr); return false; }
-
-    hr = d2dFactory_->CreateDevice(dxgiDevice_.Get(),
-                                   d2dDevice_.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { LogHR("CreateDevice(D2D)", hr); return false; }
+    d3dDevice_   = shared_->D3DDevice();
+    d3dContext_  = shared_->D3DContext();
+    dxgiDevice_  = shared_->DxgiDevice();
+    dxgiFactory_ = shared_->DxgiFactory();
+    d2dFactory_  = shared_->D2DFactory();
+    d2dDevice_   = shared_->D2DDevice();
+    dcompDevice_ = shared_->DCompDevice();
 
     hr = d2dDevice_->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
                                          d2dContext_.ReleaseAndGetAddressOf());
@@ -146,12 +116,8 @@ bool Renderer::CreateDeviceResources() {
     petNameTextFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
     petNameTextFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 
-    // DComp device tied to the same DXGI device.
-    hr = DCompositionCreateDevice(dxgiDevice_.Get(),
-                                  __uuidof(IDCompositionDevice),
-                                  reinterpret_cast<void**>(dcompDevice_.ReleaseAndGetAddressOf()));
-    if (FAILED(hr)) { LogHR("DCompositionCreateDevice", hr); return false; }
-
+    // DComp target/visual are per-window; the device itself is shared and
+    // already assigned above.
     hr = dcompDevice_->CreateTargetForHwnd(hwnd_, TRUE, dcompTarget_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateTargetForHwnd", hr); return false; }
 
@@ -570,7 +536,12 @@ void Renderer::DiscardAllGraphicsResources() {
 DeviceRecoveryAttempt Renderer::RecreateDeviceResources() {
     DiscardAllGraphicsResources();
 
-    const bool restored = CreateDeviceResources()
+    // Never touch `shared_` here: recovering the shared device graph is the
+    // process owner's job, done exactly once for every window sharing it.
+    // This window's own retry only ever rebuilds its per-window resources,
+    // and only once the shared graph is already healthy again.
+    const bool restored = shared_ && shared_->IsReady()
+        && CreateDeviceResources()
         && CreateSwapChainResources(widthPx_, heightPx_);
     if (restored) {
         return DeviceRecoveryAttempt{true, GetTickCount64()};
@@ -583,22 +554,40 @@ DeviceRecoveryAttempt Renderer::RecreateDeviceResources() {
 }
 
 void Renderer::HandleDeviceLoss(const DeviceLossInfo& loss) {
+    const bool sharedDeviceLoss =
+        loss.operation == RenderOperation::Present1
+        || (loss.deviceRemovalReason && FAILED(*loss.deviceRemovalReason));
+    sharedDeviceRecoveryRequired_ = sharedDeviceLoss;
+
     recovery_.HandleDeviceLoss(
         loss,
-        [this]() { return RecreateDeviceResources(); },
+        [this, sharedDeviceLoss]() {
+            if (sharedDeviceLoss) {
+                // The process owner must replace the graph before any window
+                // can rebuild against it. Release this window's stale
+                // references immediately while the owner coordinates the
+                // process-wide teardown.
+                DiscardAllGraphicsResources();
+                return DeviceRecoveryAttempt{false, GetTickCount64()};
+            }
+            return RecreateDeviceResources();
+        },
         [](const char* tag, HRESULT hr) { LogHR(tag, hr); });
 }
 
-bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
+bool Renderer::Initialize(SharedGraphicsDevices& shared,
+                          HWND hwnd, int widthPx, int heightPx,
                           UINT dpi, uint64_t seed, double density,
                           double swaySpeed, double swayAmplitude)
 {
+    shared_   = &shared;
     hwnd_     = hwnd;
     widthPx_  = widthPx;
     heightPx_ = heightPx;
     dpi_      = dpi == 0 ? 96 : dpi;
 
     recovery_.Stop();
+    sharedDeviceRecoveryRequired_ = false;
     DiscardAllGraphicsResources();
 
     if (!CreateDeviceResources()
@@ -615,6 +604,28 @@ bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
     sim_.swayAmpScale   = swayAmplitude;
     recovery_.StartReady();
     return true;
+}
+
+void Renderer::DiscardPerWindowResources() {
+    recovery_.Invalidate();
+    DiscardAllGraphicsResources();
+}
+
+bool Renderer::RebuildPerWindowResources() {
+    bool succeeded = false;
+    recovery_.Recover([this, &succeeded]() {
+        DiscardAllGraphicsResources();
+        succeeded = CreateDeviceResources()
+            && CreateSwapChainResources(widthPx_, heightPx_);
+        if (!succeeded) {
+            DiscardAllGraphicsResources();
+            OutputDebugStringA(
+                "[DesktopGrass] per-window rebuild failed after shared "
+                "device recovery\n");
+        }
+        return DeviceRecoveryAttempt{succeeded, GetTickCount64()};
+    });
+    return succeeded;
 }
 
 bool Renderer::TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const {
