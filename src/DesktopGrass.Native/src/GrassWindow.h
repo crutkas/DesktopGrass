@@ -32,8 +32,11 @@ public:
     GrassWindow(const GrassWindow&)            = delete;
     GrassWindow& operator=(const GrassWindow&) = delete;
 
-    // Creates the HWND, attaches a Renderer, generates blades using `seed`.
-    bool Create(HINSTANCE hInst,
+    // Creates the HWND, attaches a Renderer (borrowing the process-wide
+    // device graph from `shared`, which must already be initialized), and
+    // generates blades using `seed`.
+    bool Create(SharedGraphicsDevices& shared,
+                HINSTANCE hInst,
                 HWND displayChangeHwnd,
                 const topology::MonitorSnapshot& monitor,
                 const topology::SurfaceSpec& surface,

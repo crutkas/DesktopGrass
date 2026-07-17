@@ -30,7 +30,8 @@ GrassWindow::~GrassWindow() {
     Destroy();
 }
 
-bool GrassWindow::Create(HINSTANCE hInst,
+bool GrassWindow::Create(SharedGraphicsDevices& shared,
+                         HINSTANCE hInst,
                          HWND displayChangeHwnd,
                          const topology::MonitorSnapshot& monitor,
                          const topology::SurfaceSpec& surface,
@@ -73,7 +74,7 @@ bool GrassWindow::Create(HINSTANCE hInst,
     }
 
     if (!renderer_.Initialize(
-            hwnd_, surface_.widthPx, surface_.heightPx, surface_.dpi,
+            shared, hwnd_, surface_.widthPx, surface_.heightPx, surface_.dpi,
             seed, density,
                               swaySpeed, swayAmplitude)) {
         DestroyWindow(hwnd_);

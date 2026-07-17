@@ -5,6 +5,13 @@
 // Sim. Renders the procedural grass once per frame. Its backing width, height,
 // and DPI are fixed for its lifetime; App replaces the owning GrassWindow when
 // any of them changes.
+//
+// The D3D11 device, DXGI device/factory, D2D factory/device, and
+// DirectComposition device are process-wide and owned by a
+// SharedGraphicsDevices the caller passes to Initialize(). Renderer keeps a
+// non-owning pointer to it and never creates, discards, or recreates that
+// graph itself — only the process owner (App, Benchmark, or a test) does,
+// exactly once per outage, via GraphicsDeviceRecovery.
 
 #pragma once
 
@@ -21,6 +28,7 @@
 #include <unordered_map>
 
 #include "DeviceRecovery.h"
+#include "SharedGraphicsDevices.h"
 #include "Sim.h"
 
 namespace desktopgrass {
@@ -32,10 +40,14 @@ public:
     Renderer() = default;
     ~Renderer();
 
-    // Sets up D3D / D2D / DComp on `hwnd` of the given width × height in DIPs,
-    // and generates the initial blade list with `seed`. Returns false on
-    // failure (logged via OutputDebugString).
-    bool Initialize(HWND hwnd, int widthPx, int heightPx,
+    // Borrows the process-wide device graph from `shared` (which must
+    // already be Initialize()'d — Renderer never initializes it itself),
+    // sets up the per-window D2D context / swap chain / composition target
+    // on `hwnd` of the given width × height in DIPs, and generates the
+    // initial blade list with `seed`. Returns false on failure (logged via
+    // OutputDebugString).
+    bool Initialize(SharedGraphicsDevices& shared,
+                    HWND hwnd, int widthPx, int heightPx,
                     UINT dpi, uint64_t seed, double density,
                     double swaySpeed = 1.0, double swayAmplitude = 1.0);
 
@@ -49,6 +61,33 @@ public:
     void Tick(double dt,
               const InputEvent* events,
               std::size_t numEvents);
+
+    // True once this window's own per-window resources are built and
+    // rendering normally. False while waiting for the process owner to
+    // repair a shared device-loss this window alone cannot fix.
+    bool IsGraphicsReady() const { return recovery_.IsReady(); }
+    bool NeedsSharedDeviceRecovery() const {
+        return sharedDeviceRecoveryRequired_;
+    }
+
+    // Drops every per-window graphics resource (D2D device context, swap
+    // chain, target bitmap, composition target/visual, and all cached
+    // brushes) without touching the shared device graph. Called by the
+    // process owner right before it discards SharedGraphicsDevices, so no
+    // window keeps drawing against a device that is about to disappear.
+    void DiscardPerWindowResources();
+
+    // Clears the confirmed shared-loss request once the process owner has
+    // successfully replaced the graph. Per-window rebuilding may still fail,
+    // but that must not cause repeated replacement of the healthy new graph.
+    void AcknowledgeSharedDeviceRecovery() {
+        sharedDeviceRecoveryRequired_ = false;
+    }
+
+    // Rebuilds this window's resources against the current shared graph.
+    // Used both after process-wide replacement and for isolated per-window
+    // retries that must not disturb healthy windows.
+    bool RebuildPerWindowResources();
 
     Sim&        GetSim()        { return sim_; }
     const Sim&  GetSim() const  { return sim_; }
@@ -93,6 +132,12 @@ private:
     UINT                                   dpi_       = 96;
     int                                    windowOriginScreenX_ = 0;
     int                                    windowOriginScreenY_ = 0;
+
+    // Non-owning. Set by Initialize(); outlives this Renderer by contract
+    // (the process owner declares its SharedGraphicsDevices before its
+    // window list). Renderer only ever reads copies from it — it never
+    // calls Initialize()/Discard() on it.
+    SharedGraphicsDevices*                 shared_ = nullptr;
 
     ComPtr<ID3D11Device>                   d3dDevice_;
     ComPtr<ID3D11DeviceContext>            d3dContext_;
@@ -170,6 +215,7 @@ private:
     Sim                                    sim_{};
     std::unordered_map<uint64_t, double>   petNameLastHover_;
     DeviceRecoveryController               recovery_;
+    bool                                   sharedDeviceRecoveryRequired_ = false;
 };
 
 } // namespace desktopgrass

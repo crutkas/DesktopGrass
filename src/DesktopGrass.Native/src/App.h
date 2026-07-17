@@ -14,12 +14,14 @@
 
 #include "GrassWindow.h"
 #include "DisplayTopology.h"
+#include "GraphicsDeviceRecovery.h"
 #include "MouseHook.h"
 #include "Pacing.h"
 #include "Persistence.h"
 #include "Config.h"
 #include "RuntimeNotifications.h"
 #include "RuntimePolicy.h"
+#include "SharedGraphicsDevices.h"
 #include "TrayIcon.h"
 #include "VisibilityTracker.h"
 
@@ -86,6 +88,7 @@ private:
     void HandleVisibilityNotification();
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
+    void RecoverSharedDeviceGraphIfNeeded();
     void ApplyStateToWindow(
         GrassWindow& window,
         const std::vector<CutRecord>& cuts);
@@ -113,6 +116,10 @@ private:
     NOTIFYICONDATAW                             nid_{};
     bool                                        trayAdded_ = false;
     MouseEventQueue                             queue_{};
+    // Declared before windows_ so it is destroyed after every GrassWindow/
+    // Renderer that borrows from it (C++ destroys members in reverse
+    // declaration order).
+    SharedGraphicsDevices                       sharedDevices_{};
     std::vector<std::unique_ptr<GrassWindow>>   windows_;
     std::vector<runtime::SurfaceState>           surfaceStates_;
     std::vector<runtime::Decision>               runtimeDecisions_;
@@ -141,6 +148,11 @@ private:
     bool                                        hardPauseStateSaved_ = false;
     bool                                        sessionEndStateSaved_ = false;
     UINT                                        taskbarCreatedMessage_ = 0;
+    // Throttles retries of RecoverSharedGraphicsDevices so a persistently
+    // broken shared graph doesn't get discarded/reinitialized every frame.
+    bool                                        sharedDeviceRecoveryPending_ = false;
+    ULONGLONG                                   sharedDeviceRecoveryNextAttemptMs_ = 0;
+    bool                                        sharedGraphReplacementPending_ = false;
 };
 
 } // namespace desktopgrass

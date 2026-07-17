@@ -74,6 +74,7 @@ bool App::Initialize(HINSTANCE hInst) {
     if (!CreateMessageWindow())                    return false;
     if (!InitializeRuntimeNotifications())         return false;
     if (!CreateTrayIcon())                         return false;
+    if (!sharedDevices_.Initialize())              return false;
     if (!ReconcileDisplayTopology())               return false;
 
     return true;
@@ -354,7 +355,7 @@ std::unique_ptr<GrassWindow> App::CreateGrassWindow(
     const std::vector<CutRecord>& cuts) {
     auto window = std::make_unique<GrassWindow>();
     if (!window->Create(
-            hInst_, msgHwnd_, monitor, surface, layoutSeed,
+            sharedDevices_, hInst_, msgHwnd_, monitor, surface, layoutSeed,
             config_.bladeDensity, config_.swaySpeed, config_.swayAmplitude)) {
         OutputDebugStringA("[DesktopGrass] GrassWindow::Create failed\n");
         return nullptr;
@@ -695,6 +696,51 @@ void App::RenderAllWindows(double dt) {
             windows_[i]->RenderFrame(dt, nullptr, 0);
         }
     }
+    RecoverSharedDeviceGraphIfNeeded();
+}
+
+void App::RecoverSharedDeviceGraphIfNeeded() {
+    bool anyWindowUnready = false;
+    for (const auto& window : windows_) {
+        sharedGraphReplacementPending_ =
+            sharedGraphReplacementPending_
+            || window->GetRenderer().NeedsSharedDeviceRecovery();
+        if (!window->GetRenderer().IsGraphicsReady()) {
+            anyWindowUnready = true;
+        }
+    }
+    if (!anyWindowUnready) {
+        sharedDeviceRecoveryPending_ = false;
+        return;
+    }
+
+    const ULONGLONG now = GetTickCount64();
+    if (sharedDeviceRecoveryPending_ && now < sharedDeviceRecoveryNextAttemptMs_) {
+        return;
+    }
+
+    std::vector<Renderer*> renderers;
+    renderers.reserve(windows_.size());
+    for (const auto& window : windows_) {
+        renderers.push_back(&window->GetRenderer());
+    }
+
+    const bool replacingSharedGraph = sharedGraphReplacementPending_;
+    if (RecoverSharedGraphicsDevices(
+            sharedDevices_, renderers, replacingSharedGraph)) {
+        sharedDeviceRecoveryPending_ = false;
+        sharedGraphReplacementPending_ = false;
+        return;
+    }
+    if (replacingSharedGraph && sharedDevices_.IsReady()) {
+        sharedGraphReplacementPending_ = false;
+    }
+
+    OutputDebugStringA(
+        "[DesktopGrass] shared graphics device recovery failed; "
+        "retrying in 1 second\n");
+    sharedDeviceRecoveryPending_ = true;
+    sharedDeviceRecoveryNextAttemptMs_ = now + DeviceRecoveryController::kRetryDelayMs;
 }
 
 void App::ApplyStateToWindow(

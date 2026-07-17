@@ -94,6 +94,17 @@ public:
     bool IsRetryPending() const noexcept { return retryPending_; }
     ULONGLONG NextRetryMs() const noexcept { return nextRetryMs_; }
 
+    // Marks externally owned dependencies unavailable without stopping
+    // simulation updates. The process-wide device coordinator uses this
+    // before releasing shared graphics resources so a failed shared rebuild
+    // cannot leave a resource-less renderer reporting itself as ready.
+    void Invalidate() noexcept {
+        if (!running_) return;
+        ready_ = false;
+        retryPending_ = false;
+        nextRetryMs_ = 0;
+    }
+
     template<typename AdvanceSimulation,
              typename DrawAndPresent,
              typename RecreateResources>
@@ -135,6 +146,20 @@ public:
         nextRetryMs_ = 0;
         AttemptRecovery(
             std::forward<RecreateResources>(recreateResources));
+    }
+
+    // Forces an immediate recovery attempt regardless of the current
+    // ready/retry state, bypassing the backoff timer. For callers that
+    // already know it is time to retry — e.g. a process-wide coordinator
+    // that just finished repairing a shared dependency this controller's
+    // owner relies on, and now wants every dependent rebuilt synchronously
+    // instead of waiting for its own 1-second backoff. Leaves `running_`
+    // untouched either way, so a simulation kept alive through an outage
+    // (via ProcessFrame's AdvanceSimulation callback) is unaffected.
+    template<typename RecreateResources>
+    void Recover(RecreateResources&& recreateResources)
+    {
+        AttemptRecovery(std::forward<RecreateResources>(recreateResources));
     }
 
 private:
