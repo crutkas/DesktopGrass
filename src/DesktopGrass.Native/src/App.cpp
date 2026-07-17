@@ -932,6 +932,8 @@ LRESULT App::HandleMessageWindowMessage(
         default:
             return DefWindowProcW(hwnd, msg, wp, lp);
     }
+
+    return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
 } // namespace desktopgrass
