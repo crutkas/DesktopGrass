@@ -315,8 +315,9 @@ power state:
 - Working-set peak:
   `max(reference mean + 3 * stdev, reference mean * 1.10)`.
 
-After issues #22 and #23 implement genuine paused/fullscreen/occluded and
-power-aware states, the proposed suppressed-state gate is:
+The production runtime controls for paused/fullscreen/occluded and power-aware
+states are not exercised by benchmark mode. The production-path qualification
+below applies this proposed suppressed-state gate:
 
 - zero rendered frames; and
 - each available CPU, GPU, context-switch, and incremental-energy metric no
@@ -329,8 +330,233 @@ hardware.
 
 ## Current scope
 
-The current driver only produces `WorkloadState=visible`. The schema and
-aggregator already group arbitrary future states and correctly handle an empty
-frame CSV, but this branch does not fabricate paused, fullscreen, occluded, or
-throttled behavior. Final visible-versus-suppressed evidence remains open until
-#22/#23 land.
+The benchmark driver only produces `WorkloadState=visible`. It does not
+fabricate paused, fullscreen, occluded, or throttled labels. Use the separate
+production-runtime workflow below for those states.
+
+## Production-runtime qualification (issue #14)
+
+Everything above this section measures `DesktopGrass.Native.exe --benchmark`.
+`main.cpp` dispatches benchmark mode instead of constructing the production
+`App`, so that path bypasses `RuntimePolicy`, runtime notifications,
+multi-monitor visibility decisions, and all-paused waits. Benchmark results
+must not be relabeled as production suppression or 12/5 FPS evidence.
+
+`Run-RuntimeQualification.ps1` launches the unmodified executable without
+`--benchmark`. It selects scenes through the production message-only window,
+uses controlled external windows for visibility probes, samples schema-v2
+telemetry, and optionally starts PresentMon for the same PID.
+
+### Safety and state guards
+
+- Raw output must be under a caller-supplied `-ResultsRoot` outside the
+  repository. The driver and aggregator reject repo-local output.
+- Another `DesktopGrass.Native` process causes a refusal. The exact bytes of
+  `state.json` and the autostart registry value are backed up and restored.
+  The production config/state paths cannot be overridden. The harness never
+  rewrites `config.json`; it requires `targetFps` to match `-RequiredTargetFps`
+  (24 by default).
+- The Windows session must remain active and unlocked. WTS connection/lock
+  state is checked before launch, before every cell, on every telemetry sample,
+  and at cell end. A lock or disconnect aborts the sweep and makes the cell
+  unavailable instead of allowing lock-paused work to be labeled visible or
+  occluded.
+- Power source, Battery Saver, and active power scheme are checked at every
+  sample. Display topology, modes, and brightness are captured for provenance
+  and checked at cell boundaries.
+- The script never changes AC/DC state, a power plan, Battery Saver, display
+  power, lock state, suspend, or hibernation. Battery, Saver, display-dim,
+  lock, display-off, and suspend transitions require explicit manual action.
+- Probe windows are owned by the harness and destroyed in `finally`.
+  Fullscreen qualification requires its full-virtual-screen probe to become
+  the foreground window. Occlusion qualification uses a non-activating,
+  topmost opaque probe with the exact bounds of every grass strip.
+- No-app controls prove that `DesktopGrass.Native` is absent before, throughout,
+  and after sampling. A process that appears at any point contaminates the
+  control and aborts the sweep.
+
+### Repeatable command sequence
+
+Use one clean evidence root, identical timing/configuration arguments, the same
+executable/config/display hashes, a fixed seed, and at least three runs. Capture
+a no-app control before and after each power-state block so Energy Meter cells
+can be bracketed within `-MaxControlGapMinutes` (60 by default).
+
+```pwsh
+$qualEvidence = Join-Path $env:USERPROFILE 'DesktopGrassQualification'
+$common = @{
+    ResultsRoot = $qualEvidence
+    Runs = 3
+    DurationSec = 60
+    SampleIntervalSec = 1
+    WarmupSec = 5
+    ProbeSettleSec = 2
+    PresentControlDurationSec = 5
+    Seed = 14
+}
+
+# AC, Saver off: controls plus every scene in all safe automated states.
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource ac `
+    -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario visible -ExpectedPowerSource ac -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario fullscreen-suppression -ExpectedPowerSource ac `
+    -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario occlusion-suppression -ExpectedPowerSource ac `
+    -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource ac `
+    -ExpectedBatterySaver off
+
+# After the user physically establishes battery power with Saver off:
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource battery `
+    -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario visible -ExpectedPowerSource battery `
+    -ExpectedBatterySaver off
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource battery `
+    -ExpectedBatterySaver off
+
+# After the user enables Battery Saver:
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource battery `
+    -ExpectedBatterySaver on
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario visible -ExpectedPowerSource battery `
+    -ExpectedBatterySaver on
+.\tools\benchmark\Run-RuntimeQualification.ps1 @common `
+    -Scenario no-app-control -ExpectedPowerSource battery `
+    -ExpectedBatterySaver on
+
+.\tools\benchmark\Aggregate-RuntimeQualification.ps1 `
+    -ResultsRoot $qualEvidence
+```
+
+Pass an existing console PresentMon binary to every process-bearing invocation
+with `-PresentMonExe`. The harness invokes it with `--process_id`,
+`--output_file`, `--date_time`, `--no_console_stats`, `--session_name`,
+`--timed`, and `--terminate_after_timed`. It records the path, version,
+arguments, output, stderr, interval, exit code, and target PID. It never
+downloads a binary or requests elevation. Measurement captures include a
+recorded one-second lead-in and tail so the absolute PresentMon interval encloses
+the telemetry interval; only rows inside the telemetry interval are evaluated.
+
+### Present and suppression proof
+
+PresentMon CSV must contain `ProcessID`, `SwapChainAddress`, and absolute
+`CPUStartDateTime` timestamps. Rows for any other PID invalidate the capture.
+A header-only CSV is accepted as a measured zero only when capture metadata
+proves the target PID, `--process_id`, `--date_time`, successful exit, requested
+duration, and an absolute capture interval enclosing the measured interval. A
+missing file, failed tool, or legacy relative `TimeInSeconds` timestamp is
+unavailable.
+
+Cadence is calculated independently for each swap chain. A visible interval
+must contain the expected swap-chain count and at least two rows per chain.
+Each suppression cell captures visible-before, suppressed, and visible-after
+intervals from the same production PID. Suppression is proved only by active
+visible controls on both sides plus zero target-PID present rows in the middle.
+Window visibility alone is not present proof.
+
+Without PresentMon, or an equivalent separately reviewed WPR/DXGI capture, all
+present-suppression and cadence gates remain `not_evaluated`.
+
+### Metrics, coverage, and provenance
+
+Each measured sample records:
+
+- one-core process CPU percentage and working/private memory;
+- raw per-process GPU engines and the busiest engine;
+- per-process thread context switches/sec as a scheduling proxy;
+- system context switches, interrupts, DPC rate, and queue length;
+- exact `SYS` Energy Meter power when exposed;
+- AC/DC, Battery Saver, active scheme, battery capacity/rate;
+- WTS session connection/lock state; and
+- OS `ProcessPowerThrottling` execution-speed state, separately from the
+  application's 12/5 FPS policy.
+
+Coverage uses the theoretical sample count
+`floor(DurationSec / SampleIntervalSec)`, not the number of rows produced.
+CPU, working set, GPU, context-switch, power, and session evidence require at
+least 90% coverage by default. A disappearing GPU instance is unavailable, not
+zero. Sample indices must be unique where one row per interval is expected;
+every accepted row must have an in-range index and UTC timestamp inside the
+measurement interval. GPU, context-switch, battery, and Energy Meter values are
+counted only when their own status is `available`.
+
+The process-power-state gate proves that OS throttling was observed at adequate
+coverage and remained stable for the cell. Both consistently `throttled` and
+consistently `unthrottled` are valid actual states; a transition is
+`not_evaluated`, and the state is reported separately from the app's cadence
+policy.
+
+System energy uses only a uniquely identified meter named exactly `SYS`; it
+never sums component rails or `_Total`. Battery energy requires a positive
+capacity delta over positive elapsed time and at least 90% capacity-sample
+coverage. Incremental `SYS` energy subtracts the mean of matching no-app
+controls before and after the cell, with the same power source, Saver state,
+and scheme. Unresolved meter/battery resolution or missing bracketing controls
+cannot pass.
+
+Aggregation recursively reads captures under the evidence root and rejects
+mixed qualification-set, machine/display, executable/config, timing, target
+FPS, platform, production-entry-point, seed, run-count, or power-scheme
+provenance. Manifests must be inside the evidence root, each referenced artifact
+must remain inside its capture directory, and every output must remain inside
+the evidence root. All compared AC, battery, and Saver cells must use one active
+power scheme.
+
+### Provisional budgets
+
+- Visible CPU, busiest GPU engine, context-switch proxy, and energy envelope:
+  `max(reference mean + 3 * stdev, reference mean * 1.20)`.
+- Visible working-set envelope:
+  `max(reference mean + 3 * stdev, reference mean * 1.10)`.
+- Those envelopes are baseline definitions. The defining visible repetitions
+  are not tested against an envelope calculated from themselves; an independent
+  future evidence set can use the recorded values as regression limits.
+- Fullscreen and opaque-occlusion suppression: zero presents, and CPU, GPU,
+  context-switch, and resolvable incremental energy no more than 10% of the
+  matching AC visible reference. A denominator below instrument resolution is
+  `not_evaluated`.
+- Battery cadence: active per-swap-chain rate no more than `12 * 1.10` FPS.
+  Battery Saver cadence: no more than `5 * 1.10` FPS. Matching AC cadence must
+  be at least 1.5 times the cap to distinguish throttling.
+- Throttled CPU/GPU/context uses the measured cadence ratio against AC visible;
+  working set retains the 110% visible envelope.
+
+All thresholds are provisional same-machine qualification budgets, not
+portable hardware claims.
+
+### Outputs and closure
+
+Every invocation creates a timestamped capture directory with `machine.json`,
+`manifest.json`, per-cell sample/GPU/power/energy/throttling CSVs, and optional
+PresentMon CSV/logs. Aggregation writes:
+
+- `runtime-qualification-results.csv`;
+- `runtime-qualification-budgets.csv`;
+- `runtime-qualification-results.json`; and
+- `runtime-qualification-results.md`.
+
+The strict matrix requires at least three qualifying runs for all five scenes
+in AC visible, AC fullscreen suppression, AC opaque occlusion, battery visible,
+and Battery Saver visible, plus no-app controls in all three power states.
+Overall status is `pass` only when every generated gate passes. Missing matrix
+cells, metrics, presents, controls, or provenance produce `not_evaluated`;
+threshold violations produce `fail`.
+
+Display-dim and lock/display-off/suspend/resume evidence is manual-only and is
+not generated by this automated driver. Do not lock or suspend the machine
+during a normal qualification sweep. Use a separately approved, user-initiated
+PresentMon or elevated WPR protocol that spans the transition and proves both
+no presents while paused and resumed presents afterward.
+
+Issue #14 can close only after the strict automated matrix and every supported
+manual scenario are complete. Unsupported hardware/tooling must be reported
+with the raw artifact path; it is never converted to a pass.

@@ -52,6 +52,21 @@ namespace DesktopGrass.Smoke
 
         public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
+        // Message-only windows (created with a HWND_MESSAGE parent, such as
+        // App's kMsgWindowClass) are not top-level and never appear via
+        // EnumWindows/FindWindowExW(NULL, ...). They must be looked up as
+        // children of this pseudo-handle.
+        public static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
+
+        // Rights required by GetProcessInformation(ProcessPowerThrottling);
+        // deliberately narrower than PROCESS_QUERY_INFORMATION.
+        public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+        // PROCESS_INFORMATION_CLASS::ProcessPowerThrottling (winnt.h).
+        public const int ProcessPowerThrottling = 4;
+        public const uint WTS_CURRENT_SESSION = 0xFFFFFFFF;
+        public const int WTSSessionInfoEx = 25;
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
         {
@@ -69,6 +84,52 @@ namespace DesktopGrass.Smoke
             public RECT rcWork;
             public uint dwFlags;
         }
+
+        // PROCESS_POWER_THROTTLING_STATE (winnt.h). ControlMask/StateMask bit
+        // 0x1 is PROCESS_POWER_THROTTLING_EXECUTION_SPEED (EcoQoS).
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ProcessPowerThrottlingState
+        {
+            public uint Version;
+            public uint ControlMask;
+            public uint StateMask;
+        }
+
+        public sealed class SessionStateSnapshot
+        {
+            public bool Success { get; set; }
+            public int ErrorCode { get; set; }
+            public uint BytesReturned { get; set; }
+            public uint Level { get; set; }
+            public uint SessionId { get; set; }
+            public int ConnectState { get; set; }
+            public int SessionFlags { get; set; }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(
+            uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetProcessInformation(
+            IntPtr hProcess,
+            int processInformationClass,
+            ref ProcessPowerThrottlingState processInformation,
+            uint processInformationSize);
+
+        [DllImport("wtsapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool WTSQuerySessionInformationW(
+            IntPtr server,
+            uint sessionId,
+            int infoClass,
+            out IntPtr buffer,
+            out uint bytesReturned);
+
+        [DllImport("wtsapi32.dll")]
+        public static extern void WTSFreeMemory(IntPtr memory);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr FindWindowExW(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
@@ -115,6 +176,16 @@ namespace DesktopGrass.Smoke
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr SendMessageTimeoutW(
+            IntPtr hwnd,
+            uint msg,
+            IntPtr wParam,
+            IntPtr lParam,
+            uint flags,
+            uint timeoutMs,
+            out IntPtr result);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr CreateWindowExW(
@@ -410,6 +481,55 @@ namespace DesktopGrass.Smoke
                 }
             }
         }
+
+        public static SessionStateSnapshot QueryCurrentSessionState()
+        {
+            var result = new SessionStateSnapshot();
+            IntPtr buffer = IntPtr.Zero;
+            uint bytesReturned = 0;
+            if (!WTSQuerySessionInformationW(
+                    IntPtr.Zero,
+                    WTS_CURRENT_SESSION,
+                    WTSSessionInfoEx,
+                    out buffer,
+                    out bytesReturned))
+            {
+                result.ErrorCode = Marshal.GetLastWin32Error();
+                return result;
+            }
+
+            try
+            {
+                result.BytesReturned = bytesReturned;
+                if (bytesReturned < 20)
+                {
+                    result.ErrorCode = 122; // ERROR_INSUFFICIENT_BUFFER
+                    return result;
+                }
+
+                result.Level = unchecked((uint)Marshal.ReadInt32(buffer, 0));
+                if (result.Level != 1)
+                {
+                    result.ErrorCode = 13; // ERROR_INVALID_DATA
+                    return result;
+                }
+
+                // WTSINFOEXW.Data is 8-byte aligned after the 4-byte Level.
+                result.SessionId =
+                    unchecked((uint)Marshal.ReadInt32(buffer, 8));
+                result.ConnectState = Marshal.ReadInt32(buffer, 12);
+                result.SessionFlags = Marshal.ReadInt32(buffer, 16);
+                result.Success = true;
+                return result;
+            }
+            finally
+            {
+                if (buffer != IntPtr.Zero)
+                {
+                    WTSFreeMemory(buffer);
+                }
+            }
+        }
     }
 }
 '@ -ReferencedAssemblies 'System.Runtime','System.Collections','System.Text.Encoding.Extensions' | Out-Null
@@ -621,6 +741,61 @@ function New-OpaqueProbeWindow {
     return $hwnd
 }
 
+function Get-InteractiveSessionState {
+    [CmdletBinding()]
+    param()
+
+    $snapshot = [DesktopGrass.Smoke.Win32]::QueryCurrentSessionState()
+    if (-not $snapshot.Success) {
+        return [pscustomobject]@{
+            status = 'error'
+            reason = "WTS session query failed (Win32 error $($snapshot.ErrorCode))"
+            session_id = $null
+            connect_state = 'unknown'
+            lock_state = 'unknown'
+            interactive_active = $false
+        }
+    }
+
+    $connectStates = @(
+        'active',
+        'connected',
+        'connect_query',
+        'shadow',
+        'disconnected',
+        'idle',
+        'listen',
+        'reset',
+        'down',
+        'initializing'
+    )
+    $connectState = if (
+        $snapshot.ConnectState -ge 0 -and
+        $snapshot.ConnectState -lt $connectStates.Count
+    ) {
+        $connectStates[$snapshot.ConnectState]
+    } else {
+        'unknown'
+    }
+    $lockState = switch ($snapshot.SessionFlags) {
+        0 { 'locked' }
+        1 { 'unlocked' }
+        default { 'unknown' }
+    }
+
+    return [pscustomobject]@{
+        status = 'available'
+        reason = $null
+        session_id = $snapshot.SessionId
+        connect_state = $connectState
+        lock_state = $lockState
+        interactive_active = (
+            $connectState -eq 'active' -and
+            $lockState -eq 'unlocked'
+        )
+    }
+}
+
 function Remove-ProbeWindow {
     [CmdletBinding()]
     param(
@@ -753,6 +928,142 @@ function Assert-MonitorSurfaceTopology {
     throw $lastError
 }
 
+function Find-MessageOnlyWindow {
+    <#
+    .SYNOPSIS
+        Looks up a message-only window (created with an HWND_MESSAGE parent,
+        e.g. App's kMsgWindowClass) owned by the given process.
+
+    .DESCRIPTION
+        Message-only windows never appear via EnumWindows or
+        FindWindowExW(NULL, ...); they only enumerate as children of the
+        HWND_MESSAGE pseudo-handle. Returns [IntPtr]::Zero if no match is
+        found or the match is not owned by -Process.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [System.Diagnostics.Process] $Process,
+        [Parameter(Mandatory)] [string] $ClassName,
+        [Parameter(Mandatory)] [string] $Title
+    )
+
+    $after = [IntPtr]::Zero
+    while ($true) {
+        $hwnd = [DesktopGrass.Smoke.Win32]::FindWindowExW(
+            [DesktopGrass.Smoke.Win32]::HWND_MESSAGE,
+            $after,
+            $ClassName,
+            $Title)
+        if ($hwnd -eq [IntPtr]::Zero) {
+            return [IntPtr]::Zero
+        }
+
+        $owningPid = [uint32]0
+        [void][DesktopGrass.Smoke.Win32]::GetWindowThreadProcessId(
+            $hwnd,
+            [ref]$owningPid)
+        if ($owningPid -eq [uint32]$Process.Id) {
+            return $hwnd
+        }
+        $after = $hwnd
+    }
+}
+
+function Wait-ForMessageOnlyWindow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [System.Diagnostics.Process] $Process,
+        [Parameter(Mandatory)] [string] $ClassName,
+        [Parameter(Mandatory)] [string] $Title,
+        [Parameter(Mandatory)] [int] $TimeoutSeconds
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ($Process.HasExited) {
+            throw "process exited (code=$($Process.ExitCode)) before message-only window class '$ClassName' title '$Title' appeared"
+        }
+        $hwnd = Find-MessageOnlyWindow -Process $Process -ClassName $ClassName -Title $Title
+        if ($hwnd -ne [IntPtr]::Zero) {
+            return $hwnd
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "timed out after ${TimeoutSeconds}s waiting for message-only window class '$ClassName' title '$Title' from pid $($Process.Id)"
+}
+
+function Get-ProcessPowerThrottlingState {
+    <#
+    .SYNOPSIS
+        Reads GetProcessInformation(ProcessPowerThrottling) for a PID so OS
+        execution-speed/EcoQoS state can be recorded separately from
+        DesktopGrass's own FPS policy.
+
+    .DESCRIPTION
+        Returns an explicit status ('available', 'unsupported', or 'error')
+        rather than ever guessing a throttled state. 'unsupported' covers
+        Windows versions/builds that reject the ProcessPowerThrottling
+        information class.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int] $ProcessId
+    )
+
+    $handle = [DesktopGrass.Smoke.Win32]::OpenProcess(
+        [DesktopGrass.Smoke.Win32]::PROCESS_QUERY_LIMITED_INFORMATION,
+        $false,
+        [uint32]$ProcessId)
+    if ($handle -eq [IntPtr]::Zero) {
+        $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        return [pscustomobject]@{
+            status = 'error'
+            reason = "OpenProcess failed (Win32 error $errorCode)."
+            execution_speed_throttled = $null
+            control_mask = $null
+            state_mask = $null
+        }
+    }
+
+    try {
+        $state = [DesktopGrass.Smoke.Win32+ProcessPowerThrottlingState]::new()
+        $state.Version = 1
+        $size = [uint32][Runtime.InteropServices.Marshal]::SizeOf($state)
+        $ok = [DesktopGrass.Smoke.Win32]::GetProcessInformation(
+            $handle,
+            [DesktopGrass.Smoke.Win32]::ProcessPowerThrottling,
+            [ref]$state,
+            $size)
+        if (-not $ok) {
+            $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            # ERROR_INVALID_PARAMETER (87) is how older builds reject a
+            # PROCESS_INFORMATION_CLASS they do not implement.
+            $status = if ($errorCode -eq 87) { 'unsupported' } else { 'error' }
+            return [pscustomobject]@{
+                status = $status
+                reason = "GetProcessInformation failed (Win32 error $errorCode)."
+                execution_speed_throttled = $null
+                control_mask = $null
+                state_mask = $null
+            }
+        }
+
+        $executionSpeedBit = 0x1
+        return [pscustomobject]@{
+            status = 'available'
+            reason = $null
+            execution_speed_throttled = (
+                (([uint32]$state.ControlMask) -band $executionSpeedBit) -ne 0 -and
+                (([uint32]$state.StateMask) -band $executionSpeedBit) -ne 0
+            )
+            control_mask = [uint32]$state.ControlMask
+            state_mask = [uint32]$state.StateMask
+        }
+    } finally {
+        [void][DesktopGrass.Smoke.Win32]::CloseHandle($handle)
+    }
+}
+
 function Stop-AppGracefully {
     [CmdletBinding()]
     param(
@@ -776,9 +1087,21 @@ function Stop-AppGracefully {
         # already-exiting and fall through to the wait.
     }
 
-    if (-not $Process.WaitForExit([int]([TimeSpan]::FromSeconds($TimeoutSeconds).TotalMilliseconds))) {
-        try { Stop-Process -Id $Process.Id -Force -ErrorAction Stop } catch { }
-        [void]$Process.WaitForExit(2000)
+    if (-not $Process.WaitForExit(
+        [int]([TimeSpan]::FromSeconds($TimeoutSeconds).TotalMilliseconds)
+    )) {
+        if (-not $Process.WaitForExit(0)) {
+            try {
+                Stop-Process -Id $Process.Id -Force -ErrorAction Stop
+            } catch {
+                if (-not $Process.WaitForExit(0)) {
+                    throw
+                }
+            }
+        }
+        if (-not $Process.WaitForExit(2000)) {
+            throw "process $($Process.Id) did not exit after forced shutdown"
+        }
     }
 }
 
@@ -880,4 +1203,8 @@ Export-ModuleMember -Function `
     Get-GrassStripPixelVariance, `
     Assert-GrassRendered, `
     Stop-AppGracefully, `
-    Invoke-AppSmoke
+    Invoke-AppSmoke, `
+    Find-MessageOnlyWindow, `
+    Wait-ForMessageOnlyWindow, `
+    Get-ProcessPowerThrottlingState, `
+    Get-InteractiveSessionState
