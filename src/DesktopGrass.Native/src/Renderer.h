@@ -18,9 +18,12 @@
 
 #include <unordered_map>
 
+#include "DeviceRecovery.h"
 #include "Sim.h"
 
 namespace desktopgrass {
+
+struct RendererTestAccess;
 
 class Renderer {
 public:
@@ -67,14 +70,18 @@ public:
     UINT GetDpi() const      { return dpi_; }
 
 private:
+    friend struct RendererTestAccess;
+
     template<class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
     void Cleanup();
     bool CreateDeviceResources();
     bool CreateSwapChainResources(int widthPx, int heightPx);
-    bool TryRestoreDeviceResources();
-    void HandleDeviceLoss(const char* operation, HRESULT hr);
+    DeviceRecoveryAttempt RecreateDeviceResources();
+    void HandleDeviceLoss(const DeviceLossInfo& loss);
     void DiscardDeviceResources();
+    void DiscardAllGraphicsResources();
+    std::optional<DeviceLossInfo> DrawAndPresent();
     void DrawGrass(bool treesOnly, bool backgroundTrees);
     void DrawEntities(const D2D1_POINT_2F* cursorPosition);
     void DrawButterfly(const Entity& e);
@@ -170,8 +177,7 @@ private:
 
     Sim                                    sim_{};
     std::unordered_map<uint64_t, double>   petNameLastHover_;
-    bool                                   initialized_ = false;
-    ULONGLONG                              nextDeviceRecoveryAttemptMs_ = 0;
+    DeviceRecoveryController               recovery_;
 };
 
 } // namespace desktopgrass
