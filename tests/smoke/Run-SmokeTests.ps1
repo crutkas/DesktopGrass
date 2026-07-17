@@ -16,7 +16,9 @@ param(
     [ValidateRange(1, 120)]
     [int] $TimeoutSeconds = 15,
 
-    [switch] $ContinueOnFailure
+    [switch] $ContinueOnFailure,
+
+    [string] $ArtifactDirectory
 )
 
 Set-StrictMode -Version Latest
@@ -29,6 +31,13 @@ Import-Module "$PSScriptRoot\Smoke.Common.psm1" -Force
 #   * Win2D  (.NET):         src\DesktopGrass.Win2D\bin\<Platform>\<Config>\<TFM>\DesktopGrass.Win2D.exe
 # TFM is resolved lazily at run time so we don't hardcode net8.0-windows10.0.*.
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
+
+if ($ArtifactDirectory) {
+    if (-not [IO.Path]::IsPathRooted($ArtifactDirectory)) {
+        $ArtifactDirectory = Join-Path $RepoRoot $ArtifactDirectory
+    }
+    New-Item -ItemType Directory -Path $ArtifactDirectory -Force | Out-Null
+}
 
 function Resolve-DotnetExe {
     param(
@@ -97,6 +106,9 @@ foreach ($name in $selected) {
     if ($spec.Contains('AssertMonitorTopology')) {
         $invokeArgs.AssertMonitorTopology = [bool]$spec.AssertMonitorTopology
     }
+    if ($ArtifactDirectory) {
+        $invokeArgs.ScreenshotPath = Join-Path $ArtifactDirectory "$name.png"
+    }
 
     $r = Invoke-AppSmoke @invokeArgs
 
@@ -106,6 +118,7 @@ foreach ($name in $selected) {
         UniqueColors = [int]$r.UniqueColors
         DurationMs   = [int]$r.DurationMs
         FailReason   = $r.FailReason
+        ScreenshotPath = $r.ScreenshotPath
     }) | Out-Null
 
     if (-not $r.Pass) {
@@ -122,6 +135,12 @@ foreach ($name in $selected) {
 Write-Host ''
 Write-Host 'Results:' -ForegroundColor Yellow
 $results | Format-Table -AutoSize Target, Pass, UniqueColors, DurationMs, FailReason | Out-String | Write-Host
+
+if ($ArtifactDirectory) {
+    $results |
+        ConvertTo-Json -Depth 4 |
+        Set-Content -LiteralPath (Join-Path $ArtifactDirectory 'smoke-results.json') -Encoding utf8
+}
 
 if ($anyFailed) {
     if ($ContinueOnFailure) {

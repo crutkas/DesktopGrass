@@ -1,0 +1,110 @@
+name: Interactive smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interactive-smoke.yml"
+      - "src/DesktopGrass.Native/**"
+      - "src/DesktopGrass.Win2D/**"
+      - "tests/smoke/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/interactive-smoke.yml"
+      - "src/DesktopGrass.Native/**"
+      - "src/DesktopGrass.Win2D/**"
+      - "tests/smoke/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interactive-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Native gate + managed reference
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Windows, X64, desktopgrass-interactive]
+    timeout-minutes: 45
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v6
+
+      - name: Setup MSBuild
+        id: msbuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Run required Native smoke
+        id: native
+        timeout-minutes: 15
+        shell: pwsh
+        run: >-
+          tests\smoke\Invoke-InteractiveCiSmoke.ps1
+          -Target Native
+          -ArtifactDirectory artifacts\interactive-smoke\native
+
+      - name: Run advisory managed-reference smoke
+        id: managed
+        if: ${{ always() && steps.checkout.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: pwsh
+        run: >-
+          tests\smoke\Invoke-InteractiveCiSmoke.ps1
+          -Target Win2D
+          -ArtifactDirectory artifacts\interactive-smoke\managed
+
+      - name: Clean interactive runner
+        if: ${{ always() && steps.checkout.outcome == 'success' }}
+        shell: pwsh
+        run: >-
+          tests\smoke\Invoke-InteractiveCiSmoke.ps1
+          -CleanupOnly
+          -ArtifactDirectory artifacts\interactive-smoke\cleanup
+
+      - name: Summarize smoke outcomes
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          "### Interactive smoke" >> $env:GITHUB_STEP_SUMMARY
+          "- Native gate: ${{ steps.native.outcome }}" >> $env:GITHUB_STEP_SUMMARY
+          "- Managed reference (advisory): ${{ steps.managed.outcome }}" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload smoke diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: interactive-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts\interactive-smoke
+          if-no-files-found: error
+          retention-days: 14
+
+  gate:
+    name: Interactive smoke gate
+    if: ${{ always() }}
+    needs: smoke
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Require trusted Native smoke
+        shell: pwsh
+        env:
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          if ($env:SMOKE_RESULT -ne 'success') {
+            throw (
+              "Required Native interactive smoke did not pass from a trusted " +
+              "repository ref (job result: '$env:SMOKE_RESULT').")
+          }

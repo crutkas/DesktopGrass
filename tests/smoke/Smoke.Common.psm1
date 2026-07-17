@@ -877,6 +877,74 @@ function Get-GrassStripPixelVariance {
     }
 }
 
+function Save-DesktopScreenshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [IntPtr] $Hwnd = [IntPtr]::Zero
+    )
+
+    $previousContext = [IntPtr]::Zero
+    try {
+        if ($Hwnd -ne [IntPtr]::Zero) {
+            $previousContext =
+                [DesktopGrass.Smoke.Win32]::SetThreadDpiAwarenessContext(
+                    [IntPtr]::new(-4))
+            $windowRect = [DesktopGrass.Smoke.Win32+RECT]::new()
+            if (-not [DesktopGrass.Smoke.Win32]::GetWindowRect(
+                    $Hwnd, [ref]$windowRect)) {
+                throw "GetWindowRect failed for screenshot hwnd=$Hwnd."
+            }
+            $bounds = [System.Drawing.Rectangle]::FromLTRB(
+                $windowRect.Left,
+                $windowRect.Top,
+                $windowRect.Right,
+                $windowRect.Bottom)
+        } else {
+            $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+        }
+
+        if ($bounds.Width -le 0 -or $bounds.Height -le 0) {
+            throw "desktop screenshot bounds are invalid: $bounds"
+        }
+
+        $parent = Split-Path -Parent $Path
+        if ($parent) {
+            New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        }
+
+        $bitmap = [System.Drawing.Bitmap]::new(
+            $bounds.Width,
+            $bounds.Height,
+            [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        try {
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.CopyFromScreen(
+                    $bounds.Left,
+                    $bounds.Top,
+                    0,
+                    0,
+                    $bounds.Size)
+            } finally {
+                $graphics.Dispose()
+            }
+            $bitmap.Save(
+                $Path,
+                [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally {
+            $bitmap.Dispose()
+        }
+
+        return (Resolve-Path -LiteralPath $Path).Path
+    } finally {
+        if ($previousContext -ne [IntPtr]::Zero) {
+            [void][DesktopGrass.Smoke.Win32]::SetThreadDpiAwarenessContext(
+                $previousContext)
+        }
+    }
+}
+
 function Assert-GrassRendered {
     [CmdletBinding()]
     param(
@@ -1128,7 +1196,8 @@ function Invoke-AppSmoke {
         [int] $MinUniqueColors = 50,
         [int] $TimeoutSeconds  = 5,
         [switch] $AssertMonitorTopology,
-        [scriptblock] $BeforeLaunch
+        [scriptblock] $BeforeLaunch,
+        [string] $ScreenshotPath
     )
 
     if (-not $WindowClass -and -not $TitleMatch) {
@@ -1141,6 +1210,7 @@ function Invoke-AppSmoke {
         UniqueColors = 0
         FailReason   = $null
         DurationMs   = 0
+        ScreenshotPath = $null
     }
 
     $proc = $null
@@ -1175,10 +1245,39 @@ function Invoke-AppSmoke {
     } catch {
         $result.FailReason = $_.Exception.Message
     } finally {
+        if ($ScreenshotPath) {
+            $captureFailure = $null
+            try {
+                $result.ScreenshotPath = Save-DesktopScreenshot `
+                    -Path $ScreenshotPath `
+                    -Hwnd $hwnd
+            } catch {
+                $captureFailure = "window screenshot capture failed: $($_.Exception.Message)"
+                if ($hwnd -ne [IntPtr]::Zero) {
+                    try {
+                        $result.ScreenshotPath = Save-DesktopScreenshot `
+                            -Path $ScreenshotPath
+                        $captureFailure = $null
+                    } catch {
+                        $captureFailure +=
+                            "; desktop fallback failed: $($_.Exception.Message)"
+                    }
+                }
+            }
+            if ($captureFailure) {
+                $result.Pass = $false
+                $result.FailReason = if ($result.FailReason) {
+                    "$($result.FailReason); $captureFailure"
+                } else {
+                    $captureFailure
+                }
+            }
+        }
         if ($null -ne $proc) {
             try {
                 Stop-AppGracefully -Process $proc -Hwnd $hwnd -TimeoutSeconds 2
             } catch {
+                $result.Pass = $false
                 if ($null -eq $result.FailReason) {
                     $result.FailReason = "cleanup failed: $($_.Exception.Message)"
                 }
@@ -1202,6 +1301,7 @@ Export-ModuleMember -Function `
     Assert-MonitorSurfaceTopology, `
     Get-GrassStripPixelVariance, `
     Assert-GrassRendered, `
+    Save-DesktopScreenshot, `
     Stop-AppGracefully, `
     Invoke-AppSmoke, `
     Find-MessageOnlyWindow, `
