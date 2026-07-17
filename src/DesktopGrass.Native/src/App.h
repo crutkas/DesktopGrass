@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "GrassWindow.h"
+#include "DisplayTopology.h"
 #include "MouseHook.h"
 #include "Pacing.h"
 #include "Persistence.h"
@@ -55,16 +56,26 @@ public:
 private:
     bool CreateMessageWindow();
     bool CreateTrayIcon();
+    bool AddTrayIcon();
     void RemoveTrayIcon();
     void DestroyMessageWindow();
-    bool EnumerateMonitorsAndCreateWindows();
+    bool ReconcileDisplayTopology();
     void DestroyAllGrassWindows();
-    void OnDisplayChanged();
-    bool HasDpiDrift() const;
+    std::unique_ptr<GrassWindow> CreateGrassWindow(
+        const topology::MonitorSnapshot& monitor,
+        const topology::SurfaceSpec& surface,
+        uint64_t layoutSeed,
+        const std::vector<persistence::CutRecord>& cuts);
+    uint64_t ResolveLayoutSeed(
+        const topology::MonitorSnapshot& monitor,
+        const persistence::MonitorState* state) const;
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
-    void ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds);
+    void ApplyStateToWindow(
+        GrassWindow& window,
+        const std::vector<persistence::CutRecord>& cuts);
     persistence::AppState BuildAppState();
+    void CacheCurrentState();
     void SaveCurrentState();
     void HandleSessionEnding(bool ending);
     void SetAutoStart(bool enabled);
@@ -75,7 +86,8 @@ private:
 
     static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT msg,
                                               WPARAM wp, LPARAM lp);
-    LRESULT HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp);
+    LRESULT HandleMessageWindowMessage(HWND hwnd, UINT msg,
+                                       WPARAM wp, LPARAM lp);
 
     HINSTANCE                                   hInst_   = nullptr;
     HWND                                        msgHwnd_ = nullptr;
@@ -95,13 +107,14 @@ private:
     bool                                        hasPersistedState_ = false;
     persistence::AppState                       persistedState_{};
     ULONGLONG                                   lastPersistenceSaveMs_ = 0;
-    ULONGLONG                                   lastDpiPollMs_ = 0;
+    ULONGLONG                                   lastTopologyPollMs_ = 0;
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     FramePacer                                  pacer_{};
     bool                                        quitRequested_ = false;
     bool                                        displayChangePending_ = false;
     bool                                        sessionEndStateSaved_ = false;
+    UINT                                        taskbarCreatedMessage_ = 0;
 };
 
 } // namespace desktopgrass

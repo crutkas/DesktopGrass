@@ -137,6 +137,8 @@
     <ClCompile Include="src\AutoStart.cpp" />
     <ClCompile Include="src\Benchmark.cpp" />
     <ClCompile Include="src\Config.cpp" />
+    <ClCompile Include="src\DisplayTopology.cpp" />
+    <ClCompile Include="src\DisplayTopologyWin32.cpp" />
     <ClCompile Include="src\GrassWindow.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\MouseHook.cpp" />
@@ -152,6 +154,8 @@
     <ClInclude Include="src\Config.h" />
     <ClInclude Include="src\Constants.h" />
     <ClInclude Include="src\DeviceRecovery.h" />
+    <ClInclude Include="src\DisplayTopology.h" />
+    <ClInclude Include="src\DisplayTopologyWin32.h" />
     <ClInclude Include="src\GrassWindow.h" />
     <ClInclude Include="src\Json.h" />
     <ClInclude Include="src\MouseHook.h" />

@@ -188,17 +188,24 @@ int Run(HINSTANCE hInst, const Options& opts) {
         ((STRIP_HEIGHT + HEADROOM) * primaryDpi / 96.0) + 0.5);
     const int targetH  = opts.heightPx > 0 ? opts.heightPx : defaultStripPx;
 
-    // GrassWindow.Create takes a "monitor work area" rect; it derives window
-    // origin/size from it. To honour width/height overrides while keeping the
-    // window pinned to the bottom-left of the primary work area, fabricate a
-    // monitorBounds rect of the requested width whose bottom matches the
-    // primary work-area bottom. Height is forced via the strip-DIP formula
-    // inside GrassWindow.Create; if the caller asked for a non-default
-    // heightPx we ignore that for the actual HWND (the renderer always uses
-    // STRIP_HEIGHT + HEADROOM in DIPs), but we still log targetH in the CSV
-    // header for traceability.
-    RECT monitorBounds = primaryWork;
-    monitorBounds.right = monitorBounds.left + targetW;
+    // Keep benchmark overrides independent from production topology capture,
+    // while exercising the same explicit monitor/surface creation contract.
+    topology::MonitorSnapshot monitor;
+    monitor.identity.stableId = "benchmark-primary";
+    monitor.identity.sourceId = "benchmark-primary";
+    monitor.monitorBounds = topology::PixelRect{
+        primaryWork.left, primaryWork.top,
+        primaryWork.right, primaryWork.bottom };
+    monitor.workArea = monitor.monitorBounds;
+    monitor.dpi = primaryDpi;
+    monitor.primary = true;
+
+    topology::SurfaceSpec surface;
+    surface.x = primaryWork.left;
+    surface.y = primaryWork.bottom - defaultStripPx;
+    surface.widthPx = targetW;
+    surface.heightPx = defaultStripPx;
+    surface.dpi = primaryDpi;
     (void)targetH; // logged in CSV header below; HWND height is fixed by spec
 
     if (!GrassWindow::RegisterWindowClass(hInst)) {
@@ -209,7 +216,7 @@ int Run(HINSTANCE hInst, const Options& opts) {
     const uint64_t seed = opts.seed != 0 ? opts.seed : kBenchmarkDefaultSeed;
 
     GrassWindow window;
-    if (!window.Create(hInst, nullptr, monitorBounds, primaryDpi, seed,
+    if (!window.Create(hInst, nullptr, monitor, surface, seed,
                        /*density=*/1.0, /*swaySpeed=*/1.0, /*swayAmplitude=*/1.0)) {
         std::fwprintf(stderr, L"[benchmark] GrassWindow::Create failed\n");
         return 1;

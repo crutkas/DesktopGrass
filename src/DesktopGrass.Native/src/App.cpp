@@ -4,17 +4,17 @@
 
 #include "AutoStart.h"
 #include "Constants.h"
+#include "DisplayTopologyWin32.h"
 #include "Sim.h"
 #include "../resource.h"
 
-#include <shellscalingapi.h>
+#include <dbt.h>
 #include <algorithm>
 #include <cstdio>
 #include <string>
 #include <utility>
 
 #pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "Shcore.lib")
 #pragma comment(lib, "User32.lib")
 
 namespace desktopgrass {
@@ -22,47 +22,6 @@ namespace desktopgrass {
 namespace {
 
 constexpr const wchar_t* kMsgWindowClass = L"DesktopGrass.Native.MessageWindow";
-
-// Fixed launch seed shared with the Win2D implementation so both produce
-// identical, deterministic per-monitor blade layouts.
-constexpr uint64_t kAppSeed = 0xD3C7C0F30070D511ull;
-
-// Per-monitor seed: combine the fixed app seed with the monitor's physical
-// origin so different screens get different — but stable across launches —
-// blade layouts. Mirrors Win2D App.cs exactly, including C# `(ulong)int`
-// sign-extension and unchecked uint64 multiply/wraparound semantics.
-uint64_t make_monitor_seed(const RECT& bounds) {
-    const uint64_t left = static_cast<uint64_t>(static_cast<int64_t>(bounds.left));
-    const uint64_t top  = static_cast<uint64_t>(static_cast<int64_t>(bounds.top));
-    return kAppSeed
-        ^ (left * 0xA0761D6478BD642Full)
-        ^ (top  * 0xE7037ED1A0B428DBull);
-}
-
-// EnumDisplayMonitors callback context.
-struct MonitorEnumCtx {
-    App*                app;
-    std::vector<RECT>   bounds;
-    std::vector<UINT>   dpis;
-};
-
-BOOL CALLBACK MonitorEnumProc(HMONITOR hMon, HDC, LPRECT, LPARAM lParam) {
-    auto* ctx = reinterpret_cast<MonitorEnumCtx*>(lParam);
-    MONITORINFO mi{};
-    mi.cbSize = sizeof(mi);
-    if (GetMonitorInfoW(hMon, &mi)) {
-        // Use the work area, not the full monitor rect, so the grass sits on
-        // top of the taskbar instead of being drawn behind it. On monitors with
-        // no taskbar (typical secondary displays), rcWork == rcMonitor.
-        ctx->bounds.push_back(mi.rcWork);
-        UINT xDpi = 96, yDpi = 96;
-        if (FAILED(GetDpiForMonitor(hMon, MDT_EFFECTIVE_DPI, &xDpi, &yDpi))) {
-            xDpi = 96;
-        }
-        ctx->dpis.push_back(xDpi);
-    }
-    return TRUE;
-}
 
 } // anonymous
 
@@ -92,12 +51,14 @@ bool App::Initialize(HINSTANCE hInst) {
         OutputDebugStringA("[DesktopGrass] unable to reconcile Start with Windows registry state\n");
     }
     lastPersistenceSaveMs_ = GetTickCount64();
-    lastDpiPollMs_ = lastPersistenceSaveMs_;
+    lastTopologyPollMs_ = lastPersistenceSaveMs_;
+    taskbarCreatedMessage_ = RegisterWindowMessageW(L"TaskbarCreated");
+    if (taskbarCreatedMessage_ == 0) return false;
 
     if (!GrassWindow::RegisterWindowClass(hInst_)) return false;
     if (!CreateMessageWindow())                    return false;
     if (!CreateTrayIcon())                         return false;
-    if (!EnumerateMonitorsAndCreateWindows())      return false;
+    if (!ReconcileDisplayTopology())               return false;
 
     if (!install_mouse_hook(&queue_)) {
         OutputDebugStringA("[DesktopGrass] install_mouse_hook failed\n");
@@ -120,16 +81,19 @@ bool App::CreateMessageWindow() {
     }
 
     msgHwnd_ = CreateWindowExW(
-        0, kMsgWindowClass, L"DesktopGrass.Msg",
-        0, 0, 0, 0, 0,
-        HWND_MESSAGE, nullptr, hInst_, this);
+        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+        kMsgWindowClass, L"DesktopGrass.Msg",
+        WS_POPUP, 0, 0, 0, 0,
+        nullptr, nullptr, hInst_, this);
     return msgHwnd_ != nullptr;
 }
 
 void App::DestroyMessageWindow() {
     if (msgHwnd_) {
-        DestroyWindow(msgHwnd_);
-        msgHwnd_ = nullptr;
+        if (!DestroyWindow(msgHwnd_)) {
+            OutputDebugStringA(
+                "[DesktopGrass] unable to destroy message window\n");
+        }
     }
 }
 
@@ -191,12 +155,28 @@ bool App::CreateTrayIcon() {
     nid_.hIcon = icon;
     wcsncpy_s(nid_.szTip, L"Desktop Grass", _TRUNCATE);
 
-    BOOL ok = Shell_NotifyIconW(NIM_ADD, &nid_);
-    trayAdded_ = (ok == TRUE);
+    AddTrayIcon();
+    return true; // non-fatal
+}
+
+bool App::AddTrayIcon() {
+    if (nid_.cbSize == 0 || !nid_.hWnd) {
+        return false;
+    }
+
+    const BOOL ok = Shell_NotifyIconW(NIM_ADD, &nid_);
+    trayAdded_ = ok == TRUE;
     if (!trayAdded_) {
         OutputDebugStringA("[DesktopGrass] Shell_NotifyIcon(NIM_ADD) failed\n");
+        return false;
     }
-    return true; // non-fatal
+
+    nid_.uVersion = NOTIFYICON_VERSION_4;
+    if (!Shell_NotifyIconW(NIM_SETVERSION, &nid_)) {
+        OutputDebugStringA(
+            "[DesktopGrass] Shell_NotifyIcon(NIM_SETVERSION) failed\n");
+    }
+    return true;
 }
 
 void App::UpdateSceneMenuCheck() {
@@ -297,58 +277,170 @@ void App::RemoveTrayIcon() {
     }
 }
 
-bool App::EnumerateMonitorsAndCreateWindows() {
-    DestroyAllGrassWindows();
+std::unique_ptr<GrassWindow> App::CreateGrassWindow(
+    const topology::MonitorSnapshot& monitor,
+    const topology::SurfaceSpec& surface,
+    uint64_t layoutSeed,
+    const std::vector<persistence::CutRecord>& cuts) {
+    auto window = std::make_unique<GrassWindow>();
+    if (!window->Create(
+            hInst_, msgHwnd_, monitor, surface, layoutSeed,
+            config_.bladeDensity, config_.swaySpeed, config_.swayAmplitude)) {
+        OutputDebugStringA("[DesktopGrass] GrassWindow::Create failed\n");
+        return nullptr;
+    }
+    ApplyStateToWindow(*window, cuts);
+    return window;
+}
 
-    MonitorEnumCtx ctx{ this, {}, {} };
-    EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc,
-                        reinterpret_cast<LPARAM>(&ctx));
+uint64_t App::ResolveLayoutSeed(
+    const topology::MonitorSnapshot& monitor,
+    const persistence::MonitorState* state) const {
+    if (state && state->layoutSeed) {
+        return *state->layoutSeed;
+    }
+    if (state && state->workAreaBounds) {
+        return topology::MakeLegacyLayoutSeed(monitor.workArea);
+    }
+    return topology::MakeLayoutSeed(monitor.identity);
+}
 
-    if (ctx.bounds.empty()) return false;
+bool App::ReconcileDisplayTopology() {
+    std::vector<topology::MonitorSnapshot> desired;
+    if (!topology::TryCaptureWin32Topology(desired)) {
+        OutputDebugStringA(
+            "[DesktopGrass] unable to capture a coherent display topology\n");
+        return false;
+    }
 
-    for (size_t i = 0; i < ctx.bounds.size(); ++i) {
-        auto w = std::make_unique<GrassWindow>();
-        // Each monitor gets a deterministic seed derived from its physical
-        // origin (shared formula with Win2D) so blade patterns differ across
-        // monitors but stay stable across launches and line up with persisted
-        // cut records.
-        const uint64_t mseed = make_monitor_seed(ctx.bounds[i]);
-        if (w->Create(hInst_, msgHwnd_, ctx.bounds[i], ctx.dpis[i], mseed, config_.bladeDensity,
-                      config_.swaySpeed, config_.swayAmplitude)) {
-            ApplyPersistedStateToWindow(*w, ctx.bounds[i]);
-            w->Show();
-            windows_.push_back(std::move(w));
-        } else {
-            OutputDebugStringA("[DesktopGrass] GrassWindow::Create failed\n");
+    std::vector<topology::CurrentSurface> current;
+    current.reserve(windows_.size());
+    for (const auto& window : windows_) {
+        current.push_back(
+            topology::CurrentSurface{
+                window->GetMonitor(), window->GetSurface() });
+    }
+
+    const auto plan = topology::PlanReconciliation(
+        current, desired, STRIP_HEIGHT + HEADROOM);
+    if (!plan) {
+        OutputDebugStringA(
+            "[DesktopGrass] unable to plan display topology reconciliation\n");
+        return false;
+    }
+    if (!plan->changed) {
+        return true;
+    }
+
+    CacheCurrentState();
+
+    std::vector<std::unique_ptr<GrassWindow>> oldWindows =
+        std::move(windows_);
+    std::vector<std::unique_ptr<GrassWindow>> reconciled;
+    reconciled.reserve(plan->desired.size() + plan->removals.size());
+    bool fullyApplied = true;
+
+    for (const topology::PlannedSurface& planned : plan->desired) {
+        if (planned.currentIndex == topology::kNoSurface) {
+            const persistence::MonitorState* saved =
+                hasPersistedState_
+                    ? persistence::FindMonitorState(
+                        persistedState_, planned.monitor)
+                    : nullptr;
+            const uint64_t seed = ResolveLayoutSeed(planned.monitor, saved);
+            const std::vector<persistence::CutRecord> cuts =
+                saved ? saved->cuts
+                      : std::vector<persistence::CutRecord>{};
+            auto created = CreateGrassWindow(
+                planned.monitor, planned.surface, seed, cuts);
+            if (created) {
+                created->Show();
+                reconciled.push_back(std::move(created));
+            } else {
+                fullyApplied = false;
+            }
+            continue;
         }
+
+        auto& existing = oldWindows[planned.currentIndex];
+        if (!existing) {
+            fullyApplied = false;
+            continue;
+        }
+
+        switch (planned.kind) {
+        case topology::ReconcileKind::Keep:
+            existing->UpdateTopology(planned.monitor, planned.surface);
+            reconciled.push_back(std::move(existing));
+            break;
+
+        case topology::ReconcileKind::Move:
+            if (!existing->MoveTo(planned.monitor, planned.surface)) {
+                OutputDebugStringA(
+                    "[DesktopGrass] unable to move a monitor surface\n");
+                fullyApplied = false;
+            }
+            reconciled.push_back(std::move(existing));
+            break;
+
+        case topology::ReconcileKind::Replace: {
+            const uint64_t seed = existing->GetLayoutSeed();
+            const std::vector<persistence::CutRecord> cuts =
+                sim_get_cuts(existing->GetRenderer().GetSim());
+            auto replacement = CreateGrassWindow(
+                planned.monitor, planned.surface, seed, cuts);
+            if (!replacement) {
+                fullyApplied = false;
+                reconciled.push_back(std::move(existing));
+                break;
+            }
+
+            existing->Destroy();
+            if (existing->GetHwnd()) {
+                OutputDebugStringA(
+                    "[DesktopGrass] unable to retire replaced monitor surface\n");
+                replacement->Destroy();
+                fullyApplied = false;
+                reconciled.push_back(std::move(existing));
+                break;
+            }
+            existing.reset();
+            replacement->Show();
+            reconciled.push_back(std::move(replacement));
+            break;
+        }
+
+        case topology::ReconcileKind::Create:
+            fullyApplied = false;
+            reconciled.push_back(std::move(existing));
+            break;
+        }
+    }
+
+    for (const std::size_t removedIndex : plan->removals) {
+        auto& removed = oldWindows[removedIndex];
+        if (!removed) continue;
+
+        removed->Destroy();
+        if (removed->GetHwnd()) {
+            OutputDebugStringA(
+                "[DesktopGrass] unable to destroy removed monitor surface\n");
+            fullyApplied = false;
+            reconciled.push_back(std::move(removed));
+        }
+    }
+
+    windows_ = std::move(reconciled);
+    SaveCurrentState();
+    if (!fullyApplied) {
+        OutputDebugStringA(
+            "[DesktopGrass] display topology partially applied; will retry\n");
     }
     return !windows_.empty();
 }
 
 void App::DestroyAllGrassWindows() {
     windows_.clear();
-}
-
-void App::OnDisplayChanged() {
-    SaveCurrentState();
-    EnumerateMonitorsAndCreateWindows();
-}
-
-bool App::HasDpiDrift() const {
-    for (const auto& window : windows_) {
-        HMONITOR monitor = MonitorFromWindow(
-            window->GetHwnd(), MONITOR_DEFAULTTONEAREST);
-        if (!monitor) continue;
-
-        UINT dpiX = 96;
-        UINT dpiY = 96;
-        if (SUCCEEDED(GetDpiForMonitor(
-                monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) &&
-            dpiX != window->GetDpi()) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void App::DispatchMouseEvents() {
@@ -362,7 +454,9 @@ void App::DispatchMouseEvents() {
         for (std::size_t i = 0; i < n; ++i) {
             const RawMouseEvent& e = raw[i];
             for (auto& w : windows_) {
-                const RECT& r = w->GetScreenBounds();
+                const topology::SurfaceSpec& surface = w->GetSurface();
+                const int right = surface.x + surface.widthPx;
+                const int bottom = surface.y + surface.heightPx;
                 // Move events fire across the gust band; click events only
                 // when in the strip. The Sim's band-check (apply_move / click)
                 // re-filters in window-local coords. Here we route any event
@@ -370,12 +464,12 @@ void App::DispatchMouseEvents() {
                 // need to update the prevCursor baseline even outside the
                 // band so the baseline stays accurate, and the spec already
                 // handles the band rejection.
-                if (e.screenX < r.left || e.screenX > r.right) continue;
+                if (e.screenX < surface.x || e.screenX > right) continue;
 
                 // For move events we accept any y; for click events we only
                 // accept y inside the band.
                 if (e.type == EventType::Click) {
-                    if (e.screenY < r.top || e.screenY > r.bottom) continue;
+                    if (e.screenY < surface.y || e.screenY > bottom) continue;
                 }
 
                 // Convert to window-local DIPs.
@@ -383,8 +477,8 @@ void App::DispatchMouseEvents() {
                 const double scale = 96.0 / static_cast<double>(dpi);
                 InputEvent ie{};
                 ie.type = e.type;
-                ie.x    = (e.screenX - r.left) * scale;
-                ie.y    = (e.screenY - r.top)  * scale;
+                ie.x    = (e.screenX - surface.x) * scale;
+                ie.y    = (e.screenY - surface.y) * scale;
                 ie.time = e.timeSeconds;
 
                 // Apply directly to the sim. Note that this happens BEFORE
@@ -411,55 +505,57 @@ void App::RenderAllWindows(double dt) {
     }
 }
 
-void App::ApplyPersistedStateToWindow(GrassWindow& window, const RECT& monitorBounds) {
+void App::ApplyStateToWindow(
+    GrassWindow& window,
+    const std::vector<persistence::CutRecord>& cuts) {
     Sim& sim = window.GetRenderer().GetSim();
     sim_set_scene(sim, currentScene_);
     sim_set_critter_count(sim, currentCritterCount_);
     sim_set_critter(sim, currentCritter_);
-
-    if (!hasPersistedState_) return;
-
-    const int width = monitorBounds.right - monitorBounds.left;
-    const int height = monitorBounds.bottom - monitorBounds.top;
-    for (const persistence::MonitorState& monitor : persistedState_.monitors) {
-        if (monitor.width == width
-            && monitor.height == height
-            && monitor.left == monitorBounds.left
-            && monitor.top == monitorBounds.top) {
-            sim_apply_cuts(sim, monitor.cuts);
-            return;
-        }
-    }
+    sim_apply_cuts(sim, cuts);
 }
 
 persistence::AppState App::BuildAppState() {
-    persistence::AppState state;
-    state.version = 2;
+    persistence::AppState state =
+        hasPersistedState_ ? persistedState_ : persistence::AppState{};
+    state.version = 3;
     state.scene = currentScene_;
     state.critter = currentCritter_;
     state.critterCountOverride = currentCritterCount_;
     state.autoStart = autoStart_;
 
-    state.monitors.reserve(windows_.size());
+    state.monitors.reserve(state.monitors.size() + windows_.size());
     for (const auto& w : windows_) {
-        const RECT& bounds = w->GetMonitorBounds();
+        const topology::MonitorSnapshot& snapshot = w->GetMonitor();
+        const topology::PixelRect& bounds = snapshot.monitorBounds;
         persistence::MonitorState monitor;
-        monitor.width = bounds.right - bounds.left;
-        monitor.height = bounds.bottom - bounds.top;
+        monitor.stableId = snapshot.identity.stableId;
+        monitor.sourceId = snapshot.identity.sourceId;
+        monitor.layoutSeed = w->GetLayoutSeed();
+        monitor.width = bounds.Width();
+        monitor.height = bounds.Height();
         monitor.left = bounds.left;
         monitor.top = bounds.top;
+        monitor.workAreaBounds = false;
         const Sim& sim = w->GetRenderer().GetSim();
         monitor.cuts = sim_get_cuts(sim);
-        state.monitors.push_back(std::move(monitor));
+        persistence::UpsertMonitorState(
+            state, std::move(monitor), snapshot);
     }
 
     return state;
 }
 
-void App::SaveCurrentState() {
+void App::CacheCurrentState() {
     persistedState_ = BuildAppState();
     hasPersistedState_ = true;
-    persistence::SaveAppState(persistedState_);
+}
+
+void App::SaveCurrentState() {
+    CacheCurrentState();
+    if (!persistence::SaveAppState(persistedState_)) {
+        OutputDebugStringA("[DesktopGrass] unable to save application state\n");
+    }
     lastPersistenceSaveMs_ = GetTickCount64();
 }
 
@@ -494,17 +590,17 @@ int App::Run() {
         }
         if (quitRequested_) break;
 
-        // WM_DPICHANGED is not reliable for every layered DirectComposition
-        // popup. Poll the monitor DPI as a low-cost safety net, then rebuild
-        // outside window procedures so no live swap chain is resized mid-change.
+        // Broadcasts can be missed or arrive while Windows is still converging
+        // on a new topology. A low-frequency full snapshot is the safety net;
+        // equal snapshots produce no window or persistence work.
         const ULONGLONG tickMs = GetTickCount64();
-        if (tickMs - lastDpiPollMs_ >= 1000ull) {
-            lastDpiPollMs_ = tickMs;
-            displayChangePending_ = displayChangePending_ || HasDpiDrift();
+        if (tickMs - lastTopologyPollMs_ >= 1000ull) {
+            lastTopologyPollMs_ = tickMs;
+            displayChangePending_ = true;
         }
         if (displayChangePending_) {
             displayChangePending_ = false;
-            OnDisplayChanged();
+            ReconcileDisplayTopology();
         }
 
         // Compute dt.
@@ -556,11 +652,19 @@ LRESULT CALLBACK App::MessageWindowProc(HWND hwnd, UINT msg,
     } else {
         self = reinterpret_cast<App*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     }
-    if (self) return self->HandleMessageWindowMessage(msg, wp, lp);
+    if (self) return self->HandleMessageWindowMessage(hwnd, msg, wp, lp);
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
+LRESULT App::HandleMessageWindowMessage(
+    HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (taskbarCreatedMessage_ != 0 && msg == taskbarCreatedMessage_) {
+        trayAdded_ = false;
+        AddTrayIcon();
+        displayChangePending_ = true;
+        return 0;
+    }
+
     switch (msg) {
         case kTrayMessage:
             if (LOWORD(lp) == WM_RBUTTONUP || LOWORD(lp) == WM_CONTEXTMENU) {
@@ -601,6 +705,8 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
         }
 
         case WM_DISPLAYCHANGE:
+        case WM_SETTINGCHANGE:
+        case WM_DEVICECHANGE:
         case GrassWindow::kWmAppDisplayChanged:
             displayChangePending_ = true;
             return 0;
@@ -624,8 +730,13 @@ LRESULT App::HandleMessageWindowMessage(UINT msg, WPARAM wp, LPARAM lp) {
             RequestQuit();
             return 0;
 
+        case WM_NCDESTROY:
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+            msgHwnd_ = nullptr;
+            return DefWindowProcW(hwnd, msg, wp, lp);
+
         default:
-            return DefWindowProcW(msgHwnd_, msg, wp, lp);
+            return DefWindowProcW(hwnd, msg, wp, lp);
     }
 }
 

@@ -31,9 +31,12 @@ Each per-target check performs, in order:
 3. Read `GWL_EXSTYLE` and assert
    `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE`
    are all set. (Click-through gate.)
-4. Sleep 1500 ms so DirectComposition can produce a real first frame.
-5. Screenshot the bottom 80 px strip of the primary monitor and count
-   unique ARGB values sampled every 4th pixel. Fail if fewer than 50.
+4. For Native, assert exactly one grass HWND per active logical monitor and
+   verify each HWND spans that monitor's physical work-area width, ends at the
+   work-area bottom, and has the expected per-monitor DPI-scaled height.
+5. Poll physical-pixel screenshots of a grass HWND's bottom 80 px until the
+   timeout, counting unique ARGB values sampled every 4th pixel. Fail if fewer
+   than 50 colors appear.
 6. `PostMessage(WM_CLOSE)`; wait up to 2 s; force-kill if it hangs.
 
 The process is cleaned up in a `finally` block — even if any assertion

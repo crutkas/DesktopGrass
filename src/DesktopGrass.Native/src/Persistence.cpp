@@ -5,6 +5,7 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <cctype>
 #include <cstdio>
@@ -32,7 +33,7 @@ using JsonValue = desktopgrass::json::Value;
 using JsonParser = desktopgrass::json::Parser;
 
 std::optional<std::wstring> g_stateFilePathForTest;
-constexpr int kCurrentVersion = 2;
+constexpr int kCurrentVersion = 3;
 
 std::string JsonEscape(std::string_view text) {
     return desktopgrass::json::Escape(text);
@@ -96,6 +97,46 @@ bool TryParseMonitorKey(const std::string& key, MonitorState& monitor) {
     return matched == 4 && consumed == static_cast<int>(key.size());
 }
 
+std::string LayoutSeedToString(std::uint64_t seed) {
+    std::ostringstream out;
+    out << "0x" << std::hex << std::setfill('0') << std::setw(16) << seed;
+    return out.str();
+}
+
+std::optional<std::uint64_t> ParseLayoutSeed(const JsonValue& object) {
+    const auto text = ReadString(object, "layoutSeed");
+    if (!text) return std::nullopt;
+
+    std::string_view value(*text);
+    if (value.size() >= 2 && value[0] == '0'
+        && (value[1] == 'x' || value[1] == 'X')) {
+        value.remove_prefix(2);
+    }
+    if (value.empty() || value.size() > 16) return std::nullopt;
+
+    std::uint64_t seed = 0;
+    const auto parsed = std::from_chars(
+        value.data(), value.data() + value.size(), seed, 16);
+    if (parsed.ec != std::errc{}
+        || parsed.ptr != value.data() + value.size()) {
+        return std::nullopt;
+    }
+    return seed;
+}
+
+void ParseCuts(const JsonValue& object, MonitorState& monitor) {
+    const JsonValue* cuts = FindMember(object, "cuts");
+    if (!cuts || cuts->type != JsonValue::Type::Array) return;
+
+    for (const JsonValue& cutValue : cuts->arrayValue) {
+        if (cutValue.type != JsonValue::Type::Object) continue;
+        const auto bladeIndex = ReadInt(cutValue, "bladeIndex");
+        const auto cutTime = ReadDouble(cutValue, "cutTime");
+        if (!bladeIndex || !cutTime) continue;
+        monitor.cuts.push_back(CutRecord{ *bladeIndex, *cutTime });
+    }
+}
+
 std::string Serialize(const AppState& state) {
     std::ostringstream out;
     out << std::setprecision(17);
@@ -106,11 +147,23 @@ std::string Serialize(const AppState& state) {
     out << "  \"critter\": \"" << CritterToString(state.critter) << "\",\n";
     out << "  \"critterCount\": " << state.critterCountOverride << ",\n";
     out << "  \"autoStart\": " << (state.autoStart ? "true" : "false") << ",\n";
-    out << "  \"monitors\": {\n";
+    out << "  \"monitors\": [\n";
 
     for (std::size_t i = 0; i < state.monitors.size(); ++i) {
         const MonitorState& monitor = state.monitors[i];
-        out << "    \"" << JsonEscape(MonitorKey(monitor)) << "\": {\n";
+        out << "    {\n";
+        out << "      \"id\": \"" << JsonEscape(monitor.stableId) << "\",\n";
+        out << "      \"source\": \"" << JsonEscape(monitor.sourceId) << "\",\n";
+        if (monitor.layoutSeed) {
+            out << "      \"layoutSeed\": \""
+                << LayoutSeedToString(*monitor.layoutSeed) << "\",\n";
+        }
+        out << "      \"boundsKind\": \""
+            << (monitor.workAreaBounds ? "work" : "monitor") << "\",\n";
+        out << "      \"width\": " << monitor.width << ",\n";
+        out << "      \"height\": " << monitor.height << ",\n";
+        out << "      \"left\": " << monitor.left << ",\n";
+        out << "      \"top\": " << monitor.top << ",\n";
         out << "      \"cuts\": [";
         if (!monitor.cuts.empty()) {
             out << "\n";
@@ -129,22 +182,68 @@ std::string Serialize(const AppState& state) {
         out << "\n";
     }
 
-    out << "  }\n";
+    out << "  ]\n";
     out << "}\n";
     return out.str();
+}
+
+void ParseLegacyMonitors(const JsonValue& monitors, AppState& parsed) {
+    if (monitors.type != JsonValue::Type::Object) return;
+
+    for (const auto& [key, value] : monitors.objectValue) {
+        MonitorState monitor;
+        if (!TryParseMonitorKey(key, monitor)) {
+            continue;
+        }
+        monitor.workAreaBounds = true;
+        ParseCuts(value, monitor);
+        parsed.monitors.push_back(std::move(monitor));
+    }
+}
+
+void ParseCurrentMonitors(const JsonValue& monitors, AppState& parsed) {
+    if (monitors.type != JsonValue::Type::Array) return;
+
+    for (const JsonValue& value : monitors.arrayValue) {
+        if (value.type != JsonValue::Type::Object) continue;
+
+        const auto width = ReadInt(value, "width");
+        const auto height = ReadInt(value, "height");
+        const auto left = ReadInt(value, "left");
+        const auto top = ReadInt(value, "top");
+        if (!width || !height || !left || !top
+            || *width <= 0 || *height <= 0) {
+            continue;
+        }
+
+        MonitorState monitor;
+        monitor.stableId = topology::CanonicalizeIdentityComponent(
+            ReadString(value, "id").value_or(""));
+        monitor.sourceId = topology::CanonicalizeIdentityComponent(
+            ReadString(value, "source").value_or(""));
+        monitor.layoutSeed = ParseLayoutSeed(value);
+        monitor.width = *width;
+        monitor.height = *height;
+        monitor.left = *left;
+        monitor.top = *top;
+        monitor.workAreaBounds = desktopgrass::json::AsciiLower(
+            ReadString(value, "boundsKind").value_or("monitor")) == "work";
+        ParseCuts(value, monitor);
+        parsed.monitors.push_back(std::move(monitor));
+    }
 }
 
 bool ParseAppState(const JsonValue& root, AppState& out) {
     if (root.type != JsonValue::Type::Object) return false;
 
     const int version = ReadInt(root, "version").value_or(0);
-    if (version != 1 && version != kCurrentVersion) {
+    if (version != 1 && version != 2 && version != kCurrentVersion) {
         OutputDebugStringA("DesktopGrass persistence: unsupported state.json version; starting fresh.\n");
         return false;
     }
 
     AppState parsed;
-    parsed.version = kCurrentVersion;
+    parsed.version = version;
 
     auto sceneName = ReadString(root, "scene");
     if (!sceneName) sceneName = ReadString(root, "currentScene");
@@ -163,24 +262,11 @@ bool ParseAppState(const JsonValue& root, AppState& out) {
     parsed.autoStart = ReadBool(root, "autoStart").value_or(false);
 
     const JsonValue* monitors = FindMember(root, "monitors");
-    if (monitors && monitors->type == JsonValue::Type::Object) {
-        for (const auto& [key, value] : monitors->objectValue) {
-            MonitorState monitor;
-            if (!TryParseMonitorKey(key, monitor)) {
-                continue;
-            }
-
-            const JsonValue* cuts = FindMember(value, "cuts");
-            if (cuts && cuts->type == JsonValue::Type::Array) {
-                for (const JsonValue& cutValue : cuts->arrayValue) {
-                    if (cutValue.type != JsonValue::Type::Object) continue;
-                    const auto bladeIndex = ReadInt(cutValue, "bladeIndex");
-                    const auto cutTime = ReadDouble(cutValue, "cutTime");
-                    if (!bladeIndex || !cutTime) continue;
-                    monitor.cuts.push_back(CutRecord{ *bladeIndex, *cutTime });
-                }
-            }
-            parsed.monitors.push_back(std::move(monitor));
+    if (monitors) {
+        if (version <= 2) {
+            ParseLegacyMonitors(*monitors, parsed);
+        } else {
+            ParseCurrentMonitors(*monitors, parsed);
         }
     }
 
@@ -215,6 +301,68 @@ std::string MonitorKey(int width, int height, int left, int top) {
 
 std::string MonitorKey(const MonitorState& monitor) {
     return MonitorKey(monitor.width, monitor.height, monitor.left, monitor.top);
+}
+
+const MonitorState* FindMonitorState(
+    const AppState& state,
+    const topology::MonitorSnapshot& monitor) noexcept {
+    const MonitorState* match = nullptr;
+
+    if (!monitor.identity.stableId.empty()) {
+        for (const MonitorState& candidate : state.monitors) {
+            if (candidate.stableId != monitor.identity.stableId) continue;
+            if (match) return nullptr;
+            match = &candidate;
+        }
+        if (match) return match;
+    }
+
+    if (!monitor.identity.sourceId.empty()) {
+        for (const MonitorState& candidate : state.monitors) {
+            if (candidate.sourceId != monitor.identity.sourceId) continue;
+            if (!candidate.stableId.empty()
+                && !monitor.identity.stableId.empty()
+                && candidate.stableId != monitor.identity.stableId) {
+                continue;
+            }
+            if (match) return nullptr;
+            match = &candidate;
+        }
+        if (match) return match;
+    }
+
+    for (const MonitorState& candidate : state.monitors) {
+        if (!candidate.stableId.empty() || !candidate.sourceId.empty()) {
+            continue;
+        }
+        const topology::PixelRect& bounds = candidate.workAreaBounds
+            ? monitor.workArea
+            : monitor.monitorBounds;
+        if (candidate.width != bounds.Width()
+            || candidate.height != bounds.Height()
+            || candidate.left != bounds.left
+            || candidate.top != bounds.top) {
+            continue;
+        }
+        if (match) return nullptr;
+        match = &candidate;
+    }
+    return match;
+}
+
+void UpsertMonitorState(
+    AppState& state,
+    MonitorState monitor,
+    const topology::MonitorSnapshot& snapshot) {
+    const MonitorState* existing = FindMonitorState(state, snapshot);
+    if (!existing) {
+        state.monitors.push_back(std::move(monitor));
+        return;
+    }
+
+    const std::size_t index = static_cast<std::size_t>(
+        existing - state.monitors.data());
+    state.monitors[index] = std::move(monitor);
 }
 
 std::wstring GetStateFilePath() {
