@@ -153,6 +153,7 @@
     <ClInclude Include="src\Benchmark.h" />
     <ClInclude Include="src\Config.h" />
     <ClInclude Include="src\Constants.h" />
+    <ClInclude Include="src\DeviceRecovery.h" />
     <ClInclude Include="src\DisplayTopology.h" />
     <ClInclude Include="src\DisplayTopologyWin32.h" />
     <ClInclude Include="src\GrassWindow.h" />

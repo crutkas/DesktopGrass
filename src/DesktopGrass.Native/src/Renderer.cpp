@@ -34,8 +34,6 @@ void LogHR(const char* tag, HRESULT hr) {
 }
 
 constexpr float SHEEP_CURIOUS_VERTICAL_RADIUS_DIP = 120.0f;
-constexpr ULONGLONG DEVICE_RECOVERY_RETRY_MS = 1000;
-
 
 // Render-only shear that leans a tree about its trunk base (pivotGy) by a
 // damped, clamped fraction of the blade's effectiveLean. Returns identity for
@@ -57,12 +55,8 @@ Renderer::~Renderer() {
 }
 
 void Renderer::Cleanup() {
-    DiscardDeviceResources();
-    dcompVisual_.Reset();
-    dcompTarget_.Reset();
-    dcompDevice_.Reset();
-    initialized_ = false;
-    nextDeviceRecoveryAttemptMs_ = 0;
+    recovery_.Stop();
+    DiscardAllGraphicsResources();
 }
 
 bool Renderer::CreateDeviceResources() {
@@ -538,11 +532,17 @@ void Renderer::DiscardDeviceResources() {
     bunnyTailBrush_.Reset();
     bunnyEyeBrush_.Reset();
     bunnyNoseBrush_.Reset();
+    hedgehogBodyBrush_.Reset();
+    hedgehogSpikeBrush_.Reset();
+    hedgehogSpikeTipBrush_.Reset();
+    hedgehogNoseBrush_.Reset();
+    hedgehogEyeBrush_.Reset();
     butterflyBodyBrush_.Reset();
     for (auto& b : butterflyWingBrushes_) b.Reset();
     for (auto& b : butterflyAccentBrushes_) b.Reset();
     fireflyBodyBrush_.Reset();
     fireflyGlowBrush_.Reset();
+    birdBrush_.Reset();
     petNameBrush_.Reset();
     petNameShadowBrush_.Reset();
     petNameTextFormat_.Reset();
@@ -560,39 +560,33 @@ void Renderer::DiscardDeviceResources() {
     d3dDevice_.Reset();
 }
 
-bool Renderer::TryRestoreDeviceResources() {
-    DiscardDeviceResources();
+void Renderer::DiscardAllGraphicsResources() {
     dcompVisual_.Reset();
     dcompTarget_.Reset();
     dcompDevice_.Reset();
-
-    initialized_ = CreateDeviceResources()
-        && CreateSwapChainResources(widthPx_, heightPx_);
-    if (initialized_) {
-        nextDeviceRecoveryAttemptMs_ = 0;
-        return true;
-    }
-
     DiscardDeviceResources();
-    dcompVisual_.Reset();
-    dcompTarget_.Reset();
-    dcompDevice_.Reset();
-    nextDeviceRecoveryAttemptMs_ = GetTickCount64() + DEVICE_RECOVERY_RETRY_MS;
-    OutputDebugStringA("[DesktopGrass] device recovery failed; retrying in 1 second\n");
-    return false;
 }
 
-void Renderer::HandleDeviceLoss(const char* operation, HRESULT hr) {
-    LogHR(operation, hr);
-    if (d3dDevice_) {
-        const HRESULT reason = d3dDevice_->GetDeviceRemovedReason();
-        if (FAILED(reason)) {
-            LogHR("ID3D11Device::GetDeviceRemovedReason", reason);
-        }
+DeviceRecoveryAttempt Renderer::RecreateDeviceResources() {
+    DiscardAllGraphicsResources();
+
+    const bool restored = CreateDeviceResources()
+        && CreateSwapChainResources(widthPx_, heightPx_);
+    if (restored) {
+        return DeviceRecoveryAttempt{true, GetTickCount64()};
     }
 
-    initialized_ = false;
-    TryRestoreDeviceResources();
+    DiscardAllGraphicsResources();
+    const ULONGLONG completedAtMs = GetTickCount64();
+    OutputDebugStringA("[DesktopGrass] device recovery failed; retrying in 1 second\n");
+    return DeviceRecoveryAttempt{false, completedAtMs};
+}
+
+void Renderer::HandleDeviceLoss(const DeviceLossInfo& loss) {
+    recovery_.HandleDeviceLoss(
+        loss,
+        [this]() { return RecreateDeviceResources(); },
+        [](const char* tag, HRESULT hr) { LogHR(tag, hr); });
 }
 
 bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
@@ -604,8 +598,14 @@ bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
     heightPx_ = heightPx;
     dpi_      = dpi == 0 ? 96 : dpi;
 
-    if (!CreateDeviceResources())   return false;
-    if (!CreateSwapChainResources(widthPx, heightPx)) return false;
+    recovery_.Stop();
+    DiscardAllGraphicsResources();
+
+    if (!CreateDeviceResources()
+        || !CreateSwapChainResources(widthPx, heightPx)) {
+        DiscardAllGraphicsResources();
+        return false;
+    }
 
     const double widthDip  = static_cast<double>(widthPx)  * 96.0 / static_cast<double>(dpi_);
     const double heightDip = static_cast<double>(heightPx) * 96.0 / static_cast<double>(dpi_);
@@ -613,13 +613,12 @@ bool Renderer::Initialize(HWND hwnd, int widthPx, int heightPx,
     sim_.windowHeight = heightDip;
     sim_.swaySpeedScale = swaySpeed;
     sim_.swayAmpScale   = swayAmplitude;
-    initialized_ = true;
-    nextDeviceRecoveryAttemptMs_ = 0;
+    recovery_.StartReady();
     return true;
 }
 
 bool Renderer::Resize(int widthPx, int heightPx, UINT dpi) {
-    if (!initialized_) return false;
+    if (!recovery_.IsReady()) return false;
     if (widthPx <= 0 || heightPx <= 0) return false;
 
     widthPx_  = widthPx;
@@ -670,7 +669,7 @@ void Renderer::RegenerateForDpi(uint64_t seed, double density) {
     // path (D2DERR_RECREATE_TARGET / DXGI_ERROR_DEVICE_*), which only rebuilds
     // GPU resources and must NOT regenerate the sim. Only a DPI change calls
     // here.
-    if (!initialized_) return;
+    if (!recovery_.IsReady()) return;
 
     // Width/height in pixels and the DPI were already updated by Resize(); derive
     // the DIP extents the same way Initialize() does.
@@ -720,16 +719,23 @@ void Renderer::RenderFrame(double dt,
                            const InputEvent* events,
                            std::size_t numEvents)
 {
-    Tick(dt, events, numEvents);
+    recovery_.ProcessFrame(
+        GetTickCount64(),
+        [this, dt, events, numEvents]() {
+            Tick(dt, events, numEvents);
+        },
+        [this]() {
+            const std::optional<DeviceLossInfo> loss = DrawAndPresent();
+            if (loss) {
+                HandleDeviceLoss(*loss);
+            }
+        },
+        [this]() {
+            return RecreateDeviceResources();
+        });
+}
 
-    if (!initialized_) {
-        const ULONGLONG now = GetTickCount64();
-        if (nextDeviceRecoveryAttemptMs_ == 0 || now >= nextDeviceRecoveryAttemptMs_) {
-            TryRestoreDeviceResources();
-        }
-        return;
-    }
-
+std::optional<DeviceLossInfo> Renderer::DrawAndPresent() {
     d2dContext_->BeginDraw();
     // Fully transparent background so the layered window stays click-through.
     d2dContext_->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
@@ -745,19 +751,36 @@ void Renderer::RenderFrame(double dt,
     DrawEntities(cursorForRender);
 
     HRESULT hr = d2dContext_->EndDraw();
-    if (hr == D2DERR_RECREATE_TARGET) {
-        HandleDeviceLoss("EndDraw", hr);
-        return;
+    std::optional<DeviceLossInfo> loss = ClassifyDeviceLoss(
+        RenderOperation::EndDraw,
+        hr,
+        [this]() {
+            return d3dDevice_
+                ? d3dDevice_->GetDeviceRemovedReason()
+                : S_OK;
+        });
+    if (loss) {
+        return loss;
     }
     if (FAILED(hr)) { LogHR("EndDraw", hr); }
 
     DXGI_PRESENT_PARAMETERS pp{};
     hr = swapChain_->Present1(1, 0, &pp);
-    if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
-        HandleDeviceLoss("Present1", hr);
-    } else if (FAILED(hr)) {
+    loss = ClassifyDeviceLoss(
+        RenderOperation::Present1,
+        hr,
+        [this]() {
+            return d3dDevice_
+                ? d3dDevice_->GetDeviceRemovedReason()
+                : S_OK;
+        });
+    if (loss) {
+        return loss;
+    }
+    if (FAILED(hr)) {
         LogHR("Present1", hr);
     }
+    return std::nullopt;
 }
 
 void Renderer::DrawGrass(bool treesOnly, bool backgroundTrees) {
