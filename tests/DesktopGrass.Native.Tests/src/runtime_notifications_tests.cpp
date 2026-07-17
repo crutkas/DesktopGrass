@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 
 #include "RuntimeNotifications.h"
 
@@ -102,13 +102,18 @@ PowerSettingPayload MakePowerSetting(const GUID& setting, DWORD value) {
 
 } // anonymous namespace
 
-TEST_CASE("Runtime notification startup rolls back partial registrations",
-          "[runtime][notifications]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(RuntimeNotificationsTests)
+{
+public:
+TEST_METHOD(RuntimeNotificationStartupRollsBackPartialRegistrations) {
     const HWND receiver =
         reinterpret_cast<HWND>(static_cast<std::uintptr_t>(0x1234));
 
     for (int failAt = 1; failAt <= 5; ++failAt) {
-        CAPTURE(failAt);
         FakeApiState state;
         state.failAt = failAt;
         fakeState = &state;
@@ -116,8 +121,8 @@ TEST_CASE("Runtime notification startup rolls back partial registrations",
 
         {
             RuntimeNotifications notifications(api);
-            REQUIRE_FALSE(notifications.Start(receiver));
-            REQUIRE_FALSE(notifications.IsStarted());
+            Assert::IsFalse(notifications.Start(receiver));
+            Assert::IsFalse(notifications.IsStarted());
 
             std::vector<int> expected;
             for (int id = 1; id <= failAt; ++id) {
@@ -126,17 +131,16 @@ TEST_CASE("Runtime notification startup rolls back partial registrations",
             for (int id = failAt - 1; id >= 1; --id) {
                 expected.push_back(-id);
             }
-            REQUIRE(state.calls == expected);
+            Assert::IsTrue(state.calls == expected);
 
             notifications.Stop();
-            REQUIRE(state.calls == expected);
+            Assert::IsTrue(state.calls == expected);
         }
     }
     fakeState = nullptr;
 }
 
-TEST_CASE("Runtime notification teardown is reverse-order and idempotent",
-          "[runtime][notifications]") {
+TEST_METHOD(RuntimeNotificationTeardownIsReverseOrderAndIdempotent) {
     FakeApiState state;
     fakeState = &state;
     const RuntimeNotificationApi api = MakeFakeApi();
@@ -147,21 +151,21 @@ TEST_CASE("Runtime notification teardown is reverse-order and idempotent",
 
     {
         RuntimeNotifications notifications(api);
-        REQUIRE(notifications.Start(receiver));
-        REQUIRE(notifications.IsStarted());
-        REQUIRE(notifications.Start(receiver));
-        REQUIRE_FALSE(notifications.Start(otherReceiver));
-        REQUIRE(state.calls == (std::vector<int>{1, 2, 3, 4, 5}));
+        Assert::IsTrue(notifications.Start(receiver));
+        Assert::IsTrue(notifications.IsStarted());
+        Assert::IsTrue(notifications.Start(receiver));
+        Assert::IsFalse(notifications.Start(otherReceiver));
+        Assert::IsTrue(state.calls == (std::vector<int>{1, 2, 3, 4, 5}));
 
         notifications.Stop();
-        REQUIRE_FALSE(notifications.IsStarted());
-        REQUIRE(state.calls
+        Assert::IsFalse(notifications.IsStarted());
+        Assert::IsTrue(state.calls
                 == (std::vector<int>{
                     1, 2, 3, 4, 5, -5, -4, -3, -2, -1,
                 }));
 
         notifications.Stop();
-        REQUIRE(state.calls
+        Assert::IsTrue(state.calls
                 == (std::vector<int>{
                     1, 2, 3, 4, 5, -5, -4, -3, -2, -1,
                 }));
@@ -169,8 +173,7 @@ TEST_CASE("Runtime notification teardown is reverse-order and idempotent",
     fakeState = nullptr;
 }
 
-TEST_CASE("Runtime notification dispatch is receiver-neutral",
-          "[runtime][notifications]") {
+TEST_METHOD(RuntimeNotificationDispatchIsReceiverNeutral) {
     FakeApiState state;
     fakeState = &state;
     const RuntimeNotificationApi api = MakeFakeApi();
@@ -179,7 +182,7 @@ TEST_CASE("Runtime notification dispatch is receiver-neutral",
 
     {
         RuntimeNotifications notifications(api);
-        REQUIRE(notifications.Start(receiver));
+        Assert::IsTrue(notifications.Start(receiver));
 
         PowerSettingPayload battery =
             MakePowerSetting(GUID_ACDC_POWER_SOURCE, 1);
@@ -187,45 +190,47 @@ TEST_CASE("Runtime notification dispatch is receiver-neutral",
             WM_POWERBROADCAST,
             PBT_POWERSETTINGCHANGE,
             reinterpret_cast<LPARAM>(&battery));
-        REQUIRE(powerResult.handled);
-        REQUIRE(powerResult.stateChanged);
-        REQUIRE_FALSE(powerResult.visibilityChanged);
-        REQUIRE(
+        Assert::IsTrue(powerResult.handled);
+        Assert::IsTrue(powerResult.stateChanged);
+        Assert::IsFalse(powerResult.visibilityChanged);
+        Assert::IsTrue(
             notifications.State().powerSource
             == runtime::PowerSource::Battery);
 
         const RuntimeNotificationResult otherSession =
             notifications.Dispatch(
                 WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK, 99);
-        REQUIRE(otherSession.handled);
-        REQUIRE_FALSE(otherSession.stateChanged);
-        REQUIRE(
+        Assert::IsTrue(otherSession.handled);
+        Assert::IsFalse(otherSession.stateChanged);
+        Assert::IsTrue(
             notifications.State().sessionState
             == runtime::SessionState::Active);
 
         const RuntimeNotificationResult lockResult =
             notifications.Dispatch(
                 WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK, 42);
-        REQUIRE(lockResult.handled);
-        REQUIRE(lockResult.stateChanged);
-        REQUIRE(
+        Assert::IsTrue(lockResult.handled);
+        Assert::IsTrue(lockResult.stateChanged);
+        Assert::IsTrue(
             notifications.State().sessionState
             == runtime::SessionState::Locked);
 
-        REQUIRE(notifications.Dispatch(
+        Assert::IsTrue(notifications.Dispatch(
                     WM_POWERBROADCAST, PBT_APMSUSPEND, 0)
                     .stateChanged);
-        REQUIRE(notifications.State().suspended);
+        Assert::IsTrue(notifications.State().suspended);
 
         const RuntimeNotificationResult resumeResult =
             notifications.Dispatch(
                 WM_POWERBROADCAST, PBT_APMRESUMEAUTOMATIC, 0);
-        REQUIRE(resumeResult.handled);
-        REQUIRE(resumeResult.stateChanged);
-        REQUIRE(resumeResult.visibilityChanged);
-        REQUIRE_FALSE(notifications.State().suspended);
+        Assert::IsTrue(resumeResult.handled);
+        Assert::IsTrue(resumeResult.stateChanged);
+        Assert::IsTrue(resumeResult.visibilityChanged);
+        Assert::IsFalse(notifications.State().suspended);
 
-        REQUIRE_FALSE(notifications.Dispatch(WM_NULL, 0, 0).handled);
+        Assert::IsFalse(notifications.Dispatch(WM_NULL, 0, 0).handled);
     }
     fakeState = nullptr;
+}
+};
 }

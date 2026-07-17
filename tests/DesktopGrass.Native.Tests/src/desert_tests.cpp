@@ -1,6 +1,6 @@
 // desert_tests.cpp - §14 Desert scene cacti + tumbleweeds.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 #include "snapshot_data.h"
 
@@ -55,7 +55,7 @@ ExpectedCactus first_expected_cactus(std::size_t bladeCount) {
         return expected;
     }
 
-    FAIL("canonical seed produced no cactus slot");
+    Assert::Fail(L"Canonical seed produced no cactus slot", LINE_INFO());
     return {};
 }
 
@@ -67,17 +67,24 @@ int expected_tumbleweed_count(double monitorWidth) {
 
 } // anonymous
 
-TEST_CASE("Desert constants are pinned", "[desert][constants]") {
-    REQUIRE(CACTUS_PROBABILITY == Approx(0.005));
-    REQUIRE(CACTUS_HEIGHT_MIN == Approx(30.0));
-    REQUIRE(CACTUS_HEIGHT_MAX == Approx(70.0));
-    REQUIRE(CACTUS_COLOR == 0xFF2D7A2Du);
-    REQUIRE(TUMBLEWEED_COUNT_PER_1920DIP == 4);
-    REQUIRE(TUMBLEWEED_SPEED_MAX == Approx(72.0));
-    REQUIRE(TUMBLEWEED_PRNG_SALT == 0x7B0117CA7B0117CAull);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(DesertTests)
+{
+public:
+TEST_METHOD(DesertConstantsArePinned) {
+    Assert::IsTrue(CACTUS_PROBABILITY == Near(0.005));
+    Assert::IsTrue(CACTUS_HEIGHT_MIN == Near(30.0));
+    Assert::IsTrue(CACTUS_HEIGHT_MAX == Near(70.0));
+    Assert::IsTrue(CACTUS_COLOR == 0xFF2D7A2Du);
+    Assert::IsTrue(TUMBLEWEED_COUNT_PER_1920DIP == 4);
+    Assert::IsTrue(TUMBLEWEED_SPEED_MAX == Near(72.0));
+    Assert::IsTrue(TUMBLEWEED_PRNG_SALT == 0x7B0117CA7B0117CAull);
 }
 
-TEST_CASE("sim_set_scene Desert clears entities and generates cacti", "[desert][scene]") {
+TEST_METHOD(SimSetSceneDesertClearsEntitiesAndGeneratesCacti) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     Entity fake{};
     fake.kind = EntityKind::Snowflake;
@@ -85,35 +92,35 @@ TEST_CASE("sim_set_scene Desert clears entities and generates cacti", "[desert][
 
     sim_set_scene(sim, Scene::Desert);
 
-    REQUIRE(sim.currentScene == Scene::Desert);
-    REQUIRE(sim.entities.size() == static_cast<std::size_t>(expected_tumbleweed_count(kMonitor1920)));
-    for (const Entity& e : sim.entities) REQUIRE(e.kind == EntityKind::Tumbleweed);
+    Assert::IsTrue(sim.currentScene == Scene::Desert);
+    Assert::IsTrue(sim.entities.size() == static_cast<std::size_t>(expected_tumbleweed_count(kMonitor1920)));
+    for (const Entity& e : sim.entities) Assert::IsTrue(e.kind == EntityKind::Tumbleweed);
 
     std::size_t cactusCount = 0;
     for (const Blade& b : sim.blades) if (b.isCactus) ++cactusCount;
-    REQUIRE(cactusCount >= 1);
-    REQUIRE(cactusCount <= 10);
+    Assert::IsTrue(cactusCount >= 1);
+    Assert::IsTrue(cactusCount <= 10);
 }
 
-TEST_CASE("First cactus matches the spec-derived PRNG snapshot", "[desert][cactus]") {
+TEST_METHOD(FirstCactusMatchesTheSpecDerivedPRNGSnapshot) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     const ExpectedCactus expected = first_expected_cactus(sim.blades.size());
 
     sim_set_scene(sim, Scene::Desert);
 
-    REQUIRE(expected.slotIndex < sim.blades.size());
+    Assert::IsTrue(expected.slotIndex < sim.blades.size());
     const Blade& b = sim.blades[expected.slotIndex];
-    REQUIRE(b.isCactus);
-    REQUIRE(b.cactusType == expected.type);
-    REQUIRE(b.cactusHeight == Approx(expected.height).margin(1e-12));
-    REQUIRE(b.cactusWidth == Approx(expected.width).margin(1e-12));
-    if (expected.type == 1) REQUIRE(b.cactusArmSide == expected.armSide);
+    Assert::IsTrue(b.isCactus);
+    Assert::IsTrue(b.cactusType == expected.type);
+    Assert::IsTrue(b.cactusHeight == Near(expected.height).margin(1e-12));
+    Assert::IsTrue(b.cactusWidth == Near(expected.width).margin(1e-12));
+    if (expected.type == 1) Assert::IsTrue(b.cactusArmSide == expected.armSide);
 }
 
-TEST_CASE("Grass scene restores original flower and mushroom slot variants", "[desert][restore]") {
+TEST_METHOD(GrassSceneRestoresOriginalFlowerAndMushroomSlotVariants) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     const ExpectedCactus expected = first_expected_cactus(sim.blades.size());
-    REQUIRE(expected.slotIndex < sim.blades.size());
+    Assert::IsTrue(expected.slotIndex < sim.blades.size());
 
     Blade& target = sim.blades[expected.slotIndex];
     target.isFlower = true;
@@ -122,29 +129,29 @@ TEST_CASE("Grass scene restores original flower and mushroom slot variants", "[d
     target.originalIsMushroom = true;
 
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(sim.blades[expected.slotIndex].isCactus);
-    REQUIRE_FALSE(sim.blades[expected.slotIndex].isFlower);
-    REQUIRE_FALSE(sim.blades[expected.slotIndex].isMushroom);
+    Assert::IsTrue(sim.blades[expected.slotIndex].isCactus);
+    Assert::IsFalse(sim.blades[expected.slotIndex].isFlower);
+    Assert::IsFalse(sim.blades[expected.slotIndex].isMushroom);
 
     sim_set_scene(sim, Scene::Grass);
-    REQUIRE_FALSE(sim.blades[expected.slotIndex].isCactus);
-    REQUIRE(sim.blades[expected.slotIndex].isFlower);
-    REQUIRE(sim.blades[expected.slotIndex].isMushroom);
+    Assert::IsFalse(sim.blades[expected.slotIndex].isCactus);
+    Assert::IsTrue(sim.blades[expected.slotIndex].isFlower);
+    Assert::IsTrue(sim.blades[expected.slotIndex].isMushroom);
 }
 
-TEST_CASE("Desert generates the expected tumbleweed count", "[desert][tumbleweed]") {
+TEST_METHOD(DesertGeneratesTheExpectedTumbleweedCount) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
 
     const int expected = expected_tumbleweed_count(kMonitor1920);
-    REQUIRE(expected >= 1);
-    REQUIRE(sim.entities.size() == static_cast<std::size_t>(expected));
+    Assert::IsTrue(expected >= 1);
+    Assert::IsTrue(sim.entities.size() == static_cast<std::size_t>(expected));
 }
 
-TEST_CASE("First tumbleweed matches the spec-derived PRNG snapshot", "[desert][tumbleweed]") {
+TEST_METHOD(FirstTumbleweedMatchesTheSpecDerivedPRNGSnapshot) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE_FALSE(sim.entities.empty());
+    Assert::IsFalse(sim.entities.empty());
 
     Prng p;
     prng_init(p, CANONICAL_TEST_SEED ^ TUMBLEWEED_PRNG_SALT);
@@ -157,36 +164,36 @@ TEST_CASE("First tumbleweed matches the spec-derived PRNG snapshot", "[desert][t
     const double expectedRotation = prng_uniform(p, 0.0, 6.28318530717958647692);
 
     const Entity& e = sim.entities[0];
-    REQUIRE(e.kind == EntityKind::Tumbleweed);
-    REQUIRE(e.size == Approx(expectedSize).margin(1e-12));
-    REQUIRE(e.x == Approx(expectedX).margin(1e-12));
-    REQUIRE(e.y == Approx(expectedY).margin(1e-12));
-    REQUIRE(e.vx == Approx(expectedVx).margin(1e-12));
-    REQUIRE(e.rotation == Approx(expectedRotation).margin(1e-12));
-    REQUIRE(e.rotationSpeed == Approx(expectedVx / expectedSize).margin(1e-12));
+    Assert::IsTrue(e.kind == EntityKind::Tumbleweed);
+    Assert::IsTrue(e.size == Near(expectedSize).margin(1e-12));
+    Assert::IsTrue(e.x == Near(expectedX).margin(1e-12));
+    Assert::IsTrue(e.y == Near(expectedY).margin(1e-12));
+    Assert::IsTrue(e.vx == Near(expectedVx).margin(1e-12));
+    Assert::IsTrue(e.rotation == Near(expectedRotation).margin(1e-12));
+    Assert::IsTrue(e.rotationSpeed == Near(expectedVx / expectedSize).margin(1e-12));
 }
 
-TEST_CASE("Tumbleweed respawns at the opposite edge when off-screen", "[desert][tumbleweed]") {
+TEST_METHOD(TumbleweedRespawnsAtTheOppositeEdgeWhenOffScreen) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE_FALSE(sim.entities.empty());
+    Assert::IsFalse(sim.entities.empty());
 
     sim.entities[0].x = sim.monitorWidth + 100.0;
     sim_tick_entities(sim, 0.0);
 
     const Entity& e = sim.entities[0];
-    REQUIRE(e.kind == EntityKind::Tumbleweed);
-    REQUIRE(e.x == Approx(-e.size).margin(1e-12));
-    REQUIRE(e.vx > 0.0);
+    Assert::IsTrue(e.kind == EntityKind::Tumbleweed);
+    Assert::IsTrue(e.x == Near(-e.size).margin(1e-12));
+    Assert::IsTrue(e.vx > 0.0);
 }
 
-TEST_CASE("Tumbleweed hops above its baseline then settles", "[desert][tumbleweed]") {
+TEST_METHOD(TumbleweedHopsAboveItsBaselineThenSettles) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, DEFAULT_DENSITY);
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE_FALSE(sim.entities.empty());
+    Assert::IsFalse(sim.entities.empty());
 
     double yBase = sim.entities[0].altitudeAnchor;
-    REQUIRE(sim.entities[0].y == Approx(yBase).margin(1e-9)); // starts grounded
+    Assert::IsTrue(sim.entities[0].y == Near(yBase).margin(1e-9)); // starts grounded
 
     double minY = sim.entities[0].y;
     for (int i = 0; i < 900; ++i) {
@@ -197,24 +204,26 @@ TEST_CASE("Tumbleweed hops above its baseline then settles", "[desert][tumblewee
         if (t.x > sim.monitorWidth - 50.0) t.x = sim.monitorWidth - 50.0;
         yBase = t.altitudeAnchor;
         minY = std::min(minY, t.y);
-        REQUIRE(t.y <= yBase + 1e-6); // never sinks below the baseline
+        Assert::IsTrue(t.y <= yBase + 1e-6); // never sinks below the baseline
     }
 
-    REQUIRE(minY < yBase - 1.0); // it left the ground at least once
+    Assert::IsTrue(minY < yBase - 1.0); // it left the ground at least once
 }
 
-TEST_CASE("Desert scene leaves the canonical first blade geometry bit-identical", "[desert][snapshot]") {
+TEST_METHOD(DesertSceneLeavesTheCanonicalFirstBladeGeometryBitIdentical) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, kMonitor1920, 1.0);
-    REQUIRE(sim.blades.size() == desktopgrass::test::CANONICAL_BLADE_COUNT);
+    Assert::IsTrue(sim.blades.size() == desktopgrass::test::CANONICAL_BLADE_COUNT);
 
     sim_set_scene(sim, Scene::Desert);
 
     const Blade& first = sim.blades[0];
     const auto& expected = desktopgrass::test::CANONICAL_FIRST_10[0];
-    REQUIRE(first.baseX == Approx(expected.baseX).margin(1e-12));
-    REQUIRE(first.height == Approx(expected.height).margin(1e-12));
-    REQUIRE(first.thickness == Approx(expected.thickness).margin(1e-12));
-    REQUIRE(first.hue == expected.hue);
-    REQUIRE(first.swayPhaseOffset == Approx(expected.sway).margin(1e-12));
-    REQUIRE(first.stiffness == Approx(expected.stiffness).margin(1e-12));
+    Assert::IsTrue(first.baseX == Near(expected.baseX).margin(1e-12));
+    Assert::IsTrue(first.height == Near(expected.height).margin(1e-12));
+    Assert::IsTrue(first.thickness == Near(expected.thickness).margin(1e-12));
+    Assert::IsTrue(first.hue == expected.hue);
+    Assert::IsTrue(first.swayPhaseOffset == Near(expected.sway).margin(1e-12));
+    Assert::IsTrue(first.stiffness == Near(expected.stiffness).margin(1e-12));
+}
+};
 }

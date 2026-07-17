@@ -2,7 +2,7 @@
 //
 // §17 Cat critter tests. Mirrors Win2D CatTests.cs.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -29,7 +29,7 @@ const Entity* first_kind(const Sim& sim, EntityKind kind) {
 
 void keep_first_cat_only(Sim& sim) {
     Entity* cat = first_kind(sim, EntityKind::Cat);
-    REQUIRE(cat != nullptr);
+    Assert::IsTrue(cat != nullptr);
     const Entity copy = *cat;
     sim.entities.clear();
     sim.entities.push_back(copy);
@@ -46,110 +46,117 @@ InputEvent click_event(double x, double y) {
 
 } // namespace
 
-TEST_CASE("CritterKind::Cat and CRITTER_COUNT are pinned", "[cat][enum]") {
-    REQUIRE(static_cast<int>(CritterKind::None)  == 0);
-    REQUIRE(static_cast<int>(CritterKind::Sheep) == 1);
-    REQUIRE(static_cast<int>(CritterKind::Cat)   == 2);
-    REQUIRE(static_cast<int>(CritterKind::Bunny) == 3);
-    REQUIRE(CRITTER_COUNT == 4);
-    REQUIRE(CRITTER_DEFAULT == CritterKind::None);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(CatTests)
+{
+public:
+TEST_METHOD(CritterKindCatAndCRITTERCOUNTArePinned) {
+    Assert::IsTrue(static_cast<int>(CritterKind::None)  == 0);
+    Assert::IsTrue(static_cast<int>(CritterKind::Sheep) == 1);
+    Assert::IsTrue(static_cast<int>(CritterKind::Cat)   == 2);
+    Assert::IsTrue(static_cast<int>(CritterKind::Bunny) == 3);
+    Assert::IsTrue(CRITTER_COUNT == 4);
+    Assert::IsTrue(CRITTER_DEFAULT == CritterKind::None);
 }
 
-TEST_CASE("EntityKind::Cat is pinned", "[cat][enum]") {
-    REQUIRE(static_cast<int>(EntityKind::None)       == 0);
-    REQUIRE(static_cast<int>(EntityKind::Tumbleweed) == 1);
-    REQUIRE(static_cast<int>(EntityKind::Snowflake)  == 2);
-    REQUIRE(static_cast<int>(EntityKind::Sheep)      == 3);
-    REQUIRE(static_cast<int>(EntityKind::Cat)        == 4);
+TEST_METHOD(EntityKindCatIsPinned) {
+    Assert::IsTrue(static_cast<int>(EntityKind::None)       == 0);
+    Assert::IsTrue(static_cast<int>(EntityKind::Tumbleweed) == 1);
+    Assert::IsTrue(static_cast<int>(EntityKind::Snowflake)  == 2);
+    Assert::IsTrue(static_cast<int>(EntityKind::Sheep)      == 3);
+    Assert::IsTrue(static_cast<int>(EntityKind::Cat)        == 4);
 }
 
-TEST_CASE("Cat constants are pinned to spec values", "[cat][constants]") {
-    REQUIRE(CAT_COUNT_MIN == 1);
-    REQUIRE(CAT_COUNT_MAX == 2);
-    REQUIRE(CAT_WALK_SPEED_MIN == Approx(10.0));
-    REQUIRE(CAT_WALK_SPEED_MAX == Approx(22.0));
-    REQUIRE(CAT_POUNCE_SPEED   == Approx(60.0));
+TEST_METHOD(CatConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(CAT_COUNT_MIN == 1);
+    Assert::IsTrue(CAT_COUNT_MAX == 2);
+    Assert::IsTrue(CAT_WALK_SPEED_MIN == Near(10.0));
+    Assert::IsTrue(CAT_WALK_SPEED_MAX == Near(22.0));
+    Assert::IsTrue(CAT_POUNCE_SPEED   == Near(60.0));
 
-    REQUIRE(CAT_BODY_RADIUS    == Approx(11.0));
-    REQUIRE(CAT_BODY_HEIGHT    == Approx(7.0));
-    REQUIRE(CAT_HEAD_RADIUS    == Approx(4.5));
-    REQUIRE(CAT_LEG_LENGTH     == Approx(5.0));
-    REQUIRE(CAT_TAIL_LENGTH    == Approx(13.0));
-    REQUIRE(CAT_TAIL_THICKNESS == Approx(1.6));
-    REQUIRE(CAT_EAR_HEIGHT     == Approx(4.5));
+    Assert::IsTrue(CAT_BODY_RADIUS    == Near(11.0));
+    Assert::IsTrue(CAT_BODY_HEIGHT    == Near(7.0));
+    Assert::IsTrue(CAT_HEAD_RADIUS    == Near(4.5));
+    Assert::IsTrue(CAT_LEG_LENGTH     == Near(5.0));
+    Assert::IsTrue(CAT_TAIL_LENGTH    == Near(13.0));
+    Assert::IsTrue(CAT_TAIL_THICKNESS == Near(1.6));
+    Assert::IsTrue(CAT_EAR_HEIGHT     == Near(4.5));
 
-    REQUIRE(CAT_BODY_COLOR == 0xFF6B6259u);
-    REQUIRE(CAT_LEG_COLOR  == 0xFF3D3733u);
-    REQUIRE(CAT_FACE_COLOR == 0xFF6B6259u);
-    REQUIRE(CAT_EAR_COLOR  == 0xFF3D3733u);
-    REQUIRE(CAT_INK_COLOR  == 0xFF1A1614u);
+    Assert::IsTrue(CAT_BODY_COLOR == 0xFF6B6259u);
+    Assert::IsTrue(CAT_LEG_COLOR  == 0xFF3D3733u);
+    Assert::IsTrue(CAT_FACE_COLOR == 0xFF6B6259u);
+    Assert::IsTrue(CAT_EAR_COLOR  == 0xFF3D3733u);
+    Assert::IsTrue(CAT_INK_COLOR  == 0xFF1A1614u);
 
-    REQUIRE(CAT_WALK_PERIOD    == Approx(0.50));
-    REQUIRE(CAT_LEG_CYCLE_AMP  == Approx(1.6));
-    REQUIRE(CAT_HEAD_BOB_AMP   == Approx(0.4));
-    REQUIRE(CAT_TAIL_SWAY_FREQ == Approx(1.2));
-    REQUIRE(CAT_TAIL_SWAY_AMP  == Approx(0.35));
+    Assert::IsTrue(CAT_WALK_PERIOD    == Near(0.50));
+    Assert::IsTrue(CAT_LEG_CYCLE_AMP  == Near(1.6));
+    Assert::IsTrue(CAT_HEAD_BOB_AMP   == Near(0.4));
+    Assert::IsTrue(CAT_TAIL_SWAY_FREQ == Near(1.2));
+    Assert::IsTrue(CAT_TAIL_SWAY_AMP  == Near(0.35));
 
-    REQUIRE(CAT_STATE_WALKING  == SHEEP_STATE_WALKING);
-    REQUIRE(CAT_STATE_IDLE     == SHEEP_STATE_IDLE);
-    REQUIRE(CAT_STATE_SLEEPING == SHEEP_STATE_SLEEPING);
-    REQUIRE(CAT_STATE_POUNCING == SHEEP_STATE_HOPPING);
+    Assert::IsTrue(CAT_STATE_WALKING  == SHEEP_STATE_WALKING);
+    Assert::IsTrue(CAT_STATE_IDLE     == SHEEP_STATE_IDLE);
+    Assert::IsTrue(CAT_STATE_SLEEPING == SHEEP_STATE_SLEEPING);
+    Assert::IsTrue(CAT_STATE_POUNCING == SHEEP_STATE_HOPPING);
 
-    REQUIRE(CAT_WALK_DURATION_MIN  == Approx(6.0));
-    REQUIRE(CAT_WALK_DURATION_MAX  == Approx(10.0));
-    REQUIRE(CAT_IDLE_DURATION_MIN  == Approx(4.0));
-    REQUIRE(CAT_IDLE_DURATION_MAX  == Approx(8.0));
-    REQUIRE(CAT_SLEEP_DURATION_MIN == Approx(20.0));
-    REQUIRE(CAT_SLEEP_DURATION_MAX == Approx(40.0));
-    REQUIRE(CAT_POUNCE_DURATION    == Approx(0.45));
+    Assert::IsTrue(CAT_WALK_DURATION_MIN  == Near(6.0));
+    Assert::IsTrue(CAT_WALK_DURATION_MAX  == Near(10.0));
+    Assert::IsTrue(CAT_IDLE_DURATION_MIN  == Near(4.0));
+    Assert::IsTrue(CAT_IDLE_DURATION_MAX  == Near(8.0));
+    Assert::IsTrue(CAT_SLEEP_DURATION_MIN == Near(20.0));
+    Assert::IsTrue(CAT_SLEEP_DURATION_MAX == Near(40.0));
+    Assert::IsTrue(CAT_POUNCE_DURATION    == Near(0.45));
 
-    REQUIRE(CAT_IDLE_PROBABILITY == Approx(0.65));
-    REQUIRE(CAT_SLEEP_PROBABILITY == Approx(0.30));
-    REQUIRE(CAT_SLEEP_FROM_IDLE_PROB == Approx(0.50));
+    Assert::IsTrue(CAT_IDLE_PROBABILITY == Near(0.65));
+    Assert::IsTrue(CAT_SLEEP_PROBABILITY == Near(0.30));
+    Assert::IsTrue(CAT_SLEEP_FROM_IDLE_PROB == Near(0.50));
 
-    REQUIRE(CAT_POUNCE_RADIUS == Approx(80.0));
-    REQUIRE(CAT_POUNCE_HEIGHT == Approx(9.0));
-    REQUIRE(CAT_CURIOUS_RADIUS == Approx(100.0));
-    REQUIRE(CAT_CURIOUS_HEAD_TURN_MAX == Approx(0.7));
+    Assert::IsTrue(CAT_POUNCE_RADIUS == Near(80.0));
+    Assert::IsTrue(CAT_POUNCE_HEIGHT == Near(9.0));
+    Assert::IsTrue(CAT_CURIOUS_RADIUS == Near(100.0));
+    Assert::IsTrue(CAT_CURIOUS_HEAD_TURN_MAX == Near(0.7));
 }
 
-TEST_CASE("sim_init defaults to None and does not generate cats until selected", "[cat][init]") {
+TEST_METHOD(SimInitDefaultsToNoneAndDoesNotGenerateCatsUntilSelected) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
-    REQUIRE(sim.currentCritter == CritterKind::None);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::None);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_critter(sim, CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 }
 
-TEST_CASE("sim_set_critter(Cat) produces deterministic cats", "[cat][gen]") {
+TEST_METHOD(SimSetCritterCatProducesDeterministicCats) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
 
-    REQUIRE(sim.currentCritter == CritterKind::Cat);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Cat);
     const int k = count_kind(sim, EntityKind::Cat);
-    REQUIRE(k >= CAT_COUNT_MIN);
-    REQUIRE(k <= CAT_COUNT_MAX);
+    Assert::IsTrue(k >= CAT_COUNT_MIN);
+    Assert::IsTrue(k <= CAT_COUNT_MAX);
 
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Cat) continue;
-        REQUIRE(e.state == CAT_STATE_WALKING);
-        REQUIRE(e.stateTimer >= CAT_WALK_DURATION_MIN);
-        REQUIRE(e.stateTimer <  CAT_WALK_DURATION_MAX);
-        REQUIRE(std::fabs(e.vx) >= CAT_WALK_SPEED_MIN);
-        REQUIRE(std::fabs(e.vx) <  CAT_WALK_SPEED_MAX);
+        Assert::IsTrue(e.state == CAT_STATE_WALKING);
+        Assert::IsTrue(e.stateTimer >= CAT_WALK_DURATION_MIN);
+        Assert::IsTrue(e.stateTimer <  CAT_WALK_DURATION_MAX);
+        Assert::IsTrue(std::fabs(e.vx) >= CAT_WALK_SPEED_MIN);
+        Assert::IsTrue(std::fabs(e.vx) <  CAT_WALK_SPEED_MAX);
         const double margin = e.size + 8.0;
-        REQUIRE(e.x >= margin);
-        REQUIRE(e.x <= sim.monitorWidth - margin);
-        REQUIRE(e.y == Approx(sim.windowHeight - CAT_BODY_HEIGHT - CAT_LEG_LENGTH));
-        REQUIRE(e.size == Approx(CAT_BODY_RADIUS));
-        REQUIRE(e.lifetime < 0.0);
-        REQUIRE(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
-        REQUIRE(e.coatVariantIndex < CAT_COAT_VARIANT_COUNT);
+        Assert::IsTrue(e.x >= margin);
+        Assert::IsTrue(e.x <= sim.monitorWidth - margin);
+        Assert::IsTrue(e.y == Near(sim.windowHeight - CAT_BODY_HEIGHT - CAT_LEG_LENGTH));
+        Assert::IsTrue(e.size == Near(CAT_BODY_RADIUS));
+        Assert::IsTrue(e.lifetime < 0.0);
+        Assert::IsTrue(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+        Assert::IsTrue(e.coatVariantIndex < CAT_COAT_VARIANT_COUNT);
     }
 }
 
-TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
+TEST_METHOD(CatPRNGDrawOrderMatchesASideStream) {
     // count, then per-cat: x, speed, dir-coin, seed, stateTimer, nameIndex, coatVariantIndex
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
@@ -161,7 +168,7 @@ TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
     int expectedCount = static_cast<int>(std::floor(countDraw));
     if (expectedCount < CAT_COUNT_MIN) expectedCount = CAT_COUNT_MIN;
     if (expectedCount > CAT_COUNT_MAX) expectedCount = CAT_COUNT_MAX;
-    REQUIRE(count_kind(sim, EntityKind::Cat) == expectedCount);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == expectedCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
@@ -178,62 +185,62 @@ TEST_CASE("Cat PRNG draw order matches a side stream", "[cat][prng]") {
         const uint8_t expectedCoatVariantIndex = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(CAT_COAT_VARIANT_COUNT)));
 
-        REQUIRE(e.x == Approx(expectedX));
-        REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
-        REQUIRE(e.seed == expectedSeed);
-        REQUIRE(e.stateTimer == Approx(expectedTimer));
-        REQUIRE(e.nameIndex == expectedNameIndex);
-        REQUIRE(e.coatVariantIndex == expectedCoatVariantIndex);
+        Assert::IsTrue(e.x == Near(expectedX));
+        Assert::IsTrue(e.vx == Near(expectedSpeed * expectedDir));
+        Assert::IsTrue(e.seed == expectedSeed);
+        Assert::IsTrue(e.stateTimer == Near(expectedTimer));
+        Assert::IsTrue(e.nameIndex == expectedNameIndex);
+        Assert::IsTrue(e.coatVariantIndex == expectedCoatVariantIndex);
         ++seen;
     }
-    REQUIRE(seen == expectedCount);
+    Assert::IsTrue(seen == expectedCount);
 }
 
-TEST_CASE("sim_set_critter(None) clears ambient cats", "[cat][toggle]") {
+TEST_METHOD(SimSetCritterNoneClearsAmbientCats) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 
     sim_set_critter(sim, CritterKind::None);
-    REQUIRE(sim.currentCritter == CritterKind::None);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::None);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
 }
 
-TEST_CASE("Switching between critter species replaces the previous species", "[cat][toggle]") {
+TEST_METHOD(SwitchingBetweenCritterSpeciesReplacesThePreviousSpecies) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
-    REQUIRE(count_kind(sim, EntityKind::Sheep) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) == 0);
 
     sim_set_critter(sim, CritterKind::Sheep);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Sheep) >= SHEEP_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) >= SHEEP_COUNT_MIN);
 
     sim_set_critter(sim, CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Sheep) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) >= CAT_COUNT_MIN);
 }
 
-TEST_CASE("sim_set_scene gates active Cat to Grass", "[cat][scene]") {
+TEST_METHOD(SimSetSceneGatesActiveCatToGrass) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     const int catsGrass = count_kind(sim, EntityKind::Cat);
-    REQUIRE(catsGrass >= CAT_COUNT_MIN);
+    Assert::IsTrue(catsGrass >= CAT_COUNT_MIN);
 
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(sim.currentCritter == CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Cat);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(sim.currentCritter == CritterKind::Cat);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Cat);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_scene(sim, Scene::Grass);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == catsGrass);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == catsGrass);
 }
 
-TEST_CASE("Click within CAT_POUNCE_RADIUS pounces toward the click", "[cat][click]") {
+TEST_METHOD(ClickWithinCATPOUNCERADIUSPouncesTowardTheClick) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     keep_first_cat_only(sim);
@@ -246,13 +253,13 @@ TEST_CASE("Click within CAT_POUNCE_RADIUS pounces toward the click", "[cat][clic
     sim_apply_click(sim, click_event(cat.x + 16.0, sim.windowHeight - 20.0));
 
     const Entity& after = sim.entities.front();
-    REQUIRE(after.state == CAT_STATE_POUNCING);
-    REQUIRE(after.stateTimer == Approx(CAT_POUNCE_DURATION));
-    REQUIRE(after.age == Approx(0.0));
-    REQUIRE(after.vx == Approx(CAT_POUNCE_SPEED));
+    Assert::IsTrue(after.state == CAT_STATE_POUNCING);
+    Assert::IsTrue(after.stateTimer == Near(CAT_POUNCE_DURATION));
+    Assert::IsTrue(after.age == Near(0.0));
+    Assert::IsTrue(after.vx == Near(CAT_POUNCE_SPEED));
 }
 
-TEST_CASE("Click outside CAT_POUNCE_RADIUS leaves cat alone", "[cat][click]") {
+TEST_METHOD(ClickOutsideCATPOUNCERADIUSLeavesCatAlone) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     keep_first_cat_only(sim);
@@ -266,11 +273,11 @@ TEST_CASE("Click outside CAT_POUNCE_RADIUS leaves cat alone", "[cat][click]") {
     sim_apply_click(sim, click_event(cat.x + CAT_POUNCE_RADIUS + 5.0, sim.windowHeight - 20.0));
 
     const Entity& after = sim.entities.front();
-    REQUIRE(after.state == stateBefore);
-    REQUIRE(after.vx == Approx(vxBefore));
+    Assert::IsTrue(after.state == stateBefore);
+    Assert::IsTrue(after.vx == Near(vxBefore));
 }
 
-TEST_CASE("Cats do not greet other cats", "[cat][greeting]") {
+TEST_METHOD(CatsDoNotGreetOtherCats) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     keep_first_cat_only(sim);
@@ -290,13 +297,13 @@ TEST_CASE("Cats do not greet other cats", "[cat][greeting]") {
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 2);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 2);
     for (const Entity& e : sim.entities) {
-        if (e.kind == EntityKind::Cat) REQUIRE(e.state != SHEEP_STATE_GREETING);
+        if (e.kind == EntityKind::Cat) Assert::IsTrue(e.state != SHEEP_STATE_GREETING);
     }
 }
 
-TEST_CASE("Cats do not greet sheep", "[cat][greeting]") {
+TEST_METHOD(CatsDoNotGreetSheep) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Cat);
     keep_first_cat_only(sim);
@@ -325,8 +332,9 @@ TEST_CASE("Cats do not greet sheep", "[cat][greeting]") {
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 1);
-    REQUIRE(count_kind(sim, EntityKind::Sheep) == 1);
-    for (const Entity& e : sim.entities) REQUIRE(e.state != SHEEP_STATE_GREETING);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 1);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) == 1);
+    for (const Entity& e : sim.entities) Assert::IsTrue(e.state != SHEEP_STATE_GREETING);
 }
-
+};
+}

@@ -2,7 +2,7 @@
 //
 // Sway physics tests (architecture.md §6).
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <cmath>
@@ -30,17 +30,24 @@ Blade make_blade(double phase, double stiffness) {
 
 } // anonymous
 
-TEST_CASE("sway phase advances linearly with globalTime", "[sway]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(SwayTests)
+{
+public:
+TEST_METHOD(SwayPhaseAdvancesLinearlyWithGlobalTime) {
     Blade b = make_blade(0.0, 1.0);
     update_blade_dynamics(b, 0.0, 0.016);
     const double leanT0 = b.effectiveLean;
 
     // After one full BASE_SWAY_SPEED period (6 sec) the lean returns to ~same.
     update_blade_dynamics(b, (2.0 * kPi) / BASE_SWAY_SPEED, 0.016);
-    REQUIRE(b.effectiveLean == Approx(leanT0).margin(1e-9));
+    Assert::IsTrue(b.effectiveLean == Near(leanT0).margin(1e-9));
 }
 
-TEST_CASE("sway lean stays bounded by BASE_AMPLITUDE * stiffness", "[sway]") {
+TEST_METHOD(SwayLeanStaysBoundedByBASEAMPLITUDEStiffness) {
     Blade b = make_blade(0.0, 1.0);
     double maxAbs = 0.0;
     // Sample one full period at fine granularity.
@@ -48,11 +55,11 @@ TEST_CASE("sway lean stays bounded by BASE_AMPLITUDE * stiffness", "[sway]") {
         update_blade_dynamics(b, t, 0.001);
         maxAbs = std::max(maxAbs, std::fabs(b.effectiveLean));
     }
-    REQUIRE(maxAbs <= BASE_AMPLITUDE + 1e-9);
-    REQUIRE(maxAbs >= BASE_AMPLITUDE * 0.99);
+    Assert::IsTrue(maxAbs <= BASE_AMPLITUDE + 1e-9);
+    Assert::IsTrue(maxAbs >= BASE_AMPLITUDE * 0.99);
 }
 
-TEST_CASE("stiffness scales sway amplitude", "[sway]") {
+TEST_METHOD(StiffnessScalesSwayAmplitude) {
     Blade soft = make_blade(0.0, 0.6);
     Blade hard = make_blade(0.0, 1.0);
 
@@ -64,11 +71,11 @@ TEST_CASE("stiffness scales sway amplitude", "[sway]") {
         hardMax = std::max(hardMax, std::fabs(hard.effectiveLean));
     }
 
-    REQUIRE(softMax <  hardMax);
-    REQUIRE(softMax == Approx(hardMax * 0.6).margin(1e-3));
+    Assert::IsTrue(softMax <  hardMax);
+    Assert::IsTrue(softMax == Near(hardMax * 0.6).margin(1e-3));
 }
 
-TEST_CASE("swayAmplitude scale multiplies the lean", "[sway]") {
+TEST_METHOD(SwayAmplitudeScaleMultipliesTheLean) {
     // At the same time/phase, ampScale=2.0 doubles the lean; ampScale=0 zeroes it.
     Blade base = make_blade(0.3, 1.0);
     Blade dbl  = make_blade(0.3, 1.0);
@@ -77,21 +84,21 @@ TEST_CASE("swayAmplitude scale multiplies the lean", "[sway]") {
     update_blade_dynamics(base, t, 0.016, 1.0, 1.0);
     update_blade_dynamics(dbl,  t, 0.016, 1.0, 2.0);
     update_blade_dynamics(zero, t, 0.016, 1.0, 0.0);
-    REQUIRE(dbl.effectiveLean  == Approx(2.0 * base.effectiveLean).margin(1e-12));
-    REQUIRE(zero.effectiveLean == Approx(0.0).margin(1e-12));
+    Assert::IsTrue(dbl.effectiveLean  == Near(2.0 * base.effectiveLean).margin(1e-12));
+    Assert::IsTrue(zero.effectiveLean == Near(0.0).margin(1e-12));
 }
 
-TEST_CASE("swaySpeed scale stretches the phase advance", "[sway]") {
+TEST_METHOD(SwaySpeedScaleStretchesThePhaseAdvance) {
     // speedScale=2.0 at time t equals the default at time 2t (pure phase scaling).
     Blade fast = make_blade(0.1, 1.0);
     Blade slow = make_blade(0.1, 1.0);
     const double t = 0.9;
     update_blade_dynamics(fast, t,       0.016, 2.0, 1.0);
     update_blade_dynamics(slow, 2.0 * t, 0.016, 1.0, 1.0);
-    REQUIRE(fast.effectiveLean == Approx(slow.effectiveLean).margin(1e-12));
+    Assert::IsTrue(fast.effectiveLean == Near(slow.effectiveLean).margin(1e-12));
 }
 
-TEST_CASE("sim_tick applies the Sim sway scales to blades", "[sway]") {
+TEST_METHOD(SimTickAppliesTheSimSwayScalesToBlades) {
     // Proves the knobs are actually wired through the per-frame tick, not just
     // the standalone helper: a sim with swayAmpScale=0 produces zero base lean.
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
@@ -101,12 +108,12 @@ TEST_CASE("sim_tick applies the Sim sway scales to blades", "[sway]") {
     for (const Blade& b : sim.blades) {
         // No ambient gust fired (gustVelocity stays 0), so effectiveLean is pure
         // base lean, which ampScale=0 must flatten to 0.
-        REQUIRE(b.gustVelocity == Approx(0.0).margin(1e-12));
-        REQUIRE(b.effectiveLean == Approx(0.0).margin(1e-12));
+        Assert::IsTrue(b.gustVelocity == Near(0.0).margin(1e-12));
+        Assert::IsTrue(b.effectiveLean == Near(0.0).margin(1e-12));
     }
 }
 
-TEST_CASE("phase offset shifts the sine wave", "[sway]") {
+TEST_METHOD(PhaseOffsetShiftsTheSineWave) {
     Blade a = make_blade(0.0,        1.0);
     Blade b = make_blade(kPi / 2.0, 1.0);
 
@@ -114,20 +121,20 @@ TEST_CASE("phase offset shifts the sine wave", "[sway]") {
     update_blade_dynamics(b, 0.0, 0.001);
 
     // At t=0 with stiffness=1: a -> sin(0)*6 = 0; b -> sin(π/2)*6 = 6.
-    REQUIRE(a.effectiveLean == Approx(0.0).margin(1e-9));
-    REQUIRE(b.effectiveLean == Approx(BASE_AMPLITUDE).margin(1e-9));
+    Assert::IsTrue(a.effectiveLean == Near(0.0).margin(1e-9));
+    Assert::IsTrue(b.effectiveLean == Near(BASE_AMPLITUDE).margin(1e-9));
 }
 
-TEST_CASE("gust velocity decays exponentially with dt", "[sway]") {
+TEST_METHOD(GustVelocityDecaysExponentiallyWithDt) {
     Blade b = make_blade(0.0, 1.0);
     b.gustVelocity = 10.0;
 
     // After 1 second, expect gustVelocity ≈ 10 * exp(-2.5).
     update_blade_dynamics(b, 0.0, 1.0);
-    REQUIRE(b.gustVelocity == Approx(10.0 * std::exp(-DECAY_RATE * 1.0)).margin(1e-9));
+    Assert::IsTrue(b.gustVelocity == Near(10.0 * std::exp(-DECAY_RATE * 1.0)).margin(1e-9));
 }
 
-TEST_CASE("gust velocity contributes to effective lean", "[sway]") {
+TEST_METHOD(GustVelocityContributesToEffectiveLean) {
     Blade b = make_blade(0.0, 1.0);
     b.gustVelocity = 2.0;
 
@@ -135,5 +142,7 @@ TEST_CASE("gust velocity contributes to effective lean", "[sway]") {
     update_blade_dynamics(b, 0.0, 1e-6);
     const double expectedFromGust = 2.0 * GUST_TO_LEAN_FACTOR;
     // At t=0 sway contribution is sin(0)=0; only gust remains.
-    REQUIRE(b.effectiveLean == Approx(expectedFromGust).margin(1e-3));
+    Assert::IsTrue(b.effectiveLean == Near(expectedFromGust).margin(1e-3));
+}
+};
 }

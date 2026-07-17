@@ -2,7 +2,7 @@
 //
 // Cut state animation tests (architecture.md §9).
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 #include "snapshot_data.h"
 
@@ -38,7 +38,14 @@ InputEvent click(double x, double y, double t) {
 
 } // anonymous
 
-TEST_CASE("click inside cut band animates blades within radius to 0", "[cut]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(CutTests)
+{
+public:
+TEST_METHOD(ClickInsideCutBandAnimatesBladesWithinRadiusTo0) {
     Sim sim = make_sim_with_blades({100.0, 110.0, 200.0});
     const double y_in_band = sim.windowHeight - 40.0; // inside strip
 
@@ -50,15 +57,15 @@ TEST_CASE("click inside cut band animates blades within radius to 0", "[cut]") {
         sim_tick(sim, 0.05, nullptr, 0);
     }
 
-    REQUIRE(sim.blades[0].cutHeight == Approx(0.0));
-    REQUIRE(sim.blades[0].cutAnimStart == Approx(-1.0));
-    REQUIRE(sim.blades[1].cutHeight == Approx(0.0));
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(0.0));
+    Assert::IsTrue(sim.blades[0].cutAnimStart == Near(-1.0));
+    Assert::IsTrue(sim.blades[1].cutHeight == Near(0.0));
     // Blade at 200 is outside CUT_RADIUS = 30.
-    REQUIRE(sim.blades[2].cutHeight == Approx(1.0));
-    REQUIRE(sim.blades[2].cutAnimStart == Approx(-1.0));
+    Assert::IsTrue(sim.blades[2].cutHeight == Near(1.0));
+    Assert::IsTrue(sim.blades[2].cutAnimStart == Near(-1.0));
 }
 
-TEST_CASE("cut animation is linear over CUT_DURATION_SEC", "[cut]") {
+TEST_METHOD(CutAnimationIsLinearOverCUTDURATIONSEC) {
     Sim sim = make_sim_with_blades({100.0});
     const double y = sim.windowHeight - 40.0;
 
@@ -68,34 +75,34 @@ TEST_CASE("cut animation is linear over CUT_DURATION_SEC", "[cut]") {
 
     // 50 ms in → cutHeight ≈ 0.75.
     sim_tick(sim, 0.05, nullptr, 0);
-    REQUIRE(sim.blades[0].cutHeight == Approx(0.75).margin(1e-9));
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(0.75).margin(1e-9));
 
     // 100 ms in → 0.5.
     sim_tick(sim, 0.05, nullptr, 0);
-    REQUIRE(sim.blades[0].cutHeight == Approx(0.5).margin(1e-9));
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(0.5).margin(1e-9));
 
     // 150 ms in → 0.25.
     sim_tick(sim, 0.05, nullptr, 0);
-    REQUIRE(sim.blades[0].cutHeight == Approx(0.25).margin(1e-9));
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(0.25).margin(1e-9));
 
     // 200 ms in → 0.0 and idle.
     sim_tick(sim, 0.05, nullptr, 0);
-    REQUIRE(sim.blades[0].cutHeight == Approx(0.0).margin(1e-9));
-    REQUIRE(sim.blades[0].cutAnimStart < 0.0);
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(0.0).margin(1e-9));
+    Assert::IsTrue(sim.blades[0].cutAnimStart < 0.0);
 }
 
-TEST_CASE("click outside cut band is ignored", "[cut]") {
+TEST_METHOD(ClickOutsideCutBandIsIgnored) {
     Sim sim = make_sim_with_blades({100.0});
     const double y_above = sim.windowHeight - STRIP_HEIGHT - 5.0;
 
     InputEvent ev = click(100.0, y_above, 0.0);
     sim_tick(sim, 0.0, &ev, 1);
 
-    REQUIRE(sim.blades[0].cutHeight == Approx(1.0));
-    REQUIRE(sim.blades[0].cutAnimStart < 0.0);
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(1.0));
+    Assert::IsTrue(sim.blades[0].cutAnimStart < 0.0);
 }
 
-TEST_CASE("repeat click on in-flight blade is idempotent", "[cut]") {
+TEST_METHOD(RepeatClickOnInFlightBladeIsIdempotent) {
     Sim sim = make_sim_with_blades({100.0});
     const double y = sim.windowHeight - 40.0;
 
@@ -110,12 +117,12 @@ TEST_CASE("repeat click on in-flight blade is idempotent", "[cut]") {
     InputEvent second = click(100.0, y, 0.05);
     sim_tick(sim, 0.0, &second, 1);
 
-    REQUIRE(sim.blades[0].cutAnimStart    == Approx(startSnapshot));
-    REQUIRE(sim.blades[0].cutInitialHeight == Approx(1.0));
-    REQUIRE(sim.blades[0].cutHeight == Approx(heightSnapshot));
+    Assert::IsTrue(sim.blades[0].cutAnimStart    == Near(startSnapshot));
+    Assert::IsTrue(sim.blades[0].cutInitialHeight == Near(1.0));
+    Assert::IsTrue(sim.blades[0].cutHeight == Near(heightSnapshot));
 }
 
-TEST_CASE("click on already-cut blade is a no-op", "[cut]") {
+TEST_METHOD(ClickOnAlreadyCutBladeIsANoOp) {
     Sim sim = make_sim_with_blades({100.0});
     sim.blades[0].cutHeight        = 0.0;
     sim.blades[0].cutInitialHeight = 0.0;
@@ -125,23 +132,23 @@ TEST_CASE("click on already-cut blade is a no-op", "[cut]") {
     InputEvent ev = click(100.0, y, 0.0);
     sim_tick(sim, 0.0, &ev, 1);
 
-    REQUIRE(sim.blades[0].cutHeight    == Approx(0.0));
-    REQUIRE(sim.blades[0].cutAnimStart  < 0.0);
+    Assert::IsTrue(sim.blades[0].cutHeight    == Near(0.0));
+    Assert::IsTrue(sim.blades[0].cutAnimStart  < 0.0);
 }
 
-TEST_CASE("blades outside cut radius are untouched", "[cut]") {
+TEST_METHOD(BladesOutsideCutRadiusAreUntouched) {
     Sim sim = make_sim_with_blades({100.0, 131.0, 200.0});
     const double y = sim.windowHeight - 40.0;
 
     InputEvent ev = click(100.0, y, 0.0);
     sim_tick(sim, 0.0, &ev, 1);
 
-    REQUIRE(sim.blades[0].cutAnimStart >= 0.0);
-    REQUIRE(sim.blades[1].cutAnimStart  < 0.0);
-    REQUIRE(sim.blades[2].cutAnimStart  < 0.0);
+    Assert::IsTrue(sim.blades[0].cutAnimStart >= 0.0);
+    Assert::IsTrue(sim.blades[1].cutAnimStart  < 0.0);
+    Assert::IsTrue(sim.blades[2].cutAnimStart  < 0.0);
 }
 
-TEST_CASE("compute_blade_stroke degenerates to a stump under threshold", "[cut][geometry]") {
+TEST_METHOD(ComputeBladeStrokeDegeneratesToAStumpUnderThreshold) {
     Blade b{};
     b.baseX            = 100.0;
     b.height           = 20.0;
@@ -153,12 +160,12 @@ TEST_CASE("compute_blade_stroke degenerates to a stump under threshold", "[cut][
     b.cutAnimStart     = 0.0;
 
     Stroke s = compute_blade_stroke(b, 110.0, Scene::Grass);
-    REQUIRE(s.tip.x == Approx(100.0));
-    REQUIRE(s.tip.y == Approx(110.0 - STUMP_HEIGHT));
-    REQUIRE(s.argb  == PALETTE[2]);
+    Assert::IsTrue(s.tip.x == Near(100.0));
+    Assert::IsTrue(s.tip.y == Near(110.0 - STUMP_HEIGHT));
+    Assert::IsTrue(s.argb  == PALETTE[2]);
 }
 
-TEST_CASE("compute_blade_stroke produces vertical line when lean is zero", "[cut][geometry]") {
+TEST_METHOD(ComputeBladeStrokeProducesVerticalLineWhenLeanIsZero) {
     Blade b{};
     b.baseX         = 100.0;
     b.height        = 20.0;
@@ -168,27 +175,27 @@ TEST_CASE("compute_blade_stroke produces vertical line when lean is zero", "[cut
     b.effectiveLean = 0.0;
 
     Stroke s = compute_blade_stroke(b, 110.0, Scene::Grass);
-    REQUIRE(s.base.x    == Approx(100.0));
-    REQUIRE(s.base.y    == Approx(110.0));
-    REQUIRE(s.tip.x     == Approx(100.0));
-    REQUIRE(s.tip.y     == Approx(90.0));
-    REQUIRE(s.control.x == Approx(100.0));
+    Assert::IsTrue(s.base.x    == Near(100.0));
+    Assert::IsTrue(s.base.y    == Near(110.0));
+    Assert::IsTrue(s.tip.x     == Near(100.0));
+    Assert::IsTrue(s.tip.y     == Near(90.0));
+    Assert::IsTrue(s.control.x == Near(100.0));
 }
 
 // ---------------------------------------------------------------------------
 // Cut-floor (stubble) variation
 // ---------------------------------------------------------------------------
 
-TEST_CASE("generated blades get a per-blade cut floor within spec range", "[cut][floor]") {
+TEST_METHOD(GeneratedBladesGetAPerBladeCutFloorWithinSpecRange) {
     std::vector<Blade> blades;
     generate_blades(CANONICAL_TEST_SEED, 1920.0, 1.0, blades);
-    REQUIRE(blades.size() > 50);
+    Assert::IsTrue(blades.size() > 50);
 
     for (const Blade& b : blades) {
-        REQUIRE(b.cutFloor >= CUT_FLOOR_MIN);
-        REQUIRE(b.cutFloor <  CUT_FLOOR_MAX);
+        Assert::IsTrue(b.cutFloor >= CUT_FLOOR_MIN);
+        Assert::IsTrue(b.cutFloor <  CUT_FLOOR_MAX);
         // Stubble must render as a short blade, never a degenerate stump.
-        REQUIRE(b.cutFloor >= CUT_STUMP_THRESHOLD);
+        Assert::IsTrue(b.cutFloor >= CUT_STUMP_THRESHOLD);
     }
 
     // The whole point is variation: not every blade settles at the same height.
@@ -196,10 +203,10 @@ TEST_CASE("generated blades get a per-blade cut floor within spec range", "[cut]
     for (std::size_t i = 1; i < blades.size(); ++i) {
         if (blades[i].cutFloor != blades[0].cutFloor) { varies = true; break; }
     }
-    REQUIRE(varies);
+    Assert::IsTrue(varies);
 }
 
-TEST_CASE("cut settles at the per-blade stubble floor, not flat zero", "[cut][floor]") {
+TEST_METHOD(CutSettlesAtThePerBladeStubbleFloorNotFlatZero) {
     Blade b{};
     b.height           = 20.0;
     b.thickness        = 1.5;
@@ -211,11 +218,11 @@ TEST_CASE("cut settles at the per-blade stubble floor, not flat zero", "[cut][fl
     // Advance past the full cut duration.
     advance_cut(b, CUT_DURATION_SEC + 0.01);
 
-    REQUIRE(b.cutHeight    == Approx(0.12));
-    REQUIRE(b.cutAnimStart == Approx(-1.0));
+    Assert::IsTrue(b.cutHeight    == Near(0.12));
+    Assert::IsTrue(b.cutAnimStart == Near(-1.0));
 }
 
-TEST_CASE("cut-down animation lerps toward the floor", "[cut][floor]") {
+TEST_METHOD(CutDownAnimationLerpsTowardTheFloor) {
     Blade b{};
     b.height           = 20.0;
     b.cutHeight        = 1.0;
@@ -225,10 +232,10 @@ TEST_CASE("cut-down animation lerps toward the floor", "[cut][floor]") {
 
     // Half-way through the cut: lerp(1.0 -> 0.10) at t=0.5 = 0.10 + 0.90*0.5.
     advance_cut(b, CUT_DURATION_SEC * 0.5);
-    REQUIRE(b.cutHeight == Approx(0.10 + 0.90 * 0.5).margin(1e-9));
+    Assert::IsTrue(b.cutHeight == Near(0.10 + 0.90 * 0.5).margin(1e-9));
 }
 
-TEST_CASE("regrowth grows back from the floor to full height", "[cut][floor][regrowth]") {
+TEST_METHOD(RegrowthGrowsBackFromTheFloorToFullHeight) {
     Blade b{};
     b.height         = 20.0;
     b.cutFloor       = 0.10;
@@ -239,14 +246,14 @@ TEST_CASE("regrowth grows back from the floor to full height", "[cut][floor][reg
 
     // Half-way through regrowth: lerp(0.10 -> 1.0) at t=0.5.
     advance_cut(b, 0.2);
-    REQUIRE(b.cutHeight == Approx(0.10 + 0.90 * 0.5).margin(1e-9));
+    Assert::IsTrue(b.cutHeight == Near(0.10 + 0.90 * 0.5).margin(1e-9));
 
     // Fully regrown.
     advance_cut(b, 0.4);
-    REQUIRE(b.cutHeight == Approx(1.0).margin(1e-9));
+    Assert::IsTrue(b.cutHeight == Near(1.0).margin(1e-9));
 }
 
-TEST_CASE("zero-floor blades still collapse fully (back-compat)", "[cut][floor]") {
+TEST_METHOD(ZeroFloorBladesStillCollapseFullyBackCompat) {
     Blade b{};
     b.height           = 20.0;
     b.cutHeight        = 1.0;
@@ -255,5 +262,7 @@ TEST_CASE("zero-floor blades still collapse fully (back-compat)", "[cut][floor]"
     b.cutAnimStart     = 0.0;
 
     advance_cut(b, CUT_DURATION_SEC + 0.01);
-    REQUIRE(b.cutHeight == Approx(0.0));
+    Assert::IsTrue(b.cutHeight == Near(0.0));
+}
+};
 }

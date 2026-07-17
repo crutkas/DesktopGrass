@@ -24,6 +24,9 @@ entries are grouped by date instead.
 - **The default `DesktopGrass.slnx` now contains only the supported Native app
   and tests.** Managed remains buildable directly from its project files and
   does not participate in the default solution.
+- **Native tests now use the Microsoft C++ Unit Test Framework used by
+  PowerToys.** The suite builds as a test DLL, runs through
+  `vstest.console`, and no longer vendors Catch2.
 
 ---
 

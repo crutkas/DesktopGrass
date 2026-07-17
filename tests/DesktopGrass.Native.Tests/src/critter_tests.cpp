@@ -25,7 +25,7 @@
 //     vx away from the cursor, and resets age.
 //   * Click outside SHEEP_STARTLE_RADIUS leaves sheep state untouched.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -53,93 +53,100 @@ const Entity* first_sheep(const Sim& sim) {
 
 } // namespace
 
-TEST_CASE("CritterKind has spec-locked discriminants", "[critter][enum]") {
-    REQUIRE(static_cast<int>(CritterKind::None)  == 0);
-    REQUIRE(static_cast<int>(CritterKind::Sheep) == 1);
-    REQUIRE(static_cast<int>(CritterKind::Cat)   == 2);
-    REQUIRE(static_cast<int>(CritterKind::Bunny) == 3);
-    REQUIRE(static_cast<int>(EntityKind::Sheep)  == 3);
-    REQUIRE(static_cast<int>(EntityKind::Bunny)  == 6);
-    REQUIRE(static_cast<int>(EntityKind::Butterfly) == 7);
-    REQUIRE(static_cast<int>(EntityKind::Firefly) == 8);
-    REQUIRE(CRITTER_DEFAULT == CritterKind::None);
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(CritterTests)
+{
+public:
+TEST_METHOD(CritterKindHasSpecLockedDiscriminants) {
+    Assert::IsTrue(static_cast<int>(CritterKind::None)  == 0);
+    Assert::IsTrue(static_cast<int>(CritterKind::Sheep) == 1);
+    Assert::IsTrue(static_cast<int>(CritterKind::Cat)   == 2);
+    Assert::IsTrue(static_cast<int>(CritterKind::Bunny) == 3);
+    Assert::IsTrue(static_cast<int>(EntityKind::Sheep)  == 3);
+    Assert::IsTrue(static_cast<int>(EntityKind::Bunny)  == 6);
+    Assert::IsTrue(static_cast<int>(EntityKind::Butterfly) == 7);
+    Assert::IsTrue(static_cast<int>(EntityKind::Firefly) == 8);
+    Assert::IsTrue(CRITTER_DEFAULT == CritterKind::None);
 }
 
-TEST_CASE("Sheep constants are pinned to spec values", "[critter][constants]") {
-    REQUIRE(SHEEP_COUNT_MIN      == 2);
-    REQUIRE(SHEEP_COUNT_MAX      == 3);
-    REQUIRE(sizeof(PET_COUNT_OPTIONS) / sizeof(PET_COUNT_OPTIONS[0]) == 6);
-    for (int i = 0; i < 6; ++i) REQUIRE(PET_COUNT_OPTIONS[i] == i + 1);
-    REQUIRE(PET_COUNT_DEFAULT_SHEEP == SHEEP_COUNT_MIN);
-    REQUIRE(PET_COUNT_DEFAULT_CAT == CAT_COUNT_MIN);
-    REQUIRE(PET_COUNT_MAX_PER_MONITOR == 6);
-    REQUIRE(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]) == 8);
-    REQUIRE(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]) == 8);
-    REQUIRE(std::wcscmp(SHEEP_NAME_POOL[0], L"Bessie") == 0);
-    REQUIRE(std::wcscmp(SHEEP_NAME_POOL[7], L"Hazel") == 0);
-    REQUIRE(std::wcscmp(CAT_NAME_POOL[0], L"Mittens") == 0);
-    REQUIRE(std::wcscmp(CAT_NAME_POOL[7], L"Juno") == 0);
-    REQUIRE(PET_NAME_HOVER_RADIUS == Approx(50.0));
-    REQUIRE(PET_NAME_FADE_DURATION == Approx(1.5));
-    REQUIRE(PET_NAME_FONT_SIZE == Approx(11.0));
-    REQUIRE(PET_NAME_OFFSET_Y == Approx(-8.0));
-    REQUIRE(PET_NAME_COLOR == 0xFFFFFFFFu);
-    REQUIRE(PET_NAME_SHADOW_COLOR == 0xC0000000u);
-    REQUIRE(SHEEP_WALK_SPEED_MIN == Approx(14.0));
-    REQUIRE(SHEEP_WALK_SPEED_MAX == Approx(26.0));
-    REQUIRE(SHEEP_BODY_RADIUS    == Approx(12.0));
-    REQUIRE(SHEEP_HEAD_RADIUS    == Approx(5.0));
-    REQUIRE(SHEEP_LEG_LENGTH     == Approx(5.5));
+TEST_METHOD(SheepConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(SHEEP_COUNT_MIN      == 2);
+    Assert::IsTrue(SHEEP_COUNT_MAX      == 3);
+    Assert::IsTrue(sizeof(PET_COUNT_OPTIONS) / sizeof(PET_COUNT_OPTIONS[0]) == 6);
+    for (int i = 0; i < 6; ++i) Assert::IsTrue(PET_COUNT_OPTIONS[i] == i + 1);
+    Assert::IsTrue(PET_COUNT_DEFAULT_SHEEP == SHEEP_COUNT_MIN);
+    Assert::IsTrue(PET_COUNT_DEFAULT_CAT == CAT_COUNT_MIN);
+    Assert::IsTrue(PET_COUNT_MAX_PER_MONITOR == 6);
+    Assert::IsTrue(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]) == 8);
+    Assert::IsTrue(sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]) == 8);
+    Assert::IsTrue(std::wcscmp(SHEEP_NAME_POOL[0], L"Bessie") == 0);
+    Assert::IsTrue(std::wcscmp(SHEEP_NAME_POOL[7], L"Hazel") == 0);
+    Assert::IsTrue(std::wcscmp(CAT_NAME_POOL[0], L"Mittens") == 0);
+    Assert::IsTrue(std::wcscmp(CAT_NAME_POOL[7], L"Juno") == 0);
+    Assert::IsTrue(PET_NAME_HOVER_RADIUS == Near(50.0));
+    Assert::IsTrue(PET_NAME_FADE_DURATION == Near(1.5));
+    Assert::IsTrue(PET_NAME_FONT_SIZE == Near(11.0));
+    Assert::IsTrue(PET_NAME_OFFSET_Y == Near(-8.0));
+    Assert::IsTrue(PET_NAME_COLOR == 0xFFFFFFFFu);
+    Assert::IsTrue(PET_NAME_SHADOW_COLOR == 0xC0000000u);
+    Assert::IsTrue(SHEEP_WALK_SPEED_MIN == Near(14.0));
+    Assert::IsTrue(SHEEP_WALK_SPEED_MAX == Near(26.0));
+    Assert::IsTrue(SHEEP_BODY_RADIUS    == Near(12.0));
+    Assert::IsTrue(SHEEP_HEAD_RADIUS    == Near(5.0));
+    Assert::IsTrue(SHEEP_LEG_LENGTH     == Near(5.5));
 
-    REQUIRE(SHEEP_STATE_WALKING  == 0);
-    REQUIRE(SHEEP_STATE_GRAZING  == 1);
-    REQUIRE(SHEEP_STATE_IDLE     == 2);
-    REQUIRE(SHEEP_STATE_SLEEPING == 3);
-    REQUIRE(SHEEP_STATE_HOPPING  == 4);
+    Assert::IsTrue(SHEEP_STATE_WALKING  == 0);
+    Assert::IsTrue(SHEEP_STATE_GRAZING  == 1);
+    Assert::IsTrue(SHEEP_STATE_IDLE     == 2);
+    Assert::IsTrue(SHEEP_STATE_SLEEPING == 3);
+    Assert::IsTrue(SHEEP_STATE_HOPPING  == 4);
 
-    REQUIRE(SHEEP_HOP_DURATION   == Approx(0.55));
-    REQUIRE(SHEEP_HOP_HEIGHT     == Approx(11.0));
-    REQUIRE(SHEEP_STARTLE_RADIUS == Approx(64.0));
-    REQUIRE(SHEEP_STARTLE_BOOST  == Approx(1.6));
+    Assert::IsTrue(SHEEP_HOP_DURATION   == Near(0.55));
+    Assert::IsTrue(SHEEP_HOP_HEIGHT     == Near(11.0));
+    Assert::IsTrue(SHEEP_STARTLE_RADIUS == Near(64.0));
+    Assert::IsTrue(SHEEP_STARTLE_BOOST  == Near(1.6));
 
-    REQUIRE(SHEEP_GRAZE_PROBABILITY     == Approx(0.60));
-    REQUIRE(SHEEP_IDLE_PROBABILITY      == Approx(0.25));
-    REQUIRE(SHEEP_SLEEP_FROM_IDLE_PROB  == Approx(0.30));
+    Assert::IsTrue(SHEEP_GRAZE_PROBABILITY     == Near(0.60));
+    Assert::IsTrue(SHEEP_IDLE_PROBABILITY      == Near(0.25));
+    Assert::IsTrue(SHEEP_SLEEP_FROM_IDLE_PROB  == Near(0.30));
 }
 
-TEST_CASE("sim_init defaults critter to None", "[critter][init]") {
+TEST_METHOD(SimInitDefaultsCritterToNone) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
-    REQUIRE(sim.currentCritter == CritterKind::None);
-    REQUIRE(count_sheep(sim) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::None);
+    Assert::IsTrue(count_sheep(sim) == 0);
 }
 
-TEST_CASE("sim_set_critter(Sheep) produces deterministic flock", "[critter][gen]") {
+TEST_METHOD(SimSetCritterSheepProducesDeterministicFlock) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
 
-    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Sheep);
     const int k = count_sheep(sim);
-    REQUIRE(k >= SHEEP_COUNT_MIN);
-    REQUIRE(k <= SHEEP_COUNT_MAX);
+    Assert::IsTrue(k >= SHEEP_COUNT_MIN);
+    Assert::IsTrue(k <= SHEEP_COUNT_MAX);
 
     const double groundY = sim.windowHeight;
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Sheep) continue;
-        REQUIRE(e.state == SHEEP_STATE_WALKING);
-        REQUIRE(e.stateTimer >= SHEEP_WALK_DURATION_MIN);
-        REQUIRE(e.stateTimer <  SHEEP_WALK_DURATION_MAX);
-        REQUIRE(std::fabs(e.vx) >= SHEEP_WALK_SPEED_MIN);
-        REQUIRE(std::fabs(e.vx) <  SHEEP_WALK_SPEED_MAX);
+        Assert::IsTrue(e.state == SHEEP_STATE_WALKING);
+        Assert::IsTrue(e.stateTimer >= SHEEP_WALK_DURATION_MIN);
+        Assert::IsTrue(e.stateTimer <  SHEEP_WALK_DURATION_MAX);
+        Assert::IsTrue(std::fabs(e.vx) >= SHEEP_WALK_SPEED_MIN);
+        Assert::IsTrue(std::fabs(e.vx) <  SHEEP_WALK_SPEED_MAX);
         const double margin = e.size + 8.0;
-        REQUIRE(e.x >= margin);
-        REQUIRE(e.x <= sim.monitorWidth - margin);
-        REQUIRE(e.y == Approx(groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH));
-        REQUIRE(e.lifetime < 0.0); // infinite — sheep don't expire
-        REQUIRE(e.nameIndex < sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]));
+        Assert::IsTrue(e.x >= margin);
+        Assert::IsTrue(e.x <= sim.monitorWidth - margin);
+        Assert::IsTrue(e.y == Near(groundY - SHEEP_BODY_HEIGHT - SHEEP_LEG_LENGTH));
+        Assert::IsTrue(e.lifetime < 0.0); // infinite — sheep don't expire
+        Assert::IsTrue(e.nameIndex < sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]));
     }
 }
 
-TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
+TEST_METHOD(SheepPRNGDrawOrderMatchesASideStream) {
     // Independent side stream that walks the documented sequence:
     //   count
     //   per-sheep: x, speed, dir-coin, seed, stateTimer, nameIndex
@@ -153,7 +160,7 @@ TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
     int expectedCount = static_cast<int>(std::floor(countDraw));
     if (expectedCount < SHEEP_COUNT_MIN) expectedCount = SHEEP_COUNT_MIN;
     if (expectedCount > SHEEP_COUNT_MAX) expectedCount = SHEEP_COUNT_MAX;
-    REQUIRE(count_sheep(sim) == expectedCount);
+    Assert::IsTrue(count_sheep(sim) == expectedCount);
 
     int seen = 0;
     for (const Entity& e : sim.entities) {
@@ -168,45 +175,45 @@ TEST_CASE("Sheep PRNG draw order matches a side stream", "[critter][prng]") {
         const uint8_t expectedNameIndex = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))));
 
-        REQUIRE(e.x == Approx(expectedX));
-        REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
-        REQUIRE(e.seed == expectedSeed);
-        REQUIRE(e.stateTimer == Approx(expectedTimer));
-        REQUIRE(e.nameIndex == expectedNameIndex);
+        Assert::IsTrue(e.x == Near(expectedX));
+        Assert::IsTrue(e.vx == Near(expectedSpeed * expectedDir));
+        Assert::IsTrue(e.seed == expectedSeed);
+        Assert::IsTrue(e.stateTimer == Near(expectedTimer));
+        Assert::IsTrue(e.nameIndex == expectedNameIndex);
         ++seen;
     }
-    REQUIRE(seen == expectedCount);
+    Assert::IsTrue(seen == expectedCount);
 }
 
-TEST_CASE("canonical critter name indices are stable and species-local", "[critter][names]") {
+TEST_METHOD(CanonicalCritterNameIndicesAreStableAndSpeciesLocal) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
     const uint8_t expectedSheepNames[] = { 4, 7 };
     int sheepSeen = 0;
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Sheep) continue;
-        REQUIRE(sheepSeen < static_cast<int>(sizeof(expectedSheepNames) / sizeof(expectedSheepNames[0])));
-        REQUIRE(e.nameIndex == expectedSheepNames[sheepSeen]);
-        REQUIRE(std::wcscmp(SHEEP_NAME_POOL[e.nameIndex], sheepSeen == 0 ? L"Pippin" : L"Hazel") == 0);
+        Assert::IsTrue(sheepSeen < static_cast<int>(sizeof(expectedSheepNames) / sizeof(expectedSheepNames[0])));
+        Assert::IsTrue(e.nameIndex == expectedSheepNames[sheepSeen]);
+        Assert::IsTrue(std::wcscmp(SHEEP_NAME_POOL[e.nameIndex], sheepSeen == 0 ? L"Pippin" : L"Hazel") == 0);
         ++sheepSeen;
     }
-    REQUIRE(sheepSeen == 2);
+    Assert::IsTrue(sheepSeen == 2);
 
     sim_set_critter(sim, CritterKind::Cat);
     const uint8_t expectedCatNames[] = { 4 };
     int catSeen = 0;
     for (const Entity& e : sim.entities) {
         if (e.kind != EntityKind::Cat) continue;
-        REQUIRE(catSeen < static_cast<int>(sizeof(expectedCatNames) / sizeof(expectedCatNames[0])));
-        REQUIRE(e.nameIndex == expectedCatNames[catSeen]);
-        REQUIRE(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
-        REQUIRE(std::wcscmp(CAT_NAME_POOL[e.nameIndex], L"Smokey") == 0);
+        Assert::IsTrue(catSeen < static_cast<int>(sizeof(expectedCatNames) / sizeof(expectedCatNames[0])));
+        Assert::IsTrue(e.nameIndex == expectedCatNames[catSeen]);
+        Assert::IsTrue(e.nameIndex < sizeof(CAT_NAME_POOL) / sizeof(CAT_NAME_POOL[0]));
+        Assert::IsTrue(std::wcscmp(CAT_NAME_POOL[e.nameIndex], L"Smokey") == 0);
         ++catSeen;
     }
-    REQUIRE(catSeen == 1);
+    Assert::IsTrue(catSeen == 1);
 }
 
-TEST_CASE("sim_set_critter_count(0) preserves random sheep count draw", "[critter][count]") {
+TEST_METHOD(SimSetCritterCount0PreservesRandomSheepCountDraw) {
     bool sawMin = false;
     bool sawMax = false;
     for (uint64_t i = 0; i < 64; ++i) {
@@ -223,21 +230,21 @@ TEST_CASE("sim_set_critter_count(0) preserves random sheep count draw", "[critte
         if (expectedCount < SHEEP_COUNT_MIN) expectedCount = SHEEP_COUNT_MIN;
         if (expectedCount > SHEEP_COUNT_MAX) expectedCount = SHEEP_COUNT_MAX;
 
-        REQUIRE(count_sheep(sim) == expectedCount);
+        Assert::IsTrue(count_sheep(sim) == expectedCount);
         sawMin = sawMin || expectedCount == SHEEP_COUNT_MIN;
         sawMax = sawMax || expectedCount == SHEEP_COUNT_MAX;
     }
-    REQUIRE(sawMin);
-    REQUIRE(sawMax);
+    Assert::IsTrue(sawMin);
+    Assert::IsTrue(sawMax);
 }
 
-TEST_CASE("fixed sheep count override skips the count PRNG draw", "[critter][count][prng]") {
+TEST_METHOD(FixedSheepCountOverrideSkipsTheCountPRNGDraw) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
     sim_set_critter_count(sim, 3);
 
-    REQUIRE(sim.critterCountOverride == 3);
-    REQUIRE(count_sheep(sim) == 3);
+    Assert::IsTrue(sim.critterCountOverride == 3);
+    Assert::IsTrue(count_sheep(sim) == 3);
 
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
@@ -254,65 +261,64 @@ TEST_CASE("fixed sheep count override skips the count PRNG draw", "[critter][cou
         const uint8_t expectedNameIndex = static_cast<uint8_t>(prng_index(side,
             static_cast<uint32_t>(sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]))));
 
-        REQUIRE(e.x == Approx(expectedX));
-        REQUIRE(e.vx == Approx(expectedSpeed * expectedDir));
-        REQUIRE(e.seed == expectedSeed);
-        REQUIRE(e.stateTimer == Approx(expectedTimer));
-        REQUIRE(e.nameIndex == expectedNameIndex);
+        Assert::IsTrue(e.x == Near(expectedX));
+        Assert::IsTrue(e.vx == Near(expectedSpeed * expectedDir));
+        Assert::IsTrue(e.seed == expectedSeed);
+        Assert::IsTrue(e.stateTimer == Near(expectedTimer));
+        Assert::IsTrue(e.nameIndex == expectedNameIndex);
         ++seen;
     }
-    REQUIRE(seen == 3);
+    Assert::IsTrue(seen == 3);
 }
 
-TEST_CASE("fixed critter count override supports tray range and clamps", "[critter][count]") {
+TEST_METHOD(FixedCritterCountOverrideSupportsTrayRangeAndClamps) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
 
     sim_set_critter_count(sim, 6);
-    REQUIRE(count_sheep(sim) == 6);
+    Assert::IsTrue(count_sheep(sim) == 6);
 
     sim_set_critter_count(sim, 8);
-    REQUIRE(count_sheep(sim) == PET_COUNT_MAX_PER_MONITOR);
+    Assert::IsTrue(count_sheep(sim) == PET_COUNT_MAX_PER_MONITOR);
 
     sim_set_critter(sim, CritterKind::Cat);
     sim_set_critter_count(sim, 2);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 2);
-    REQUIRE(count_sheep(sim) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 2);
+    Assert::IsTrue(count_sheep(sim) == 0);
 }
 
-TEST_CASE("sim_set_critter(None) clears all ground critters",
-          "[critter][toggle]") {
+TEST_METHOD(SimSetCritterNoneClearsAllGroundCritters) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
-    REQUIRE(count_sheep(sim) >= SHEEP_COUNT_MIN);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(count_sheep(sim) >= SHEEP_COUNT_MIN);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
 
     sim_set_critter(sim, CritterKind::None);
-    REQUIRE(count_sheep(sim) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Cat) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Bunny) == 0);
-    REQUIRE(count_kind(sim, EntityKind::Hedgehog) == 0);
+    Assert::IsTrue(count_sheep(sim) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Hedgehog) == 0);
 }
 
-TEST_CASE("sim_set_scene gates active sheep to Grass", "[critter][scene]") {
+TEST_METHOD(SimSetSceneGatesActiveSheepToGrass) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
     const int sheepCountGrass = count_sheep(sim);
-    REQUIRE(sheepCountGrass >= SHEEP_COUNT_MIN);
+    Assert::IsTrue(sheepCountGrass >= SHEEP_COUNT_MIN);
 
     sim_set_scene(sim, Scene::Desert);
-    REQUIRE(count_sheep(sim) == 0);
-    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+    Assert::IsTrue(count_sheep(sim) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Sheep);
 
     sim_set_scene(sim, Scene::Winter);
-    REQUIRE(count_sheep(sim) == 0);
-    REQUIRE(sim.currentCritter == CritterKind::Sheep);
+    Assert::IsTrue(count_sheep(sim) == 0);
+    Assert::IsTrue(sim.currentCritter == CritterKind::Sheep);
 
     sim_set_scene(sim, Scene::Grass);
-    REQUIRE(count_sheep(sim) == sheepCountGrass);
+    Assert::IsTrue(count_sheep(sim) == sheepCountGrass);
 }
 
-TEST_CASE("Click within SHEEP_STARTLE_RADIUS triggers hop away", "[critter][click]") {
+TEST_METHOD(ClickWithinSHEEPSTARTLERADIUSTriggersHopAway) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
 
@@ -320,7 +326,7 @@ TEST_CASE("Click within SHEEP_STARTLE_RADIUS triggers hop away", "[critter][clic
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Sheep) { target = &e; break; }
     }
-    REQUIRE(target != nullptr);
+    Assert::IsTrue(target != nullptr);
 
     // Click 16 DIP to the left of the sheep — well within startle radius,
     // inside the cut band (so the early y-gate doesn't reject).
@@ -339,15 +345,15 @@ TEST_CASE("Click within SHEEP_STARTLE_RADIUS triggers hop away", "[critter][clic
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Sheep) { after = &e; break; }
     }
-    REQUIRE(after != nullptr);
-    REQUIRE(after->state == SHEEP_STATE_HOPPING);
-    REQUIRE(after->stateTimer == Approx(SHEEP_HOP_DURATION));
-    REQUIRE(after->age == Approx(0.0));
-    REQUIRE(after->vx > 0.0); // sheep was right of click → vx flipped to +
-    REQUIRE(std::fabs(after->vx) <= SHEEP_WALK_SPEED_MAX * SHEEP_STARTLE_BOOST);
+    Assert::IsTrue(after != nullptr);
+    Assert::IsTrue(after->state == SHEEP_STATE_HOPPING);
+    Assert::IsTrue(after->stateTimer == Near(SHEEP_HOP_DURATION));
+    Assert::IsTrue(after->age == Near(0.0));
+    Assert::IsTrue(after->vx > 0.0); // sheep was right of click → vx flipped to +
+    Assert::IsTrue(std::fabs(after->vx) <= SHEEP_WALK_SPEED_MAX * SHEEP_STARTLE_BOOST);
 }
 
-TEST_CASE("Click outside SHEEP_STARTLE_RADIUS leaves sheep alone", "[critter][click]") {
+TEST_METHOD(ClickOutsideSHEEPSTARTLERADIUSLeavesSheepAlone) {
     Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
     sim_set_critter(sim, CritterKind::Sheep);
 
@@ -355,7 +361,7 @@ TEST_CASE("Click outside SHEEP_STARTLE_RADIUS leaves sheep alone", "[critter][cl
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Sheep) { target = &e; break; }
     }
-    REQUIRE(target != nullptr);
+    Assert::IsTrue(target != nullptr);
     const uint8_t stateBefore = target->state;
     const double  vxBefore    = target->vx;
 
@@ -373,7 +379,9 @@ TEST_CASE("Click outside SHEEP_STARTLE_RADIUS leaves sheep alone", "[critter][cl
     for (Entity& e : sim.entities) {
         if (e.kind == EntityKind::Sheep) { after = &e; break; }
     }
-    REQUIRE(after != nullptr);
-    REQUIRE(after->state == stateBefore);
-    REQUIRE(after->vx == Approx(vxBefore));
+    Assert::IsTrue(after != nullptr);
+    Assert::IsTrue(after->state == stateBefore);
+    Assert::IsTrue(after->vx == Near(vxBefore));
+}
+};
 }

@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Config.h"
 
 #include <filesystem>
@@ -36,58 +36,65 @@ std::string read_text(const std::filesystem::path& path) {
 
 } // namespace
 
-TEST_CASE("Config: missing file yields defaults and writes a template", "[config]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(ConfigTests)
+{
+public:
+TEST_METHOD(ConfigMissingFileYieldsDefaultsAndWritesATemplate) {
     const std::filesystem::path path = test_config_path("missing");
-    REQUIRE_FALSE(std::filesystem::exists(path));
+    Assert::IsFalse(std::filesystem::exists(path));
 
     const config::Config cfg = config::LoadConfig(path.wstring());
 
-    CHECK(cfg.targetFps == config::kTargetFpsDefault);
-    CHECK(cfg.bladeDensity == Approx(config::kBladeDensityDefault));
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsDefault);
+    Assert::IsTrue(cfg.bladeDensity == Near(config::kBladeDensityDefault));
 
     // A default file should have been created and be re-readable (it is JSONC).
-    REQUIRE(std::filesystem::exists(path));
+    Assert::IsTrue(std::filesystem::exists(path));
     const config::Config reread = config::LoadConfig(path.wstring());
-    CHECK(reread.targetFps == config::kTargetFpsDefault);
-    CHECK(reread.bladeDensity == Approx(config::kBladeDensityDefault));
+    Assert::IsTrue(reread.targetFps == config::kTargetFpsDefault);
+    Assert::IsTrue(reread.bladeDensity == Near(config::kBladeDensityDefault));
 }
 
-TEST_CASE("Config: valid values are parsed", "[config]") {
+TEST_METHOD(ConfigValidValuesAreParsed) {
     const std::filesystem::path path = test_config_path("valid");
     write_text(path, "{ \"version\": 1, \"targetFps\": 60, \"bladeDensity\": 1.5 }");
 
     const config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == 60);
-    CHECK(cfg.bladeDensity == Approx(1.5));
+    Assert::IsTrue(cfg.targetFps == 60);
+    Assert::IsTrue(cfg.bladeDensity == Near(1.5));
 }
 
-TEST_CASE("Config: out-of-range values are clamped", "[config]") {
+TEST_METHOD(ConfigOutOfRangeValuesAreClamped) {
     const std::filesystem::path path = test_config_path("clamp");
     write_text(path, "{ \"targetFps\": 1000, \"bladeDensity\": 99.0 }");
 
     config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == config::kTargetFpsMax);
-    CHECK(cfg.bladeDensity == Approx(config::kBladeDensityMax));
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsMax);
+    Assert::IsTrue(cfg.bladeDensity == Near(config::kBladeDensityMax));
 
     write_text(path, "{ \"targetFps\": 0, \"bladeDensity\": 0.0 }");
     cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == config::kTargetFpsMin);
-    CHECK(cfg.bladeDensity == Approx(config::kBladeDensityMin));
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsMin);
+    Assert::IsTrue(cfg.bladeDensity == Near(config::kBladeDensityMin));
 }
 
-TEST_CASE("Config: oversized integer values fall back safely", "[config]") {
+TEST_METHOD(ConfigOversizedIntegerValuesFallBackSafely) {
     const std::filesystem::path path = test_config_path("oversized-integer");
 
     write_text(path, "{ \"targetFps\": 1e300 }");
     config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == config::kTargetFpsDefault);
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsDefault);
 
     write_text(path, "{ \"targetFps\": -1e300 }");
     cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == config::kTargetFpsDefault);
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsDefault);
 }
 
-TEST_CASE("Config: JSONC comments and trailing commas are tolerated", "[config]") {
+TEST_METHOD(ConfigJSONCCommentsAndTrailingCommasAreTolerated) {
     const std::filesystem::path path = test_config_path("jsonc");
     write_text(path,
         "{\n"
@@ -97,70 +104,72 @@ TEST_CASE("Config: JSONC comments and trailing commas are tolerated", "[config]"
         "}\n");
 
     const config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == 24);
-    CHECK(cfg.bladeDensity == Approx(2.0));
+    Assert::IsTrue(cfg.targetFps == 24);
+    Assert::IsTrue(cfg.bladeDensity == Near(2.0));
 }
 
-TEST_CASE("Config: malformed file falls back to defaults and is preserved", "[config]") {
+TEST_METHOD(ConfigMalformedFileFallsBackToDefaultsAndIsPreserved) {
     const std::filesystem::path path = test_config_path("malformed");
     write_text(path, "{ not valid json ");
 
     const config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == config::kTargetFpsDefault);
-    CHECK(cfg.bladeDensity == Approx(config::kBladeDensityDefault));
+    Assert::IsTrue(cfg.targetFps == config::kTargetFpsDefault);
+    Assert::IsTrue(cfg.bladeDensity == Near(config::kBladeDensityDefault));
 
     // The user's (broken) file must be left untouched for them to fix.
-    CHECK(read_text(path) == "{ not valid json ");
+    Assert::IsTrue(read_text(path) == "{ not valid json ");
 }
 
-TEST_CASE("Config: missing keys fall back to per-key defaults", "[config]") {
+TEST_METHOD(ConfigMissingKeysFallBackToPerKeyDefaults) {
     const std::filesystem::path path = test_config_path("partial");
     write_text(path, "{ \"targetFps\": 45 }");
 
     const config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == 45);
-    CHECK(cfg.bladeDensity == Approx(config::kBladeDensityDefault));
-    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
-    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
+    Assert::IsTrue(cfg.targetFps == 45);
+    Assert::IsTrue(cfg.bladeDensity == Near(config::kBladeDensityDefault));
+    Assert::IsTrue(cfg.swaySpeed == Near(config::kSwaySpeedDefault));
+    Assert::IsTrue(cfg.swayAmplitude == Near(config::kSwayAmplitudeDefault));
 }
 
-TEST_CASE("Config: keys are matched case-insensitively", "[config]") {
+TEST_METHOD(ConfigKeysAreMatchedCaseInsensitively) {
     const std::filesystem::path path = test_config_path("case-insensitive");
     write_text(path,
         "{ \"TargetFps\": 60, \"BLADEDENSITY\": 1.5, "
         "\"SwaySpeed\": 0.5, \"swayamplitude\": 2.0 }");
 
     const config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.targetFps == 60);
-    CHECK(cfg.bladeDensity == Approx(1.5));
-    CHECK(cfg.swaySpeed == Approx(0.5));
-    CHECK(cfg.swayAmplitude == Approx(2.0));
+    Assert::IsTrue(cfg.targetFps == 60);
+    Assert::IsTrue(cfg.bladeDensity == Near(1.5));
+    Assert::IsTrue(cfg.swaySpeed == Near(0.5));
+    Assert::IsTrue(cfg.swayAmplitude == Near(2.0));
 }
 
-TEST_CASE("Config: sway knobs parse, clamp, and reject non-finite", "[config]") {
+TEST_METHOD(ConfigSwayKnobsParseClampAndRejectNonFinite) {
     const std::filesystem::path path = test_config_path("sway");
 
     // Defaults when absent.
     write_text(path, "{ }");
     config::Config cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
-    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
+    Assert::IsTrue(cfg.swaySpeed == Near(config::kSwaySpeedDefault));
+    Assert::IsTrue(cfg.swayAmplitude == Near(config::kSwayAmplitudeDefault));
 
     // Valid values parsed.
     write_text(path, "{ \"swaySpeed\": 0.5, \"swayAmplitude\": 2.0 }");
     cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.swaySpeed == Approx(0.5));
-    CHECK(cfg.swayAmplitude == Approx(2.0));
+    Assert::IsTrue(cfg.swaySpeed == Near(0.5));
+    Assert::IsTrue(cfg.swayAmplitude == Near(2.0));
 
     // Out-of-range clamped to bounds.
     write_text(path, "{ \"swaySpeed\": 99.0, \"swayAmplitude\": -5.0 }");
     cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedMax));
-    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeMin));
+    Assert::IsTrue(cfg.swaySpeed == Near(config::kSwaySpeedMax));
+    Assert::IsTrue(cfg.swayAmplitude == Near(config::kSwayAmplitudeMin));
 
     // Non-finite (inf from overflow) falls back to default, never poisons the sim.
     write_text(path, "{ \"swaySpeed\": 1e999, \"swayAmplitude\": 1e999 }");
     cfg = config::LoadConfig(path.wstring());
-    CHECK(cfg.swaySpeed == Approx(config::kSwaySpeedDefault));
-    CHECK(cfg.swayAmplitude == Approx(config::kSwayAmplitudeDefault));
+    Assert::IsTrue(cfg.swaySpeed == Near(config::kSwaySpeedDefault));
+    Assert::IsTrue(cfg.swayAmplitude == Near(config::kSwayAmplitudeDefault));
+}
+};
 }

@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "AutoStart.h"
 #include "Persistence.h"
 
@@ -45,16 +45,16 @@ private:
 
 std::wstring read_registry_value(const std::wstring& subkey) {
     HKEY key = nullptr;
-    REQUIRE(RegOpenKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, KEY_QUERY_VALUE, &key) == ERROR_SUCCESS);
+    Assert::IsTrue(RegOpenKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, KEY_QUERY_VALUE, &key) == ERROR_SUCCESS);
 
     DWORD type = 0;
     DWORD byteCount = 0;
     const std::wstring valueName = autostart::GetRegistryValueName();
-    REQUIRE(RegQueryValueExW(key, valueName.c_str(), nullptr, &type, nullptr, &byteCount) == ERROR_SUCCESS);
-    REQUIRE(type == REG_SZ);
+    Assert::IsTrue(RegQueryValueExW(key, valueName.c_str(), nullptr, &type, nullptr, &byteCount) == ERROR_SUCCESS);
+    Assert::IsTrue(type == REG_SZ);
 
     std::vector<wchar_t> buffer(byteCount / sizeof(wchar_t) + 1);
-    REQUIRE(RegQueryValueExW(
+    Assert::IsTrue(RegQueryValueExW(
         key, valueName.c_str(), nullptr, &type,
         reinterpret_cast<BYTE*>(buffer.data()), &byteCount) == ERROR_SUCCESS);
     RegCloseKey(key);
@@ -76,11 +76,11 @@ bool registry_value_exists(const std::wstring& subkey) {
 
 void write_registry_value(const std::wstring& subkey, const std::wstring& value) {
     HKEY key = nullptr;
-    REQUIRE(RegCreateKeyExW(
+    Assert::IsTrue(RegCreateKeyExW(
         HKEY_CURRENT_USER, subkey.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE,
         KEY_SET_VALUE, nullptr, &key, nullptr) == ERROR_SUCCESS);
     const DWORD byteCount = static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t));
-    REQUIRE(RegSetValueExW(
+    Assert::IsTrue(RegSetValueExW(
         key, autostart::GetRegistryValueName().c_str(), 0, REG_SZ,
         reinterpret_cast<const BYTE*>(value.c_str()), byteCount) == ERROR_SUCCESS);
     RegCloseKey(key);
@@ -99,101 +99,110 @@ std::filesystem::path test_state_path(const char* name) {
 
 } // namespace
 
-TEST_CASE("autostart is disabled when registry value is missing", "[autostart]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(AutostartTests)
+{
+public:
+TEST_METHOD(AutostartIsDisabledWhenRegistryValueIsMissing) {
     AutoStartRegistrySandbox sandbox(L"missing");
 
-    REQUIRE_FALSE(autostart::IsEnabled());
+    Assert::IsFalse(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart enable creates registry value", "[autostart]") {
+TEST_METHOD(AutostartEnableCreatesRegistryValue) {
     AutoStartRegistrySandbox sandbox(L"enable");
 
-    REQUIRE(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(true));
 
-    REQUIRE(autostart::IsEnabled());
+    Assert::IsTrue(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart disable deletes registry value", "[autostart]") {
+TEST_METHOD(AutostartDisableDeletesRegistryValue) {
     AutoStartRegistrySandbox sandbox(L"disable");
 
-    REQUIRE(autostart::SetEnabled(true));
-    REQUIRE(autostart::SetEnabled(false));
+    Assert::IsTrue(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(false));
 
-    REQUIRE_FALSE(autostart::IsEnabled());
+    Assert::IsFalse(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart registry value contains quoted current exe path", "[autostart]") {
+TEST_METHOD(AutostartRegistryValueContainsQuotedCurrentExePath) {
     AutoStartRegistrySandbox sandbox(L"path");
 
-    REQUIRE(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(true));
 
-    REQUIRE(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
+    Assert::IsTrue(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
 }
 
-TEST_CASE("autostart reconciliation repairs a stale command", "[autostart]") {
+TEST_METHOD(AutostartReconciliationRepairsAStaleCommand) {
     AutoStartRegistrySandbox sandbox(L"stale-command");
     write_registry_value(sandbox.subkey(), L"\"C:\\Old\\DesktopGrass.Native.exe\"");
 
-    REQUIRE_FALSE(autostart::IsEnabled());
-    REQUIRE(autostart::ReconcileWithState(true));
-    REQUIRE(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
+    Assert::IsFalse(autostart::IsEnabled());
+    Assert::IsTrue(autostart::ReconcileWithState(true));
+    Assert::IsTrue(read_registry_value(sandbox.subkey()) == autostart::GetRunCommand());
 }
 
-TEST_CASE("autostart reconciliation removes a stale command when disabled", "[autostart]") {
+TEST_METHOD(AutostartReconciliationRemovesAStaleCommandWhenDisabled) {
     AutoStartRegistrySandbox sandbox(L"stale-command-disabled");
     write_registry_value(sandbox.subkey(), L"\"C:\\Old\\DesktopGrass.Native.exe\"");
 
-    REQUIRE(registry_value_exists(sandbox.subkey()));
-    REQUIRE(autostart::ReconcileWithState(false));
-    REQUIRE_FALSE(registry_value_exists(sandbox.subkey()));
+    Assert::IsTrue(registry_value_exists(sandbox.subkey()));
+    Assert::IsTrue(autostart::ReconcileWithState(false));
+    Assert::IsFalse(registry_value_exists(sandbox.subkey()));
 }
 
-TEST_CASE("autostart enable is idempotent", "[autostart]") {
+TEST_METHOD(AutostartEnableIsIdempotent) {
     AutoStartRegistrySandbox sandbox(L"enable-idempotent");
 
-    REQUIRE(autostart::SetEnabled(true));
-    REQUIRE(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(true));
 
-    REQUIRE(autostart::IsEnabled());
+    Assert::IsTrue(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart disable missing value is no-op", "[autostart]") {
+TEST_METHOD(AutostartDisableMissingValueIsNoOp) {
     AutoStartRegistrySandbox sandbox(L"disable-missing");
 
-    REQUIRE(autostart::SetEnabled(false));
+    Assert::IsTrue(autostart::SetEnabled(false));
 
-    REQUIRE_FALSE(autostart::IsEnabled());
+    Assert::IsFalse(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart persisted true reconciles registry on startup", "[autostart][persistence]") {
+TEST_METHOD(AutostartPersistedTrueReconcilesRegistryOnStartup) {
     AutoStartRegistrySandbox sandbox(L"persisted-true");
     const auto path = test_state_path("persisted-true");
     desktopgrass::persistence::SetStateFilePathForTest(path.wstring());
 
     desktopgrass::persistence::AppState state;
     state.autoStart = true;
-    REQUIRE(desktopgrass::persistence::SaveAppState(state));
+    Assert::IsTrue(desktopgrass::persistence::SaveAppState(state));
 
     desktopgrass::persistence::AppState loaded;
-    REQUIRE(desktopgrass::persistence::LoadAppState(loaded));
-    REQUIRE(autostart::ReconcileWithState(loaded.autoStart));
+    Assert::IsTrue(desktopgrass::persistence::LoadAppState(loaded));
+    Assert::IsTrue(autostart::ReconcileWithState(loaded.autoStart));
 
-    REQUIRE(autostart::IsEnabled());
+    Assert::IsTrue(autostart::IsEnabled());
 }
 
-TEST_CASE("autostart persisted false reconciles registry on startup", "[autostart][persistence]") {
+TEST_METHOD(AutostartPersistedFalseReconcilesRegistryOnStartup) {
     AutoStartRegistrySandbox sandbox(L"persisted-false");
     const auto path = test_state_path("persisted-false");
     desktopgrass::persistence::SetStateFilePathForTest(path.wstring());
 
-    REQUIRE(autostart::SetEnabled(true));
+    Assert::IsTrue(autostart::SetEnabled(true));
     desktopgrass::persistence::AppState state;
     state.autoStart = false;
-    REQUIRE(desktopgrass::persistence::SaveAppState(state));
+    Assert::IsTrue(desktopgrass::persistence::SaveAppState(state));
 
     desktopgrass::persistence::AppState loaded;
-    REQUIRE(desktopgrass::persistence::LoadAppState(loaded));
-    REQUIRE(autostart::ReconcileWithState(loaded.autoStart));
+    Assert::IsTrue(desktopgrass::persistence::LoadAppState(loaded));
+    Assert::IsTrue(autostart::ReconcileWithState(loaded.autoStart));
 
-    REQUIRE_FALSE(autostart::IsEnabled());
+    Assert::IsFalse(autostart::IsEnabled());
+}
+};
 }

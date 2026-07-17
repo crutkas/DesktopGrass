@@ -32,7 +32,8 @@ jobs:
         run: msbuild tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo
 
       - name: Run Native tests
-        run: tests/DesktopGrass.Native.Tests/out/x64/Release/DesktopGrass.Native.Tests.exe --reporter compact
+        shell: pwsh
+        run: tests/DesktopGrass.Native.Tests/Run-Tests.ps1 -Configuration Release -Platform x64
 
       # --- Frozen Managed reference (inactive) ---
       # Managed is intentionally outside required product CI so it cannot block

@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 
 #include "RuntimePolicy.h"
 
@@ -16,101 +16,115 @@ GlobalState active_ac() {
 
 } // anonymous namespace
 
-TEST_CASE("Runtime policy uses the configured cadence on AC", "[runtime]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(RuntimePolicyTests)
+{
+public:
+TEST_METHOD(RuntimePolicyUsesTheConfiguredCadenceOnAC) {
     const Decision decision = Evaluate(active_ac(), {}, 24);
 
-    REQUIRE(decision == (Decision{PauseReason::None, 24, true, true}));
+    Assert::IsTrue(decision == (Decision{PauseReason::None, 24, true, true}));
 }
 
-TEST_CASE("Runtime policy applies conservative power caps", "[runtime]") {
+TEST_METHOD(RuntimePolicyAppliesConservativePowerCaps) {
     GlobalState state = active_ac();
 
-    SECTION("battery is capped at 12 fps") {
+    {
+        state = active_ac();
         state.powerSource = PowerSource::Battery;
-        REQUIRE(Evaluate(state, {}, 24).targetFps == 12);
+        Assert::IsTrue(Evaluate(state, {}, 24).targetFps == 12);
     }
 
-    SECTION("short-term power is treated like battery") {
+    {
+        state = active_ac();
         state.powerSource = PowerSource::ShortTerm;
-        REQUIRE(Evaluate(state, {}, 60).targetFps == 12);
+        Assert::IsTrue(Evaluate(state, {}, 60).targetFps == 12);
     }
 
-    SECTION("Battery Saver is capped at 5 fps on AC") {
+    {
+        state = active_ac();
         state.saverEnabled = true;
-        REQUIRE(Evaluate(state, {}, 24).targetFps == 5);
+        Assert::IsTrue(Evaluate(state, {}, 24).targetFps == 5);
     }
 
-    SECTION("dimmed display is capped at 5 fps") {
+    {
+        state = active_ac();
         state.displayState = DisplayState::Dimmed;
-        REQUIRE(Evaluate(state, {}, 24).targetFps == 5);
+        Assert::IsTrue(Evaluate(state, {}, 24).targetFps == 5);
     }
 
-    SECTION("a lower configured cadence is preserved") {
+    {
+        state = active_ac();
         state.powerSource = PowerSource::Battery;
-        REQUIRE(Evaluate(state, {}, 8).targetFps == 8);
+        Assert::IsTrue(Evaluate(state, {}, 8).targetFps == 8);
         state.saverEnabled = true;
-        REQUIRE(Evaluate(state, {}, 4).targetFps == 4);
+        Assert::IsTrue(Evaluate(state, {}, 4).targetFps == 4);
     }
 
-    SECTION("unknown startup values fail open") {
+    {
         GlobalState unknown;
-        REQUIRE(Evaluate(unknown, {}, 24)
+        Assert::IsTrue(Evaluate(unknown, {}, 24)
                 == (Decision{PauseReason::None, 24, true, true}));
     }
 }
 
-TEST_CASE("Runtime policy hard-pause precedence is deterministic", "[runtime]") {
+TEST_METHOD(RuntimePolicyHardPausePrecedenceIsDeterministic) {
     GlobalState state = active_ac();
     SurfaceState surface{true, true};
 
     state.displayState = DisplayState::Off;
     state.sessionState = SessionState::Locked;
     state.suspended = true;
-    REQUIRE(Evaluate(state, surface, 24).pauseReason == PauseReason::Suspended);
+    Assert::IsTrue(Evaluate(state, surface, 24).pauseReason == PauseReason::Suspended);
 
     state.suspended = false;
-    REQUIRE(Evaluate(state, surface, 24).pauseReason == PauseReason::SessionLocked);
+    Assert::IsTrue(Evaluate(state, surface, 24).pauseReason == PauseReason::SessionLocked);
 
     state.sessionState = SessionState::Disconnected;
-    REQUIRE(Evaluate(state, surface, 24).pauseReason
+    Assert::IsTrue(Evaluate(state, surface, 24).pauseReason
             == PauseReason::SessionDisconnected);
 
     state.sessionState = SessionState::Active;
-    REQUIRE(Evaluate(state, surface, 24).pauseReason == PauseReason::DisplayOff);
+    Assert::IsTrue(Evaluate(state, surface, 24).pauseReason == PauseReason::DisplayOff);
 }
 
-TEST_CASE("Runtime policy suppresses only the affected surface", "[runtime]") {
+TEST_METHOD(RuntimePolicySuppressesOnlyTheAffectedSurface) {
     const GlobalState state = active_ac();
     const Decision visible = Evaluate(state, {}, 24);
     const Decision fullscreen = Evaluate(state, SurfaceState{true, false}, 24);
     const Decision occluded = Evaluate(state, SurfaceState{false, true}, 24);
 
-    REQUIRE(visible.render);
-    REQUIRE(visible.show);
+    Assert::IsTrue(visible.render);
+    Assert::IsTrue(visible.show);
 
-    REQUIRE_FALSE(fullscreen.render);
-    REQUIRE_FALSE(fullscreen.show);
-    REQUIRE(fullscreen.pauseReason == PauseReason::Fullscreen);
+    Assert::IsFalse(fullscreen.render);
+    Assert::IsFalse(fullscreen.show);
+    Assert::IsTrue(fullscreen.pauseReason == PauseReason::Fullscreen);
 
-    REQUIRE_FALSE(occluded.render);
-    REQUIRE_FALSE(occluded.show);
-    REQUIRE(occluded.pauseReason == PauseReason::Occluded);
+    Assert::IsFalse(occluded.render);
+    Assert::IsFalse(occluded.show);
+    Assert::IsTrue(occluded.pauseReason == PauseReason::Occluded);
 }
 
-TEST_CASE("Runtime decisions are idempotent", "[runtime]") {
+TEST_METHOD(RuntimeDecisionsAreIdempotent) {
     GlobalState state = active_ac();
     state.powerSource = PowerSource::Battery;
     const SurfaceState surface{false, true};
 
-    REQUIRE(Evaluate(state, surface, 24) == Evaluate(state, surface, 24));
+    Assert::IsTrue(Evaluate(state, surface, 24) == Evaluate(state, surface, 24));
 }
 
-TEST_CASE("Only process-wide reasons are global pauses", "[runtime]") {
-    REQUIRE(IsGlobalPause(PauseReason::Suspended));
-    REQUIRE(IsGlobalPause(PauseReason::SessionLocked));
-    REQUIRE(IsGlobalPause(PauseReason::SessionDisconnected));
-    REQUIRE(IsGlobalPause(PauseReason::DisplayOff));
-    REQUIRE_FALSE(IsGlobalPause(PauseReason::Fullscreen));
-    REQUIRE_FALSE(IsGlobalPause(PauseReason::Occluded));
-    REQUIRE_FALSE(IsGlobalPause(PauseReason::None));
+TEST_METHOD(OnlyProcessWideReasonsAreGlobalPauses) {
+    Assert::IsTrue(IsGlobalPause(PauseReason::Suspended));
+    Assert::IsTrue(IsGlobalPause(PauseReason::SessionLocked));
+    Assert::IsTrue(IsGlobalPause(PauseReason::SessionDisconnected));
+    Assert::IsTrue(IsGlobalPause(PauseReason::DisplayOff));
+    Assert::IsFalse(IsGlobalPause(PauseReason::Fullscreen));
+    Assert::IsFalse(IsGlobalPause(PauseReason::Occluded));
+    Assert::IsFalse(IsGlobalPause(PauseReason::None));
+}
+};
 }

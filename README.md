@@ -173,7 +173,9 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
   bunny, hedgehog), ambient flyers (butterflies, fireflies, bird flybys),
   scene-specific entities (desert tumbleweeds, winter pines, autumn leaves &
   maples, ocean coral / fish / bubbles), `config.json` parsing, "Start with
-  Windows" auto-start, persistence, and click-through window styles.
+  Windows" auto-start, persistence, and click-through window styles. Native
+  tests use the same Microsoft C++ Unit Test Framework as PowerToys and run
+  through Visual Studio's `vstest.console`.
 - **Managed baseline reproducibility** — existing side-stream PRNG identity and
   snapshot tests preserve the comparison state at the point Managed was frozen.
   They are evidence for the reference, not a forward feature-parity promise.
@@ -186,7 +188,8 @@ Run Native coverage and, when needed, reproduce the managed baseline:
 
 ```powershell
 # Native unit tests (x64; build with Platform=ARM64 for the ARM64 suite)
-& ".\tests\DesktopGrass.Native.Tests\out\x64\Release\DesktopGrass.Native.Tests.exe" --reporter compact
+msbuild tests\DesktopGrass.Native.Tests\DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=x64
+tests\DesktopGrass.Native.Tests\Run-Tests.ps1 -Configuration Release -Platform x64
 
 # Managed reference unit tests
 dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Release

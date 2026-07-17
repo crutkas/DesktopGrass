@@ -44,7 +44,7 @@ Conformance signal:
 
 Counting note:
 
-- The Native headline LoC reproduces exactly from the current tree when the binary icon and vendored Catch2 header are excluded.
+- The original Native headline LoC excluded the binary icon and the then-vendored Catch2 header. Catch2 has since been removed.
 - The Win2D and WinUI 3 track-agent headline LoC counts use a different scope than the exact current `git ls-files` tables below. The tables below are the current-tree counts and include interop/build glue and tests where shown.
 
 ## Measured summary
@@ -74,7 +74,7 @@ These are file-level counts from the current checkout. Mixed-purpose files are a
 | Tray | `Shell_NotifyIconW` code is in `src\App.cpp`/`src\App.h` | included above |
 | Interop/glue/build | `DesktopGrass.Native.vcxproj` (108), `DesktopGrass.Native.rc` (8), `resource.h` (4), `app.manifest` (30), `vcpkg.json` (6) | 156 |
 | Tests | test `.vcxproj` (85), `snapshot_gen.cpp` (46), `blade_gen_tests.cpp` (98), `cut_tests.cpp` (138), `gust_tests.cpp` (112), test `main.cpp` (6), `prng_tests.cpp` (69), `snapshot_data.h` (70), `sway_tests.cpp` (80), test `vcpkg.json` (6) | 710 |
-| **Total** | Excludes `res\icon.ico`, `third_party\catch2\catch.hpp`, and the Catch2 README | **2,221** |
+| **Total** | Historical comparison total; excluded `res\icon.ico` and the then-vendored Catch2 files | **2,221** |
 
 ### Win2D-ish / Vortice
 
@@ -106,7 +106,7 @@ These are file-level counts from the current checkout. Mixed-purpose files are a
 
 | Impl | Release exe | Current deploy/output payload | Packages and notable DLLs | Runtime requirements |
 | --- | ---: | ---: | --- | --- |
-| Native | 39,936 B | 39,936 B exe-only; `out\Release` is 1,920,000 B including PDB | `vcpkg.json` has no runtime deps. Tests vendor single-header Catch2. Links Win32, D3D11, DXGI, D2D1, DComp, Shell32, Shcore. | Windows with Direct2D/DirectComposition/D3D11; MSVC runtime because Release uses `/MD`. |
+| Native | 39,936 B | 39,936 B exe-only; `out\Release` is 1,920,000 B including PDB | `vcpkg.json` has no runtime deps. Tests use Microsoft's Visual Studio C++ Unit Test Framework with no vendored test framework. Links Win32, D3D11, DXGI, D2D1, DComp, Shell32, Shcore. | Windows with Direct2D/DirectComposition/D3D11; MSVC runtime because Release uses `/MD`. |
 | Win2D-ish / Vortice | 152,576 B | 27,316,872 B framework-dependent `bin\Release\net8.0-windows10.0.19041.0` output, 15 files | `Vortice.Direct2D1`, `Vortice.Direct3D11`, `Vortice.DXGI`, `Vortice.DirectComposition` 3.6.2; SharpGen runtime DLLs; `Microsoft.Windows.SDK.NET.dll`; tests use xUnit. | .NET 8 WindowsDesktop/WinForms runtime; Windows 10 1809+ APIs. |
 | WinUI 3 | 272,384 B | 168,842,065 B self-contained `bin\Release\net8.0-windows10.0.19041.0\win-x64` output, 447 files | `Microsoft.WindowsAppSDK` 1.6.250108002, `Microsoft.Windows.SDK.BuildTools`, `Microsoft.Graphics.Win2D`, `H.NotifyIcon.WinUI`; output carries WinUI/XAML and .NET runtime payload. | Current project is `WindowsPackageType=None`, `SelfContained=true`, `WindowsAppSDKSelfContained=true`. A framework-dependent packaged variant would require the WinAppSDK runtime, 1.5+ class / 1.6 for this package line. |
 | WPF | (not measured) | (not measured) framework-dependent `bin\Release\net10.0-windows10.0.19041.0` output | No package references; uses WindowsDesktop WPF plus WindowsForms `NotifyIcon`; tests use xUnit. | .NET 10 WindowsDesktop/WPF runtime; Windows 10 1809+ APIs. |
@@ -115,7 +115,7 @@ These are file-level counts from the current checkout. Mixed-purpose files are a
 
 | Impl | Build path | Commit cadence on `main` | Observations |
 | --- | --- | --- | --- |
-| Native | `msbuild` over the `.vcxproj`/solution, x64 Release, toolset `v145` | 8 native-specific commits from bootstrap through smoke registration | Most direct build. The project is conventional C++/MSBuild, uses Windows SDK libraries, and keeps Catch2 vendored for offline tests. Track agents measured 4.5 s app build and 7.0 s tests. |
+| Native | `msbuild` over the `.vcxproj`/solution, x64 Release, toolset `v145` | 8 native-specific commits from bootstrap through smoke registration | Most direct build. The project is conventional C++/MSBuild, uses Windows SDK libraries, and runs its native test DLL through Visual Studio's `vstest.console`. Track agents measured 4.5 s app build and 7.0 s tests at the comparison point. |
 | Win2D-ish / Vortice | `dotnet build` on `DesktopGrass.Win2D.csproj` | 7 Win2D-specific commits: bootstrap, sim, tests, Vortice switch, interop, hook/tray, renderer/window | The project name stayed "Win2D" as the comparison track label, but the renderer uses Vortice Direct2D/DXGI/DComp. The win2d-track summary explicitly called **"Vortice is the path of least resistance"** and described the alternative as bridging Microsoft Win2D `CanvasSwapChain` through WinRT/CsWinRT. The checked-in `.csproj` repeats that this avoids the WinRT/CsWinRT bridge needed to feed a Vortice swap chain into a Win2D `CanvasSwapChain`. |
 | WinUI 3 | `dotnet build` with explicit SDK imports plus `WinAppSdkTaskStubs.targets` | 2 WinUI implementation/test commits plus 1 smoke-harness commit | This was the noisiest build. `DesktopGrass.WinUI3.csproj` uses explicit `Sdk.props`/`Sdk.targets` imports so `WinAppSdkTaskStubs.targets` can be imported after WindowsAppSDK targets. The stubs override `MrtCore.PriGen.targets` paths that point at Visual Studio-only Appx/Pri task assemblies. That is exactly the kind of non-product-code friction this comparison was meant to reveal. |
 
@@ -176,7 +176,7 @@ The C# variants both keep the hook delegate in a field so the GC cannot collect 
 
 ## Testing
 
-Native uses Catch2; both managed implementations use xUnit. That distinction did not matter much because the shared spec made the pure simulation tests straightforward: same canonical seed, same PRNG sequence, same blade vector, same sway/gust/cut behavior.
+At the comparison point Native used Catch2 and the managed implementations used xUnit. Native has since moved to the Microsoft C++ Unit Test Framework used by PowerToys. The shared spec keeps the same deterministic coverage straightforward across frameworks: canonical seed, PRNG sequence, blade vector, and sway/gust/cut behavior.
 
 The smoke tests are intentionally screenshot-based. `Smoke.Common.psm1` asserts the required click-through/topmost ExStyles, waits 1.5 seconds for rendering, screenshots the bottom strip of the primary monitor, samples pixels every four pixels, and requires enough unique colors to prove something meaningful drew. The original v1 measurement was `11,642` for all three measured impls; a later pre-removal four-impl baseline after visual tuning sat roughly in the 1,600–3,500 range per impl (still well above the 50-color minimum gate).
 

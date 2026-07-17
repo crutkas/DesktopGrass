@@ -1,4 +1,4 @@
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -164,13 +164,22 @@ ClickThroughResult spawn_probe_window_and_click_through_overlay() {
 
 } // namespace
 
-TEST_CASE("Overlay click-through allows input to reach windows beneath", "[smoke][input]") {
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(ClickThroughSmokeTest)
+{
+public:
+TEST_METHOD(OverlayClickThroughAllowsInputToReachWindowsBeneath) {
     const ClickThroughResult result = spawn_probe_window_and_click_through_overlay();
     if (result == ClickThroughResult::Skipped) {
-        WARN("Skipping click-through smoke test: requires an interactive desktop and SendInput.");
-        SUCCEED("Requires interactive session");
+        Logger::WriteMessage(
+            "Skipping click-through smoke test: requires an interactive desktop and SendInput.");
         return;
     }
 
-    REQUIRE(result == ClickThroughResult::Passed);
+    Assert::IsTrue(result == ClickThroughResult::Passed);
+}
+};
 }

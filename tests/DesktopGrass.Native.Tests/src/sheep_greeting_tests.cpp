@@ -2,7 +2,7 @@
 //
 // §16 sheep proximity-greeting tests. Mirrors Win2D SheepGreetingTests.cs.
 
-#include "../third_party/catch2/catch.hpp"
+#include "TestHelpers.h"
 #include "Sim.h"
 
 #include <algorithm>
@@ -48,7 +48,7 @@ std::vector<std::size_t> prepare_two_sheep(Sim& sim, double gap = 40.0,
                                            double ageA = EligibleAge,
                                            double ageB = EligibleAge) {
     std::vector<std::size_t> indices = sheep_indices(sim);
-    REQUIRE(indices.size() >= 2);
+    Assert::IsTrue(indices.size() >= 2);
 
     set_sheep(sim, indices[0], 500.0, -20.0, SHEEP_STATE_WALKING, ageA);
     set_sheep(sim, indices[1], 500.0 + gap, 18.0, SHEEP_STATE_WALKING, ageB);
@@ -85,23 +85,30 @@ int count_sheep_in_state(const Sim& sim, uint8_t state) {
 
 } // namespace
 
-TEST_CASE("Sheep greeting constants are pinned to spec values", "[sheep][greeting][constants]") {
-    REQUIRE(SHEEP_STATE_GREETING       == 5);
-    REQUIRE(SHEEP_GREET_RADIUS         == Approx(50.0));
-    REQUIRE(SHEEP_GREET_DURATION_MIN   == Approx(1.6));
-    REQUIRE(SHEEP_GREET_DURATION_MAX   == Approx(2.8));
-    REQUIRE(SHEEP_GREET_MIN_AGE        == Approx(1.5));
-    REQUIRE(SHEEP_GREET_HEAD_BOB_FREQ  == Approx(4.5));
-    REQUIRE(SHEEP_GREET_HEAD_BOB_AMP   == Approx(0.7));
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace DesktopGrassNativeTests
+{
+TEST_CLASS(SheepGreetingTests)
+{
+public:
+TEST_METHOD(SheepGreetingConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(SHEEP_STATE_GREETING       == 5);
+    Assert::IsTrue(SHEEP_GREET_RADIUS         == Near(50.0));
+    Assert::IsTrue(SHEEP_GREET_DURATION_MIN   == Near(1.6));
+    Assert::IsTrue(SHEEP_GREET_DURATION_MAX   == Near(2.8));
+    Assert::IsTrue(SHEEP_GREET_MIN_AGE        == Near(1.5));
+    Assert::IsTrue(SHEEP_GREET_HEAD_BOB_FREQ  == Near(4.5));
+    Assert::IsTrue(SHEEP_GREET_HEAD_BOB_AMP   == Near(0.7));
 }
 
-TEST_CASE("Sheep curious constants are pinned to spec values", "[sheep][curious][constants]") {
-    REQUIRE(SHEEP_CURIOUS_RADIUS        == Approx(80.0));
-    REQUIRE(SHEEP_CURIOUS_HEAD_TURN_MAX == Approx(0.55));
+TEST_METHOD(SheepCuriousConstantsArePinnedToSpecValues) {
+    Assert::IsTrue(SHEEP_CURIOUS_RADIUS        == Near(80.0));
+    Assert::IsTrue(SHEEP_CURIOUS_HEAD_TURN_MAX == Near(0.55));
 }
 
 
-TEST_CASE("Eligible nearby sheep enter Greeting facing each other", "[sheep][greeting]") {
+TEST_METHOD(EligibleNearbySheepEnterGreetingFacingEachOther) {
     Sim sim = build_sheep_sim();
     const std::vector<std::size_t> indices = prepare_two_sheep(sim);
 
@@ -109,36 +116,36 @@ TEST_CASE("Eligible nearby sheep enter Greeting facing each other", "[sheep][gre
 
     const Entity& a = sim.entities[indices[0]];
     const Entity& b = sim.entities[indices[1]];
-    REQUIRE(a.state == SHEEP_STATE_GREETING);
-    REQUIRE(b.state == SHEEP_STATE_GREETING);
-    REQUIRE(a.stateTimer >= SHEEP_GREET_DURATION_MIN);
-    REQUIRE(a.stateTimer <= SHEEP_GREET_DURATION_MAX);
-    REQUIRE(a.stateTimer == Approx(b.stateTimer));
-    REQUIRE(a.vx > 0.0);
-    REQUIRE(b.vx < 0.0);
+    Assert::IsTrue(a.state == SHEEP_STATE_GREETING);
+    Assert::IsTrue(b.state == SHEEP_STATE_GREETING);
+    Assert::IsTrue(a.stateTimer >= SHEEP_GREET_DURATION_MIN);
+    Assert::IsTrue(a.stateTimer <= SHEEP_GREET_DURATION_MAX);
+    Assert::IsTrue(a.stateTimer == Near(b.stateTimer));
+    Assert::IsTrue(a.vx > 0.0);
+    Assert::IsTrue(b.vx < 0.0);
 }
 
-TEST_CASE("Far apart eligible sheep do not greet", "[sheep][greeting]") {
+TEST_METHOD(FarApartEligibleSheepDoNotGreet) {
     Sim sim = build_sheep_sim();
     const std::vector<std::size_t> indices = prepare_two_sheep(sim, 200.0);
 
     for (int i = 0; i < 3; ++i) sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
-    REQUIRE(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
 }
 
-TEST_CASE("Sheep under greeting minimum age do not greet", "[sheep][greeting]") {
+TEST_METHOD(SheepUnderGreetingMinimumAgeDoNotGreet) {
     Sim sim = build_sheep_sim();
     const std::vector<std::size_t> indices = prepare_two_sheep(sim, 40.0, 0.5, EligibleAge);
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
-    REQUIRE(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
 }
 
-TEST_CASE("Sleeping hopping and greeting sheep are not greeting-eligible", "[sheep][greeting]") {
+TEST_METHOD(SleepingHoppingAndGreetingSheepAreNotGreetingEligible) {
     const uint8_t blockedStates[] = {
         SHEEP_STATE_SLEEPING,
         SHEEP_STATE_HOPPING,
@@ -152,12 +159,12 @@ TEST_CASE("Sleeping hopping and greeting sheep are not greeting-eligible", "[she
 
         sim_tick_entities(sim, 0.016);
 
-        REQUIRE(sim.entities[indices[0]].state == blockedState);
-        REQUIRE(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
+        Assert::IsTrue(sim.entities[indices[0]].state == blockedState);
+        Assert::IsTrue(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
     }
 }
 
-TEST_CASE("Greeting expiry returns sheep to Walking with vx flipped", "[sheep][greeting]") {
+TEST_METHOD(GreetingExpiryReturnsSheepToWalkingWithVxFlipped) {
     Sim sim = build_sheep_sim();
     const std::vector<std::size_t> indices = prepare_two_sheep(sim);
 
@@ -168,19 +175,19 @@ TEST_CASE("Greeting expiry returns sheep to Walking with vx flipped", "[sheep][g
 
     sim_tick_entities(sim, duration + 0.01);
 
-    REQUIRE(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
-    REQUIRE(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
-    REQUIRE(sim.entities[indices[0]].vx == Approx(-aGreetingVx));
-    REQUIRE(sim.entities[indices[1]].vx == Approx(-bGreetingVx));
+    Assert::IsTrue(sim.entities[indices[0]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[1]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities[indices[0]].vx == Near(-aGreetingVx));
+    Assert::IsTrue(sim.entities[indices[1]].vx == Near(-bGreetingVx));
 }
 
-TEST_CASE("Greeting trigger consumes one PRNG draw per pair", "[sheep][greeting][prng]") {
+TEST_METHOD(GreetingTriggerConsumesOnePRNGDrawPerPair) {
     Prng side;
     prng_init(side, CANONICAL_TEST_SEED ^ CRITTER_PRNG_SALT);
 
     Sim sim = build_sheep_sim();
     const int expectedCount = advance_side_past_sheep_generation(side);
-    REQUIRE(static_cast<int>(sheep_indices(sim).size()) == expectedCount);
+    Assert::IsTrue(static_cast<int>(sheep_indices(sim).size()) == expectedCount);
     const std::vector<std::size_t> indices = prepare_two_sheep(sim);
 
     const double expectedDuration = prng_uniform(side,
@@ -188,32 +195,32 @@ TEST_CASE("Greeting trigger consumes one PRNG draw per pair", "[sheep][greeting]
                                                  SHEEP_GREET_DURATION_MAX);
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities[indices[0]].stateTimer == Approx(expectedDuration));
-    REQUIRE(sim.entities[indices[1]].stateTimer == Approx(expectedDuration));
+    Assert::IsTrue(sim.entities[indices[0]].stateTimer == Near(expectedDuration));
+    Assert::IsTrue(sim.entities[indices[1]].stateTimer == Near(expectedDuration));
 }
 
-TEST_CASE("Single sheep cannot enter Greeting", "[sheep][greeting]") {
+TEST_METHOD(SingleSheepCannotEnterGreeting) {
     Sim sim = build_sheep_sim();
     sim.currentScene = Scene::Desert;
-    REQUIRE(sim.entities.size() >= 1);
+    Assert::IsTrue(sim.entities.size() >= 1);
     sim.entities.erase(sim.entities.begin() + 1, sim.entities.end());
     set_sheep(sim, 0, 500.0, 20.0);
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities.size() == 1);
-    REQUIRE(sim.entities[0].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(sim.entities.size() == 1);
+    Assert::IsTrue(sim.entities[0].state == SHEEP_STATE_WALKING);
 }
 
-TEST_CASE("Three sheep cluster greets only the first encountered pair", "[sheep][greeting]") {
+TEST_METHOD(ThreeSheepClusterGreetsOnlyTheFirstEncounteredPair) {
     Sim sim = build_sheep_sim();
     std::vector<std::size_t> indices = sheep_indices(sim);
-    REQUIRE(indices.size() >= 2);
+    Assert::IsTrue(indices.size() >= 2);
     if (indices.size() < 3) {
         sim.entities.push_back(sim.entities[indices[1]]);
         indices = sheep_indices(sim);
     }
-    REQUIRE(indices.size() >= 3);
+    Assert::IsTrue(indices.size() >= 3);
 
     set_sheep(sim, indices[0], 500.0, -20.0);
     set_sheep(sim, indices[1], 540.0, 18.0);
@@ -221,8 +228,10 @@ TEST_CASE("Three sheep cluster greets only the first encountered pair", "[sheep]
 
     sim_tick_entities(sim, 0.016);
 
-    REQUIRE(sim.entities[indices[0]].state == SHEEP_STATE_GREETING);
-    REQUIRE(sim.entities[indices[1]].state == SHEEP_STATE_GREETING);
-    REQUIRE(sim.entities[indices[2]].state == SHEEP_STATE_WALKING);
-    REQUIRE(count_sheep_in_state(sim, SHEEP_STATE_GREETING) == 2);
+    Assert::IsTrue(sim.entities[indices[0]].state == SHEEP_STATE_GREETING);
+    Assert::IsTrue(sim.entities[indices[1]].state == SHEEP_STATE_GREETING);
+    Assert::IsTrue(sim.entities[indices[2]].state == SHEEP_STATE_WALKING);
+    Assert::IsTrue(count_sheep_in_state(sim, SHEEP_STATE_GREETING) == 2);
+}
+};
 }
