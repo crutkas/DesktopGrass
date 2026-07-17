@@ -145,6 +145,7 @@
     <ClCompile Include="src\bird_flyby_tests.cpp" />
     <ClCompile Include="src\persistence_tests.cpp" />
     <ClCompile Include="src\config_tests.cpp" />
+    <ClCompile Include="src\json_tests.cpp" />
     <ClCompile Include="src\display_topology_tests.cpp" />
     <ClCompile Include="src\autostart_tests.cpp" />
     <ClCompile Include="src\click_through_smoke_test.cpp" />

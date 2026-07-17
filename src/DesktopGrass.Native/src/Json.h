@@ -10,6 +10,8 @@
 
 #include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -20,6 +22,9 @@
 #include <vector>
 
 namespace desktopgrass::json {
+
+// Keep recursive container descent within a small, deterministic stack budget.
+inline constexpr std::size_t kMaxNestingDepth = 128;
 
 // ASCII-only lowercase fold (a-z), locale-independent, so object member keys
 // can be matched case-insensitively to mirror the Win2D loader's
@@ -52,7 +57,7 @@ public:
 
     bool Parse(Value& out) {
         SkipWhitespace();
-        if (!ParseValue(out)) {
+        if (!ParseValue(out, 0)) {
             return false;
         }
         SkipWhitespace();
@@ -96,13 +101,17 @@ private:
         return true;
     }
 
-    bool ParseValue(Value& out) {
+    bool ParseValue(Value& out, std::size_t depth) {
         SkipWhitespace();
         if (pos_ >= text_.size()) return false;
 
         const char c = text_[pos_];
-        if (c == '{') return ParseObject(out);
-        if (c == '[') return ParseArray(out);
+        if (c == '{') {
+            return depth < kMaxNestingDepth && ParseObject(out, depth + 1);
+        }
+        if (c == '[') {
+            return depth < kMaxNestingDepth && ParseArray(out, depth + 1);
+        }
         if (c == '"') {
             out.type = Value::Type::String;
             return ParseString(out.stringValue);
@@ -130,7 +139,7 @@ private:
         return false;
     }
 
-    bool ParseObject(Value& out) {
+    bool ParseObject(Value& out, std::size_t depth) {
         if (text_[pos_] != '{') return false;
         ++pos_;
         out.type = Value::Type::Object;
@@ -151,7 +160,7 @@ private:
             ++pos_;
 
             Value value;
-            if (!ParseValue(value)) return false;
+            if (!ParseValue(value, depth)) return false;
             // Normalize keys to ASCII-lowercase so config/state lookups are
             // case-insensitive (matching the Win2D loader). Monitor keys like
             // "1920x1080@0,0" contain no uppercase letters, so this is a no-op
@@ -176,7 +185,7 @@ private:
         return false;
     }
 
-    bool ParseArray(Value& out) {
+    bool ParseArray(Value& out, std::size_t depth) {
         if (text_[pos_] != '[') return false;
         ++pos_;
         out.type = Value::Type::Array;
@@ -190,7 +199,7 @@ private:
 
         while (pos_ < text_.size()) {
             Value value;
-            if (!ParseValue(value)) return false;
+            if (!ParseValue(value, depth)) return false;
             out.arrayValue.push_back(std::move(value));
 
             SkipWhitespace();
@@ -232,9 +241,7 @@ private:
                 case 'r': out.push_back('\r'); break;
                 case 't': out.push_back('\t'); break;
                 case 'u':
-                    if (pos_ + 4 > text_.size()) return false;
-                    out.push_back('?');
-                    pos_ += 4;
+                    if (!ParseUnicodeEscape(out)) return false;
                     break;
                 default:
                     return false;
@@ -244,6 +251,75 @@ private:
             }
         }
         return false;
+    }
+
+    static int HexDigitValue(char c) noexcept {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+
+    bool ParseHexCodeUnit(std::uint16_t& out) noexcept {
+        if (pos_ + 4 > text_.size()) return false;
+
+        std::uint16_t value = 0;
+        for (std::size_t i = 0; i < 4; ++i) {
+            const int digit = HexDigitValue(text_[pos_ + i]);
+            if (digit < 0) return false;
+            value = static_cast<std::uint16_t>((value << 4) | digit);
+        }
+
+        pos_ += 4;
+        out = value;
+        return true;
+    }
+
+    static void AppendUtf8(std::uint32_t codePoint, std::string& out) {
+        if (codePoint <= 0x7F) {
+            out.push_back(static_cast<char>(codePoint));
+        } else if (codePoint <= 0x7FF) {
+            out.push_back(static_cast<char>(0xC0 | (codePoint >> 6)));
+            out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+        } else if (codePoint <= 0xFFFF) {
+            out.push_back(static_cast<char>(0xE0 | (codePoint >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (codePoint >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+        }
+    }
+
+    bool ParseUnicodeEscape(std::string& out) {
+        std::uint16_t first = 0;
+        if (!ParseHexCodeUnit(first)) return false;
+
+        std::uint32_t codePoint = first;
+        if (first >= 0xD800 && first <= 0xDBFF) {
+            if (pos_ + 2 > text_.size()
+                || text_[pos_] != '\\'
+                || text_[pos_ + 1] != 'u') {
+                return false;
+            }
+            pos_ += 2;
+
+            std::uint16_t second = 0;
+            if (!ParseHexCodeUnit(second) || second < 0xDC00 || second > 0xDFFF) {
+                return false;
+            }
+
+            codePoint = 0x10000
+                + ((static_cast<std::uint32_t>(first) - 0xD800) << 10)
+                + (static_cast<std::uint32_t>(second) - 0xDC00);
+        } else if (first >= 0xDC00 && first <= 0xDFFF) {
+            return false;
+        }
+
+        AppendUtf8(codePoint, out);
+        return true;
     }
 
     bool ParseNumber(Value& out) {
