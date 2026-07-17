@@ -147,6 +147,7 @@
     <ClCompile Include="src\RuntimeNotifications.cpp" />
     <ClCompile Include="src\RuntimePolicy.cpp" />
     <ClCompile Include="src\Sim.cpp" />
+    <ClCompile Include="src\SingleInstance.cpp" />
     <ClCompile Include="src\VisibilityTracker.cpp" />
   </ItemGroup>
 
@@ -168,6 +169,7 @@
     <ClInclude Include="src\RuntimeNotifications.h" />
     <ClInclude Include="src\RuntimePolicy.h" />
     <ClInclude Include="src\Sim.h" />
+    <ClInclude Include="src\SingleInstance.h" />
     <ClInclude Include="src\VisibilityTracker.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
