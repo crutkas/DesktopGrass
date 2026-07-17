@@ -15,6 +15,7 @@
 
 #include "App.h"
 #include "Benchmark.h"
+#include "SingleInstance.h"
 
 namespace {
 
@@ -48,16 +49,46 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
         return -4;
     }
 
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    if (FAILED(hr)) {
-        return -1;
-    }
-
     int argc = 0;
     wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 
+    const bool benchmark = argv && HasBenchmarkFlag(argc, argv);
+    desktopgrass::SingleInstanceGuard singleInstance;
+    if (!benchmark) {
+        const desktopgrass::SingleInstanceResult result =
+            singleInstance.TryAcquire();
+        if (result == desktopgrass::SingleInstanceResult::AlreadyRunning) {
+            MessageBoxW(
+                nullptr,
+                L"DesktopGrass is already running. Use its system tray icon "
+                L"to manage or quit it.",
+                L"DesktopGrass",
+                MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+            if (argv) LocalFree(argv);
+            return 0;
+        }
+        if (result == desktopgrass::SingleInstanceResult::Failed) {
+            OutputDebugStringA(
+                "[DesktopGrass] unable to acquire the single-instance guard\n");
+            MessageBoxW(
+                nullptr,
+                L"DesktopGrass could not verify that another instance is not "
+                L"already running.",
+                L"DesktopGrass",
+                MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+            if (argv) LocalFree(argv);
+            return -5;
+        }
+    }
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr)) {
+        if (argv) LocalFree(argv);
+        return -1;
+    }
+
     int exitCode = 0;
-    if (argv && HasBenchmarkFlag(argc, argv)) {
+    if (benchmark) {
         desktopgrass::benchmark::Options opts;
         if (!desktopgrass::benchmark::ParseOptions(argc, argv, opts)) {
             if (argv) LocalFree(argv);

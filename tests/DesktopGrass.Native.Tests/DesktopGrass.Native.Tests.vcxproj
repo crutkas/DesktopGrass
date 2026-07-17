@@ -155,6 +155,7 @@
     <ClCompile Include="src\renderer_recovery_integration_tests.cpp" />
     <ClCompile Include="src\runtime_notifications_tests.cpp" />
     <ClCompile Include="src\runtime_policy_tests.cpp" />
+    <ClCompile Include="src\single_instance_tests.cpp" />
     <ClCompile Include="src\visibility_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Config.cpp" />
@@ -165,6 +166,7 @@
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\RuntimeNotifications.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\RuntimePolicy.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\SingleInstance.cpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -181,6 +183,7 @@
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Renderer.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimeNotifications.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimePolicy.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\SingleInstance.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
