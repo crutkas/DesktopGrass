@@ -78,7 +78,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dcomp.lib;dwrite.lib;User32.lib;Gdi32.lib;Ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dcomp.lib;dwrite.lib;User32.lib;Gdi32.lib;Ole32.lib;Wtsapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -150,14 +150,20 @@
     <ClCompile Include="src\click_through_smoke_test.cpp" />
     <ClCompile Include="src\device_recovery_tests.cpp" />
     <ClCompile Include="src\pacing_tests.cpp" />
+    <ClCompile Include="src\mouse_queue_tests.cpp" />
     <ClCompile Include="src\prop_spacing_tests.cpp" />
     <ClCompile Include="src\renderer_recovery_integration_tests.cpp" />
+    <ClCompile Include="src\runtime_notifications_tests.cpp" />
+    <ClCompile Include="src\runtime_policy_tests.cpp" />
+    <ClCompile Include="src\visibility_tests.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\AutoStart.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Config.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\DisplayTopology.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Pacing.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Persistence.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Renderer.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\RuntimeNotifications.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\RuntimePolicy.cpp" />
     <ClCompile Include="..\..\src\DesktopGrass.Native\src\Sim.cpp" />
   </ItemGroup>
 
@@ -168,9 +174,12 @@
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\DeviceRecovery.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\DisplayTopology.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Json.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\MouseHook.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Pacing.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Persistence.h" />
     <ClInclude Include="..\..\src\DesktopGrass.Native\src\Renderer.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimeNotifications.h" />
+    <ClInclude Include="..\..\src\DesktopGrass.Native\src\RuntimePolicy.h" />
     <ClInclude Include="third_party\catch2\catch.hpp" />
   </ItemGroup>
 

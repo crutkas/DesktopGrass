@@ -18,12 +18,16 @@
 #include "Pacing.h"
 #include "Persistence.h"
 #include "Config.h"
+#include "RuntimeNotifications.h"
+#include "RuntimePolicy.h"
+#include "VisibilityTracker.h"
 
 namespace desktopgrass {
 
 class App {
 public:
     static constexpr UINT  kTrayMessage     = WM_APP + 100;
+    static constexpr UINT  kVisibilityChangedMessage = WM_APP + 110;
     static constexpr UINT  kTrayIconId      = 1;
     static constexpr int   kMenuQuit          = 1001;
     static constexpr int   kMenuSceneGrass    = 1010;
@@ -55,6 +59,8 @@ public:
 
 private:
     bool CreateMessageWindow();
+    bool InitializeRuntimeNotifications();
+    void ShutdownRuntimeNotifications() noexcept;
     bool CreateTrayIcon();
     bool AddTrayIcon();
     void RemoveTrayIcon();
@@ -69,6 +75,11 @@ private:
     uint64_t ResolveLayoutSeed(
         const topology::MonitorSnapshot& monitor,
         const persistence::MonitorState* state) const;
+    void ApplyPendingRuntimeChanges();
+    void RefreshVisibilityState();
+    void ApplyRuntimePolicy();
+    void SetMouseObservationEnabled(bool enabled);
+    void HandleVisibilityNotification();
     void DispatchMouseEvents();
     void RenderAllWindows(double dt);
     void ApplyStateToWindow(
@@ -99,6 +110,8 @@ private:
     bool                                        trayAdded_ = false;
     MouseEventQueue                             queue_{};
     std::vector<std::unique_ptr<GrassWindow>>   windows_;
+    std::vector<runtime::SurfaceState>           surfaceStates_;
+    std::vector<runtime::Decision>               runtimeDecisions_;
     config::Config                              config_{};
     Scene                                       currentScene_ = SCENE_DEFAULT;
     CritterKind                                 currentCritter_ = CRITTER_DEFAULT;
@@ -111,8 +124,17 @@ private:
     LARGE_INTEGER                               qpcFreq_{};
     LARGE_INTEGER                               qpcLast_{};
     FramePacer                                  pacer_{};
+    RuntimeNotifications                        runtimeNotifications_{};
+    VisibilityTracker                           visibilityTracker_{};
+    int                                         effectiveTargetFps_ = 0;
     bool                                        quitRequested_ = false;
     bool                                        displayChangePending_ = false;
+    bool                                        runtimeStateDirty_ = true;
+    bool                                        visibilityStateDirty_ = true;
+    bool                                        anySurfaceRendering_ = false;
+    bool                                        resumeFramePending_ = true;
+    bool                                        mouseHookInstalled_ = false;
+    bool                                        hardPauseStateSaved_ = false;
     bool                                        sessionEndStateSaved_ = false;
     UINT                                        taskbarCreatedMessage_ = 0;
 };

@@ -2650,3 +2650,81 @@ Per raindrop, both implementations MUST draw fields in this exact order: `size`,
 Render each raindrop as a slim line from `(x, y)` to `(x - vx * 0.03, y + size)` using `RAINDROP_COLOR` and `RAINDROP_THICKNESS`; the horizontal tail suggests subtle motion blur. Switching away from Grass stops new emission but preserves existing raindrops so they softly fade out through normal lifetime expiry rather than hard-cutting.
 
 </details>
+
+## 21. Native runtime control
+
+`DesktopGrass.Native` reduces event-driven Windows lifecycle, power, and
+visibility inputs to one decision per monitor. Suppression freezes the existing
+`Sim` and skips `Renderer::RenderFrame`; it does not destroy the HWND, renderer,
+swap chain, or simulation state. The first frame after a process-wide pause
+uses a fresh QPC baseline and caps `dt` at `1/30` second.
+
+### Behavior matrix
+
+| Condition | Scope | Native behavior |
+| --- | --- | --- |
+| Suspend | All monitors | Pause every tick/present and wait indefinitely for a message |
+| Session lock or disconnect | All monitors | Save once, pause every tick/present, and disable mouse observation |
+| Session display off | All monitors | Save once, pause every tick/present, and disable mouse observation |
+| Session display dimmed | Rendering monitors | Cap cadence at `min(configured FPS, 5)` |
+| Battery Saver | Rendering monitors | Cap cadence at `min(configured FPS, 5)` |
+| Battery or short-term/UPS power | Rendering monitors | Cap cadence at `min(configured FPS, 12)` |
+| AC power | Rendering monitors | Use the configured cadence |
+| Opaque foreground window covers a physical monitor | That monitor | Hide and pause only that surface |
+| Grass strip is fully covered by known-opaque windows above it | That monitor | Hide and pause only that surface |
+| Partial or uncertain coverage | That monitor | Keep the surface visible and use the global power cadence |
+
+Precedence is suspend, session lock/disconnect, display off, per-monitor
+fullscreen, per-monitor occlusion, Saver/dimmed, battery/UPS, then AC cadence.
+The 12 FPS battery/UPS and 5 FPS Saver/dimmed values are initial conservative
+caps subject to measurement and tuning in GitHub issue #14. They are always
+applied as `min(configured FPS, cap)`, so a lower configured cadence is never
+increased.
+`WM_CLOSE`, tray quit, and end-session messages remain available in every
+state. If every surface is paused, `FramePacer::WaitForMessage` performs an
+infinite message-aware wait, so there are no frame wakeups or shutdown delay.
+The low-level mouse hook is uninstalled and its queue cleared while no surface
+can render, preventing hidden-time input from replaying after resume.
+
+### Notification and visibility ownership
+
+`RuntimeNotifications` owns power, suspend, and WTS registrations, seeds their
+state, and decodes receiver messages independently of `RuntimePolicy`. `App`'s
+message-only HWND is the current receiver, but issue #28 can move those
+broadcasts to a hidden top-level HWND without changing policy or duplicating
+topology reconciliation and persistence. Partial startup failure rolls back
+successful registrations, and normal teardown unregisters everything in
+reverse order before the receiver HWND is destroyed:
+
+- `GetSystemPowerStatus` seeds power source and Saver state.
+- `RegisterPowerSettingNotification` supplies AC/DC,
+  `GUID_POWER_SAVING_STATUS`, and `GUID_SESSION_DISPLAY_STATUS` changes through
+  `WM_POWERBROADCAST`.
+- `RegisterSuspendResumeNotification` supplies suspend and automatic/user
+  resume events.
+- `WTSQuerySessionInformation(WTSSessionInfoEx)` seeds lock/disconnect state;
+  `WTSRegisterSessionNotification` supplies subsequent session transitions.
+- `SetWinEventHook` observes foreground, move/size, minimize, create/destroy,
+  show/hide, reorder, location, and cloak/uncloak changes. Callbacks acquire
+  lifetime-safe shared callback state and only post one coalesced app message.
+  Posting is disabled before hooks are removed; all HWND and DWM inspection
+  runs on the app thread.
+
+Fullscreen comparison uses `DWMWA_EXTENDED_FRAME_BOUNDS` with
+`GetWindowRect` fallback against `MONITORINFO.rcMonitor`, while placement and
+persistence continue to use `rcWork`. Full occlusion walks top-level z-order
+only until the grass HWND and combines simple known-opaque rectangles above it.
+DesktopGrass-owned and shell/desktop surfaces are excluded. Layered windows
+with alpha/color keys, per-pixel layered windows, cloaked or minimized windows,
+complex regions, failed opacity queries, and other uncertain coverage fail
+open.
+Display-off remains process-wide because the session display notification does
+not expose reliable per-monitor sleep state.
+
+There is no fullscreen, occlusion, power, or session polling. The pre-existing
+one-second DPI safety check remains active only while at least one surface
+renders and is forced once after a full resume. Pure policy, registration
+lifecycle, and rectangle coverage tests pin precedence, cadence caps, rollback
+and teardown, monitor independence, and conservative coverage; the Native
+runtime smoke test pins HWND reuse, fullscreen/occlusion transitions, and
+shutdown while suppressed.

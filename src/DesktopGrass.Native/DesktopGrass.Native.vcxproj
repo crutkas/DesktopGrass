@@ -78,7 +78,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dcomp.lib;dwrite.lib;Shcore.lib;Shell32.lib;User32.lib;Gdi32.lib;Ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dcomp.lib;dwrite.lib;Dwmapi.lib;Shcore.lib;Shell32.lib;User32.lib;Gdi32.lib;Ole32.lib;Wtsapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ResourceCompile>
       <PreprocessorDefinitions>UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -144,7 +144,10 @@
     <ClCompile Include="src\MouseHook.cpp" />
     <ClCompile Include="src\Pacing.cpp" />
     <ClCompile Include="src\Persistence.cpp" />
+    <ClCompile Include="src\RuntimeNotifications.cpp" />
+    <ClCompile Include="src\RuntimePolicy.cpp" />
     <ClCompile Include="src\Sim.cpp" />
+    <ClCompile Include="src\VisibilityTracker.cpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -162,7 +165,10 @@
     <ClInclude Include="src\Pacing.h" />
     <ClInclude Include="src\Persistence.h" />
     <ClInclude Include="src\Renderer.h" />
+    <ClInclude Include="src\RuntimeNotifications.h" />
+    <ClInclude Include="src\RuntimePolicy.h" />
     <ClInclude Include="src\Sim.h" />
+    <ClInclude Include="src\VisibilityTracker.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
 

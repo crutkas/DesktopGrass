@@ -23,14 +23,29 @@ namespace {
 
 constexpr const wchar_t* kMsgWindowClass = L"DesktopGrass.Native.MessageWindow";
 
+runtime::Rect make_runtime_rect(const topology::PixelRect& bounds) {
+    return runtime::Rect{
+        bounds.left, bounds.top, bounds.right, bounds.bottom,
+    };
+}
+
+runtime::Rect make_runtime_rect(const topology::SurfaceSpec& surface) {
+    return runtime::Rect{
+        surface.x,
+        surface.y,
+        surface.x + surface.widthPx,
+        surface.y + surface.heightPx,
+    };
+}
 } // anonymous
 
 App::~App() {
+    SetMouseObservationEnabled(false);
+    ShutdownRuntimeNotifications();
     DestroyAllGrassWindows();
     RemoveTrayIcon();
     if (trayMenu_) { DestroyMenu(trayMenu_); trayMenu_ = nullptr; }
     DestroyMessageWindow();
-    uninstall_mouse_hook();
 }
 
 bool App::Initialize(HINSTANCE hInst) {
@@ -57,13 +72,9 @@ bool App::Initialize(HINSTANCE hInst) {
 
     if (!GrassWindow::RegisterWindowClass(hInst_)) return false;
     if (!CreateMessageWindow())                    return false;
+    if (!InitializeRuntimeNotifications())         return false;
     if (!CreateTrayIcon())                         return false;
     if (!ReconcileDisplayTopology())               return false;
-
-    if (!install_mouse_hook(&queue_)) {
-        OutputDebugStringA("[DesktopGrass] install_mouse_hook failed\n");
-        // Non-fatal — the grass will still sway, just no gusts/cuts.
-    }
 
     return true;
 }
@@ -95,6 +106,27 @@ void App::DestroyMessageWindow() {
                 "[DesktopGrass] unable to destroy message window\n");
         }
     }
+}
+
+bool App::InitializeRuntimeNotifications() {
+    if (!runtimeNotifications_.Start(msgHwnd_)) return false;
+
+    if (!visibilityTracker_.Start(
+            msgHwnd_, kVisibilityChangedMessage)) {
+        OutputDebugStringA(
+            "[DesktopGrass] visibility WinEvent registration failed\n");
+        ShutdownRuntimeNotifications();
+        return false;
+    }
+
+    runtimeStateDirty_ = true;
+    visibilityStateDirty_ = true;
+    return true;
+}
+
+void App::ShutdownRuntimeNotifications() noexcept {
+    visibilityTracker_.Stop();
+    runtimeNotifications_.Stop();
 }
 
 bool App::CreateTrayIcon() {
@@ -436,11 +468,132 @@ bool App::ReconcileDisplayTopology() {
         OutputDebugStringA(
             "[DesktopGrass] display topology partially applied; will retry\n");
     }
+
+    surfaceStates_.assign(windows_.size(), {});
+    runtimeDecisions_.assign(windows_.size(), {});
+    visibilityStateDirty_ = true;
+    runtimeStateDirty_ = true;
+    ApplyPendingRuntimeChanges();
+
+    for (auto& window : windows_) {
+        window->Show();
+    }
     return !windows_.empty();
 }
 
 void App::DestroyAllGrassWindows() {
     windows_.clear();
+    surfaceStates_.clear();
+    runtimeDecisions_.clear();
+    anySurfaceRendering_ = false;
+    effectiveTargetFps_ = 0;
+}
+
+void App::ApplyPendingRuntimeChanges() {
+    if (visibilityStateDirty_) {
+        RefreshVisibilityState();
+    }
+    if (runtimeStateDirty_) {
+        ApplyRuntimePolicy();
+    }
+}
+
+void App::RefreshVisibilityState() {
+    surfaceStates_.resize(windows_.size());
+
+    runtime::Rect foregroundBounds;
+    const bool hasForeground =
+        visibilityTracker_.TryGetForegroundBounds(foregroundBounds);
+
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        GrassWindow& window = *windows_[i];
+        runtime::SurfaceState state;
+        state.fullscreen = hasForeground
+            && runtime::Covers(
+                foregroundBounds,
+                make_runtime_rect(window.GetMonitor().monitorBounds));
+        state.occluded = !state.fullscreen
+            && visibilityTracker_.IsFullyOccluded(
+                window.GetHwnd(),
+                make_runtime_rect(window.GetSurface()));
+        surfaceStates_[i] = state;
+    }
+
+    visibilityStateDirty_ = false;
+    runtimeStateDirty_ = true;
+}
+
+void App::ApplyRuntimePolicy() {
+    const bool wasRendering = anySurfaceRendering_;
+    anySurfaceRendering_ = false;
+    effectiveTargetFps_ = 0;
+    runtimeDecisions_.resize(windows_.size());
+
+    const runtime::Decision globalDecision =
+        runtime::Evaluate(
+            runtimeNotifications_.State(), {}, config_.targetFps);
+    const bool globallyPaused =
+        runtime::IsGlobalPause(globalDecision.pauseReason);
+
+    if (globallyPaused
+        && !hardPauseStateSaved_
+        && !windows_.empty()) {
+        SaveCurrentState();
+        hardPauseStateSaved_ = true;
+    } else if (!globallyPaused) {
+        hardPauseStateSaved_ = false;
+    }
+
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        const runtime::Decision decision = runtime::Evaluate(
+            runtimeNotifications_.State(),
+            surfaceStates_[i],
+            config_.targetFps);
+        runtimeDecisions_[i] = decision;
+
+        const bool visibilitySuppressed =
+            surfaceStates_[i].fullscreen || surfaceStates_[i].occluded;
+        windows_[i]->SetSuppressed(!decision.show || visibilitySuppressed);
+
+        if (decision.render) {
+            anySurfaceRendering_ = true;
+            effectiveTargetFps_ = effectiveTargetFps_ == 0
+                ? decision.targetFps
+                : std::min(effectiveTargetFps_, decision.targetFps);
+        }
+    }
+
+    SetMouseObservationEnabled(anySurfaceRendering_);
+
+    if (!wasRendering && anySurfaceRendering_) {
+        QueryPerformanceCounter(&qpcLast_);
+        resumeFramePending_ = true;
+        lastTopologyPollMs_ = 0;
+    } else if (wasRendering && !anySurfaceRendering_) {
+        QueryPerformanceCounter(&qpcLast_);
+    }
+
+    runtimeStateDirty_ = false;
+}
+
+void App::SetMouseObservationEnabled(bool enabled) {
+    if (enabled) {
+        if (mouseHookInstalled_) return;
+        queue_.clear();
+        if (install_mouse_hook(&queue_)) {
+            mouseHookInstalled_ = true;
+        } else {
+            OutputDebugStringA(
+                "[DesktopGrass] install_mouse_hook failed; input effects are disabled\n");
+        }
+        return;
+    }
+
+    if (mouseHookInstalled_) {
+        uninstall_mouse_hook();
+        mouseHookInstalled_ = false;
+    }
+    queue_.clear();
 }
 
 void App::DispatchMouseEvents() {
@@ -453,7 +606,14 @@ void App::DispatchMouseEvents() {
 
         for (std::size_t i = 0; i < n; ++i) {
             const RawMouseEvent& e = raw[i];
-            for (auto& w : windows_) {
+            for (std::size_t windowIndex = 0;
+                 windowIndex < windows_.size();
+                 ++windowIndex) {
+                if (windowIndex >= runtimeDecisions_.size()
+                    || !runtimeDecisions_[windowIndex].render) {
+                    continue;
+                }
+                auto& w = windows_[windowIndex];
                 const topology::SurfaceSpec& surface = w->GetSurface();
                 const int right = surface.x + surface.widthPx;
                 const int bottom = surface.y + surface.heightPx;
@@ -500,8 +660,10 @@ void App::DispatchMouseEvents() {
 
 void App::RenderAllWindows(double dt) {
     DispatchMouseEvents();
-    for (auto& w : windows_) {
-        w->RenderFrame(dt, nullptr, 0);
+    for (std::size_t i = 0; i < windows_.size(); ++i) {
+        if (i < runtimeDecisions_.size() && runtimeDecisions_[i].render) {
+            windows_[i]->RenderFrame(dt, nullptr, 0);
+        }
     }
 }
 
@@ -570,13 +732,13 @@ void App::HandleSessionEnding(bool ending) {
     }
 }
 
+void App::HandleVisibilityNotification() {
+    visibilityTracker_.AcknowledgeNotification();
+    visibilityStateDirty_ = true;
+}
+
 int App::Run() {
     MSG msg{};
-    // Calm ambient content renders at the configured target fps (default 24
-    // via Config.h kTargetFpsDefault) to keep per-frame CPU low; motion is
-    // time-based (dt), so the rate only changes how often the same animation
-    // is sampled. The user can override this in config.json (targetFps).
-    const double kTargetFrameSec = 1.0 / static_cast<double>(config_.targetFps);
 
     while (!quitRequested_) {
         // Drain pending messages without blocking.
@@ -591,8 +753,13 @@ int App::Run() {
         if (quitRequested_) break;
 
         // Broadcasts can be missed or arrive while Windows is still converging
-        // on a new topology. A low-frequency full snapshot is the safety net;
-        // equal snapshots produce no window or persistence work.
+        // on a new topology. A low-frequency snapshot is the safety net while
+        // rendering; equal snapshots produce no window or persistence work.
+        ApplyPendingRuntimeChanges();
+        if (!anySurfaceRendering_) {
+            pacer_.WaitForMessage();
+            continue;
+        }
         const ULONGLONG tickMs = GetTickCount64();
         if (tickMs - lastTopologyPollMs_ >= 1000ull) {
             lastTopologyPollMs_ = tickMs;
@@ -601,14 +768,20 @@ int App::Run() {
         if (displayChangePending_) {
             displayChangePending_ = false;
             ReconcileDisplayTopology();
+            ApplyPendingRuntimeChanges();
+            if (!anySurfaceRendering_) continue;
         }
 
         // Compute dt.
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
-        const double dt = static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
-                          static_cast<double>(qpcFreq_.QuadPart);
+        double dt = static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
+                    static_cast<double>(qpcFreq_.QuadPart);
         qpcLast_ = now;
+        if (resumeFramePending_) {
+            dt = std::min(dt, 1.0 / 30.0);
+            resumeFramePending_ = false;
+        }
 
         RenderAllWindows(dt);
 
@@ -627,7 +800,9 @@ int App::Run() {
         QueryPerformanceCounter(&after);
         const double elapsedSec = static_cast<double>(after.QuadPart - now.QuadPart) /
                                   static_cast<double>(qpcFreq_.QuadPart);
-        const double remainingSec = kTargetFrameSec - elapsedSec;
+        const double targetFrameSec =
+            1.0 / static_cast<double>(effectiveTargetFps_);
+        const double remainingSec = targetFrameSec - elapsedSec;
         pacer_.WaitUntilNextFrame(remainingSec);
     }
 
@@ -711,6 +886,25 @@ LRESULT App::HandleMessageWindowMessage(
             displayChangePending_ = true;
             return 0;
 
+        case WM_POWERBROADCAST:
+        case WM_WTSSESSION_CHANGE:
+        {
+            const RuntimeNotificationResult notification =
+                runtimeNotifications_.Dispatch(msg, wp, lp);
+            if (!notification.handled) break;
+            runtimeStateDirty_ =
+                runtimeStateDirty_ || notification.stateChanged;
+            visibilityStateDirty_ =
+                visibilityStateDirty_ || notification.visibilityChanged;
+            ApplyPendingRuntimeChanges();
+            return notification.result;
+        }
+
+        case kVisibilityChangedMessage:
+            HandleVisibilityNotification();
+            ApplyPendingRuntimeChanges();
+            return 0;
+
         case WM_QUERYENDSESSION:
             HandleSessionEnding(true);
             return TRUE;
@@ -738,6 +932,8 @@ LRESULT App::HandleMessageWindowMessage(
         default:
             return DefWindowProcW(hwnd, msg, wp, lp);
     }
+
+    return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
 } // namespace desktopgrass

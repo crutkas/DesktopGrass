@@ -86,7 +86,20 @@ bool GrassWindow::Create(HINSTANCE hInst,
 }
 
 void GrassWindow::Show() {
-    if (hwnd_) {
+    shown_ = true;
+    if (hwnd_ && !suppressed_) {
+        ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+    }
+}
+
+void GrassWindow::SetSuppressed(bool suppressed) {
+    if (suppressed_ == suppressed) return;
+    suppressed_ = suppressed;
+    if (!hwnd_ || !shown_) return;
+
+    if (suppressed_) {
+        ShowWindow(hwnd_, SW_HIDE);
+    } else {
         ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
     }
 }
@@ -96,6 +109,9 @@ void GrassWindow::Destroy() {
         if (!DestroyWindow(hwnd_)) {
             OutputDebugStringA("[DesktopGrass] DestroyWindow failed\n");
         }
+    }
+    if (!hwnd_) {
+        shown_ = false;
     }
 }
 

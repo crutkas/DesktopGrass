@@ -41,6 +41,10 @@ public:
     // when `waitSec <= 0`.
     void WaitUntilNextFrame(double waitSec);
 
+    // Blocks until the thread's message queue has input. Used when every
+    // surface is paused so the process has no frame-cadence wakeups.
+    void WaitForMessage();
+
 private:
     HANDLE timer_ = nullptr;
 };

@@ -41,6 +41,7 @@ public:
                 double swaySpeed = 1.0, double swayAmplitude = 1.0);
 
     void Show();
+    void SetSuppressed(bool suppressed);
     void Destroy();
     bool MoveTo(const topology::MonitorSnapshot& monitor,
                 const topology::SurfaceSpec& surface);
@@ -55,6 +56,7 @@ public:
     const topology::MonitorSnapshot& GetMonitor() const { return monitor_; }
     const topology::SurfaceSpec& GetSurface() const { return surface_; }
     uint64_t GetLayoutSeed() const { return layoutSeed_; }
+    bool IsSuppressed() const { return suppressed_; }
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -66,6 +68,8 @@ private:
     topology::MonitorSnapshot monitor_{};
     topology::SurfaceSpec surface_{};
     uint64_t layoutSeed_ = 0;
+    bool       shown_ = false;
+    bool       suppressed_ = false;
 };
 
 } // namespace desktopgrass

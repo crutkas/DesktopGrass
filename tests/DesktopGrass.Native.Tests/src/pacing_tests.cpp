@@ -19,6 +19,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#include <atomic>
+#include <thread>
+
 using namespace desktopgrass;
 
 namespace {
@@ -77,4 +80,35 @@ TEST_CASE("FramePacer: honours sub-15.6 ms waits via the high-resolution timer",
     // Upper bound: must beat the default ~15.6 ms tick by a comfortable
     // margin. 30 ms catches the regression (78 ms) without flaking on CI.
     REQUIRE(total < 0.030);
+}
+
+TEST_CASE("FramePacer: paused wait wakes for queued messages", "[pacing]") {
+    MSG msg{};
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+    }
+    PeekMessageW(&msg, nullptr, 0, 0, PM_NOREMOVE);
+
+    constexpr UINT kWakeMessage = WM_APP + 77;
+    const DWORD waitingThreadId = GetCurrentThreadId();
+    std::atomic<bool> posted{false};
+    std::thread poster([&]() {
+        Sleep(20);
+        posted.store(
+            PostThreadMessageW(
+                waitingThreadId, kWakeMessage, 0, 0) != FALSE,
+            std::memory_order_release);
+    });
+
+    FramePacer pacer;
+    const double t0 = qpc_now_sec();
+    pacer.WaitForMessage();
+    const double dt = qpc_now_sec() - t0;
+    poster.join();
+
+    REQUIRE(posted.load(std::memory_order_acquire));
+    REQUIRE(dt >= 0.010);
+    REQUIRE(dt < 0.500);
+    REQUIRE(PeekMessageW(
+        &msg, nullptr, kWakeMessage, kWakeMessage, PM_REMOVE));
+    REQUIRE(msg.message == kWakeMessage);
 }

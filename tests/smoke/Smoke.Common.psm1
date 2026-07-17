@@ -33,11 +33,22 @@ namespace DesktopGrass.Smoke
         public const int SM_CMONITORS = 80;
         public const uint WM_CLOSE = 0x0010;
         public const uint MONITOR_DEFAULTTONULL = 0;
+        public const int SW_SHOW = 5;
+        public const int SW_SHOWNOACTIVATE = 4;
+        public const byte VK_MENU = 0x12;
+        public const uint KEYEVENTF_KEYUP = 0x0002;
 
         public const long WS_EX_LAYERED     = 0x00080000;
         public const long WS_EX_TRANSPARENT = 0x00000020;
         public const long WS_EX_TOPMOST     = 0x00000008;
         public const long WS_EX_NOACTIVATE  = 0x08000000;
+        public const uint WS_POPUP          = 0x80000000;
+        public const uint WS_VISIBLE        = 0x10000000;
+        public const uint SS_BLACKRECT      = 0x00000004;
+        public const uint SWP_NOACTIVATE    = 0x0010;
+        public const uint SWP_SHOWWINDOW    = 0x0040;
+
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
 
         public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
@@ -104,6 +115,145 @@ namespace DesktopGrass.Smoke
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateWindowExW(
+            uint dwExStyle,
+            string lpClassName,
+            string lpWindowName,
+            uint dwStyle,
+            int x,
+            int y,
+            int width,
+            int height,
+            IntPtr hwndParent,
+            IntPtr hMenu,
+            IntPtr hInstance,
+            IntPtr lpParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetForegroundWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr SetActiveWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool BringWindowToTop(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool ShowWindow(IntPtr hwnd, int command);
+
+        [DllImport("user32.dll")]
+        public static extern void SwitchToThisWindow(IntPtr hwnd, bool altTab);
+
+        [DllImport("user32.dll")]
+        public static extern void keybd_event(
+            byte virtualKey,
+            byte scanCode,
+            uint flags,
+            UIntPtr extraInfo);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool AttachThreadInput(
+            uint idAttach,
+            uint idAttachTo,
+            bool attach);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowPos(
+            IntPtr hwnd,
+            IntPtr hwndInsertAfter,
+            int x,
+            int y,
+            int width,
+            int height,
+            uint flags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool UpdateWindow(IntPtr hwnd);
+
+        public static IntPtr CreateOpaqueProbeWindow(
+            string title,
+            int x,
+            int y,
+            int width,
+            int height,
+            bool topmost,
+            bool activate)
+        {
+            uint exStyle = topmost ? (uint)WS_EX_TOPMOST : 0;
+            if (!activate) exStyle |= (uint)WS_EX_NOACTIVATE;
+
+            IntPtr hwnd = CreateWindowExW(
+                exStyle,
+                "STATIC",
+                title,
+                WS_POPUP | WS_VISIBLE | SS_BLACKRECT,
+                x,
+                y,
+                width,
+                height,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                IntPtr.Zero);
+            if (hwnd == IntPtr.Zero) return IntPtr.Zero;
+
+            uint flags = SWP_SHOWWINDOW;
+            if (!activate) flags |= SWP_NOACTIVATE;
+            if (!SetWindowPos(
+                    hwnd,
+                    topmost ? HWND_TOPMOST : IntPtr.Zero,
+                    x, y, width, height, flags))
+            {
+                DestroyWindow(hwnd);
+                return IntPtr.Zero;
+            }
+            UpdateWindow(hwnd);
+            if (activate) ActivateWindow(hwnd);
+            return hwnd;
+        }
+
+        public static bool ActivateWindow(IntPtr hwnd)
+        {
+            uint currentThread = GetCurrentThreadId();
+            uint foregroundProcess;
+            uint foregroundThread = GetWindowThreadProcessId(
+                GetForegroundWindow(), out foregroundProcess);
+            bool attached = foregroundThread != 0
+                && foregroundThread != currentThread
+                && AttachThreadInput(currentThread, foregroundThread, true);
+            try
+            {
+                ShowWindow(hwnd, SW_SHOW);
+                BringWindowToTop(hwnd);
+                SetActiveWindow(hwnd);
+                keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+                SetForegroundWindow(hwnd);
+                keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                if (GetForegroundWindow() != hwnd)
+                {
+                    SwitchToThisWindow(hwnd, true);
+                }
+                return GetForegroundWindow() == hwnd;
+            }
+            finally
+            {
+                if (attached)
+                {
+                    AttachThreadInput(currentThread, foregroundThread, false);
+                }
+            }
+        }
 
         public static List<IntPtr> EnumerateWindowsForProcess(uint processId, string className)
         {
@@ -427,6 +577,61 @@ function Assert-ClickThroughExStyles {
     return $true
 }
 
+function Wait-ForWindowVisibility {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [IntPtr] $Hwnd,
+        [Parameter(Mandatory)] [bool] $Visible,
+        [int] $TimeoutSeconds = 5
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ([DesktopGrass.Smoke.Win32]::IsWindowVisible($Hwnd) -eq $Visible) {
+            return
+        }
+        Start-Sleep -Milliseconds 50
+    }
+
+    $state = if ($Visible) { 'visible' } else { 'hidden' }
+    throw "timed out after ${TimeoutSeconds}s waiting for hwnd=$Hwnd to become $state"
+}
+
+function New-OpaqueProbeWindow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Title,
+        [Parameter(Mandatory)] [System.Drawing.Rectangle] $Bounds,
+        [switch] $Topmost,
+        [switch] $Activate
+    )
+
+    $hwnd = [DesktopGrass.Smoke.Win32]::CreateOpaqueProbeWindow(
+        $Title,
+        $Bounds.X,
+        $Bounds.Y,
+        $Bounds.Width,
+        $Bounds.Height,
+        $Topmost.IsPresent,
+        $Activate.IsPresent)
+    if ($hwnd -eq [IntPtr]::Zero) {
+        $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "failed to create opaque probe window (Win32 error $errorCode)"
+    }
+    return $hwnd
+}
+
+function Remove-ProbeWindow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [IntPtr] $Hwnd
+    )
+
+    if ($Hwnd -ne [IntPtr]::Zero) {
+        [void][DesktopGrass.Smoke.Win32]::DestroyWindow($Hwnd)
+    }
+}
+
 function Get-GrassStripPixelVariance {
     [CmdletBinding()]
     param(
@@ -667,6 +872,9 @@ function Invoke-AppSmoke {
 Export-ModuleMember -Function `
     Start-AppForSmoke, `
     Wait-ForWindow, `
+    Wait-ForWindowVisibility, `
+    New-OpaqueProbeWindow, `
+    Remove-ProbeWindow, `
     Assert-ClickThroughExStyles, `
     Assert-MonitorSurfaceTopology, `
     Get-GrassStripPixelVariance, `

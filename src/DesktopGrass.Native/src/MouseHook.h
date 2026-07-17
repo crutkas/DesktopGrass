@@ -58,6 +58,11 @@ public:
         return n;
     }
 
+    void clear() noexcept {
+        tail_.store(head_.load(std::memory_order_acquire),
+                    std::memory_order_release);
+    }
+
 private:
     RawMouseEvent            buffer_[CAPACITY];
     std::atomic<std::size_t> head_; // producer

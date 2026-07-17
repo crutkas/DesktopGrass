@@ -17,6 +17,7 @@ pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native -Configuration Debug
 # Optional managed-reference comparison
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target Win2D -TimeoutSeconds 30
 pwsh tests\smoke\Run-SmokeTests.ps1 -Target All -ContinueOnFailure
+pwsh tests\smoke\Run-NativeRuntimeControlTests.ps1 -Configuration Release
 ```
 
 `-Target` accepts `Native`, `Win2D`, or `All`. The script exits
@@ -41,6 +42,28 @@ Each per-target check performs, in order:
 
 The process is cleaned up in a `finally` block — even if any assertion
 throws, no orphan `DesktopGrass.*.exe` is left running.
+
+### Native runtime-control smoke
+
+`Run-NativeRuntimeControlTests.ps1` requires an unlocked interactive desktop.
+It creates controlled opaque Win32 probe windows and verifies that:
+
+1. A foreground fullscreen probe hides only the grass surface on its monitor.
+2. Removing the probe restores the same HWND without creating another surface.
+3. A topmost opaque window covering the strip triggers reliable full-occlusion
+   suppression and restores the same HWND when removed.
+4. Suppressing every monitor enters the all-paused state and resumes the same
+   HWND set.
+5. `WM_CLOSE` exits with code zero within two seconds while every grass surface
+   is suppressed.
+
+The script does not synthesize power, lock, or suspend notifications. Validate
+those paths on real hardware by observing the Native app while switching
+AC/battery and Battery Saver, dimming/turning off the display, locking and
+unlocking the session, and suspending/resuming. On multi-monitor hardware,
+repeat with a fullscreen app on one monitor and confirm the other surface keeps
+animating. Run the same checks on ARM64 hardware for an end-to-end architecture
+pass.
 
 ## How `winapp ui` fits in
 
@@ -74,6 +97,7 @@ but the rendering check has to come from the framebuffer, not from UIA.
 | ----------------------- | ---------------------------------------------------- |
 | `Smoke.Common.psm1`     | P/Invoke helpers + assertions + `Invoke-AppSmoke`.   |
 | `Run-SmokeTests.ps1`    | Entry point; resolves exe paths and runs per target. |
+| `Run-NativeRuntimeControlTests.ps1` | Native fullscreen, occlusion, resource-reuse, and suppressed-shutdown checks. |
 | `README.md`             | This file.                                           |
 
 ## Requirements
