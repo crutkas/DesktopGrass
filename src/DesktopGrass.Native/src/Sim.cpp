@@ -2098,33 +2098,6 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     return s;
 }
 
-void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density) {
-    sim.globalTime     = 0.0;
-    sim.prevCursorX    = 0.0;
-    sim.prevCursorTime = -1.0;
-    sim.monitorWidth   = monitorWidth;
-    sim.entitySeed     = seed;
-    sim.entities.clear();
-    if (sim.entities.capacity() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
-        sim.entities.reserve(MAX_ENTITIES_PER_MONITOR);
-    }
-    generate_blades(seed, monitorWidth, density, sim.blades);
-
-    prng_init(sim.ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
-    sim.nextAmbientGustTime = sim.globalTime
-                            + prng_uniform(sim.ambientPrng,
-                                           AMBIENT_GUST_INTERVAL_MIN,
-                                           AMBIENT_GUST_INTERVAL_MAX);
-
-    prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
-    sim.nextLeafSpawnTime = sim.globalTime;
-    prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
-    prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
-    prng_init(sim.snowDriftPrng, sim.entitySeed ^ SNOW_DRIFT_PRNG_SALT);
-    prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
-    sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
-}
-
 void sim_tick(Sim& sim, double dt,
               const InputEvent* events, std::size_t numEvents) noexcept
 {

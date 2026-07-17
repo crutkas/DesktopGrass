@@ -43,6 +43,8 @@ public:
     void Show();
     void SetSuppressed(bool suppressed);
     void Destroy();
+    // Repositions only when the backing width, height, and DPI are unchanged.
+    // App::ReconcileDisplayTopology replaces the whole window otherwise.
     bool MoveTo(const topology::MonitorSnapshot& monitor,
                 const topology::SurfaceSpec& surface);
     void UpdateTopology(const topology::MonitorSnapshot& monitor,

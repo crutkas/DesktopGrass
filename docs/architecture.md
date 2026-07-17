@@ -45,6 +45,23 @@ All coordinates are in **DIPs** (device-independent pixels, 1 DIP = 1/96 inch). 
 - **Window placement**: the per-monitor window spans the monitor work area's full width. Its bottom edge sits on `MONITORINFO.rcWork.bottom`, immediately above a bottom-docked taskbar. Its height is `stripHeight + headroom` DIP (see constants table). The window is the algorithm's render surface; everything below is computed in window-local coordinates.
 - **Ground line**: `groundY = windowHeight` (the bottom edge of the window in window-local coordinates). Blades anchor here.
 
+### Native display-change ownership
+
+Native renderer backing dimensions and DPI are immutable for a `GrassWindow`
+lifetime. Display, device, work-area, and per-window DPI notifications only mark
+a display change as pending. `App::ReconcileDisplayTopology` is the single path
+that captures a coherent topology and applies it: unchanged surfaces are kept,
+origin-only changes move the existing fixed-size window, and any width, height,
+or DPI change replaces the complete window, renderer, swap chain, and simulation
+layout while preserving its layout seed, cuts, selected scene, selected critter,
+and critter-count override. Renderer device-loss recovery is separate and
+recreates graphics resources at the existing fixed bounds.
+
+Every reconciliation derives `SurfaceSpec` through `MakeSurfaceSpec`, so normal
+rendering bounds remain the work-area width and `stripHeight + headroom` DIPs
+anchored to the work-area bottom; display handling does not introduce a second
+in-place resize calculation.
+
 For clarity, the spec talks about a blade's **`height` above ground** as a positive scalar. The visible blade length is:
 
 ```

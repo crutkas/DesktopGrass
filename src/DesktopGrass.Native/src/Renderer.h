@@ -2,7 +2,9 @@
 //
 // Per-window Direct2D + DXGI renderer attached to a DirectComposition target.
 // Owns the swap chain, the D2D device context bound to it, and the per-window
-// Sim. Renders the procedural grass once per frame.
+// Sim. Renders the procedural grass once per frame. Its backing width, height,
+// and DPI are fixed for its lifetime; App replaces the owning GrassWindow when
+// any of them changes.
 
 #pragma once
 
@@ -36,16 +38,6 @@ public:
     bool Initialize(HWND hwnd, int widthPx, int heightPx,
                     UINT dpi, uint64_t seed, double density,
                     double swaySpeed = 1.0, double swayAmplitude = 1.0);
-
-    // Resize the swap chain & D2D target. Call when the monitor changes size
-    // (DPI change, mode change). Leaves Sim intact; caller may regenerate it.
-    bool Resize(int widthPx, int heightPx, UINT dpi);
-
-    // Regenerate the blade layout for the current (post-Resize) DIP width after
-    // a DPI change, reseeding with the same deterministic per-monitor seed and
-    // preserving scene/critter/cut state. Mirrors the Win2D rebuild path. Must
-    // NOT be called on device-loss recovery (which leaves the Sim untouched).
-    void RegenerateForDpi(uint64_t seed, double density);
 
     // Advance the simulation by `dt` seconds, then draw a frame.
     void RenderFrame(double dt,
