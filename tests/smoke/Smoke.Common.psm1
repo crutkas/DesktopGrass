@@ -41,6 +41,7 @@ namespace DesktopGrass.Smoke
         public const long WS_EX_LAYERED     = 0x00080000;
         public const long WS_EX_TRANSPARENT = 0x00000020;
         public const long WS_EX_TOPMOST     = 0x00000008;
+        public const long WS_EX_TOOLWINDOW  = 0x00000080;
         public const long WS_EX_NOACTIVATE  = 0x08000000;
         public const uint WS_POPUP          = 0x80000000;
         public const uint WS_VISIBLE        = 0x10000000;
@@ -407,7 +408,8 @@ namespace DesktopGrass.Smoke
                 {
                     long exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE).ToInt64();
                     long requiredStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
-                        | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
+                        | WS_EX_TOPMOST | WS_EX_TOOLWINDOW
+                        | WS_EX_NOACTIVATE;
                     if ((exStyle & requiredStyle) != requiredStyle)
                     {
                         throw new InvalidOperationException(
@@ -678,6 +680,7 @@ function Assert-ClickThroughExStyles {
         'WS_EX_LAYERED'     = [DesktopGrass.Smoke.Win32]::WS_EX_LAYERED
         'WS_EX_TRANSPARENT' = [DesktopGrass.Smoke.Win32]::WS_EX_TRANSPARENT
         'WS_EX_TOPMOST'     = [DesktopGrass.Smoke.Win32]::WS_EX_TOPMOST
+        'WS_EX_TOOLWINDOW'  = [DesktopGrass.Smoke.Win32]::WS_EX_TOOLWINDOW
         'WS_EX_NOACTIVATE'  = [DesktopGrass.Smoke.Win32]::WS_EX_NOACTIVATE
     }
 

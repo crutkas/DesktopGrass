@@ -22,6 +22,7 @@ struct RuntimeNotificationApi {
     void (*unregisterSession)(HWND receiver);
     void (*seedState)(runtime::GlobalState& state, DWORD& sessionId);
     runtime::SessionState (*querySessionState)(DWORD sessionId);
+    bool (*queryClientAreaAnimationEnabled)();
 };
 
 const RuntimeNotificationApi& GetSystemRuntimeNotificationApi() noexcept;

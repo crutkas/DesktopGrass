@@ -153,8 +153,10 @@ msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Rel
 & "src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe"
 ```
 
-Right-click the tray icon for scene selection, pet count overrides, "Start with
-Windows", and quit.
+Select or right-click the **Desktop Grass controls** tray icon for scene
+selection, pet count overrides, "Start with Windows", and quit. Keyboard users
+can press `Win+B`, move to **Desktop Grass controls** (open **Show Hidden
+Icons** first if needed), and press `Enter`.
 
 Native builds for **x64** and **ARM64**. Outputs are nested under
 `out\<Platform>\<Config>\`, so both architectures can coexist side by side.

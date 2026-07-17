@@ -43,6 +43,103 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 - [ ] Click a desktop icon through the grass — the icon receives focus / opens on double-click.
 - [ ] Drag-select on the desktop starting from a point covered by grass — the rubber band selection works as if the grass weren't there.
 
+### Accessibility
+
+The overlay is decorative. It must not become an input or accessibility target;
+all user actions remain in the stock Windows notification-area menu.
+
+#### Overlay focus, input, and UI Automation
+
+1. Launch the Native app, then capture its PID:
+   ```powershell
+   $app = Get-Process DesktopGrass.Native
+   ```
+2. Put keyboard focus in another app. Move and click through every grass
+   surface, then confirm the other app still owns focus.
+3. Inspect the Native process:
+   ```powershell
+   winapp ui list-windows -a $app.Id --json
+   winapp ui inspect -a $app.Id --interactive --json
+   ```
+4. Verify every `DesktopGrass.Native.Window` reports `isForeground: false` and
+   `elementCount: 0`. The expected result is no actionable or misleading UIA
+   descendants. The smoke harness separately requires `WS_EX_TRANSPARENT`,
+   `WS_EX_NOACTIVATE`, and `WS_EX_TOOLWINDOW`; the window procedure also returns
+   `HTTRANSPARENT`, `MA_NOACTIVATE`, and no provider for `WM_GETOBJECT`.
+
+#### Tray keyboard access, names, and discoverability
+
+1. Press `Win+B`.
+2. If focus lands on **Show Hidden Icons**, press `Enter`.
+3. Use the arrow keys to reach **Desktop Grass controls**. Narrator should
+   announce that exact name and identify it as a button.
+4. Press `Enter`. The menu must open next to the icon without moving focus to a
+   grass surface.
+5. Use Up/Down to visit **Scene**, **Critter**, **Start with Windows**, and
+   **Quit DesktopGrass**. Use Right/Left to enter and leave both submenus.
+   Narrator should announce each item, its checked state where applicable, and
+   each submenu.
+6. Press `Esc`. The menu closes and focus returns to **Desktop Grass controls**
+   in the notification area, not to a grass surface.
+7. Repeat by selecting and by right-clicking the tray icon; all three routes
+   must open the same menu.
+
+The implementation uses `NOTIFYICON_VERSION_4` and handles pointer selection,
+context activation, `NIN_SELECT`, and `NIN_KEYSELECT`. Keyboard activation is
+anchored to the notification icon rather than the current mouse position.
+
+#### Contrast themes
+
+The tray controls are a stock Windows `HMENU`, with no owner drawing or custom
+colors. Validate the platform-rendered states rather than the decorative scene:
+
+1. Open **Settings > Accessibility > Contrast themes** and apply each supported
+   contrast theme available on the test machine.
+2. Repeat the tray keyboard procedure above.
+3. Verify menu text, separators, focus highlight, check marks, and submenu
+   arrows remain visible; no item may rely on scene colors.
+4. Restore the original theme.
+
+The grass itself conveys no status or action. Its palette is not a substitute
+for the accessible tray names and menu states.
+
+#### Reduced motion
+
+DesktopGrass follows **Settings > Accessibility > Visual effects > Animation
+effects** (`SPI_GETCLIENTAREAANIMATION`). The explicit behavior is:
+
+- **Off:** all decorative grass surfaces hide, rendering and mouse observation
+  stop, and **Desktop Grass controls** remains available in the tray.
+- **On:** the surfaces reappear and rendering resumes without restarting the
+  app.
+
+Toggle **Animation effects** off and on while the app is running and verify
+those transitions occur promptly. The runtime-policy and settings-notification
+paths have deterministic unit coverage; changing this global user preference is
+intentionally a manual host check.
+
+#### Accessibility validation record (2026-07-17)
+
+Observed on Windows 11 Enterprise build 28000, ARM64, with the Native ARM64
+Release build:
+
+- A mixed-DPI topology produced two 3840-wide surfaces at 96 DPI (100% scale,
+  110 physical pixels high) and one 3270-wide surface at 144 DPI (150% scale,
+  165 physical pixels high). The Native smoke passed with 1934 unique rendered
+  colors.
+- `winapp ui inspect --interactive` reported zero interactive descendants for
+  each decorative surface, and `list-windows` reported no surface as
+  foreground.
+- `Win+B` reached **Show Hidden Icons**; opening it focused **Desktop Grass
+  controls**. Pressing `Enter` opened the Native menu, and UIA reported the four
+  top-level names listed above. After `Esc`, focus returned to **Desktop Grass
+  controls** and no grass surface was foreground. Invoking the icon's primary
+  UIA action also opened the same menu.
+- The host had a standard theme and Animation effects enabled during the
+  observation. Contrast-theme visuals and live global Animation-effects
+  transitions were not changed on this shared interactive host; use the exact
+  procedures above on a release-test session.
+
 ### Cursor-driven gusts
 
 - [ ] Slowly move the cursor across the strip; blades near the cursor visibly tilt away briefly.
@@ -60,6 +157,9 @@ Spec refs for visual behavior: `docs/architecture.md` §2 for bottom alignment a
 ### Display & DPI
 
 - [ ] Run `pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native`; it reports one correctly bounded, DPI-scaled grass HWND per active logical monitor.
+- [ ] At 100%, 150%, and 200% scale, repeat the tray keyboard procedure; the
+  stock menu text, check marks, focus indicator, and submenu arrows remain
+  readable and unclipped.
 - [ ] Hot-plug or disable one monitor; only its grass HWND disappears, no stale/duplicate/input-blocking HWND remains, and the other monitors keep animating without a reset.
 - [ ] Reconnect that monitor; its grass returns with the same layout and valid cut state.
 - [ ] Reorder monitors, including negative virtual-screen coordinates; grass follows each physical display and state does not move to another monitor.
@@ -96,7 +196,8 @@ build or simulated unit fixture as physical coverage.
 
 ### Tray / lifecycle
 
-- [ ] Tray icon appears in the system tray and tooltip identifies DesktopGrass Native.
+- [ ] Tray icon appears in the system tray and its accessible name is **Desktop Grass controls**.
+- [ ] `Win+B` keyboard activation and selecting or right-clicking the icon all open the same menu.
 - [ ] Right-click tray icon → Quit closes the app within 2 seconds with no lingering process (`Get-Process DesktopGrass*` returns nothing).
 - [ ] If the app crashes, no tray icon is left behind on tray-refresh.
 
@@ -117,7 +218,9 @@ Run the app for 10 minutes idle.
   rendering on one surface.
   Live topology transitions, state continuity, ARM64 hardware, remote/virtual
   displays, and long-run resource behavior remain hardware release gates.
-- The custom-rendered scene is decorative and has no meaningful UI Automation tree. User controls are exposed through the tray menu.
+- The custom-rendered scene is decorative and explicitly exposes no interactive
+  UI Automation descendants. User controls are exposed through the stock
+  Windows tray menu.
 
 ## Reporting bugs
 

@@ -109,6 +109,20 @@ TEST_METHOD(RuntimePolicySuppressesOnlyTheAffectedSurface) {
     Assert::IsTrue(occluded.pauseReason == PauseReason::Occluded);
 }
 
+TEST_METHOD(RuntimePolicyHidesDecorativeSurfacesWhenAnimationsAreDisabled) {
+    GlobalState state = active_ac();
+    state.clientAreaAnimationEnabled = false;
+
+    const Decision decision = Evaluate(state, {}, 24);
+
+    Assert::IsTrue(
+        decision
+        == (Decision{
+            PauseReason::AnimationsDisabled, 0, false, false,
+        }));
+    Assert::IsTrue(IsGlobalPause(decision.pauseReason));
+}
+
 TEST_METHOD(RuntimeDecisionsAreIdempotent) {
     GlobalState state = active_ac();
     state.powerSource = PowerSource::Battery;
@@ -122,6 +136,7 @@ TEST_METHOD(OnlyProcessWideReasonsAreGlobalPauses) {
     Assert::IsTrue(IsGlobalPause(PauseReason::SessionLocked));
     Assert::IsTrue(IsGlobalPause(PauseReason::SessionDisconnected));
     Assert::IsTrue(IsGlobalPause(PauseReason::DisplayOff));
+    Assert::IsTrue(IsGlobalPause(PauseReason::AnimationsDisabled));
     Assert::IsFalse(IsGlobalPause(PauseReason::Fullscreen));
     Assert::IsFalse(IsGlobalPause(PauseReason::Occluded));
     Assert::IsFalse(IsGlobalPause(PauseReason::None));

@@ -74,6 +74,9 @@ Decision Evaluate(const GlobalState& global,
     if (global.displayState == DisplayState::Off) {
         return Paused(PauseReason::DisplayOff, true);
     }
+    if (!global.clientAreaAnimationEnabled) {
+        return Paused(PauseReason::AnimationsDisabled, false);
+    }
     if (surface.fullscreen) {
         return Paused(PauseReason::Fullscreen, false);
     }
@@ -98,6 +101,7 @@ bool IsGlobalPause(PauseReason reason) noexcept {
         case PauseReason::SessionLocked:
         case PauseReason::SessionDisconnected:
         case PauseReason::DisplayOff:
+        case PauseReason::AnimationsDisabled:
             return true;
         default:
             return false;

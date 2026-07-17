@@ -20,6 +20,7 @@
 #include "Config.h"
 #include "RuntimeNotifications.h"
 #include "RuntimePolicy.h"
+#include "TrayIcon.h"
 #include "VisibilityTracker.h"
 
 namespace desktopgrass {
@@ -63,6 +64,7 @@ private:
     void ShutdownRuntimeNotifications() noexcept;
     bool CreateTrayIcon();
     bool AddTrayIcon();
+    void ShowTrayMenu(WPARAM callbackCoordinates, UINT notification);
     void RemoveTrayIcon();
     void DestroyMessageWindow();
     bool ReconcileDisplayTopology();

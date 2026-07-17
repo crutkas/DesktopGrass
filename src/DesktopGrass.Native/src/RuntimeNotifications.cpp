@@ -17,6 +17,17 @@ namespace {
 constexpr DWORD kUnknownSessionId = 0xFFFFFFFFu;
 constexpr DWORD kTermSrvReadyTimeoutMs = 10'000;
 
+bool QuerySystemClientAreaAnimationEnabled() {
+    BOOL enabled = TRUE;
+    if (!SystemParametersInfoW(
+            SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0)) {
+        OutputDebugStringA(
+            "[DesktopGrass] unable to query client-area animation preference; leaving animation enabled\n");
+        return true;
+    }
+    return enabled != FALSE;
+}
+
 runtime::SessionState QuerySystemSessionState(DWORD sessionId) {
     LPWSTR buffer = nullptr;
     DWORD bytesReturned = 0;
@@ -83,6 +94,8 @@ void SeedSystemState(runtime::GlobalState& state, DWORD& sessionId) {
             "[DesktopGrass] ProcessIdToSessionId failed; session state is unknown\n");
     }
     state.sessionState = QuerySystemSessionState(sessionId);
+    state.clientAreaAnimationEnabled =
+        QuerySystemClientAreaAnimationEnabled();
 }
 
 HPOWERNOTIFY RegisterSystemPowerSetting(
@@ -147,6 +160,7 @@ const RuntimeNotificationApi& GetSystemRuntimeNotificationApi() noexcept {
         UnregisterSystemSession,
         SeedSystemState,
         QuerySystemSessionState,
+        QuerySystemClientAreaAnimationEnabled,
     };
     return api;
 }
@@ -218,6 +232,8 @@ bool RuntimeNotifications::Start(HWND receiver) noexcept {
 
     // Reconcile events that raced the initial query and registration.
     state_.sessionState = api_.querySessionState(sessionId_);
+    state_.clientAreaAnimationEnabled =
+        api_.queryClientAreaAnimationEnabled();
     started_ = true;
     return true;
 }
@@ -259,6 +275,16 @@ RuntimeNotificationResult RuntimeNotifications::Dispatch(
             return HandlePowerBroadcast(wParam, lParam);
         case WM_WTSSESSION_CHANGE:
             return HandleSessionChange(wParam, lParam);
+        case WM_SETTINGCHANGE: {
+            RuntimeNotificationResult result;
+            result.handled = true;
+            const bool enabled =
+                api_.queryClientAreaAnimationEnabled();
+            result.stateChanged =
+                state_.clientAreaAnimationEnabled != enabled;
+            state_.clientAreaAnimationEnabled = enabled;
+            return result;
+        }
         default:
             return {};
     }
