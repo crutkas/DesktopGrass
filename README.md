@@ -129,8 +129,8 @@ to prevent source rot. Native changes do not need to be ported to it. The
 default [`DesktopGrass.slnx`](DesktopGrass.slnx) contains only the supported
 Native app and tests. Managed can be built and tested directly from its project
 files; required CI retains those steps as a commented manual recipe rather than
-a product gate. The optional interactive-smoke workflow may run Managed as a
-non-blocking advisory comparison.
+a product gate. The local smoke harness can run Managed explicitly as a
+non-blocking historical comparison.
 
 > **History:** the repo originally shipped four parallel implementations to
 > compare native, Direct2D-via-managed, packaged WinUI 3, and vanilla WPF for the

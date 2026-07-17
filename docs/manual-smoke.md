@@ -13,12 +13,9 @@ Run commands from the repository root.
 
 - Use a Visual Studio 2026 Developer PowerShell with MSVC toolset `v145` and a
   Windows SDK.
-- Build Native from scratch:
-  ```powershell
-  msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64
-  ```
-- Release binary: `src\DesktopGrass.Native\out\x64\Release\DesktopGrass.Native.exe`
-  (ARM64 builds land under `out\ARM64\Release\`).
+- Build Native for the host architecture with the automated preflight below.
+  Release binaries land under
+  `src\DesktopGrass.Native\out\<Platform>\Release\DesktopGrass.Native.exe`.
 
 The managed C#/Vortice project is a source-available comparison/reference, not a
 release target. Its restore/build/test commands are retained as a commented CI
@@ -26,6 +23,72 @@ recipe for manual reproduction, not run as required CI coverage. Its optional
 `Win2D` smoke target can help reproduce the historical comparison, but
 managed-only platform behavior is not a Native release or PowerToys readiness
 gate.
+
+## Automated local preflight
+
+The framebuffer smoke is intentionally a local release check. GitHub-hosted
+Windows runners do not guarantee an active, unlocked desktop with a real display,
+and keeping a personal workstation unlocked as a self-hosted runner is not a
+supported project requirement. A passing hosted CI run therefore does not claim
+framebuffer coverage.
+
+Run the preflight from an active, unlocked console session with a display
+attached. Close any existing DesktopGrass instance first. PowerShell 7 is
+required; administrator elevation is not.
+
+```powershell
+$platform = if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'ARM64' } else { 'x64' }
+$artifacts = Join-Path $PWD (
+    'artifacts\manual-smoke\{0}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+msbuild src\DesktopGrass.Native\DesktopGrass.Native.vcxproj `
+    /p:Configuration=Release `
+    /p:Platform=$platform
+
+pwsh tests\smoke\Run-SmokeTests.ps1 `
+    -Target Native `
+    -Configuration Release `
+    -Platform $platform `
+    -ArtifactDirectory $artifacts
+```
+
+`Run-SmokeTests.ps1` checks click-through window styles, one correctly bounded
+and DPI-scaled surface per active monitor, and actual rendered pixel variance.
+It writes `Native.png` and `smoke-results.json` under the artifact directory.
+Review the captured grass surface for clipping, blank or stale rendering, and
+unexpected content before continuing.
+
+The harness cleans up the process it launches in a `finally` block, including
+assertion failures. If PowerShell itself is forcibly terminated, close only the
+DesktopGrass process launched from this checkout before rerunning.
+
+Record the commit, architecture, Windows build, monitor topology, and artifact
+path with the release evidence. The optional managed-reference commands and the
+technical assertion sequence are documented in
+[`tests/smoke/README.md`](../tests/smoke/README.md).
+
+### Automated preflight record
+
+- [ ] Native Release build succeeds for the host architecture.
+- [ ] Native framebuffer smoke passes.
+- [ ] The grass surface captured in `Native.png` has been reviewed.
+- [ ] Commit, machine/display context, and artifact path are recorded.
+
+### Optional runtime-control diagnostic
+
+`Run-NativeRuntimeControlTests.ps1` is a separate diagnostic for production
+fullscreen and opaque-occlusion suppression, HWND reuse, the all-paused state,
+and shutdown while suppressed. It depends on foreground-window and visibility
+transitions beyond the framebuffer gate. Run it when investigating those paths:
+
+```powershell
+pwsh tests\smoke\Run-NativeRuntimeControlTests.ps1 `
+    -Configuration Release `
+    -Platform $platform
+```
+
+The script cleans up its app and probe windows in a `finally` block. Record a
+failure separately rather than relabeling it as a framebuffer smoke failure.
 
 ## Checklist — supported Native release
 
@@ -160,7 +223,7 @@ Release build:
 
 ### Display & DPI
 
-- [ ] Run `pwsh tests\smoke\Run-SmokeTests.ps1 -Target Native`; it reports one correctly bounded, DPI-scaled grass HWND per active logical monitor.
+- [ ] The automated Native preflight reports one correctly bounded, DPI-scaled grass HWND per active logical monitor.
 - [ ] At 100%, 150%, and 200% scale, repeat the tray keyboard procedure; the
   stock menu text, check marks, focus indicator, and submenu arrows remain
   readable and unclipped.
