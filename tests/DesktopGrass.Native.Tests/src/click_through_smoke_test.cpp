@@ -52,10 +52,6 @@ void pump_messages_for(std::chrono::milliseconds duration) {
 }
 
 bool has_interactive_desktop() {
-    if (GetConsoleWindow() == nullptr) {
-        return false;
-    }
-
     HDESK inputDesktop = OpenInputDesktop(0, FALSE, DESKTOP_SWITCHDESKTOP);
     if (inputDesktop == nullptr) {
         return false;
@@ -101,6 +97,8 @@ ClickThroughResult spawn_probe_window_and_click_through_overlay() {
     constexpr int kHeight = 64;
     const int clickX = x + 24;
     const int clickY = y + 24;
+    POINT originalCursor{};
+    const bool restoreCursor = GetCursorPos(&originalCursor) != FALSE;
 
     HWND probe = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
@@ -130,28 +128,33 @@ ClickThroughResult spawn_probe_window_and_click_through_overlay() {
         SetWindowPos(overlay, HWND_TOPMOST, x, y, kWidth, kHeight,
                      SWP_SHOWWINDOW | SWP_NOACTIVATE);
         pump_messages_for(std::chrono::milliseconds(50));
-
-        if (!SetCursorPos(clickX, clickY)) {
-            ok = false;
-        }
     }
 
     ClickThroughResult result = ClickThroughResult::Failed;
     if (ok) {
-        INPUT inputs[2]{};
-        inputs[0].type = INPUT_MOUSE;
-        inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-        inputs[1].type = INPUT_MOUSE;
-        inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        constexpr int kInputAttempts = 3;
+        for (int attempt = 0; attempt < kInputAttempts; ++attempt) {
+            if (!SetCursorPos(clickX, clickY)) {
+                result = ClickThroughResult::Skipped;
+                break;
+            }
+            pump_messages_for(std::chrono::milliseconds(50));
 
-        const UINT sent = SendInput(2, inputs, sizeof(INPUT));
-        if (sent != 2) {
-            result = ClickThroughResult::Skipped;
-        } else {
-            pump_messages_for(std::chrono::milliseconds(200));
-            result = g_probeReceivedLeftDown.load(std::memory_order_acquire)
-                ? ClickThroughResult::Passed
-                : ClickThroughResult::Failed;
+            INPUT inputs[2]{};
+            inputs[0].type = INPUT_MOUSE;
+            inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            inputs[1].type = INPUT_MOUSE;
+            inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+
+            if (SendInput(2, inputs, sizeof(INPUT)) != 2) {
+                result = ClickThroughResult::Skipped;
+                break;
+            }
+            pump_messages_for(std::chrono::milliseconds(300));
+            if (g_probeReceivedLeftDown.load(std::memory_order_acquire)) {
+                result = ClickThroughResult::Passed;
+                break;
+            }
         }
     }
 
@@ -159,6 +162,7 @@ ClickThroughResult spawn_probe_window_and_click_through_overlay() {
     if (probe) DestroyWindow(probe);
     UnregisterClassW(overlayClass.c_str(), instance);
     UnregisterClassW(probeClass.c_str(), instance);
+    if (restoreCursor) SetCursorPos(originalCursor.x, originalCursor.y);
     return result;
 }
 
