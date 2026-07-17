@@ -54,6 +54,20 @@ namespace DesktopGrassNativeTests
 TEST_CLASS(DisplayTopologyTests)
 {
 public:
+TEST_METHOD(SurfaceSpecKeepsWorkAreaWidthAndDipHeightBounds) {
+    const MonitorSnapshot snapshot = monitor(
+        "a", "source-a", rect(-2560, 0, 0, 1440),
+        rect(-2560, 0, 0, 1400), 144, true);
+
+    const SurfaceSpec surface = MakeSurfaceSpec(snapshot, 110.0);
+
+    Assert::IsTrue(surface.x == -2560);
+    Assert::IsTrue(surface.y == 1235);
+    Assert::IsTrue(surface.widthPx == 2560);
+    Assert::IsTrue(surface.heightPx == 165);
+    Assert::IsTrue(surface.dpi == 144);
+}
+
 TEST_METHOD(TopologyReconciliationIsIdempotentAndEnumerationOrderIndependent) {
     const MonitorSnapshot left = monitor(
         "left", R"(\\.\display2)",

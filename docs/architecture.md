@@ -543,9 +543,12 @@ Each `Sim` carries three additional pieces of state:
 
 - `Prng ambientPrng` — fifth independent xorshift64 stream, seeded with `seed XOR AMBIENT_GUST_PRNG_SALT`. Never mixed into the main / regrowth / flower / mushroom streams.
 - `double nextAmbientGustTime` — absolute `globalTime` at which the next puff fires.
-- `double monitorWidth` — snapshotted at `sim_init` / `sim_regenerate` so the ambient X distribution is unaffected by later window resizes.
+- `double monitorWidth` — snapshotted at simulation initialization. A display
+  width or DPI change replaces the owning simulation instead of resizing it in
+  place, so the ambient X distribution stays fixed for that simulation's
+  lifetime.
 
-At init / regenerate:
+At initialization:
 
 ```c
 prng_init(&sim->ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
@@ -1453,7 +1456,7 @@ Persistence schema bumps to v2. v2 monitor entries add `snowDepth`; v1 files loa
 
 Winter's tactile ground interaction, mirroring the grass cut-and-regrow loop. Clicking the snowbank presses a soft dent at the cursor that slowly settles back, so Winter has the same "leave a passing mark" feel as cut grass, desert cacti, and the autumn leaf-puff. A click both kicks up a snow puff (§21) **and** presses a dent.
 
-State is a per-monitor transient heightfield `snowCarve` / `SnowCarve` — a fixed-length `SNOW_CARVE_BUCKETS` array of non-negative carved depths in DIP, mapped uniformly across `[0, monitorWidth]`. It is **never persisted**: it is zero-filled at sim init/regenerate and cleared on **every** scene change (including Winter→Winter re-entry).
+State is a per-monitor transient heightfield `snowCarve` / `SnowCarve` — a fixed-length `SNOW_CARVE_BUCKETS` array of non-negative carved depths in DIP, mapped uniformly across `[0, monitorWidth]`. It is **never persisted**: it is zero-filled at simulation initialization (including display replacement) and cleared on **every** scene change (including Winter→Winter re-entry).
 
 | Constant | Value | Meaning |
 |---|---:|---|

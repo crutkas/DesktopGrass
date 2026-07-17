@@ -192,10 +192,8 @@ LRESULT GrassWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_DPICHANGED: {
-            // Resizing a live DirectComposition swap chain here can leave the
-            // target detached if ResizeBuffers fails during the scale
-            // transition. Defer a full per-monitor rebuild to App's message
-            // loop, matching the managed implementation.
+            // Defer the notification so App can reconcile one coherent topology.
+            // A backing-size or DPI change replaces this fixed surface there.
             if (displayChangeHwnd_) {
                 PostMessageW(displayChangeHwnd_, kWmAppDisplayChanged, 0, 0);
             }

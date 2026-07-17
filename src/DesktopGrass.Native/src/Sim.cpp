@@ -1981,8 +1981,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
     if (sim.currentScene == Scene::Ocean && sim.monitorWidth > 0.0) {
         // Bubbles rise from the seafloor toward the canvas top, with a gentle
         // sinusoidal horizontal wobble (applied during the per-kind pass
-        // above). Lifetime ensures cleanup even if the cap-by-y condition is
-        // somehow missed on a window resize.
+        // above). Lifetime remains a final cleanup guard if position-based
+        // culling is ever bypassed.
         const double lambda = BUBBLE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         while (lambda > 0.0 && sim.globalTime >= sim.nextBubbleSpawnTime
                && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
