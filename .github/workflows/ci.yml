@@ -24,6 +24,10 @@ jobs:
         shell: pwsh
         run: tests/benchmark/Run-BenchmarkTests.ps1
 
+      - name: Test soak harness fixtures
+        shell: pwsh
+        run: tests/soak/Run-SoakTests.ps1
+
       # --- Native (C++ / Win32 + Direct2D) ---
       - name: Build Native (x64, Release)
         run: msbuild src/DesktopGrass.Native/DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo

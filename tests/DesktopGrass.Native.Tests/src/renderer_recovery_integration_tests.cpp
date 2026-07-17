@@ -428,6 +428,43 @@ std::string CapabilityMessage(const CapabilityResult& capability) {
     return buffer;
 }
 
+bool WriteQualificationMarker() {
+    wchar_t markerPath[32768]{};
+    const DWORD length = GetEnvironmentVariableW(
+        L"DESKTOPGRASS_DEVICE_LOSS_MARKER",
+        markerPath,
+        static_cast<DWORD>(ARRAYSIZE(markerPath)));
+    if (length == 0) {
+        return GetLastError() == ERROR_ENVVAR_NOT_FOUND;
+    }
+    if (length >= ARRAYSIZE(markerPath)) {
+        return false;
+    }
+
+    HANDLE marker = CreateFileW(
+        markerPath,
+        GENERIC_WRITE,
+        0,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (marker == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    constexpr char payload[] = "renderer-recovery-integration:pass\n";
+    DWORD written = 0;
+    const BOOL ok = WriteFile(
+        marker,
+        payload,
+        static_cast<DWORD>(sizeof(payload) - 1),
+        &written,
+        nullptr);
+    const BOOL closed = CloseHandle(marker);
+    return ok && closed && written == sizeof(payload) - 1;
+}
+
 } // namespace
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -539,6 +576,7 @@ TEST_METHOD(RendererRecreatesAndReleasesItsRealGraphicsResourceGraph) {
     renderer.RenderFrame(0.01, nullptr, 0);
     Assert::IsTrue(renderer.GetSim().globalTime == Near(0.03));
     Assert::IsTrue(RendererTestAccess::HasNoGraphicsResources(renderer));
+    Assert::IsTrue(WriteQualificationMarker());
 }
 };
 }
