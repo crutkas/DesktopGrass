@@ -124,19 +124,6 @@ std::optional<std::uint64_t> ParseLayoutSeed(const JsonValue& object) {
     return seed;
 }
 
-void ParseCuts(const JsonValue& object, MonitorState& monitor) {
-    const JsonValue* cuts = FindMember(object, "cuts");
-    if (!cuts || cuts->type != JsonValue::Type::Array) return;
-
-    for (const JsonValue& cutValue : cuts->arrayValue) {
-        if (cutValue.type != JsonValue::Type::Object) continue;
-        const auto bladeIndex = ReadInt(cutValue, "bladeIndex");
-        const auto cutTime = ReadDouble(cutValue, "cutTime");
-        if (!bladeIndex || !cutTime) continue;
-        monitor.cuts.push_back(CutRecord{ *bladeIndex, *cutTime });
-    }
-}
-
 std::string Serialize(const AppState& state) {
     std::ostringstream out;
     out << std::setprecision(17);
@@ -163,20 +150,7 @@ std::string Serialize(const AppState& state) {
         out << "      \"width\": " << monitor.width << ",\n";
         out << "      \"height\": " << monitor.height << ",\n";
         out << "      \"left\": " << monitor.left << ",\n";
-        out << "      \"top\": " << monitor.top << ",\n";
-        out << "      \"cuts\": [";
-        if (!monitor.cuts.empty()) {
-            out << "\n";
-            for (std::size_t j = 0; j < monitor.cuts.size(); ++j) {
-                const CutRecord& cut = monitor.cuts[j];
-                out << "        { \"bladeIndex\": " << cut.bladeIndex
-                    << ", \"cutTime\": " << cut.cutTime << " }";
-                if (j + 1 < monitor.cuts.size()) out << ",";
-                out << "\n";
-            }
-            out << "      ";
-        }
-        out << "]\n";
+        out << "      \"top\": " << monitor.top << "\n";
         out << "    }";
         if (i + 1 < state.monitors.size()) out << ",";
         out << "\n";
@@ -196,7 +170,6 @@ void ParseLegacyMonitors(const JsonValue& monitors, AppState& parsed) {
             continue;
         }
         monitor.workAreaBounds = true;
-        ParseCuts(value, monitor);
         parsed.monitors.push_back(std::move(monitor));
     }
 }
@@ -228,7 +201,6 @@ void ParseCurrentMonitors(const JsonValue& monitors, AppState& parsed) {
         monitor.top = *top;
         monitor.workAreaBounds = desktopgrass::json::AsciiLower(
             ReadString(value, "boundsKind").value_or("monitor")) == "work";
-        ParseCuts(value, monitor);
         parsed.monitors.push_back(std::move(monitor));
     }
 }

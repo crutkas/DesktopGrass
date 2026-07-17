@@ -71,7 +71,7 @@ private:
         const topology::MonitorSnapshot& monitor,
         const topology::SurfaceSpec& surface,
         uint64_t layoutSeed,
-        const std::vector<persistence::CutRecord>& cuts);
+        const std::vector<CutRecord>& cuts);
     uint64_t ResolveLayoutSeed(
         const topology::MonitorSnapshot& monitor,
         const persistence::MonitorState* state) const;
@@ -84,7 +84,7 @@ private:
     void RenderAllWindows(double dt);
     void ApplyStateToWindow(
         GrassWindow& window,
-        const std::vector<persistence::CutRecord>& cuts);
+        const std::vector<CutRecord>& cuts);
     persistence::AppState BuildAppState();
     void CacheCurrentState();
     void SaveCurrentState();
@@ -133,7 +133,7 @@ private:
     bool                                        visibilityStateDirty_ = true;
     bool                                        anySurfaceRendering_ = false;
     bool                                        resumeFramePending_ = true;
-    bool                                        mouseHookInstalled_ = false;
+    MouseHookRegistration                       mouseHook_{};
     bool                                        hardPauseStateSaved_ = false;
     bool                                        sessionEndStateSaved_ = false;
     UINT                                        taskbarCreatedMessage_ = 0;

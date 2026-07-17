@@ -1,6 +1,5 @@
 #include "TestHelpers.h"
 #include "Persistence.h"
-#include "Sim.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -40,7 +39,7 @@ std::string read_text(const std::filesystem::path& path) {
     return buffer.str();
 }
 
-persistence::AppState make_state_with_cuts() {
+persistence::AppState make_state() {
     persistence::AppState state;
     state.scene = Scene::Winter;
     state.critter = CritterKind::Cat;
@@ -56,10 +55,6 @@ persistence::AppState make_state_with_cuts() {
         monitor.height = 1080 + i * 120;
         monitor.left = i * 1920;
         monitor.top = i == 2 ? -120 : 0;
-        const int cutCount = 2 + i;
-        for (int j = 0; j < cutCount; ++j) {
-            monitor.cuts.push_back(persistence::CutRecord{ i * 100 + j, -5.0 - i - j * 0.5 });
-        }
         state.monitors.push_back(monitor);
     }
 
@@ -85,12 +80,6 @@ void assert_state_equal(const persistence::AppState& expected, const persistence
         Assert::IsTrue(a.left == e.left);
         Assert::IsTrue(a.top == e.top);
         Assert::IsTrue(a.workAreaBounds == e.workAreaBounds);
-        Assert::IsTrue(a.cuts.size() == e.cuts.size());
-        for (std::size_t j = 0; j < e.cuts.size(); ++j) {
-            Assert::IsTrue(a.cuts[j].bladeIndex == e.cuts[j].bladeIndex);
-            Assert::IsTrue(a.cuts[j].cutTime == Near(e.cuts[j].cutTime).margin(1e-9));
-        }
-
     }
 }
 
@@ -107,20 +96,6 @@ topology::MonitorSnapshot make_monitor_snapshot(
     snapshot.dpi = 96;
     snapshot.primary = true;
     return snapshot;
-}
-
-Blade make_blade(double regrowDelay, double regrowDuration) {
-    Blade b{};
-    b.baseX = 100.0;
-    b.height = 20.0;
-    b.thickness = 1.0;
-    b.cutHeight = 1.0;
-    b.cutAnimStart = -1.0;
-    b.cutInitialHeight = 1.0;
-    b.regrowDelay = regrowDelay;
-    b.regrowDuration = regrowDuration;
-    b.regrowStart = -1.0;
-    return b;
 }
 
 } // namespace
@@ -144,11 +119,11 @@ TEST_METHOD(PersistenceRoundTripsEmptyState) {
     assert_state_equal(expected, actual);
 }
 
-TEST_METHOD(PersistenceRoundTripsStateWithCuts) {
-    const auto path = test_state_path("round-trip-cuts");
+TEST_METHOD(PersistenceRoundTripsStateWithMonitorMetadata) {
+    const auto path = test_state_path("round-trip-monitor-metadata");
     use_state_path(path);
 
-    const persistence::AppState expected = make_state_with_cuts();
+    const persistence::AppState expected = make_state();
     Assert::IsTrue(persistence::SaveAppState(expected));
 
     persistence::AppState actual;
@@ -218,7 +193,36 @@ TEST_METHOD(PersistenceRejectsOversizedIntegerValuesSafely) {
     Assert::IsTrue(persistence::LoadAppState(actual));
     Assert::IsTrue(actual.critterCountOverride == 0);
     Assert::IsTrue(actual.monitors.size() == 1);
-    Assert::IsTrue(actual.monitors[0].cuts.empty());
+}
+
+TEST_METHOD(PersistenceDropsLegacyInteractionData) {
+    const auto path = test_state_path("legacy-interaction-data");
+    use_state_path(path);
+    write_text(path,
+        "{"
+        "\"version\":3,"
+        "\"scene\":\"Grass\","
+        "\"cursor\":{\"x\":123,\"y\":456},"
+        "\"clickHistory\":[{\"x\":123,\"y\":456}],"
+        "\"monitors\":[{"
+        "\"id\":\"stable-a\",\"source\":\"source-a\","
+        "\"layoutSeed\":\"0x000000000000002A\","
+        "\"boundsKind\":\"monitor\","
+        "\"width\":1920,\"height\":1080,\"left\":0,\"top\":0,"
+        "\"cuts\":[{\"bladeIndex\":7,\"cutTime\":-4.0}]"
+        "}]"
+        "}");
+
+    persistence::AppState loaded;
+    Assert::IsTrue(persistence::LoadAppState(loaded));
+    Assert::IsTrue(persistence::SaveAppState(loaded));
+
+    const std::string saved = read_text(path);
+    Assert::IsTrue(saved.find("\"cursor\"") == std::string::npos);
+    Assert::IsTrue(saved.find("\"clickHistory\"") == std::string::npos);
+    Assert::IsTrue(saved.find("\"cuts\"") == std::string::npos);
+    Assert::IsTrue(saved.find("\"cutTime\"") == std::string::npos);
+    Assert::IsTrue(saved.find("\"bladeIndex\"") == std::string::npos);
 }
 
 TEST_METHOD(PersistenceAtomicWriteLeavesFinalFileAndRemovesTmp) {
@@ -242,82 +246,11 @@ TEST_METHOD(PersistenceMonitorKeyFormatRoundTrips) {
     Assert::IsTrue(persistence::MonitorKey(1920, 1080, 0, 0) == "1920x1080@0,0");
 }
 
-TEST_METHOD(PersistenceCutTimestampsShiftForFreshSimLoad) {
-    const auto path = test_state_path("time-shift");
-    use_state_path(path);
-
-    Sim running;
-    running.globalTime = 100.0;
-    running.blades.push_back(make_blade(30.0, 10.0));
-    running.blades[0].cutHeight = 0.0;
-    running.blades[0].regrowStart = 80.0 + CUT_DURATION_SEC + running.blades[0].regrowDelay;
-
-    auto cuts = sim_get_cuts(running);
-    Assert::IsTrue(cuts.size() == 1);
-    Assert::IsTrue(cuts[0].cutTime == Near(-20.0).margin(1e-9));
-
-    persistence::AppState state;
-    persistence::MonitorState monitor;
-    monitor.width = 1920;
-    monitor.height = 1080;
-    monitor.left = 0;
-    monitor.top = 0;
-    monitor.cuts = cuts;
-    state.monitors.push_back(monitor);
-    Assert::IsTrue(persistence::SaveAppState(state));
-
-    persistence::AppState loaded;
-    Assert::IsTrue(persistence::LoadAppState(loaded));
-    Assert::IsTrue(loaded.monitors[0].cuts[0].cutTime < 0.0);
-
-    Sim fresh;
-    fresh.globalTime = 0.0;
-    fresh.blades.push_back(make_blade(30.0, 10.0));
-    sim_apply_cuts(fresh, loaded.monitors[0].cuts);
-    Assert::IsTrue(fresh.blades[0].cutHeight == Near(0.0).margin(1e-9));
-    Assert::IsTrue(fresh.blades[0].regrowStart == Near(10.0 + CUT_DURATION_SEC).margin(1e-9));
-}
-
-TEST_METHOD(PersistenceUnmatchedMonitorCutsAreSkipped) {
-    const auto path = test_state_path("unmatched-monitor");
-    use_state_path(path);
-
-    persistence::AppState state;
-    persistence::MonitorState unmatched;
-    unmatched.width = 9999;
-    unmatched.height = 9999;
-    unmatched.left = 99;
-    unmatched.top = 99;
-    unmatched.cuts.push_back(persistence::CutRecord{ 0, -20.0 });
-    state.monitors.push_back(unmatched);
-    Assert::IsTrue(persistence::SaveAppState(state));
-
-    persistence::AppState loaded;
-    Assert::IsTrue(persistence::LoadAppState(loaded));
-
-    Sim sim;
-    sim.blades.push_back(make_blade(30.0, 10.0));
-    const int width = 1920;
-    const int height = 1080;
-    const int left = 0;
-    const int top = 0;
-    const auto match = std::find_if(loaded.monitors.begin(), loaded.monitors.end(),
-        [&](const persistence::MonitorState& monitor) {
-            return monitor.width == width && monitor.height == height
-                && monitor.left == left && monitor.top == top;
-        });
-    if (match != loaded.monitors.end()) {
-        sim_apply_cuts(sim, match->cuts);
-    }
-
-    Assert::IsTrue(sim_get_cuts(sim).empty());
-}
-
 TEST_METHOD(PersistenceJsonIsHumanReadable) {
     const auto path = test_state_path("human-readable");
     use_state_path(path);
 
-    Assert::IsTrue(persistence::SaveAppState(make_state_with_cuts()));
+    Assert::IsTrue(persistence::SaveAppState(make_state()));
     const std::string text = read_text(path);
     Assert::IsTrue(text.find('\n') != std::string::npos);
     Assert::IsTrue(text.find("  \"version\"") != std::string::npos);
@@ -348,7 +281,6 @@ TEST_METHOD(PersistenceLoadsVersionTwoMonitorGeometryForMigration) {
         "stable-a", "source-a", full, work);
     const auto* legacy = persistence::FindMonitorState(state, snapshot);
     Assert::IsTrue(legacy != nullptr);
-    Assert::IsTrue(legacy->cuts.size() == 1);
 
     persistence::MonitorState migrated;
     migrated.stableId = snapshot.identity.stableId;
@@ -358,7 +290,6 @@ TEST_METHOD(PersistenceLoadsVersionTwoMonitorGeometryForMigration) {
     migrated.height = snapshot.monitorBounds.Height();
     migrated.left = snapshot.monitorBounds.left;
     migrated.top = snapshot.monitorBounds.top;
-    migrated.cuts = legacy->cuts;
     persistence::UpsertMonitorState(state, std::move(migrated), snapshot);
     state.version = 3;
 
@@ -396,7 +327,6 @@ TEST_METHOD(PersistenceLoadsVersionOneMonitorGeometryForMigration) {
     Assert::IsTrue(state.scene == Scene::Desert);
     Assert::IsTrue(state.monitors.size() == 1);
     Assert::IsTrue(state.monitors[0].workAreaBounds);
-    Assert::IsTrue(state.monitors[0].cuts.size() == 1);
 }
 
 TEST_METHOD(PersistenceRefusesAmbiguousLegacyGeometryMatches) {

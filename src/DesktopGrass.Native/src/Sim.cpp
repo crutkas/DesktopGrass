@@ -724,8 +724,8 @@ void advance_cut(Blade& b, double globalTime) noexcept {
     }
 }
 
-std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim) {
-    std::vector<persistence::CutRecord> cuts;
+std::vector<CutRecord> sim_get_cuts(const Sim& sim) {
+    std::vector<CutRecord> cuts;
     cuts.reserve(sim.blades.size());
 
     for (std::size_t i = 0; i < sim.blades.size(); ++i) {
@@ -749,7 +749,7 @@ std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim) {
             continue;
         }
 
-        cuts.push_back(persistence::CutRecord{
+        cuts.push_back(CutRecord{
             static_cast<int>(i),
             originalCutTime - sim.globalTime
         });
@@ -758,8 +758,8 @@ std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim) {
     return cuts;
 }
 
-void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) noexcept {
-    for (const persistence::CutRecord& cut : cuts) {
+void sim_apply_cuts(Sim& sim, const std::vector<CutRecord>& cuts) noexcept {
+    for (const CutRecord& cut : cuts) {
         if (cut.bladeIndex < 0) continue;
         const std::size_t index = static_cast<std::size_t>(cut.bladeIndex);
         if (index >= sim.blades.size()) continue;

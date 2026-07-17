@@ -152,6 +152,7 @@
     <ClCompile Include="src\device_recovery_tests.cpp" />
     <ClCompile Include="src\pacing_tests.cpp" />
     <ClCompile Include="src\mouse_queue_tests.cpp" />
+    <ClCompile Include="..\..\src\DesktopGrass.Native\src\MouseHook.cpp" />
     <ClCompile Include="src\prop_spacing_tests.cpp" />
     <ClCompile Include="src\renderer_recovery_integration_tests.cpp" />
     <ClCompile Include="src\runtime_notifications_tests.cpp" />

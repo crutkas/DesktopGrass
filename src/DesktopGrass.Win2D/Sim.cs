@@ -10,6 +10,8 @@ using System.Collections.Generic;
 
 namespace DesktopGrass.Win2D;
 
+public sealed record CutRecord(int BladeIndex, double CutTime);
+
 // PRNG: xorshift64 seeded via SplitMix64 (§3). Conformance requires identical
 // uint64 sequences across all three impls.
 internal struct Prng

@@ -1,10 +1,9 @@
 // MouseHook.h
 //
-// WH_MOUSE_LL global low-level mouse hook. The callback runs on Windows'
-// dedicated hook thread and must return very quickly (≤ ~200 µs is the kind of
-// budget where Windows un-installs you if you exceed it). It pushes a fixed-size
-// snapshot of the event into a lock-free single-producer / single-consumer ring
-// buffer. The render loop drains the queue once per frame.
+// WH_MOUSE_LL global low-level mouse hook. Windows dispatches the callback to
+// the thread that installed it, and the callback must return very quickly. It
+// pushes a fixed-size snapshot of the event into a bounded ring buffer. The
+// render loop drains the queue once per frame.
 
 #pragma once
 
@@ -52,6 +51,7 @@ public:
         const std::size_t head = head_.load(std::memory_order_acquire);
         while (tail != head && n < maxCount) {
             dst[n++] = buffer_[tail];
+            buffer_[tail] = {};
             tail = (tail + 1) & (CAPACITY - 1);
         }
         tail_.store(tail, std::memory_order_release);
@@ -59,18 +59,42 @@ public:
     }
 
     void clear() noexcept {
-        tail_.store(head_.load(std::memory_order_acquire),
-                    std::memory_order_release);
+        std::size_t tail = tail_.load(std::memory_order_relaxed);
+        const std::size_t head = head_.load(std::memory_order_acquire);
+        while (tail != head) {
+            buffer_[tail] = {};
+            tail = (tail + 1) & (CAPACITY - 1);
+        }
+        tail_.store(head, std::memory_order_release);
     }
 
 private:
-    RawMouseEvent            buffer_[CAPACITY];
+    RawMouseEvent            buffer_[CAPACITY]{};
     std::atomic<std::size_t> head_; // producer
     std::atomic<std::size_t> tail_; // consumer
 };
 
-// Singleton-style install / uninstall. Only one hook per process.
-bool        install_mouse_hook(MouseEventQueue* queue) noexcept;
-void        uninstall_mouse_hook() noexcept;
+struct MouseHookPlatform {
+    HHOOK (*install)(HOOKPROC callback) noexcept;
+    BOOL (*uninstall)(HHOOK hook) noexcept;
+};
+
+class MouseHookRegistration {
+public:
+    MouseHookRegistration() noexcept;
+    explicit MouseHookRegistration(MouseHookPlatform platform) noexcept;
+    ~MouseHookRegistration();
+
+    MouseHookRegistration(const MouseHookRegistration&) = delete;
+    MouseHookRegistration& operator=(const MouseHookRegistration&) = delete;
+
+    bool Install(MouseEventQueue* queue) noexcept;
+    void Reset() noexcept;
+    bool IsInstalled() const noexcept { return hook_ != nullptr; }
+
+private:
+    MouseHookPlatform platform_;
+    HHOOK hook_ = nullptr;
+};
 
 } // namespace desktopgrass

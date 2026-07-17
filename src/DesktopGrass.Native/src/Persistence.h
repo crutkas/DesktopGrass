@@ -10,11 +10,6 @@
 
 namespace desktopgrass::persistence {
 
-struct CutRecord {
-    int bladeIndex = 0;
-    double cutTime = 0.0;
-};
-
 struct MonitorState {
     std::string stableId;
     std::string sourceId;
@@ -24,7 +19,6 @@ struct MonitorState {
     int left = 0;
     int top = 0;
     bool workAreaBounds = false;
-    std::vector<CutRecord> cuts;
 };
 
 struct AppState {

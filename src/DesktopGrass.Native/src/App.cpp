@@ -313,7 +313,7 @@ std::unique_ptr<GrassWindow> App::CreateGrassWindow(
     const topology::MonitorSnapshot& monitor,
     const topology::SurfaceSpec& surface,
     uint64_t layoutSeed,
-    const std::vector<persistence::CutRecord>& cuts) {
+    const std::vector<CutRecord>& cuts) {
     auto window = std::make_unique<GrassWindow>();
     if (!window->Create(
             hInst_, msgHwnd_, monitor, surface, layoutSeed,
@@ -380,11 +380,8 @@ bool App::ReconcileDisplayTopology() {
                         persistedState_, planned.monitor)
                     : nullptr;
             const uint64_t seed = ResolveLayoutSeed(planned.monitor, saved);
-            const std::vector<persistence::CutRecord> cuts =
-                saved ? saved->cuts
-                      : std::vector<persistence::CutRecord>{};
             auto created = CreateGrassWindow(
-                planned.monitor, planned.surface, seed, cuts);
+                planned.monitor, planned.surface, seed, {});
             if (created) {
                 created->Show();
                 reconciled.push_back(std::move(created));
@@ -417,7 +414,7 @@ bool App::ReconcileDisplayTopology() {
 
         case topology::ReconcileKind::Replace: {
             const uint64_t seed = existing->GetLayoutSeed();
-            const std::vector<persistence::CutRecord> cuts =
+            const std::vector<CutRecord> cuts =
                 sim_get_cuts(existing->GetRenderer().GetSim());
             auto replacement = CreateGrassWindow(
                 planned.monitor, planned.surface, seed, cuts);
@@ -578,21 +575,16 @@ void App::ApplyRuntimePolicy() {
 
 void App::SetMouseObservationEnabled(bool enabled) {
     if (enabled) {
-        if (mouseHookInstalled_) return;
+        if (mouseHook_.IsInstalled()) return;
         queue_.clear();
-        if (install_mouse_hook(&queue_)) {
-            mouseHookInstalled_ = true;
-        } else {
+        if (!mouseHook_.Install(&queue_)) {
             OutputDebugStringA(
                 "[DesktopGrass] install_mouse_hook failed; input effects are disabled\n");
         }
         return;
     }
 
-    if (mouseHookInstalled_) {
-        uninstall_mouse_hook();
-        mouseHookInstalled_ = false;
-    }
+    mouseHook_.Reset();
     queue_.clear();
 }
 
@@ -669,7 +661,7 @@ void App::RenderAllWindows(double dt) {
 
 void App::ApplyStateToWindow(
     GrassWindow& window,
-    const std::vector<persistence::CutRecord>& cuts) {
+    const std::vector<CutRecord>& cuts) {
     Sim& sim = window.GetRenderer().GetSim();
     sim_set_scene(sim, currentScene_);
     sim_set_critter_count(sim, currentCritterCount_);
@@ -699,8 +691,6 @@ persistence::AppState App::BuildAppState() {
         monitor.left = bounds.left;
         monitor.top = bounds.top;
         monitor.workAreaBounds = false;
-        const Sim& sim = w->GetRenderer().GetSim();
-        monitor.cuts = sim_get_cuts(sim);
         persistence::UpsertMonitorState(
             state, std::move(monitor), snapshot);
     }

@@ -684,7 +684,7 @@ void Renderer::RegenerateForDpi(uint64_t seed, double density) {
     const int         critterCount = sim_.critterCountOverride;
     const double      swaySpeed    = sim_.swaySpeedScale;
     const double      swayAmp      = sim_.swayAmpScale;
-    const std::vector<persistence::CutRecord> cuts = sim_get_cuts(sim_);
+    const std::vector<CutRecord> cuts = sim_get_cuts(sim_);
 
     sim_regenerate(sim_, seed, widthDip, density);
     sim_.windowHeight   = heightDip;

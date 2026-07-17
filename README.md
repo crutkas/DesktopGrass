@@ -56,7 +56,7 @@ touches only, no engagement loops, no toys.
   the strip.
 
 **Always-on touches**
-- App state (scene, cuts, pet counts, auto-start preference)
+- App state (scene, pet counts, auto-start preference, and monitor layout metadata)
   persists across sessions in `%LOCALAPPDATA%\DesktopGrass\state.json`.
 - Optional "Start with Windows" toggle in the tray menu.
 - Spans all monitors, anchored to the bottom of each monitor's work area
@@ -65,6 +65,26 @@ touches only, no engagement loops, no toys.
 See [`CHANGELOG.md`](CHANGELOG.md) for a chronological list of everything that
 has shipped, and [`docs/architecture.md`](docs/architecture.md) for the
 simulation specification.
+
+## Mouse input and privacy
+
+DesktopGrass uses a Windows low-level mouse hook so movement can create gusts
+and a left-button press can trigger a local visual effect. The supported Native
+app enables the hook only while at least one grass strip is actively rendering.
+It does not observe keyboard input, window titles, or window contents, and it
+always passes mouse input through to the application underneath.
+
+Each observed movement or left-button press is reduced to its event type,
+timestamp, and screen position in a fixed-size in-memory queue. Events are
+consumed by the simulation, dropped if the queue is full, and cleared when
+observation stops. Hook ownership is process-scoped: normal shutdown and failed
+startup both remove an installed hook. Cursor positions, clicks, and their
+visual effects are not written to `state.json`, `config.json`, benchmark output,
+or diagnostic messages.
+
+The codebase has no telemetry client, network reporting, custom crash reporter,
+or dump writer. DesktopGrass does not create or upload crash data; Windows may
+still handle a process failure according to the operating system's own settings.
 
 ## Settings (`config.json`)
 

@@ -105,6 +105,9 @@ internal sealed class MouseHook : IDisposable
             Win32.UnhookWindowsHookEx(_hook);
             _hook = IntPtr.Zero;
         }
+        while (_channel.Reader.TryRead(out _))
+        {
+        }
         _channel.Writer.TryComplete();
     }
 }

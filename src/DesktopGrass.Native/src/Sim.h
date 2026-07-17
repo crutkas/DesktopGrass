@@ -13,9 +13,13 @@
 #include <vector>
 
 #include "Constants.h"
-#include "Persistence.h"
 
 namespace desktopgrass {
+
+struct CutRecord {
+    int bladeIndex = 0;
+    double cutTime = 0.0;
+};
 
 // ---------------------------------------------------------------------------
 // PRNG: xorshift64 seeded via SplitMix64. See architecture.md §3.
@@ -387,11 +391,10 @@ void update_blade_dynamics(Blade& b, double globalTime, double dt,
                            double swayAmpScale = 1.0) noexcept;
 void advance_cut(Blade& b, double globalTime) noexcept;
 
-// Persistence helpers. GetCuts stores cut timestamps shifted relative to the
-// current sim time (for example, -20 means the blade was cut 20 seconds ago)
-// so a fresh sim can resume regrowth after restart.
-std::vector<persistence::CutRecord> sim_get_cuts(const Sim& sim);
-void sim_apply_cuts(Sim& sim, const std::vector<persistence::CutRecord>& cuts) noexcept;
+// Runtime transfer helpers preserve visual state across renderer or topology
+// reconstruction within this process. Their output is not persisted.
+std::vector<CutRecord> sim_get_cuts(const Sim& sim);
+void sim_apply_cuts(Sim& sim, const std::vector<CutRecord>& cuts) noexcept;
 
 // dt clamp helper. Required at the renderer boundary so a long pause does not
 // produce visible artifacts. See architecture.md §10.
