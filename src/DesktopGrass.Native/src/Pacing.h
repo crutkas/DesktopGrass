@@ -24,6 +24,12 @@
 
 namespace desktopgrass {
 
+// Returns the time left in the current frame interval. Message-queue activity
+// can wake FramePacer early; callers use this before rendering so responsiveness
+// does not turn into frames above the configured cadence.
+double SecondsUntilNextFrame(double elapsedSinceLastFrameSec,
+                             int targetFps) noexcept;
+
 class FramePacer {
 public:
     FramePacer();

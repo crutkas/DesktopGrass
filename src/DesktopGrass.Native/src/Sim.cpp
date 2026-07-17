@@ -660,18 +660,28 @@ static void spawn_initial_fish(Sim& sim) noexcept {
 // Sway / gust dynamics
 // ---------------------------------------------------------------------------
 
+static void update_blade_dynamics_with_frame_terms(
+    Blade& b,
+    double globalSwayPhase,
+    double gustDecay,
+    double swayAmpScale) noexcept
+{
+    b.gustVelocity *= gustDecay;
+
+    const double swayPhase = b.swayPhaseOffset + globalSwayPhase;
+    const double baseLean =
+        std::sin(swayPhase) * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
+    b.effectiveLean =
+        baseLean + b.gustVelocity * GUST_TO_LEAN_FACTOR;
+}
+
 void update_blade_dynamics(Blade& b, double globalTime, double dt,
                            double swaySpeedScale, double swayAmpScale) noexcept {
-    // 1. Gust velocity decays exponentially.
-    b.gustVelocity *= std::exp(-DECAY_RATE * dt);
-
-    // 2. Sway is a pure function of globalTime + per-blade phase offset.
-    //    swaySpeedScale stretches the phase advance; swayAmpScale scales the lean.
-    const double swayPhase = b.swayPhaseOffset + globalTime * BASE_SWAY_SPEED * swaySpeedScale;
-    const double baseLean  = std::sin(swayPhase) * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
-
-    // 3. Combined lean.
-    b.effectiveLean = baseLean + b.gustVelocity * GUST_TO_LEAN_FACTOR;
+    update_blade_dynamics_with_frame_terms(
+        b,
+        globalTime * BASE_SWAY_SPEED * swaySpeedScale,
+        std::exp(-DECAY_RATE * dt),
+        swayAmpScale);
 }
 
 // ---------------------------------------------------------------------------
@@ -2113,8 +2123,12 @@ void sim_tick(Sim& sim, double dt,
 
     sim_tick_ambient_gusts(sim);
 
+    const double gustDecay = std::exp(-DECAY_RATE * dt);
+    const double globalSwayPhase =
+        sim.globalTime * BASE_SWAY_SPEED * sim.swaySpeedScale;
     for (Blade& b : sim.blades) {
-        update_blade_dynamics(b, sim.globalTime, dt, sim.swaySpeedScale, sim.swayAmpScale);
+        update_blade_dynamics_with_frame_terms(
+            b, globalSwayPhase, gustDecay, sim.swayAmpScale);
         advance_cut(b, sim.globalTime);
     }
 

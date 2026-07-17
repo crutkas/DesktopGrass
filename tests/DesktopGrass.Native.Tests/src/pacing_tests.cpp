@@ -83,6 +83,30 @@ TEST_METHOD(FramePacerShortWaitsDoNotReturnImmediately) {
     Assert::IsTrue(median >= 0.0005);
 }
 
+TEST_METHOD(FrameDeadlineRetainsTheBudgetAfterAnEarlyWake) {
+    constexpr int targetFps = 24;
+    constexpr double interval = 1.0 / targetFps;
+
+    Assert::IsTrue(
+        SecondsUntilNextFrame(0.005, targetFps)
+        == Near(interval - 0.005).margin(1e-12));
+    Assert::IsTrue(
+        SecondsUntilNextFrame(interval, targetFps)
+        == Near(0.0).margin(1e-12));
+    Assert::IsTrue(
+        SecondsUntilNextFrame(interval * 2.0, targetFps)
+        == Near(0.0).margin(1e-12));
+}
+
+TEST_METHOD(FrameDeadlineHandlesInvalidInputsConservatively) {
+    Assert::IsTrue(
+        SecondsUntilNextFrame(-1.0, 20)
+        == Near(0.05).margin(1e-12));
+    Assert::IsTrue(
+        SecondsUntilNextFrame(0.01, 0)
+        == Near(0.0).margin(1e-12));
+}
+
 TEST_METHOD(FramePacerPausedWaitWakesForQueuedMessages) {
     MSG msg{};
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {

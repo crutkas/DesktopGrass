@@ -113,6 +113,35 @@ TEST_METHOD(SimTickAppliesTheSimSwayScalesToBlades) {
     }
 }
 
+TEST_METHOD(SimTickMatchesStandaloneDynamicsAcrossBlades) {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim.swayAmpScale = 1.7;
+    sim.swaySpeedScale = 0.8;
+    sim.nextAmbientGustTime = 1000.0;
+
+    constexpr double dt = 0.037;
+    constexpr std::size_t bladeCount = 4;
+    Blade expected[bladeCount]{};
+    for (std::size_t i = 0; i < bladeCount; ++i) {
+        sim.blades[i].gustVelocity = 1.25 + static_cast<double>(i);
+        expected[i] = sim.blades[i];
+        update_blade_dynamics(
+            expected[i], dt, dt,
+            sim.swaySpeedScale, sim.swayAmpScale);
+    }
+
+    sim_tick(sim, dt, nullptr, 0);
+
+    for (std::size_t i = 0; i < bladeCount; ++i) {
+        Assert::IsTrue(
+            sim.blades[i].gustVelocity
+            == Near(expected[i].gustVelocity).margin(1e-12));
+        Assert::IsTrue(
+            sim.blades[i].effectiveLean
+            == Near(expected[i].effectiveLean).margin(1e-12));
+    }
+}
+
 TEST_METHOD(PhaseOffsetShiftsTheSineWave) {
     Blade a = make_blade(0.0,        1.0);
     Blade b = make_blade(kPi / 2.0, 1.0);

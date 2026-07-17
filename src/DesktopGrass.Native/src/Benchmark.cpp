@@ -261,8 +261,6 @@ int Run(HINSTANCE hInst, const Options& opts) {
     LARGE_INTEGER tPrev = tStart;
 
     const double durationS = static_cast<double>(opts.durationSec);
-    const double targetFrameSec = 1.0 / static_cast<double>(opts.targetFps);
-
     long long frameIndex = 0;
     bool userClosed = false;
     FramePacer pacer;
@@ -286,7 +284,17 @@ int Run(HINSTANCE hInst, const Options& opts) {
             static_cast<double>(tNow.QuadPart - tStart.QuadPart) / freq;
         if (elapsedSinceStart >= durationS) break;
 
-        const double dt = static_cast<double>(tNow.QuadPart - tPrev.QuadPart) / freq;
+        const double dt =
+            static_cast<double>(tNow.QuadPart - tPrev.QuadPart) / freq;
+        if (frameIndex > 0) {
+            const double waitSec =
+                SecondsUntilNextFrame(dt, opts.targetFps);
+            if (waitSec > 0.0) {
+                pacer.WaitUntilNextFrame(
+                    std::min(waitSec, durationS - elapsedSinceStart));
+                continue;
+            }
+        }
         tPrev = tNow;
 
         LARGE_INTEGER tRenderStart{};
@@ -304,13 +312,6 @@ int Run(HINSTANCE hInst, const Options& opts) {
         }
         ++frameIndex;
 
-        // Pace to target fps via the shared high-resolution waitable timer.
-        LARGE_INTEGER tAfter{};
-        QueryPerformanceCounter(&tAfter);
-        const double spentSec =
-            static_cast<double>(tAfter.QuadPart - tNow.QuadPart) / freq;
-        const double remaining = targetFrameSec - spentSec;
-        pacer.WaitUntilNextFrame(remaining);
     }
 
     if (csv) std::fclose(csv);
