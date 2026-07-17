@@ -21,15 +21,39 @@ permissions:
   contents: read
 
 concurrency:
-  group: interactive-smoke-${{ github.repository }}
-  cancel-in-progress: false
+  group: interactive-smoke-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  configuration:
+    name: Interactive smoke availability (no coverage)
+    runs-on: windows-2025-vs2026
+    outputs:
+      enabled: ${{ steps.state.outputs.enabled }}
+
+    steps:
+      - name: Report runner state
+        id: state
+        shell: pwsh
+        env:
+          ENABLED: ${{ vars.DESKTOPGRASS_INTERACTIVE_SMOKE_ENABLED }}
+        run: |
+          $enabled = $env:ENABLED -ceq 'true'
+          "enabled=$($enabled.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if ($enabled) {
+            "Interactive smoke is enabled; the dedicated runner job must pass." >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "::notice::Interactive smoke is not provisioned; no UI coverage is claimed."
+            "Interactive smoke is **not provisioned**. No UI coverage is claimed." >> $env:GITHUB_STEP_SUMMARY
+          }
+
   smoke:
     name: Native gate + managed reference
+    needs: configuration
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.configuration.outputs.enabled == 'true' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, Windows, X64, desktopgrass-interactive]
     timeout-minutes: 45
 
@@ -93,8 +117,11 @@ jobs:
 
   gate:
     name: Interactive smoke gate
-    if: ${{ always() }}
-    needs: smoke
+    if: >-
+      always() &&
+      (needs.configuration.result != 'success' ||
+      needs.configuration.outputs.enabled == 'true')
+    needs: [configuration, smoke]
     runs-on: windows-2025-vs2026
 
     steps:

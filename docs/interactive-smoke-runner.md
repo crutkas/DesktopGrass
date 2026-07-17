@@ -24,6 +24,12 @@ Set the non-secret machine or runner-user environment variable
 workflow does not set this marker: it proves the selected machine was
 deliberately provisioned for interactive smoke rather than merely relabeled.
 
+After the runner is online and verified, set the repository Actions variable
+`DESKTOPGRASS_INTERACTIVE_SMOKE_ENABLED=true`. Until that variable is exactly
+`true`, automatic workflow runs complete on a hosted configuration job, clearly
+report **not provisioned**, and do not queue a self-hosted job or claim UI
+coverage.
+
 Install these prerequisites for the runner user:
 
 - PowerShell 7 (`pwsh`)
@@ -75,13 +81,18 @@ must not execute untrusted fork code. After reviewing a fork commit, a
 maintainer can run `workflow_dispatch` from a trusted repository branch. The
 separate `Interactive smoke gate` hosted job fails when the trusted interactive
 job is skipped or fails, so a fork PR cannot look covered merely because its
-self-hosted job was skipped. Branch protection should require `Interactive
-smoke gate`, not the self-hosted job directly.
+self-hosted job was skipped.
+
+Only after provisioning and enabling the repository variable should branch
+protection require `Interactive smoke gate`. Before that point, the workflow's
+hosted `Interactive smoke availability (no coverage)` check is informational
+and must not be interpreted as smoke coverage.
 
 ## External owner action
 
 Repository-side automation is complete, but it cannot provision the lab.
 Before treating issue #26 as complete, a repository owner must register the
-dedicated runner with the labels above, trigger `Interactive smoke`, and retain
-one successful run showing the required Native step and the attempted managed
-reference step. Keep the issue open until that end-to-end run exists.
+dedicated runner with the labels above, set
+`DESKTOPGRASS_INTERACTIVE_SMOKE_ENABLED=true`, trigger `Interactive smoke`, and
+retain one successful run showing the required Native step and the attempted
+managed reference step. Keep the issue open until that end-to-end run exists.
