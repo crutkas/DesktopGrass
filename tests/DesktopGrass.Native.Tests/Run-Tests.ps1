@@ -6,7 +6,11 @@ param(
     [ValidateSet('x64', 'ARM64')]
     [string] $Platform = 'x64',
 
-    [string] $ResultsDirectory
+    [string] $TestCaseFilter,
+
+    [string] $ResultsDirectory,
+
+    [string] $LogFileName
 )
 
 Set-StrictMode -Version Latest
@@ -108,12 +112,22 @@ if ($Platform -eq 'ARM64') {
 }
 
 $vstestArgs = @($testDll, "/Platform:$Platform")
+if (-not [string]::IsNullOrWhiteSpace($TestCaseFilter)) {
+    $vstestArgs += "/TestCaseFilter:$TestCaseFilter"
+}
 if (-not [string]::IsNullOrWhiteSpace($ResultsDirectory)) {
     $resultsPath = [System.IO.Path]::GetFullPath($ResultsDirectory)
     [void](New-Item -ItemType Directory -Path $resultsPath -Force)
     $vstestArgs += "/ResultsDirectory:$resultsPath"
-    $vstestArgs += "/Logger:trx;LogFileName=DesktopGrass.Native.Tests.$Platform.$Configuration.trx"
     Write-Host "TRX results directory: $resultsPath"
+}
+if (-not [string]::IsNullOrWhiteSpace($LogFileName)) {
+    $vstestArgs += "/Logger:trx;LogFileName=$LogFileName"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($ResultsDirectory)) {
+    $vstestArgs += (
+        "/Logger:trx;LogFileName=" +
+        "DesktopGrass.Native.Tests.$Platform.$Configuration.trx")
 }
 
 & $vstest @vstestArgs

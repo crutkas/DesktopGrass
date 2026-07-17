@@ -934,14 +934,12 @@ function Assert-MonitorSurfaceTopology {
 function Find-MessageOnlyWindow {
     <#
     .SYNOPSIS
-        Looks up a message-only window (created with an HWND_MESSAGE parent,
-        e.g. App's kMsgWindowClass) owned by the given process.
+        Looks up the hidden Native control window owned by the given process.
 
     .DESCRIPTION
-        Message-only windows never appear via EnumWindows or
-        FindWindowExW(NULL, ...); they only enumerate as children of the
-        HWND_MESSAGE pseudo-handle. Returns [IntPtr]::Zero if no match is
-        found or the match is not owned by -Process.
+        Supports both true HWND_MESSAGE children and hidden top-level control
+        windows. DesktopGrass.Native currently uses the latter so it receives
+        shell broadcasts such as TaskbarCreated.
     #>
     [CmdletBinding()]
     param(
@@ -958,7 +956,7 @@ function Find-MessageOnlyWindow {
             $ClassName,
             $Title)
         if ($hwnd -eq [IntPtr]::Zero) {
-            return [IntPtr]::Zero
+            break
         }
 
         $owningPid = [uint32]0
@@ -970,6 +968,25 @@ function Find-MessageOnlyWindow {
         }
         $after = $hwnd
     }
+
+    foreach ($candidate in (
+        [DesktopGrass.Smoke.Win32]::EnumerateAllWindowsForProcess(
+            [uint32]$Process.Id)
+    )) {
+        $candidateHwnd = [IntPtr]$candidate
+        $classBuffer = [Text.StringBuilder]::new(256)
+        [void][DesktopGrass.Smoke.Win32]::GetClassNameW(
+            $candidateHwnd,
+            $classBuffer,
+            $classBuffer.Capacity)
+        if ($classBuffer.ToString() -ne $ClassName) {
+            continue
+        }
+        if ([DesktopGrass.Smoke.Win32]::GetWindowTitle($candidateHwnd) -eq $Title) {
+            return $candidateHwnd
+        }
+    }
+    return [IntPtr]::Zero
 }
 
 function Wait-ForMessageOnlyWindow {

@@ -205,6 +205,10 @@ dotnet test tests\DesktopGrass.Win2D.Tests\DesktopGrass.Win2D.Tests.csproj -c Re
   gates the supported Native binary and can optionally exercise the managed
   reference. It asserts click-through / topmost window styles and verifies
   rendering via screenshot pixel variance over the bottom strip.
+- **Soak and fault testing** — [`tools/soak/README.md`](tools/soak/README.md)
+  documents the gated multi-hour Native production-path harness, resource
+  budgets, device-loss qualification, system-transition adapters, and retained
+  evidence artifacts. Fast fixture tests validate the harness logic only.
 
 Run Native coverage and, when needed, reproduce the managed baseline:
 
