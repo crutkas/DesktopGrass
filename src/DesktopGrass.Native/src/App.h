@@ -67,6 +67,8 @@ private:
     void ShowTrayMenu(WPARAM callbackCoordinates, UINT notification);
     void RemoveTrayIcon();
     void DestroyMessageWindow();
+    // Sole owner of applying display changes. Keeps or moves surfaces whose
+    // backing is unchanged and replaces surfaces whose size or DPI changed.
     bool ReconcileDisplayTopology();
     void DestroyAllGrassWindows();
     std::unique_ptr<GrassWindow> CreateGrassWindow(

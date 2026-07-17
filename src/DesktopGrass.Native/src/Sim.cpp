@@ -1981,8 +1981,8 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
     if (sim.currentScene == Scene::Ocean && sim.monitorWidth > 0.0) {
         // Bubbles rise from the seafloor toward the canvas top, with a gentle
         // sinusoidal horizontal wobble (applied during the per-kind pass
-        // above). Lifetime ensures cleanup even if the cap-by-y condition is
-        // somehow missed on a window resize.
+        // above). Lifetime remains a final cleanup guard if position-based
+        // culling is ever bypassed.
         const double lambda = BUBBLE_EMIT_RATE_PER_1920DIP * sim.monitorWidth / 1920.0;
         while (lambda > 0.0 && sim.globalTime >= sim.nextBubbleSpawnTime
                && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR) {
@@ -2096,33 +2096,6 @@ Sim sim_init(uint64_t seed, double monitorWidth, double density) {
     prng_init(s.birdFlybyPrng, s.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
     s.nextBirdFlybyAtTime = s.globalTime + bird_flyby_sample_interval(s.birdFlybyPrng);
     return s;
-}
-
-void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density) {
-    sim.globalTime     = 0.0;
-    sim.prevCursorX    = 0.0;
-    sim.prevCursorTime = -1.0;
-    sim.monitorWidth   = monitorWidth;
-    sim.entitySeed     = seed;
-    sim.entities.clear();
-    if (sim.entities.capacity() < static_cast<std::size_t>(MAX_ENTITIES_PER_MONITOR)) {
-        sim.entities.reserve(MAX_ENTITIES_PER_MONITOR);
-    }
-    generate_blades(seed, monitorWidth, density, sim.blades);
-
-    prng_init(sim.ambientPrng, seed ^ AMBIENT_GUST_PRNG_SALT);
-    sim.nextAmbientGustTime = sim.globalTime
-                            + prng_uniform(sim.ambientPrng,
-                                           AMBIENT_GUST_INTERVAL_MIN,
-                                           AMBIENT_GUST_INTERVAL_MAX);
-
-    prng_init(sim.leafPrng, sim.entitySeed ^ LEAF_PRNG_SALT);
-    sim.nextLeafSpawnTime = sim.globalTime;
-    prng_init(sim.leafPuffPrng, sim.entitySeed ^ LEAF_PUFF_PRNG_SALT);
-    prng_init(sim.snowPuffPrng, sim.entitySeed ^ SNOW_PUFF_PRNG_SALT);
-    prng_init(sim.snowDriftPrng, sim.entitySeed ^ SNOW_DRIFT_PRNG_SALT);
-    prng_init(sim.birdFlybyPrng, sim.entitySeed ^ BIRD_FLYBY_PRNG_SALT);
-    sim.nextBirdFlybyAtTime = sim.globalTime + bird_flyby_sample_interval(sim.birdFlybyPrng);
 }
 
 void sim_tick(Sim& sim, double dt,

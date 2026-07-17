@@ -238,7 +238,7 @@ struct Sim {
     double             swaySpeedScale      = 1.0;
     double             swayAmpScale        = 1.0;
 
-    // Ambient gust scheduler (§8.1). Initialized by sim_init / sim_regenerate.
+    // Ambient gust scheduler (§8.1). Initialized by sim_init.
     Prng               ambientPrng         = { 0 };
     double             nextAmbientGustTime = 0.0;
     double             monitorWidth        = 0.0;
@@ -306,9 +306,6 @@ struct Sim {
 // and seed. windowHeight defaults to STRIP_HEIGHT + HEADROOM.
 Sim sim_init(uint64_t seed, double monitorWidth, double density = 1.0);
 
-// Re-run generation in place, resetting all runtime state.
-void sim_regenerate(Sim& sim, uint64_t seed, double monitorWidth, double density = 1.0);
-
 // Apply a move event. Updates prevCursorX/prevCursorTime and distributes gust
 // impulse. Caller is responsible for the dt-clamp / cap on cursor speed; this
 // function performs the cap internally per the spec.
@@ -367,7 +364,7 @@ void sim_tick_bird_flybys(Sim& sim) noexcept;
 void sim_tick(Sim& sim, double dt,
               const InputEvent* events, std::size_t numEvents) noexcept;
 
-// Generator used by sim_init / sim_regenerate. Exposed for unit tests.
+// Generator used by sim_init. Exposed for unit tests.
 void generate_blades(uint64_t seed, double monitorWidth, double density,
                      std::vector<Blade>& out);
 

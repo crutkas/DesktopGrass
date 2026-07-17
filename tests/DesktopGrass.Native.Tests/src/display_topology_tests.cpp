@@ -54,6 +54,20 @@ namespace DesktopGrassNativeTests
 TEST_CLASS(DisplayTopologyTests)
 {
 public:
+TEST_METHOD(SurfaceSpecKeepsWorkAreaWidthAndDipHeightBounds) {
+    const MonitorSnapshot snapshot = monitor(
+        "a", "source-a", rect(-2560, 0, 0, 1440),
+        rect(-2560, 0, 0, 1400), 144, true);
+
+    const SurfaceSpec surface = MakeSurfaceSpec(snapshot, 110.0);
+
+    Assert::IsTrue(surface.x == -2560);
+    Assert::IsTrue(surface.y == 1235);
+    Assert::IsTrue(surface.widthPx == 2560);
+    Assert::IsTrue(surface.heightPx == 165);
+    Assert::IsTrue(surface.dpi == 144);
+}
+
 TEST_METHOD(TopologyReconciliationIsIdempotentAndEnumerationOrderIndependent) {
     const MonitorSnapshot left = monitor(
         "left", R"(\\.\display2)",
@@ -118,12 +132,21 @@ TEST_METHOD(PrimarySwitchAndCoordinateReorderMoveExistingSurfaces) {
         std::vector<MonitorSnapshot>{ newA, newB }, 110.0);
 
     Assert::IsTrue(plan.has_value());
-    Assert::IsTrue(planned_for(*plan, "a").kind == ReconcileKind::Move);
-    Assert::IsTrue(planned_for(*plan, "b").kind == ReconcileKind::Move);
+    const SurfaceSpec oldASurface = current(oldA).surface;
+    const SurfaceSpec oldBSurface = current(oldB).surface;
+    const PlannedSurface& plannedA = planned_for(*plan, "a");
+    const PlannedSurface& plannedB = planned_for(*plan, "b");
+
+    Assert::IsTrue(plannedA.kind == ReconcileKind::Move);
+    Assert::IsTrue(plannedB.kind == ReconcileKind::Move);
+    Assert::IsTrue(HasSameBackingSurface(plannedA.surface, oldASurface));
+    Assert::IsTrue(HasSameBackingSurface(plannedB.surface, oldBSurface));
+    Assert::IsTrue(plannedA.surface.x == newA.workArea.left);
+    Assert::IsTrue(plannedB.surface.x == newB.workArea.left);
     Assert::IsTrue(plan->removals.empty());
 }
 
-TEST_METHOD(MixedDPIReplacesOnlyTheChangedMonitorSurface) {
+TEST_METHOD(DpiChangesReplaceOnlyTheAffectedSurfaceInsteadOfResizing) {
     const MonitorSnapshot a = monitor(
         "a", "source-a", rect(0, 0, 1920, 1080),
         rect(0, 0, 1920, 1040), 96, true);
@@ -138,8 +161,15 @@ TEST_METHOD(MixedDPIReplacesOnlyTheChangedMonitorSurface) {
         std::vector<MonitorSnapshot>{ a, newB }, 110.0);
 
     Assert::IsTrue(plan.has_value());
-    Assert::IsTrue(planned_for(*plan, "a").kind == ReconcileKind::Keep);
-    Assert::IsTrue(planned_for(*plan, "b").kind == ReconcileKind::Replace);
+    const PlannedSurface& plannedA = planned_for(*plan, "a");
+    const PlannedSurface& plannedB = planned_for(*plan, "b");
+    const SurfaceSpec oldBSurface = current(oldB).surface;
+    const SurfaceSpec newBSurface = MakeSurfaceSpec(newB, 110.0);
+
+    Assert::IsTrue(plannedA.kind == ReconcileKind::Keep);
+    Assert::IsTrue(plannedB.kind == ReconcileKind::Replace);
+    Assert::IsFalse(HasSameBackingSurface(plannedB.surface, oldBSurface));
+    Assert::IsTrue(plannedB.surface == newBSurface);
 }
 
 TEST_METHOD(TaskbarWorkAreasClassifyMovesAndBackingReplacements) {
