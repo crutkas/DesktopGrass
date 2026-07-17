@@ -12,6 +12,19 @@ constexpr double kHundredNsPerSec = 10'000'000.0;
 
 } // anonymous
 
+double SecondsUntilNextFrame(double elapsedSinceLastFrameSec,
+                             int targetFps) noexcept
+{
+    if (targetFps <= 0) return 0.0;
+
+    const double elapsed = elapsedSinceLastFrameSec > 0.0
+        ? elapsedSinceLastFrameSec
+        : 0.0;
+    const double remaining =
+        (1.0 / static_cast<double>(targetFps)) - elapsed;
+    return remaining > 0.0 ? remaining : 0.0;
+}
+
 FramePacer::FramePacer() {
     // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION (0x00000002) requires Windows 10
     // 1803+. DesktopGrass already requires Windows 10 1809+ (see README), so

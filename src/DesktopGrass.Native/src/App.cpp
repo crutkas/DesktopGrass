@@ -800,11 +800,24 @@ int App::Run() {
             if (!anySurfaceRendering_) continue;
         }
 
-        // Compute dt.
-        LARGE_INTEGER now;
+        // Message activity can wake the pacer before the frame deadline. Check
+        // elapsed time before rendering so those wakes remain responsive without
+        // allowing mouse movement or WinEvents to drive frames above target FPS.
+        LARGE_INTEGER now{};
         QueryPerformanceCounter(&now);
-        double dt = static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
-                    static_cast<double>(qpcFreq_.QuadPart);
+        const double elapsedSinceFrame =
+            static_cast<double>(now.QuadPart - qpcLast_.QuadPart) /
+            static_cast<double>(qpcFreq_.QuadPart);
+        if (!resumeFramePending_) {
+            const double waitSec = SecondsUntilNextFrame(
+                elapsedSinceFrame, effectiveTargetFps_);
+            if (waitSec > 0.0) {
+                pacer_.WaitUntilNextFrame(waitSec);
+                continue;
+            }
+        }
+
+        double dt = elapsedSinceFrame;
         qpcLast_ = now;
         if (resumeFramePending_) {
             dt = std::min(dt, 1.0 / 30.0);
@@ -816,22 +829,6 @@ int App::Run() {
         if (GetTickCount64() - lastPersistenceSaveMs_ >= 60000ull) {
             SaveCurrentState();
         }
-
-        // Pace to the target frame interval, accounting for the time already
-        // spent rendering/presenting this iteration so the cadence holds at
-        // the target fps regardless of how long Present blocked. The pacer
-        // uses a high-resolution waitable timer (Win 10 1803+) so the wait
-        // honours sub-15.6 ms remainders instead of getting clamped to the
-        // default system timer resolution. The wait returns early if input
-        // arrives, keeping the app responsive.
-        LARGE_INTEGER after;
-        QueryPerformanceCounter(&after);
-        const double elapsedSec = static_cast<double>(after.QuadPart - now.QuadPart) /
-                                  static_cast<double>(qpcFreq_.QuadPart);
-        const double targetFrameSec =
-            1.0 / static_cast<double>(effectiveTargetFps_);
-        const double remainingSec = targetFrameSec - elapsedSec;
-        pacer_.WaitUntilNextFrame(remainingSec);
     }
 
     SaveCurrentState();
