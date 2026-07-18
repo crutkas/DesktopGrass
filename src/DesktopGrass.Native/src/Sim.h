@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 #include "Constants.h"
@@ -51,6 +52,14 @@ struct Blade {
     uint8_t hue;
     double  swayPhaseOffset;
     double  stiffness;
+
+    // Stable phase terms used by sim_tick's production blade loop. The cached
+    // source offset makes direct swayPhaseOffset assignment safe: a mismatch
+    // refreshes all three values before use. NaN marks aggregate-initialized
+    // and hand-built Blade fixtures as uncached.
+    double  cachedSwayPhaseOffset = std::numeric_limits<double>::quiet_NaN();
+    double  swayPhaseSin          = 0.0;
+    double  swayPhaseCos          = 1.0;
 
     // Runtime.
     double  cutHeight;

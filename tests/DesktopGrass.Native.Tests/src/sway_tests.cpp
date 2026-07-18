@@ -5,7 +5,9 @@
 #include "TestHelpers.h"
 #include "Sim.h"
 
+#include <array>
 #include <cmath>
+#include <limits>
 
 using namespace desktopgrass;
 
@@ -140,6 +142,110 @@ TEST_METHOD(SimTickMatchesStandaloneDynamicsAcrossBlades) {
             sim.blades[i].effectiveLean
             == Near(expected[i].effectiveLean).margin(1e-12));
     }
+}
+
+TEST_METHOD(GeneratedBladesInitializeStablePhaseTerms) {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+
+    for (const Blade& blade : sim.blades) {
+        Assert::AreEqual(blade.swayPhaseOffset, blade.cachedSwayPhaseOffset);
+        Assert::IsTrue(
+            blade.swayPhaseSin
+            == Near(std::sin(blade.swayPhaseOffset)).margin(1e-15));
+        Assert::IsTrue(
+            blade.swayPhaseCos
+            == Near(std::cos(blade.swayPhaseOffset)).margin(1e-15));
+    }
+}
+
+TEST_METHOD(SimTickInitializesHandBuiltBladePhaseCache) {
+    Sim sim{};
+    sim.nextAmbientGustTime = std::numeric_limits<double>::infinity();
+    sim.blades.push_back(make_blade(kPi / 3.0, 0.75));
+    Blade expected = sim.blades.front();
+
+    constexpr double dt = 0.025;
+    update_blade_dynamics(expected, dt, dt);
+    sim_tick(sim, dt, nullptr, 0);
+
+    const Blade& actual = sim.blades.front();
+    Assert::AreEqual(actual.swayPhaseOffset, actual.cachedSwayPhaseOffset);
+    Assert::IsTrue(
+        actual.effectiveLean == Near(expected.effectiveLean).margin(1e-12));
+}
+
+TEST_METHOD(SimTickRefreshesCacheAfterDirectPhaseAssignment) {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim.nextAmbientGustTime = std::numeric_limits<double>::infinity();
+    sim_tick(sim, 0.01, nullptr, 0);
+
+    Blade& blade = sim.blades.front();
+    const double oldCachedPhase = blade.cachedSwayPhaseOffset;
+    blade.swayPhaseOffset = oldCachedPhase + kPi / 2.0;
+    Blade expected = blade;
+
+    constexpr double dt = 0.037;
+    update_blade_dynamics(expected, sim.globalTime + dt, dt);
+    sim_tick(sim, dt, nullptr, 0);
+
+    Assert::AreEqual(blade.swayPhaseOffset, blade.cachedSwayPhaseOffset);
+    Assert::IsTrue(
+        blade.effectiveLean == Near(expected.effectiveLean).margin(1e-12));
+}
+
+TEST_METHOD(SimTickCachedSwayMatchesStandaloneAcrossInputs) {
+    constexpr std::array<double, 6> phases{
+        0.0, 0.1, kPi / 2.0, kPi, 2.0 * kPi - 1e-12, 17.25
+    };
+    constexpr std::array<double, 5> times{
+        0.0, 1e-9, 0.25, 9.75, 12345.678
+    };
+    constexpr std::array<double, 3> speedScales{ 0.0, 0.8, 2.5 };
+    constexpr std::array<double, 3> ampScales{ 0.0, 1.0, 1.7 };
+    constexpr std::array<double, 3> dts{ 0.001, 0.037, 0.1 };
+
+    for (double phase : phases) {
+        for (double time : times) {
+            for (double speedScale : speedScales) {
+                for (double ampScale : ampScales) {
+                    for (double dt : dts) {
+                        Sim sim{};
+                        sim.globalTime = time;
+                        sim.swaySpeedScale = speedScale;
+                        sim.swayAmpScale = ampScale;
+                        sim.nextAmbientGustTime =
+                            std::numeric_limits<double>::infinity();
+                        sim.blades.push_back(make_blade(phase, 0.73));
+                        sim.blades.front().gustVelocity = -2.25;
+
+                        Blade expected = sim.blades.front();
+                        update_blade_dynamics(
+                            expected, time + dt, dt, speedScale, ampScale);
+                        sim_tick(sim, dt, nullptr, 0);
+
+                        Assert::IsTrue(
+                            sim.blades.front().gustVelocity
+                            == Near(expected.gustVelocity).margin(1e-12));
+                        Assert::IsTrue(
+                            sim.blades.front().effectiveLean
+                            == Near(expected.effectiveLean).margin(1e-10));
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_METHOD(StandaloneDynamicsUsesDirectlyAssignedPhase) {
+    Blade blade = make_blade(0.25, 1.0);
+    update_blade_dynamics(blade, 0.5, 0.016);
+
+    blade.swayPhaseOffset = 1.75;
+    update_blade_dynamics(blade, 0.5, 0.016);
+
+    const double expected =
+        std::sin(1.75 + 0.5 * BASE_SWAY_SPEED) * BASE_AMPLITUDE;
+    Assert::IsTrue(blade.effectiveLean == Near(expected).margin(1e-12));
 }
 
 TEST_METHOD(PhaseOffsetShiftsTheSineWave) {

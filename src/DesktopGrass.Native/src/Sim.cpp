@@ -14,6 +14,12 @@ namespace desktopgrass {
 
 namespace {
 constexpr double TWO_PI = 6.28318530717958647692;
+
+void refresh_sway_phase_cache(Blade& b) noexcept {
+    b.cachedSwayPhaseOffset = b.swayPhaseOffset;
+    b.swayPhaseSin = std::sin(b.swayPhaseOffset);
+    b.swayPhaseCos = std::cos(b.swayPhaseOffset);
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +160,7 @@ void generate_blades(uint64_t seed, double monitorWidth, double density,
         b.hue              = static_cast<uint8_t>(prng_index(p, PALETTE_SIZE));
         b.swayPhaseOffset  = prng_uniform(p, 0.0, 2.0 * 3.14159265358979323846);
         b.stiffness        = prng_uniform(p, STIFFNESS_MIN, STIFFNESS_MAX);
+        refresh_sway_phase_cache(b);
 
         b.cutHeight        = 1.0;
         b.gustVelocity     = 0.0;
@@ -662,26 +669,35 @@ static void spawn_initial_fish(Sim& sim) noexcept {
 
 static void update_blade_dynamics_with_frame_terms(
     Blade& b,
-    double globalSwayPhase,
+    double globalSwaySin,
+    double globalSwayCos,
     double gustDecay,
     double swayAmpScale) noexcept
 {
     b.gustVelocity *= gustDecay;
 
-    const double swayPhase = b.swayPhaseOffset + globalSwayPhase;
+    if (b.cachedSwayPhaseOffset != b.swayPhaseOffset) {
+        refresh_sway_phase_cache(b);
+    }
+    const double sway =
+        b.swayPhaseSin * globalSwayCos
+        + b.swayPhaseCos * globalSwaySin;
     const double baseLean =
-        std::sin(swayPhase) * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
+        sway * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
     b.effectiveLean =
         baseLean + b.gustVelocity * GUST_TO_LEAN_FACTOR;
 }
 
 void update_blade_dynamics(Blade& b, double globalTime, double dt,
                            double swaySpeedScale, double swayAmpScale) noexcept {
-    update_blade_dynamics_with_frame_terms(
-        b,
-        globalTime * BASE_SWAY_SPEED * swaySpeedScale,
-        std::exp(-DECAY_RATE * dt),
-        swayAmpScale);
+    b.gustVelocity *= std::exp(-DECAY_RATE * dt);
+
+    const double swayPhase =
+        b.swayPhaseOffset + globalTime * BASE_SWAY_SPEED * swaySpeedScale;
+    const double baseLean =
+        std::sin(swayPhase) * BASE_AMPLITUDE * swayAmpScale * b.stiffness;
+    b.effectiveLean =
+        baseLean + b.gustVelocity * GUST_TO_LEAN_FACTOR;
 }
 
 // ---------------------------------------------------------------------------
@@ -2126,9 +2142,11 @@ void sim_tick(Sim& sim, double dt,
     const double gustDecay = std::exp(-DECAY_RATE * dt);
     const double globalSwayPhase =
         sim.globalTime * BASE_SWAY_SPEED * sim.swaySpeedScale;
+    const double globalSwaySin = std::sin(globalSwayPhase);
+    const double globalSwayCos = std::cos(globalSwayPhase);
     for (Blade& b : sim.blades) {
         update_blade_dynamics_with_frame_terms(
-            b, globalSwayPhase, gustDecay, sim.swayAmpScale);
+            b, globalSwaySin, globalSwayCos, gustDecay, sim.swayAmpScale);
         advance_cut(b, sim.globalTime);
     }
 
