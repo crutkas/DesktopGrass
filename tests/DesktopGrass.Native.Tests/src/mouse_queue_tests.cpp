@@ -2,6 +2,8 @@
 
 #include "MouseHook.h"
 
+#include <vector>
+
 using namespace desktopgrass;
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -38,6 +40,33 @@ void reset_hook_calls() noexcept {
     g_uninstallCalls = 0;
 }
 
+struct AppliedMouseEvent {
+    std::size_t windowIndex;
+    InputEvent event;
+};
+
+InputEvent move(double x, double y, double time) {
+    return InputEvent{ EventType::Move, x, y, time };
+}
+
+InputEvent click(double x, double y, double time) {
+    return InputEvent{ EventType::Click, x, y, time };
+}
+
+void assert_event(
+    const AppliedMouseEvent& actual,
+    std::size_t windowIndex,
+    EventType type,
+    double x,
+    double y,
+    double time) {
+    Assert::IsTrue(actual.windowIndex == windowIndex);
+    Assert::IsTrue(actual.event.type == type);
+    Assert::IsTrue(actual.event.x == x);
+    Assert::IsTrue(actual.event.y == y);
+    Assert::IsTrue(actual.event.time == time);
+}
+
 } // namespace
 
 TEST_CLASS(MouseQueueTests)
@@ -63,6 +92,100 @@ TEST_METHOD(MouseQueueClearsEventsCollectedBeforeAPause) {
     Assert::IsTrue(drained[0].type == EventType::Click);
     Assert::IsTrue(drained[0].screenX == 300);
     Assert::IsTrue(drained[0].screenY == 400);
+}
+
+TEST_METHOD(FrameKeepsOnlyTheLatestMoveForEachWindow) {
+    FrameMouseEventCoalescer coalescer(2);
+    std::vector<AppliedMouseEvent> applied;
+    auto apply = [&applied](
+        std::size_t windowIndex,
+        const InputEvent& event) {
+            applied.push_back({ windowIndex, event });
+        };
+
+    coalescer.Push(0, move(10.0, -100.0, 1.0), apply);
+    coalescer.Push(1, move(20.0, 200.0, 2.0), apply);
+    coalescer.Push(0, move(30.0, 300.0, 3.0), apply);
+    coalescer.Push(1, move(40.0, -400.0, 4.0), apply);
+
+    Assert::IsTrue(applied.empty());
+    coalescer.FlushAll(apply);
+
+    Assert::IsTrue(applied.size() == 2);
+    assert_event(applied[0], 0, EventType::Move, 30.0, 300.0, 3.0);
+    assert_event(applied[1], 1, EventType::Move, 40.0, -400.0, 4.0);
+}
+
+TEST_METHOD(ClickFlushesTheLatestMoveBeforeIt) {
+    FrameMouseEventCoalescer coalescer(1);
+    std::vector<AppliedMouseEvent> applied;
+    auto apply = [&applied](
+        std::size_t windowIndex,
+        const InputEvent& event) {
+            applied.push_back({ windowIndex, event });
+        };
+
+    coalescer.Push(0, move(10.0, 100.0, 1.0), apply);
+    coalescer.Push(0, move(20.0, 200.0, 2.0), apply);
+    coalescer.Push(0, click(20.0, 200.0, 2.1), apply);
+    coalescer.Push(0, move(30.0, 300.0, 3.0), apply);
+    coalescer.FlushAll(apply);
+
+    Assert::IsTrue(applied.size() == 3);
+    assert_event(applied[0], 0, EventType::Move, 20.0, 200.0, 2.0);
+    assert_event(applied[1], 0, EventType::Click, 20.0, 200.0, 2.1);
+    assert_event(applied[2], 0, EventType::Move, 30.0, 300.0, 3.0);
+}
+
+TEST_METHOD(ClickFlushesOnlyItsOwnWindow) {
+    FrameMouseEventCoalescer coalescer(2);
+    std::vector<AppliedMouseEvent> applied;
+    auto apply = [&applied](
+        std::size_t windowIndex,
+        const InputEvent& event) {
+            applied.push_back({ windowIndex, event });
+        };
+
+    coalescer.Push(0, move(10.0, 100.0, 1.0), apply);
+    coalescer.Push(1, move(20.0, 200.0, 2.0), apply);
+    coalescer.Push(1, click(20.0, 200.0, 2.1), apply);
+
+    Assert::IsTrue(applied.size() == 2);
+    assert_event(applied[0], 1, EventType::Move, 20.0, 200.0, 2.0);
+    assert_event(applied[1], 1, EventType::Click, 20.0, 200.0, 2.1);
+
+    coalescer.FlushAll(apply);
+    Assert::IsTrue(applied.size() == 3);
+    assert_event(applied[2], 0, EventType::Move, 10.0, 100.0, 1.0);
+}
+
+TEST_METHOD(CoalescingSpansQueueDrainBatches) {
+    FrameMouseEventCoalescer coalescer(1);
+    std::vector<AppliedMouseEvent> applied;
+    auto apply = [&applied](
+        std::size_t windowIndex,
+        const InputEvent& event) {
+            applied.push_back({ windowIndex, event });
+        };
+
+    for (int i = 0; i < 256; ++i) {
+        coalescer.Push(
+            0,
+            move(static_cast<double>(i), 100.0, i / 1000.0),
+            apply);
+    }
+    Assert::IsTrue(applied.empty());
+
+    for (int i = 256; i < 300; ++i) {
+        coalescer.Push(
+            0,
+            move(static_cast<double>(i), 100.0, i / 1000.0),
+            apply);
+    }
+    coalescer.FlushAll(apply);
+
+    Assert::IsTrue(applied.size() == 1);
+    assert_event(applied[0], 0, EventType::Move, 299.0, 100.0, 0.299);
 }
 
 TEST_METHOD(MouseHookIsRemovedDuringNormalShutdown) {

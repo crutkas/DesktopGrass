@@ -10,6 +10,8 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <vector>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -72,6 +74,45 @@ private:
     RawMouseEvent            buffer_[CAPACITY]{};
     std::atomic<std::size_t> head_; // producer
     std::atomic<std::size_t> tail_; // consumer
+};
+
+class FrameMouseEventCoalescer {
+public:
+    explicit FrameMouseEventCoalescer(std::size_t windowCount)
+        : pendingMoves_(windowCount) {}
+
+    template <typename Apply>
+    void Push(
+        std::size_t windowIndex,
+        const InputEvent& event,
+        Apply& apply) {
+        if (event.type == EventType::Move) {
+            pendingMoves_[windowIndex] = event;
+            return;
+        }
+
+        Flush(windowIndex, apply);
+        apply(windowIndex, event);
+    }
+
+    template <typename Apply>
+    void FlushAll(Apply& apply) {
+        for (std::size_t i = 0; i < pendingMoves_.size(); ++i) {
+            Flush(i, apply);
+        }
+    }
+
+private:
+    template <typename Apply>
+    void Flush(std::size_t windowIndex, Apply& apply) {
+        auto& pending = pendingMoves_[windowIndex];
+        if (!pending) return;
+
+        apply(windowIndex, *pending);
+        pending.reset();
+    }
+
+    std::vector<std::optional<InputEvent>> pendingMoves_;
 };
 
 struct MouseHookPlatform {
