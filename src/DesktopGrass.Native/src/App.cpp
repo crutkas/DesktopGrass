@@ -630,6 +630,17 @@ void App::SetMouseObservationEnabled(bool enabled) {
 void App::DispatchMouseEvents() {
     // Drain the lock-free queue once. Each event is then routed to whichever
     // GrassWindow's screen rect contains it.
+    FrameMouseEventCoalescer coalescer(windows_.size());
+    const auto applyEvent =
+        [this](std::size_t windowIndex, const InputEvent& event) {
+            Sim& sim = windows_[windowIndex]->GetRenderer().GetSim();
+            if (event.type == EventType::Move) {
+                sim_apply_move(sim, event);
+            } else {
+                sim_apply_click(sim, event);
+            }
+        };
+
     RawMouseEvent raw[256];
     while (true) {
         std::size_t n = queue_.drain(raw, 256);
@@ -672,21 +683,16 @@ void App::DispatchMouseEvents() {
                 ie.y    = (e.screenY - surface.y) * scale;
                 ie.time = e.timeSeconds;
 
-                // Apply directly to the sim. Note that this happens BEFORE
-                // sim_tick (which itself drains its events list), so we apply
-                // events through the per-tick path — collect into a per-window
-                // event vector instead.
-                // To keep things simple, push to the Sim immediately:
-                if (ie.type == EventType::Move) {
-                    sim_apply_move(w->GetRenderer().GetSim(), ie);
-                } else {
-                    sim_apply_click(w->GetRenderer().GetSim(), ie);
-                }
+                // One coalescer spans every queue batch drained for this frame.
+                // Clicks flush that window's latest move before being applied.
+                coalescer.Push(windowIndex, ie, applyEvent);
                 break; // each event belongs to at most one window
             }
         }
         if (n < 256) break;
     }
+
+    coalescer.FlushAll(applyEvent);
 }
 
 void App::RenderAllWindows(double dt) {
