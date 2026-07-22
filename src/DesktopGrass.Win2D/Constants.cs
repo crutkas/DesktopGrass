@@ -11,7 +11,7 @@ public enum Scene { Grass = 0, Desert = 1, Winter = 2, Autumn = 3, Ocean = 4 }
 
 // Critter (§13.3). Grass-scene ambient critters plus legacy tray selectors.
 // Cross-impl-locked discriminants.
-public enum CritterKind : byte { None = 0, Sheep = 1, Cat = 2, Bunny = 3, Jimothy = 4 }
+public enum CritterKind : byte { None = 0, Sheep = 1, Cat = 2, Bunny = 3, Raccoon = 4 }
 
 internal static class Constants
 {
@@ -280,7 +280,10 @@ internal static class Constants
         "Bristle", "Quill", "Mossy", "Truffle", "Prickles", "Snuffles",
         "Pinecone", "Hazel", "Bramble", "Pip", "Sage", "Burdock",
     };
-    public static readonly string[] JIMOTHY_NAME_POOL = { "Jimothy" };
+    // Index 0 is the one special short-bodied raccoon; generators assign it
+    // exactly once and use only nonzero indices for the rest of the group.
+    public static readonly string[] RACCOON_NAME_POOL =
+        { "Jimothy", "Bandit", "Maple", "Rascal", "Pebble", "Scout", "Mochi", "Tucker" };
     public const double      PET_NAME_HOVER_RADIUS = 50.0;
     public const double      PET_NAME_FADE_DURATION = 1.5;
     public const double      PET_NAME_FONT_SIZE = 11.0;
@@ -528,35 +531,36 @@ internal static class Constants
     public const double HEDGEHOG_ZZZ_SIZE_START        = SHEEP_ZZZ_SIZE_START * 0.6;
     public const double HEDGEHOG_ZZZ_SIZE_END          = SHEEP_ZZZ_SIZE_END * 0.6;
 
-    // Jimothy. Grass-only raccoon with a calm walk/snuffle/rest loop.
-    public const int    JIMOTHY_COUNT_MIN             = 1;
-    public const int    JIMOTHY_COUNT_MAX             = 1;
-    public const double JIMOTHY_WALK_SPEED_MIN        = 8.0;
-    public const double JIMOTHY_WALK_SPEED_MAX        = 13.0;
-    public const double JIMOTHY_BODY_RADIUS           = 12.0;
-    public const double JIMOTHY_BODY_HEIGHT           = 7.5;
-    public const double JIMOTHY_HEAD_RADIUS           = 5.0;
-    public const double JIMOTHY_LEG_LENGTH            = 4.0;
-    public const double JIMOTHY_TAIL_LENGTH           = 13.0;
-    public const uint   JIMOTHY_BODY_COLOR            = 0xFF85898Bu;
-    public const uint   JIMOTHY_DARK_COLOR            = 0xFF292B2Cu;
-    public const uint   JIMOTHY_FACE_COLOR            = 0xFFB1B4B3u;
-    public const uint   JIMOTHY_EAR_COLOR             = 0xFF4B4E4Fu;
-    public const uint   JIMOTHY_EYE_COLOR             = 0xFF111212u;
-    public const byte   JIMOTHY_STATE_WALKING         = 0;
-    public const byte   JIMOTHY_STATE_SNUFFLING       = 1;
-    public const byte   JIMOTHY_STATE_RESTING         = 2;
-    public const double JIMOTHY_WALK_DURATION_MIN     = 5.0;
-    public const double JIMOTHY_WALK_DURATION_MAX     = 10.0;
-    public const double JIMOTHY_SNUFFLE_DURATION_MIN  = 1.5;
-    public const double JIMOTHY_SNUFFLE_DURATION_MAX  = 3.0;
-    public const double JIMOTHY_REST_DURATION_MIN     = 3.0;
-    public const double JIMOTHY_REST_DURATION_MAX     = 6.0;
-    public const double JIMOTHY_SNUFFLE_PROBABILITY   = 0.65;
-    public const double JIMOTHY_WADDLE_FREQ           = 4.5;
-    public const double JIMOTHY_WADDLE_AMP            = 0.8;
-    public const double JIMOTHY_STARTLE_RADIUS        = 80.0;
-    public const double JIMOTHY_STARTLE_BOOST         = 1.5;
+    // Raccoons. Grass-only group with a calm walk/snuffle/rest loop.
+    public const int    RACCOON_COUNT_MIN             = 2;
+    public const int    RACCOON_COUNT_MAX             = 3;
+    public const double RACCOON_WALK_SPEED_MIN        = 8.0;
+    public const double RACCOON_WALK_SPEED_MAX        = 13.0;
+    public const double RACCOON_BODY_RADIUS           = 12.0;
+    public const double RACCOON_JIMOTHY_BODY_RADIUS   = RACCOON_BODY_RADIUS * 0.75;
+    public const double RACCOON_BODY_HEIGHT           = 7.5;
+    public const double RACCOON_HEAD_RADIUS           = 5.0;
+    public const double RACCOON_LEG_LENGTH            = 4.0;
+    public const double RACCOON_TAIL_LENGTH           = 13.0;
+    public const uint   RACCOON_BODY_COLOR            = 0xFF85898Bu;
+    public const uint   RACCOON_DARK_COLOR            = 0xFF292B2Cu;
+    public const uint   RACCOON_FACE_COLOR            = 0xFFB1B4B3u;
+    public const uint   RACCOON_EAR_COLOR             = 0xFF4B4E4Fu;
+    public const uint   RACCOON_EYE_COLOR             = 0xFF111212u;
+    public const byte   RACCOON_STATE_WALKING         = 0;
+    public const byte   RACCOON_STATE_SNUFFLING       = 1;
+    public const byte   RACCOON_STATE_RESTING         = 2;
+    public const double RACCOON_WALK_DURATION_MIN     = 5.0;
+    public const double RACCOON_WALK_DURATION_MAX     = 10.0;
+    public const double RACCOON_SNUFFLE_DURATION_MIN  = 1.5;
+    public const double RACCOON_SNUFFLE_DURATION_MAX  = 3.0;
+    public const double RACCOON_REST_DURATION_MIN     = 3.0;
+    public const double RACCOON_REST_DURATION_MAX     = 6.0;
+    public const double RACCOON_SNUFFLE_PROBABILITY   = 0.65;
+    public const double RACCOON_WADDLE_FREQ           = 4.5;
+    public const double RACCOON_WADDLE_AMP            = 0.8;
+    public const double RACCOON_STARTLE_RADIUS        = 80.0;
+    public const double RACCOON_STARTLE_BOOST         = 1.5;
     // Butterflies (§17.6). Grass-only, passive daytime ambient flyers.
 
     public const int    BUTTERFLY_COUNT_MIN          = 2;

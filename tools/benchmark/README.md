@@ -235,7 +235,7 @@ Supported Native flags (`--key=value` or `--key value`):
 |---|---|---|
 | `--benchmark` | - | Required mode switch |
 | `--scene=N` | 0 | 0=Grass, 1=Desert, 2=Winter, 3=Autumn, 4=Ocean |
-| `--critter=N` | 0 | 0=None, 1=Sheep, 2=Cat, 3=Bunny |
+| `--critter=N` | 0 | 0=None, 1=Sheep, 2=Cat, 3=Bunny/All, 4=Raccoon; names also accept `raccoon`, `raccoons`, and legacy `jimothy` |
 | `--critter-count=N` | 0 | 0=random count; positive capped at 6 |
 | `--seed=0xHEX` | Built-in seed | Stable content override |
 | `--duration=SEC` | 60 | In-process render interval |

@@ -96,17 +96,31 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public void RoundTripsJimothySelection()
+    public void RoundTripsRaccoonSelection()
     {
-        string path = UseStatePath(nameof(RoundTripsJimothySelection));
-        var expected = new AppState(2, Scene.Grass, CritterKind.Jimothy, 1, AutoStart: false, []);
+        string path = UseStatePath(nameof(RoundTripsRaccoonSelection));
+        var expected = new AppState(2, Scene.Grass, CritterKind.Raccoon, 3, AutoStart: false, []);
 
         Persistence.Save(expected);
         AppState? actual = Persistence.Load();
 
         Assert.NotNull(actual);
-        Assert.Equal(CritterKind.Jimothy, actual.Critter);
-        Assert.Contains("\"Jimothy\"", File.ReadAllText(path));
+        Assert.Equal(CritterKind.Raccoon, actual.Critter);
+        Assert.Contains("\"Raccoon\"", File.ReadAllText(path));
+        Assert.DoesNotContain("\"Jimothy\"", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void LoadsLegacyJimothySelectionAsRaccoon()
+    {
+        string path = UseStatePath(nameof(LoadsLegacyJimothySelectionAsRaccoon));
+        File.WriteAllText(path,
+            """{ "version": 2, "scene": "Grass", "critter": "Jimothy", "critterCount": 1, "autoStart": false, "monitors": {} }""");
+
+        AppState? actual = Persistence.Load();
+
+        Assert.NotNull(actual);
+        Assert.Equal(CritterKind.Raccoon, actual.Critter);
     }
 
     [Fact]

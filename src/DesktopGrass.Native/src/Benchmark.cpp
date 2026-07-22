@@ -79,7 +79,11 @@ bool ParseCritter(const wchar_t* s, CritterKind& out) {
     if (_wcsicmp(s, L"cat")   == 0) { out = CritterKind::Cat;   return true; }
     if (_wcsicmp(s, L"bunny") == 0) { out = CritterKind::Bunny; return true; }
     if (_wcsicmp(s, L"all")   == 0) { out = CritterKind::Bunny; return true; }
-    if (_wcsicmp(s, L"jimothy") == 0) { out = CritterKind::Jimothy; return true; }
+    if (_wcsicmp(s, L"raccoon") == 0 || _wcsicmp(s, L"raccoons") == 0
+        || _wcsicmp(s, L"jimothy") == 0) {
+        out = CritterKind::Raccoon;
+        return true;
+    }
     return false;
 }
 

@@ -360,20 +360,20 @@ bool Renderer::CreateDeviceResources() {
     hr = d2dContext_->CreateSolidColorBrush(FromArgb(HEDGEHOG_EYE_COLOR),
                                             hedgehogEyeBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-    jimothyBodyBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(JIMOTHY_BODY_COLOR), jimothyBodyBrush_.ReleaseAndGetAddressOf());
+    raccoonBodyBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RACCOON_BODY_COLOR), raccoonBodyBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-    jimothyDarkBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(JIMOTHY_DARK_COLOR), jimothyDarkBrush_.ReleaseAndGetAddressOf());
+    raccoonDarkBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RACCOON_DARK_COLOR), raccoonDarkBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-    jimothyFaceBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(JIMOTHY_FACE_COLOR), jimothyFaceBrush_.ReleaseAndGetAddressOf());
+    raccoonFaceBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RACCOON_FACE_COLOR), raccoonFaceBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-    jimothyEarBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(JIMOTHY_EAR_COLOR), jimothyEarBrush_.ReleaseAndGetAddressOf());
+    raccoonEarBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RACCOON_EAR_COLOR), raccoonEarBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
-    jimothyEyeBrush_.Reset();
-    hr = d2dContext_->CreateSolidColorBrush(FromArgb(JIMOTHY_EYE_COLOR), jimothyEyeBrush_.ReleaseAndGetAddressOf());
+    raccoonEyeBrush_.Reset();
+    hr = d2dContext_->CreateSolidColorBrush(FromArgb(RACCOON_EYE_COLOR), raccoonEyeBrush_.ReleaseAndGetAddressOf());
     if (FAILED(hr)) { LogHR("CreateSolidColorBrush", hr); return false; }
 
     butterflyBodyBrush_.Reset();
@@ -518,11 +518,11 @@ void Renderer::DiscardDeviceResources() {
     hedgehogSpikeTipBrush_.Reset();
     hedgehogNoseBrush_.Reset();
     hedgehogEyeBrush_.Reset();
-    jimothyBodyBrush_.Reset();
-    jimothyDarkBrush_.Reset();
-    jimothyFaceBrush_.Reset();
-    jimothyEarBrush_.Reset();
-    jimothyEyeBrush_.Reset();
+    raccoonBodyBrush_.Reset();
+    raccoonDarkBrush_.Reset();
+    raccoonFaceBrush_.Reset();
+    raccoonEarBrush_.Reset();
+    raccoonEyeBrush_.Reset();
     butterflyBodyBrush_.Reset();
     for (auto& b : butterflyWingBrushes_) b.Reset();
     for (auto& b : butterflyAccentBrushes_) b.Reset();
@@ -1902,9 +1902,9 @@ void Renderer::DrawHedgehog(const Entity& e) {
                               hedgehogEyeBrush_.Get());
 }
 
-void Renderer::DrawJimothy(const Entity& e) {
-    if (!d2dContext_ || !d2dFactory_ || !jimothyBodyBrush_ || !jimothyDarkBrush_
-        || !jimothyFaceBrush_ || !jimothyEarBrush_ || !jimothyEyeBrush_) return;
+void Renderer::DrawRaccoon(const Entity& e) {
+    if (!d2dContext_ || !d2dFactory_ || !raccoonBodyBrush_ || !raccoonDarkBrush_
+        || !raccoonFaceBrush_ || !raccoonEarBrush_ || !raccoonEyeBrush_) return;
 
     auto fillTriangle = [&](D2D1_POINT_2F a, D2D1_POINT_2F b, D2D1_POINT_2F c,
                             ID2D1SolidColorBrush* brush) {
@@ -1922,63 +1922,65 @@ void Renderer::DrawJimothy(const Entity& e) {
     const float facing = e.vx >= 0.0 ? 1.0f : -1.0f;
     const float cx = static_cast<float>(e.x);
     float cy = static_cast<float>(e.y);
-    if (e.state == JIMOTHY_STATE_WALKING)
-        cy += static_cast<float>(JIMOTHY_WADDLE_AMP * std::sin(e.age * JIMOTHY_WADDLE_FREQ));
-    else if (e.state == JIMOTHY_STATE_RESTING)
+    if (e.state == RACCOON_STATE_WALKING)
+        cy += static_cast<float>(RACCOON_WADDLE_AMP * std::sin(e.age * RACCOON_WADDLE_FREQ));
+    else if (e.state == RACCOON_STATE_RESTING)
         cy += 2.0f;
 
-    const float br = static_cast<float>(JIMOTHY_BODY_RADIUS);
-    const float bh = static_cast<float>(JIMOTHY_BODY_HEIGHT);
+    const float br = static_cast<float>(e.nameIndex == 0
+        ? RACCOON_JIMOTHY_BODY_RADIUS
+        : RACCOON_BODY_RADIUS);
+    const float bh = static_cast<float>(RACCOON_BODY_HEIGHT);
     for (int i = 0; i < 6; ++i) {
         const float t = static_cast<float>(i) / 5.0f;
-        const float tailX = cx - facing * (br * 0.72f + t * static_cast<float>(JIMOTHY_TAIL_LENGTH));
+        const float tailX = cx - facing * (br * 0.72f + t * static_cast<float>(RACCOON_TAIL_LENGTH));
         const float tailY = cy - bh * 0.05f - 2.2f * std::sin(t * 3.14159265358979323846f);
         const float rx = 4.2f - t * 1.5f;
         const float ry = 3.8f - t * 1.1f;
         d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(tailX, tailY), rx, ry),
-            (i & 1) == 0 ? jimothyBodyBrush_.Get() : jimothyDarkBrush_.Get());
+            (i & 1) == 0 ? raccoonBodyBrush_.Get() : raccoonDarkBrush_.Get());
     }
 
-    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh), jimothyBodyBrush_.Get());
-    const float legSwing = e.state == JIMOTHY_STATE_WALKING
-        ? 1.3f * std::sin(static_cast<float>(e.age * JIMOTHY_WADDLE_FREQ * 1.8))
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy), br, bh), raccoonBodyBrush_.Get());
+    const float legSwing = e.state == RACCOON_STATE_WALKING
+        ? 1.3f * std::sin(static_cast<float>(e.age * RACCOON_WADDLE_FREQ * 1.8))
         : 0.0f;
     for (int i = 0; i < 4; ++i) {
         const float legX = cx + (-0.58f + static_cast<float>(i) * 0.38f) * br;
         const float swing = (i & 1) == 0 ? legSwing : -legSwing;
         d2dContext_->DrawLine(D2D1::Point2F(legX, cy + bh * 0.62f),
-            D2D1::Point2F(legX + facing * swing, cy + bh + static_cast<float>(JIMOTHY_LEG_LENGTH)),
-            jimothyDarkBrush_.Get(), 2.2f);
+            D2D1::Point2F(legX + facing * swing, cy + bh + static_cast<float>(RACCOON_LEG_LENGTH)),
+            raccoonDarkBrush_.Get(), 2.2f);
     }
 
-    const float snuffle = e.state == JIMOTHY_STATE_SNUFFLING
+    const float snuffle = e.state == RACCOON_STATE_SNUFFLING
         ? 1.2f * std::sin(static_cast<float>(e.age * 7.0))
         : 0.0f;
     const float headCx = cx + facing * (br * 0.88f + snuffle);
     const float headCy = cy - bh * 0.10f;
-    const float hr = static_cast<float>(JIMOTHY_HEAD_RADIUS);
+    const float hr = static_cast<float>(RACCOON_HEAD_RADIUS);
     const D2D1_POINT_2F muzzle = D2D1::Point2F(headCx + facing * hr * 1.05f, headCy + hr * 0.18f);
     fillTriangle(muzzle,
         D2D1::Point2F(headCx - facing * hr * 0.55f, headCy - hr * 0.72f),
-        D2D1::Point2F(headCx - facing * hr * 0.55f, headCy + hr * 0.72f), jimothyFaceBrush_.Get());
-    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), hr, hr * 0.88f), jimothyFaceBrush_.Get());
+        D2D1::Point2F(headCx - facing * hr * 0.55f, headCy + hr * 0.72f), raccoonFaceBrush_.Get());
+    d2dContext_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(headCx, headCy), hr, hr * 0.88f), raccoonFaceBrush_.Get());
     fillTriangle(D2D1::Point2F(headCx - facing * hr * 0.25f, headCy - hr * 1.35f),
         D2D1::Point2F(headCx - facing * hr * 0.75f, headCy - hr * 0.45f),
-        D2D1::Point2F(headCx + facing * hr * 0.05f, headCy - hr * 0.55f), jimothyEarBrush_.Get());
+        D2D1::Point2F(headCx + facing * hr * 0.05f, headCy - hr * 0.55f), raccoonEarBrush_.Get());
     d2dContext_->FillEllipse(D2D1::Ellipse(
         D2D1::Point2F(headCx + facing * hr * 0.22f, headCy - hr * 0.18f), hr * 0.68f, hr * 0.32f),
-        jimothyDarkBrush_.Get());
+        raccoonDarkBrush_.Get());
     d2dContext_->FillEllipse(D2D1::Ellipse(
         D2D1::Point2F(headCx + facing * hr * 0.43f, headCy - hr * 0.20f), 0.75f, 0.75f),
-        jimothyEyeBrush_.Get());
-    d2dContext_->FillEllipse(D2D1::Ellipse(muzzle, 1.05f, 0.9f), jimothyDarkBrush_.Get());
+        raccoonEyeBrush_.Get());
+    d2dContext_->FillEllipse(D2D1::Ellipse(muzzle, 1.05f, 0.9f), raccoonDarkBrush_.Get());
 }
 
 void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition) {
     if (!petNameTextFormat_ || !petNameBrush_ || !petNameShadowBrush_) return;
     if (e.kind != EntityKind::Sheep && e.kind != EntityKind::Cat
         && e.kind != EntityKind::Bunny && e.kind != EntityKind::Hedgehog
-        && e.kind != EntityKind::Jimothy) return;
+        && e.kind != EntityKind::Raccoon) return;
 
     const wchar_t* const* pool = SHEEP_NAME_POOL;
     std::size_t poolSize = sizeof(SHEEP_NAME_POOL) / sizeof(SHEEP_NAME_POOL[0]);
@@ -1991,9 +1993,9 @@ void Renderer::DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition)
     } else if (e.kind == EntityKind::Hedgehog) {
         pool = HEDGEHOG_NAME_POOL;
         poolSize = sizeof(HEDGEHOG_NAME_POOL) / sizeof(HEDGEHOG_NAME_POOL[0]);
-    } else if (e.kind == EntityKind::Jimothy) {
-        pool = JIMOTHY_NAME_POOL;
-        poolSize = sizeof(JIMOTHY_NAME_POOL) / sizeof(JIMOTHY_NAME_POOL[0]);
+    } else if (e.kind == EntityKind::Raccoon) {
+        pool = RACCOON_NAME_POOL;
+        poolSize = sizeof(RACCOON_NAME_POOL) / sizeof(RACCOON_NAME_POOL[0]);
     }
     if (poolSize == 0) return;
 
@@ -2088,8 +2090,8 @@ void Renderer::DrawEntities(const D2D1_POINT_2F* cursorPosition) {
             continue;
         }
 
-        if (e.kind == EntityKind::Jimothy) {
-            DrawJimothy(e);
+        if (e.kind == EntityKind::Raccoon) {
+            DrawRaccoon(e);
             DrawPetName(e, cursorPosition);
             continue;
         }

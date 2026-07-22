@@ -149,18 +149,30 @@ TEST_METHOD(PersistenceRoundTripsEveryScene) {
     }
 }
 
-TEST_METHOD(PersistenceRoundTripsJimothySelection) {
-    const auto path = test_state_path("round-trip-jimothy");
+TEST_METHOD(PersistenceRoundTripsRaccoonSelection) {
+    const auto path = test_state_path("round-trip-raccoon");
     use_state_path(path);
 
     persistence::AppState expected;
-    expected.critter = CritterKind::Jimothy;
+    expected.critter = CritterKind::Raccoon;
     Assert::IsTrue(persistence::SaveAppState(expected));
 
     persistence::AppState actual;
     Assert::IsTrue(persistence::LoadAppState(actual));
-    Assert::IsTrue(actual.critter == CritterKind::Jimothy);
-    Assert::IsTrue(read_text(path).find("\"Jimothy\"") != std::string::npos);
+    Assert::IsTrue(actual.critter == CritterKind::Raccoon);
+    Assert::IsTrue(read_text(path).find("\"Raccoon\"") != std::string::npos);
+    Assert::IsTrue(read_text(path).find("\"Jimothy\"") == std::string::npos);
+}
+
+TEST_METHOD(PersistenceLoadsLegacyJimothySelectionAsRaccoon) {
+    const auto path = test_state_path("legacy-jimothy");
+    use_state_path(path);
+    write_text(path,
+        R"({"version":3,"scene":"Grass","critter":"Jimothy","critterCount":1,"autoStart":false,"monitors":[]})");
+
+    persistence::AppState actual;
+    Assert::IsTrue(persistence::LoadAppState(actual));
+    Assert::IsTrue(actual.critter == CritterKind::Raccoon);
 }
 
 TEST_METHOD(PersistenceVersionMismatchReturnsFalse) {
