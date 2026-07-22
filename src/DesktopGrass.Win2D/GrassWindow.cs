@@ -105,11 +105,11 @@ internal sealed class GrassWindow : IDisposable
     private ID2D1SolidColorBrush? _hedgehogSpikeTipBrush;
     private ID2D1SolidColorBrush? _hedgehogNoseBrush;
     private ID2D1SolidColorBrush? _hedgehogEyeBrush;
-    private ID2D1SolidColorBrush? _jimothyBodyBrush;
-    private ID2D1SolidColorBrush? _jimothyDarkBrush;
-    private ID2D1SolidColorBrush? _jimothyFaceBrush;
-    private ID2D1SolidColorBrush? _jimothyEarBrush;
-    private ID2D1SolidColorBrush? _jimothyEyeBrush;
+    private ID2D1SolidColorBrush? _raccoonBodyBrush;
+    private ID2D1SolidColorBrush? _raccoonDarkBrush;
+    private ID2D1SolidColorBrush? _raccoonFaceBrush;
+    private ID2D1SolidColorBrush? _raccoonEarBrush;
+    private ID2D1SolidColorBrush? _raccoonEyeBrush;
     private ID2D1SolidColorBrush? _butterflyBodyBrush;
     private ID2D1SolidColorBrush[]? _butterflyWingBrushes;
     private ID2D1SolidColorBrush[]? _butterflyAccentBrushes;
@@ -338,11 +338,11 @@ internal sealed class GrassWindow : IDisposable
         _hedgehogSpikeTipBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_SPIKE_TIP_COLOR));
         _hedgehogNoseBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_NOSE_COLOR));
         _hedgehogEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.HEDGEHOG_EYE_COLOR));
-        _jimothyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.JIMOTHY_BODY_COLOR));
-        _jimothyDarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.JIMOTHY_DARK_COLOR));
-        _jimothyFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.JIMOTHY_FACE_COLOR));
-        _jimothyEarBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.JIMOTHY_EAR_COLOR));
-        _jimothyEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.JIMOTHY_EYE_COLOR));
+        _raccoonBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RACCOON_BODY_COLOR));
+        _raccoonDarkBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RACCOON_DARK_COLOR));
+        _raccoonFaceBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RACCOON_FACE_COLOR));
+        _raccoonEarBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RACCOON_EAR_COLOR));
+        _raccoonEyeBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.RACCOON_EYE_COLOR));
 
         _butterflyBodyBrush = _dc.CreateSolidColorBrush(ArgbToColor4(Constants.BUTTERFLY_BODY_COLOR));
         _butterflyWingBrushes = new ID2D1SolidColorBrush[Constants.BUTTERFLY_COLOR_COUNT];
@@ -532,9 +532,9 @@ internal sealed class GrassWindow : IDisposable
                 continue;
             }
 
-            if (e.Kind == EntityKind.Jimothy)
+            if (e.Kind == EntityKind.Raccoon)
             {
-                DrawJimothy(in e);
+                DrawRaccoon(in e);
                 DrawPetName(in e, cursorPosition);
                 continue;
             }
@@ -1276,68 +1276,75 @@ internal sealed class GrassWindow : IDisposable
                                     0.75f, 0.75f), _hedgehogEyeBrush);
     }
 
-    private void DrawJimothy(in Entity e)
+    private void DrawRaccoon(in Entity e)
     {
-        if (_dc is null || _jimothyBodyBrush is null || _jimothyDarkBrush is null
-            || _jimothyFaceBrush is null || _jimothyEarBrush is null || _jimothyEyeBrush is null) return;
+        if (_dc is null || _raccoonBodyBrush is null || _raccoonDarkBrush is null
+            || _raccoonFaceBrush is null || _raccoonEarBrush is null || _raccoonEyeBrush is null) return;
 
         float facing = e.Vx >= 0.0 ? 1.0f : -1.0f;
         float cx = (float)e.X;
         float cy = (float)e.Y;
-        if (e.State == Constants.JIMOTHY_STATE_WALKING)
-            cy += (float)(Constants.JIMOTHY_WADDLE_AMP * Math.Sin(e.Age * Constants.JIMOTHY_WADDLE_FREQ));
-        else if (e.State == Constants.JIMOTHY_STATE_RESTING)
+        if (e.State == Constants.RACCOON_STATE_WALKING)
+            cy += (float)(Constants.RACCOON_WADDLE_AMP * Math.Sin(e.Age * Constants.RACCOON_WADDLE_FREQ));
+        else if (e.State == Constants.RACCOON_STATE_RESTING)
             cy += 2.0f;
 
-        float br = (float)Constants.JIMOTHY_BODY_RADIUS;
-        float bh = (float)Constants.JIMOTHY_BODY_HEIGHT;
+        bool isJimothy = e.NameIndex == 0;
+        float br = (float)(isJimothy
+            ? Constants.RACCOON_JIMOTHY_BODY_RADIUS
+            : Constants.RACCOON_BODY_RADIUS);
+        float bh = (float)(isJimothy
+            ? Constants.RACCOON_JIMOTHY_BODY_HEIGHT
+            : Constants.RACCOON_BODY_HEIGHT);
+        if (isJimothy)
+            cy -= bh - (float)Constants.RACCOON_BODY_HEIGHT;
 
         // Bushy ringed tail trails behind the body.
         for (int i = 0; i < 6; i++)
         {
             float t = i / 5.0f;
-            float tailX = cx - facing * (br * 0.72f + t * (float)Constants.JIMOTHY_TAIL_LENGTH);
+            float tailX = cx - facing * (br * 0.72f + t * (float)Constants.RACCOON_TAIL_LENGTH);
             float tailY = cy - bh * 0.05f - 2.2f * MathF.Sin(t * MathF.PI);
             float rx = 4.2f - t * 1.5f;
             float ry = 3.8f - t * 1.1f;
             _dc.FillEllipse(new Ellipse(new Vector2(tailX, tailY), rx, ry),
-                (i & 1) == 0 ? _jimothyBodyBrush : _jimothyDarkBrush);
+                (i & 1) == 0 ? _raccoonBodyBrush : _raccoonDarkBrush);
         }
 
-        _dc.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _jimothyBodyBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(cx, cy), br, bh), _raccoonBodyBrush);
 
-        float legSwing = e.State == Constants.JIMOTHY_STATE_WALKING
-            ? 1.3f * MathF.Sin((float)(e.Age * Constants.JIMOTHY_WADDLE_FREQ * 1.8))
+        float legSwing = e.State == Constants.RACCOON_STATE_WALKING
+            ? 1.3f * MathF.Sin((float)(e.Age * Constants.RACCOON_WADDLE_FREQ * 1.8))
             : 0.0f;
         for (int i = 0; i < 4; i++)
         {
             float legX = cx + (-0.58f + i * 0.38f) * br;
             float swing = (i & 1) == 0 ? legSwing : -legSwing;
             _dc.DrawLine(new Vector2(legX, cy + bh * 0.62f),
-                         new Vector2(legX + facing * swing, cy + bh + (float)Constants.JIMOTHY_LEG_LENGTH),
-                         _jimothyDarkBrush, 2.2f, _strokeStyle);
+                         new Vector2(legX + facing * swing, cy + bh + (float)Constants.RACCOON_LEG_LENGTH),
+                         _raccoonDarkBrush, 2.2f, _strokeStyle);
         }
 
-        float snuffle = e.State == Constants.JIMOTHY_STATE_SNUFFLING
+        float snuffle = e.State == Constants.RACCOON_STATE_SNUFFLING
             ? 1.2f * MathF.Sin((float)(e.Age * 7.0))
             : 0.0f;
         float headCx = cx + facing * (br * 0.88f + snuffle);
         float headCy = cy - bh * 0.10f;
-        float hr = (float)Constants.JIMOTHY_HEAD_RADIUS;
+        float hr = (float)Constants.RACCOON_HEAD_RADIUS;
         var muzzle = new Vector2(headCx + facing * hr * 1.05f, headCy + hr * 0.18f);
         DrawFilledTriangle(muzzle,
             new Vector2(headCx - facing * hr * 0.55f, headCy - hr * 0.72f),
-            new Vector2(headCx - facing * hr * 0.55f, headCy + hr * 0.72f), _jimothyFaceBrush);
-        _dc.FillEllipse(new Ellipse(new Vector2(headCx, headCy), hr, hr * 0.88f), _jimothyFaceBrush);
+            new Vector2(headCx - facing * hr * 0.55f, headCy + hr * 0.72f), _raccoonFaceBrush);
+        _dc.FillEllipse(new Ellipse(new Vector2(headCx, headCy), hr, hr * 0.88f), _raccoonFaceBrush);
         DrawFilledTriangle(new Vector2(headCx - facing * hr * 0.25f, headCy - hr * 1.35f),
             new Vector2(headCx - facing * hr * 0.75f, headCy - hr * 0.45f),
-            new Vector2(headCx + facing * hr * 0.05f, headCy - hr * 0.55f), _jimothyEarBrush);
+            new Vector2(headCx + facing * hr * 0.05f, headCy - hr * 0.55f), _raccoonEarBrush);
 
         _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * hr * 0.22f, headCy - hr * 0.18f),
-                                    hr * 0.68f, hr * 0.32f), _jimothyDarkBrush);
+                                    hr * 0.68f, hr * 0.32f), _raccoonDarkBrush);
         _dc.FillEllipse(new Ellipse(new Vector2(headCx + facing * hr * 0.43f, headCy - hr * 0.20f),
-                                    0.75f, 0.75f), _jimothyEyeBrush);
-        _dc.FillEllipse(new Ellipse(muzzle, 1.05f, 0.9f), _jimothyDarkBrush);
+                                    0.75f, 0.75f), _raccoonEyeBrush);
+        _dc.FillEllipse(new Ellipse(muzzle, 1.05f, 0.9f), _raccoonDarkBrush);
     }
 
     private void DrawPetName(in Entity e, Vector2? cursorPosition)
@@ -1346,14 +1353,14 @@ internal sealed class GrassWindow : IDisposable
             return;
         if (e.Kind != EntityKind.Sheep && e.Kind != EntityKind.Cat
             && e.Kind != EntityKind.Bunny && e.Kind != EntityKind.Hedgehog
-            && e.Kind != EntityKind.Jimothy) return;
+            && e.Kind != EntityKind.Raccoon) return;
 
         string[] pool = e.Kind switch
         {
             EntityKind.Cat => Constants.CAT_NAME_POOL,
             EntityKind.Bunny => Constants.BUNNY_NAME_POOL,
             EntityKind.Hedgehog => Constants.HEDGEHOG_NAME_POOL,
-            EntityKind.Jimothy => Constants.JIMOTHY_NAME_POOL,
+            EntityKind.Raccoon => Constants.RACCOON_NAME_POOL,
             _ => Constants.SHEEP_NAME_POOL,
         };
         if (pool.Length == 0) return;
@@ -2164,11 +2171,11 @@ internal sealed class GrassWindow : IDisposable
         try { _hedgehogSpikeTipBrush?.Dispose(); } catch { }
         try { _hedgehogNoseBrush?.Dispose(); } catch { }
         try { _hedgehogEyeBrush?.Dispose(); } catch { }
-        try { _jimothyBodyBrush?.Dispose(); } catch { }
-        try { _jimothyDarkBrush?.Dispose(); } catch { }
-        try { _jimothyFaceBrush?.Dispose(); } catch { }
-        try { _jimothyEarBrush?.Dispose(); } catch { }
-        try { _jimothyEyeBrush?.Dispose(); } catch { }
+        try { _raccoonBodyBrush?.Dispose(); } catch { }
+        try { _raccoonDarkBrush?.Dispose(); } catch { }
+        try { _raccoonFaceBrush?.Dispose(); } catch { }
+        try { _raccoonEarBrush?.Dispose(); } catch { }
+        try { _raccoonEyeBrush?.Dispose(); } catch { }
         try { _butterflyBodyBrush?.Dispose(); } catch { }
         if (_butterflyWingBrushes is not null)
         {

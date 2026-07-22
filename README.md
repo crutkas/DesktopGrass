@@ -19,7 +19,7 @@ touches only, no engagement loops, no toys.
   so the tip arcs over and drops as they lean (no stretching artifacts).
 - Occasional flowers and mushrooms procedurally appear on independent PRNG streams.
 - Ambient gusts puff across the strip on their own schedule.
-- **Critters** — sheep, cats, bunnies, and hedgehogs wander the strip. Each has
+- **Critters** — sheep, cats, bunnies, hedgehogs, and raccoons wander the strip. Each has
   a name shown on hover, a state machine (walking / grazing / idle / sleeping /
   etc.), time-of-day sleep biasing, and species-specific quirks: sheep greet
   each other, cats pounce toward clicks, bunnies skitter away from them,

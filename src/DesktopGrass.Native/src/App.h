@@ -42,7 +42,7 @@ public:
     static constexpr int   kMenuCritterSheep    = 1021;
     static constexpr int   kMenuCritterCat      = 1022;
     static constexpr int   kMenuCritterAll      = 1023;
-    static constexpr int   kMenuCritterJimothy  = 1024;
+    static constexpr int   kMenuCritterRaccoon  = 1024;
     static constexpr int   kMenuPetCountRandom  = 1030;
     static constexpr int   kMenuPetCount1       = 1031;
     static constexpr int   kMenuPetCount6       = 1036;

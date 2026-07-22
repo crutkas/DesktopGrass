@@ -123,7 +123,7 @@ private:
     void DrawCat(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     void DrawBunny(const Entity& e);
     void DrawHedgehog(const Entity& e);
-    void DrawJimothy(const Entity& e);
+    void DrawRaccoon(const Entity& e);
     void DrawPetName(const Entity& e, const D2D1_POINT_2F* cursorPosition);
     bool TryGetCursorPositionDip(D2D1_POINT_2F& cursorPosition) const;
 
@@ -198,11 +198,11 @@ private:
     ComPtr<ID2D1SolidColorBrush>           hedgehogSpikeTipBrush_;
     ComPtr<ID2D1SolidColorBrush>           hedgehogNoseBrush_;
     ComPtr<ID2D1SolidColorBrush>           hedgehogEyeBrush_;
-    ComPtr<ID2D1SolidColorBrush>           jimothyBodyBrush_;
-    ComPtr<ID2D1SolidColorBrush>           jimothyDarkBrush_;
-    ComPtr<ID2D1SolidColorBrush>           jimothyFaceBrush_;
-    ComPtr<ID2D1SolidColorBrush>           jimothyEarBrush_;
-    ComPtr<ID2D1SolidColorBrush>           jimothyEyeBrush_;
+    ComPtr<ID2D1SolidColorBrush>           raccoonBodyBrush_;
+    ComPtr<ID2D1SolidColorBrush>           raccoonDarkBrush_;
+    ComPtr<ID2D1SolidColorBrush>           raccoonFaceBrush_;
+    ComPtr<ID2D1SolidColorBrush>           raccoonEarBrush_;
+    ComPtr<ID2D1SolidColorBrush>           raccoonEyeBrush_;
     ComPtr<ID2D1SolidColorBrush>           butterflyBodyBrush_;
     ComPtr<ID2D1SolidColorBrush>           butterflyWingBrushes_[BUTTERFLY_COLOR_COUNT];
     ComPtr<ID2D1SolidColorBrush>           butterflyAccentBrushes_[BUTTERFLY_COLOR_COUNT];

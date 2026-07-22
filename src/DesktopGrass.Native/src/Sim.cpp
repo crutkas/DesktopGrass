@@ -1045,15 +1045,15 @@ void sim_apply_click(Sim& sim, const InputEvent& e) noexcept {
     }
 
     for (Entity& ent : sim.entities) {
-        if (ent.kind != EntityKind::Jimothy) continue;
+        if (ent.kind != EntityKind::Raccoon) continue;
         const double dxClick = ent.x - e.x;
         const double dyClick = ent.y - e.y;
-        if ((dxClick * dxClick + dyClick * dyClick) > (JIMOTHY_STARTLE_RADIUS * JIMOTHY_STARTLE_RADIUS)) continue;
+        if ((dxClick * dxClick + dyClick * dyClick) > (RACCOON_STARTLE_RADIUS * RACCOON_STARTLE_RADIUS)) continue;
         const double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
-        const double baseSpeed = std::clamp(ent.rotationSpeed, JIMOTHY_WALK_SPEED_MIN, JIMOTHY_WALK_SPEED_MAX);
-        ent.vx = awayDir * baseSpeed * JIMOTHY_STARTLE_BOOST;
-        ent.state = JIMOTHY_STATE_WALKING;
-        ent.stateTimer = JIMOTHY_SNUFFLE_DURATION_MAX;
+        const double baseSpeed = std::clamp(ent.rotationSpeed, RACCOON_WALK_SPEED_MIN, RACCOON_WALK_SPEED_MAX);
+        ent.vx = awayDir * baseSpeed * RACCOON_STARTLE_BOOST;
+        ent.state = RACCOON_STATE_WALKING;
+        ent.stateTimer = RACCOON_SNUFFLE_DURATION_MAX;
         ent.age = 0.0;
     }
 }
@@ -1159,7 +1159,7 @@ void remove_critters(Sim& sim) noexcept {
                     || e.kind == EntityKind::Cat
                     || e.kind == EntityKind::Bunny
                     || e.kind == EntityKind::Hedgehog
-                    || e.kind == EntityKind::Jimothy
+                    || e.kind == EntityKind::Raccoon
                     || e.kind == EntityKind::Butterfly
                     || e.kind == EntityKind::Firefly;
             }),
@@ -1313,27 +1313,30 @@ void generate_critters_hedgehog(Sim& sim) noexcept {
     }
 }
 
-void generate_critters_jimothy(Sim& sim, bool allowOverride) noexcept {
-    const int count = resolve_critter_count(sim, JIMOTHY_COUNT_MIN, JIMOTHY_COUNT_MAX, allowOverride);
+void generate_critters_raccoon(Sim& sim, bool allowOverride) noexcept {
+    const int count = resolve_critter_count(sim, RACCOON_COUNT_MIN, RACCOON_COUNT_MAX, allowOverride);
     const double groundY = sim.windowHeight;
     for (int i = 0; i < count
          && static_cast<int>(sim.entities.size()) < MAX_ENTITIES_PER_MONITOR; ++i) {
         Entity e{};
-        e.kind = EntityKind::Jimothy;
-        e.size = JIMOTHY_BODY_RADIUS;
-        const double margin = e.size + JIMOTHY_TAIL_LENGTH + 4.0;
+        e.kind = EntityKind::Raccoon;
+        e.size = RACCOON_BODY_RADIUS;
+        const double margin = e.size + RACCOON_TAIL_LENGTH + 4.0;
         const double usableWidth = std::max(0.0, sim.monitorWidth - 2.0 * margin);
         e.x = margin + prng_uniform(sim.critterPrng, 0.0, 1.0) * usableWidth;
-        const double speed = prng_uniform(sim.critterPrng, JIMOTHY_WALK_SPEED_MIN, JIMOTHY_WALK_SPEED_MAX);
+        const double speed = prng_uniform(sim.critterPrng, RACCOON_WALK_SPEED_MIN, RACCOON_WALK_SPEED_MAX);
         const double dir = (prng_next_u64(sim.critterPrng) & 1ull) != 0ull ? 1.0 : -1.0;
         e.vx = dir * speed;
         e.rotationSpeed = speed;
         e.lifetime = -1.0;
         e.seed = static_cast<uint32_t>(i + 1);
-        e.state = JIMOTHY_STATE_WALKING;
-        e.stateTimer = prng_uniform(sim.critterPrng, JIMOTHY_WALK_DURATION_MIN, JIMOTHY_WALK_DURATION_MAX);
-        e.nameIndex = 0;
-        e.y = groundY - JIMOTHY_BODY_HEIGHT - JIMOTHY_LEG_LENGTH;
+        e.state = RACCOON_STATE_WALKING;
+        e.stateTimer = prng_uniform(sim.critterPrng, RACCOON_WALK_DURATION_MIN, RACCOON_WALK_DURATION_MAX);
+        e.nameIndex = i == 0
+            ? 0
+            : static_cast<uint8_t>(1 + prng_index(sim.critterPrng,
+                static_cast<uint32_t>(sizeof(RACCOON_NAME_POOL) / sizeof(RACCOON_NAME_POOL[0]) - 1)));
+        e.y = groundY - RACCOON_BODY_HEIGHT - RACCOON_LEG_LENGTH;
         sim.entities.push_back(e);
     }
 }
@@ -1412,7 +1415,7 @@ void generate_grass_critters_all(Sim& sim) noexcept {
     generate_critters_cat(sim, false);
     generate_critters_bunny(sim, false);
     generate_critters_hedgehog(sim);
-    generate_critters_jimothy(sim, false);
+    generate_critters_raccoon(sim, false);
 }
 
 void generate_critters_for_kind(Sim& sim) noexcept {
@@ -1424,7 +1427,7 @@ void generate_critters_for_kind(Sim& sim) noexcept {
     case CritterKind::Sheep: generate_critters_sheep(sim, true);    break;
     case CritterKind::Cat:   generate_critters_cat(sim, true);      break;
     case CritterKind::Bunny: generate_grass_critters_all(sim);      break;
-    case CritterKind::Jimothy: generate_critters_jimothy(sim, true); break;
+    case CritterKind::Raccoon: generate_critters_raccoon(sim, true); break;
     }
 
     generate_butterflies(sim);
@@ -2011,15 +2014,15 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
         }
     }
 
-    // Jimothy alternates between waddling, snuffling, and resting.
+    // Raccoons alternate between waddling, snuffling, and resting.
     for (Entity& e : sim.entities) {
-        if (e.kind != EntityKind::Jimothy) continue;
+        if (e.kind != EntityKind::Raccoon) continue;
 
-        if (e.state != JIMOTHY_STATE_WALKING) {
+        if (e.state != RACCOON_STATE_WALKING) {
             e.x -= e.vx * dt;
         }
 
-        const double margin = e.size + JIMOTHY_TAIL_LENGTH + 2.0;
+        const double margin = e.size + RACCOON_TAIL_LENGTH + 2.0;
         if (e.x < margin) {
             e.x = margin;
             e.vx = std::abs(e.vx);
@@ -2030,20 +2033,20 @@ void sim_tick_entities(Sim& sim, double dt) noexcept {
 
         e.stateTimer -= dt;
         if (e.stateTimer <= 0.0) {
-            if (e.state == JIMOTHY_STATE_WALKING) {
-                if (prng_uniform(sim.critterPrng, 0.0, 1.0) < JIMOTHY_SNUFFLE_PROBABILITY) {
-                    e.state = JIMOTHY_STATE_SNUFFLING;
+            if (e.state == RACCOON_STATE_WALKING) {
+                if (prng_uniform(sim.critterPrng, 0.0, 1.0) < RACCOON_SNUFFLE_PROBABILITY) {
+                    e.state = RACCOON_STATE_SNUFFLING;
                     e.stateTimer = prng_uniform(sim.critterPrng,
-                        JIMOTHY_SNUFFLE_DURATION_MIN, JIMOTHY_SNUFFLE_DURATION_MAX);
+                        RACCOON_SNUFFLE_DURATION_MIN, RACCOON_SNUFFLE_DURATION_MAX);
                 } else {
-                    e.state = JIMOTHY_STATE_RESTING;
+                    e.state = RACCOON_STATE_RESTING;
                     e.stateTimer = prng_uniform(sim.critterPrng,
-                        JIMOTHY_REST_DURATION_MIN, JIMOTHY_REST_DURATION_MAX);
+                        RACCOON_REST_DURATION_MIN, RACCOON_REST_DURATION_MAX);
                 }
             } else {
-                e.state = JIMOTHY_STATE_WALKING;
+                e.state = RACCOON_STATE_WALKING;
                 e.stateTimer = prng_uniform(sim.critterPrng,
-                    JIMOTHY_WALK_DURATION_MIN, JIMOTHY_WALK_DURATION_MAX);
+                    RACCOON_WALK_DURATION_MIN, RACCOON_WALK_DURATION_MAX);
             }
             e.age = 0.0;
         }

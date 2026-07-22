@@ -151,7 +151,7 @@ bool App::CreateTrayIcon() {
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterNone,  L"None");
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterSheep, L"Sheep");
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterCat,   L"Cat");
-    AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterJimothy, L"Jimothy");
+    AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterRaccoon, L"Raccoons");
     AppendMenuW(critterSubmenu_, MF_STRING, kMenuCritterAll,   L"All");
 
     petCountSubmenu_ = CreatePopupMenu();
@@ -275,11 +275,11 @@ void App::SetScene(Scene s) {
 
 void App::UpdateCritterMenuCheck() {
     if (!critterSubmenu_) return;
-    const int activeId = currentCritter_ == CritterKind::Jimothy
-        ? kMenuCritterJimothy
+    const int activeId = currentCritter_ == CritterKind::Raccoon
+        ? kMenuCritterRaccoon
         : kMenuCritterNone + static_cast<int>(currentCritter_);
     CheckMenuRadioItem(critterSubmenu_,
-                       kMenuCritterNone, kMenuCritterJimothy,
+                       kMenuCritterNone, kMenuCritterRaccoon,
                        activeId, MF_BYCOMMAND);
 }
 
@@ -949,7 +949,7 @@ LRESULT App::HandleMessageWindowMessage(
                 case kMenuCritterSheep:  SetCritter(CritterKind::Sheep);      break;
                 case kMenuCritterCat:    SetCritter(CritterKind::Cat);        break;
                 case kMenuCritterAll:    SetCritter(CritterKind::Bunny);      break;
-                case kMenuCritterJimothy:SetCritter(CritterKind::Jimothy);    break;
+                case kMenuCritterRaccoon:SetCritter(CritterKind::Raccoon);    break;
             }
             return 0;
         }

@@ -28,7 +28,7 @@ public static class Persistence
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new CritterKindJsonConverter(), new JsonStringEnumConverter() }
     };
 
     private static string? s_stateFilePathForTest;
@@ -174,5 +174,33 @@ public static class Persistence
 
     private sealed class MonitorDto
     {
+    }
+
+    private sealed class CritterKindJsonConverter : JsonConverter<CritterKind>
+    {
+        public override CritterKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                string? value = reader.GetString();
+                if (string.Equals(value, "Jimothy", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CritterKind.Raccoon;
+                }
+                if (Enum.TryParse(value, ignoreCase: true, out CritterKind critter))
+                {
+                    return critter;
+                }
+            }
+            else if (reader.TokenType == JsonTokenType.Number && reader.TryGetByte(out byte value))
+            {
+                return (CritterKind)value;
+            }
+
+            throw new JsonException("Invalid critter value.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, CritterKind value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value == CritterKind.Raccoon ? "Raccoon" : value.ToString());
     }
 }
