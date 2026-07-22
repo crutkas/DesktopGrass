@@ -1927,10 +1927,15 @@ void Renderer::DrawRaccoon(const Entity& e) {
     else if (e.state == RACCOON_STATE_RESTING)
         cy += 2.0f;
 
-    const float br = static_cast<float>(e.nameIndex == 0
+    const bool isJimothy = e.nameIndex == 0;
+    const float br = static_cast<float>(isJimothy
         ? RACCOON_JIMOTHY_BODY_RADIUS
         : RACCOON_BODY_RADIUS);
-    const float bh = static_cast<float>(RACCOON_BODY_HEIGHT);
+    const float bh = static_cast<float>(isJimothy
+        ? RACCOON_JIMOTHY_BODY_HEIGHT
+        : RACCOON_BODY_HEIGHT);
+    if (isJimothy)
+        cy -= bh - static_cast<float>(RACCOON_BODY_HEIGHT);
     for (int i = 0; i < 6; ++i) {
         const float t = static_cast<float>(i) / 5.0f;
         const float tailX = cx - facing * (br * 0.72f + t * static_cast<float>(RACCOON_TAIL_LENGTH));

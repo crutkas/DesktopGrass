@@ -1289,10 +1289,15 @@ internal sealed class GrassWindow : IDisposable
         else if (e.State == Constants.RACCOON_STATE_RESTING)
             cy += 2.0f;
 
-        float br = (float)(e.NameIndex == 0
+        bool isJimothy = e.NameIndex == 0;
+        float br = (float)(isJimothy
             ? Constants.RACCOON_JIMOTHY_BODY_RADIUS
             : Constants.RACCOON_BODY_RADIUS);
-        float bh = (float)Constants.RACCOON_BODY_HEIGHT;
+        float bh = (float)(isJimothy
+            ? Constants.RACCOON_JIMOTHY_BODY_HEIGHT
+            : Constants.RACCOON_BODY_HEIGHT);
+        if (isJimothy)
+            cy -= bh - (float)Constants.RACCOON_BODY_HEIGHT;
 
         // Bushy ringed tail trails behind the body.
         for (int i = 0; i < 6; i++)

@@ -537,8 +537,9 @@ internal static class Constants
     public const double RACCOON_WALK_SPEED_MIN        = 8.0;
     public const double RACCOON_WALK_SPEED_MAX        = 13.0;
     public const double RACCOON_BODY_RADIUS           = 12.0;
-    public const double RACCOON_JIMOTHY_BODY_RADIUS   = RACCOON_BODY_RADIUS * 0.75;
     public const double RACCOON_BODY_HEIGHT           = 7.5;
+    public const double RACCOON_JIMOTHY_BODY_RADIUS   = RACCOON_BODY_RADIUS * 0.70;
+    public const double RACCOON_JIMOTHY_BODY_HEIGHT   = RACCOON_BODY_HEIGHT * 1.25;
     public const double RACCOON_HEAD_RADIUS           = 5.0;
     public const double RACCOON_LEG_LENGTH            = 4.0;
     public const double RACCOON_TAIL_LENGTH           = 13.0;
