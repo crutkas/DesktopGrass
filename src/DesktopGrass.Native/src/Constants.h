@@ -285,6 +285,7 @@ enum class EntityKind : uint8_t {
     SnowPuff   = 12,
     Bubble     = 13,
     Fish       = 14,
+    Jimothy    = 15,
 };
 constexpr int MAX_ENTITIES_PER_MONITOR = 64;
 
@@ -295,8 +296,9 @@ enum class CritterKind : uint8_t {
     Sheep = 1,
     Cat   = 2,
     Bunny = 3,
+    Jimothy = 4,
 };
-constexpr int         CRITTER_COUNT   = 4;
+constexpr int         CRITTER_COUNT   = 5;
 constexpr CritterKind CRITTER_DEFAULT = CritterKind::None;
 constexpr uint64_t    CRITTER_PRNG_SALT = 0x5C8EE05C8EE05C8Eull;
 constexpr int         PET_COUNT_OPTIONS[] = { 1, 2, 3, 4, 5, 6 };
@@ -317,6 +319,7 @@ constexpr const wchar_t* HEDGEHOG_NAME_POOL[] = {
     L"Bristle", L"Quill", L"Mossy", L"Truffle", L"Prickles", L"Snuffles",
     L"Pinecone", L"Hazel", L"Bramble", L"Pip", L"Sage", L"Burdock"
 };
+constexpr const wchar_t* JIMOTHY_NAME_POOL[] = { L"Jimothy" };
 constexpr double      PET_NAME_HOVER_RADIUS = 50.0;
 constexpr double      PET_NAME_FADE_DURATION = 1.5;
 constexpr double      PET_NAME_FONT_SIZE = 11.0;
@@ -587,6 +590,36 @@ constexpr double   HEDGEHOG_ZZZ_CYCLE_SEC         = SHEEP_ZZZ_CYCLE_SEC;
 constexpr double   HEDGEHOG_ZZZ_RISE              = SHEEP_ZZZ_RISE * 0.5;
 constexpr double   HEDGEHOG_ZZZ_SIZE_START        = SHEEP_ZZZ_SIZE_START * 0.6;
 constexpr double   HEDGEHOG_ZZZ_SIZE_END          = SHEEP_ZZZ_SIZE_END * 0.6;
+
+// Jimothy. Grass-only raccoon with a calm walk/snuffle/rest loop.
+constexpr int      JIMOTHY_COUNT_MIN             = 1;
+constexpr int      JIMOTHY_COUNT_MAX             = 1;
+constexpr double   JIMOTHY_WALK_SPEED_MIN        = 8.0;
+constexpr double   JIMOTHY_WALK_SPEED_MAX        = 13.0;
+constexpr double   JIMOTHY_BODY_RADIUS           = 12.0;
+constexpr double   JIMOTHY_BODY_HEIGHT           = 7.5;
+constexpr double   JIMOTHY_HEAD_RADIUS           = 5.0;
+constexpr double   JIMOTHY_LEG_LENGTH            = 4.0;
+constexpr double   JIMOTHY_TAIL_LENGTH           = 13.0;
+constexpr uint32_t JIMOTHY_BODY_COLOR            = 0xFF85898Bu;
+constexpr uint32_t JIMOTHY_DARK_COLOR            = 0xFF292B2Cu;
+constexpr uint32_t JIMOTHY_FACE_COLOR            = 0xFFB1B4B3u;
+constexpr uint32_t JIMOTHY_EAR_COLOR             = 0xFF4B4E4Fu;
+constexpr uint32_t JIMOTHY_EYE_COLOR             = 0xFF111212u;
+constexpr uint8_t  JIMOTHY_STATE_WALKING         = 0;
+constexpr uint8_t  JIMOTHY_STATE_SNUFFLING       = 1;
+constexpr uint8_t  JIMOTHY_STATE_RESTING         = 2;
+constexpr double   JIMOTHY_WALK_DURATION_MIN     = 5.0;
+constexpr double   JIMOTHY_WALK_DURATION_MAX     = 10.0;
+constexpr double   JIMOTHY_SNUFFLE_DURATION_MIN  = 1.5;
+constexpr double   JIMOTHY_SNUFFLE_DURATION_MAX  = 3.0;
+constexpr double   JIMOTHY_REST_DURATION_MIN     = 3.0;
+constexpr double   JIMOTHY_REST_DURATION_MAX     = 6.0;
+constexpr double   JIMOTHY_SNUFFLE_PROBABILITY   = 0.65;
+constexpr double   JIMOTHY_WADDLE_FREQ           = 4.5;
+constexpr double   JIMOTHY_WADDLE_AMP            = 0.8;
+constexpr double   JIMOTHY_STARTLE_RADIUS        = 80.0;
+constexpr double   JIMOTHY_STARTLE_BOOST         = 1.5;
 // Butterflies (§17.6). Grass-only, passive daytime ambient flyers.
 
 constexpr int      BUTTERFLY_COUNT_MIN          = 2;

@@ -153,7 +153,7 @@ internal struct Blade
 // The struct fields are shared across kinds; per-kind tick logic branches on Kind.
 // 5 (Raindrop) retired — rain effect removed; discriminant left as a gap so the
 // remaining cross-impl-locked ordinals stay stable.
-public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11, SnowPuff = 12, Bubble = 13, Fish = 14 }
+public enum EntityKind : byte { None = 0, Tumbleweed = 1, Snowflake = 2, Sheep = 3, Cat = 4, Bunny = 6, Butterfly = 7, Firefly = 8, Bird = 9, Hedgehog = 10, Leaf = 11, SnowPuff = 12, Bubble = 13, Fish = 14, Jimothy = 15 }
 
 public struct Entity
 {
@@ -401,6 +401,7 @@ internal sealed class Sim
                              || e.Kind == EntityKind.Cat
                              || e.Kind == EntityKind.Bunny
                              || e.Kind == EntityKind.Hedgehog
+                             || e.Kind == EntityKind.Jimothy
                              || e.Kind == EntityKind.Butterfly
                              || e.Kind == EntityKind.Firefly);
 
@@ -424,6 +425,9 @@ internal sealed class Sim
                 break;
             case CritterKind.Bunny:
                 GenerateGrassCrittersAll(sim);
+                break;
+            case CritterKind.Jimothy:
+                GenerateCrittersJimothy(sim, allowOverride: true);
                 break;
         }
 
@@ -692,6 +696,32 @@ internal sealed class Sim
         }
     }
 
+    private static void GenerateCrittersJimothy(Sim sim, bool allowOverride)
+    {
+        int count = ResolveCritterCount(sim, Constants.JIMOTHY_COUNT_MIN, Constants.JIMOTHY_COUNT_MAX, allowOverride);
+        double groundY = sim.WindowHeight;
+        for (int i = 0; i < count && sim.Entities.Count < Constants.MAX_ENTITIES_PER_MONITOR; i++)
+        {
+            Entity e = default;
+            e.Kind = EntityKind.Jimothy;
+            e.Size = Constants.JIMOTHY_BODY_RADIUS;
+            double margin = e.Size + Constants.JIMOTHY_TAIL_LENGTH + 4.0;
+            double usableWidth = Math.Max(0.0, sim.MonitorWidth - 2.0 * margin);
+            e.X = margin + sim.CritterPrng.Uniform(0.0, 1.0) * usableWidth;
+            double speed = sim.CritterPrng.Uniform(Constants.JIMOTHY_WALK_SPEED_MIN, Constants.JIMOTHY_WALK_SPEED_MAX);
+            double dir = (sim.CritterPrng.NextU64() & 1UL) != 0UL ? 1.0 : -1.0;
+            e.Vx = dir * speed;
+            e.RotationSpeed = speed;
+            e.Lifetime = -1.0;
+            e.Seed = (uint)(i + 1);
+            e.State = Constants.JIMOTHY_STATE_WALKING;
+            e.StateTimer = sim.CritterPrng.Uniform(Constants.JIMOTHY_WALK_DURATION_MIN, Constants.JIMOTHY_WALK_DURATION_MAX);
+            e.NameIndex = 0;
+            e.Y = groundY - Constants.JIMOTHY_BODY_HEIGHT - Constants.JIMOTHY_LEG_LENGTH;
+            sim.Entities.Add(e);
+        }
+    }
+
     private static void GenerateButterflies(Sim sim)
     {
         if (sim.MonitorWidth <= 0.0) return;
@@ -767,6 +797,7 @@ internal sealed class Sim
         GenerateCrittersCat(sim, allowOverride: false);
         GenerateCrittersBunny(sim, allowOverride: false);
         GenerateCrittersHedgehog(sim);
+        GenerateCrittersJimothy(sim, allowOverride: false);
     }
 
     public void ResetEntities(ulong seed)
@@ -1709,6 +1740,60 @@ internal sealed class Sim
             Entities[i] = e;
         }
 
+        // Jimothy alternates between a gentle waddle, stationary snuffling,
+        // and a longer rest. The generic pass already integrated walking.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Jimothy) continue;
+
+            if (e.State != Constants.JIMOTHY_STATE_WALKING)
+            {
+                e.X -= e.Vx * dt;
+            }
+
+            double margin = e.Size + Constants.JIMOTHY_TAIL_LENGTH + 2.0;
+            if (e.X < margin)
+            {
+                e.X = margin;
+                e.Vx = Math.Abs(e.Vx);
+            }
+            else if (e.X > MonitorWidth - margin)
+            {
+                e.X = MonitorWidth - margin;
+                e.Vx = -Math.Abs(e.Vx);
+            }
+
+            e.StateTimer -= dt;
+            if (e.StateTimer <= 0.0)
+            {
+                if (e.State == Constants.JIMOTHY_STATE_WALKING)
+                {
+                    if (CritterPrng.Uniform(0.0, 1.0) < Constants.JIMOTHY_SNUFFLE_PROBABILITY)
+                    {
+                        e.State = Constants.JIMOTHY_STATE_SNUFFLING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.JIMOTHY_SNUFFLE_DURATION_MIN, Constants.JIMOTHY_SNUFFLE_DURATION_MAX);
+                    }
+                    else
+                    {
+                        e.State = Constants.JIMOTHY_STATE_RESTING;
+                        e.StateTimer = CritterPrng.Uniform(
+                            Constants.JIMOTHY_REST_DURATION_MIN, Constants.JIMOTHY_REST_DURATION_MAX);
+                    }
+                }
+                else
+                {
+                    e.State = Constants.JIMOTHY_STATE_WALKING;
+                    e.StateTimer = CritterPrng.Uniform(
+                        Constants.JIMOTHY_WALK_DURATION_MIN, Constants.JIMOTHY_WALK_DURATION_MAX);
+                }
+                e.Age = 0.0;
+            }
+
+            Entities[i] = e;
+        }
+
         if (CurrentScene == Scene.Winter)
         {
             double lambda = Constants.SNOWFLAKE_EMIT_RATE_PER_1920DIP * MonitorWidth / 1920.0;
@@ -2276,6 +2361,24 @@ internal sealed class Sim
             e.State = Constants.HEDGEHOG_STATE_CURLED;
             e.StateTimer = CritterPrng.Uniform(Constants.HEDGEHOG_CURL_DURATION_MIN,
                                                Constants.HEDGEHOG_CURL_DURATION_MAX);
+            e.Age = 0.0;
+            Entities[i] = e;
+        }
+
+        // Jimothy startles into a brief waddle away, then resumes his normal loop.
+        for (int i = 0; i < Entities.Count; i++)
+        {
+            Entity e = Entities[i];
+            if (e.Kind != EntityKind.Jimothy) continue;
+            double dxClick = e.X - clickX;
+            double dyClick = e.Y - clickY;
+            if (dxClick * dxClick + dyClick * dyClick > Constants.JIMOTHY_STARTLE_RADIUS * Constants.JIMOTHY_STARTLE_RADIUS) continue;
+
+            double awayDir = dxClick >= 0.0 ? 1.0 : -1.0;
+            double baseSpeed = Math.Clamp(e.RotationSpeed, Constants.JIMOTHY_WALK_SPEED_MIN, Constants.JIMOTHY_WALK_SPEED_MAX);
+            e.Vx = awayDir * baseSpeed * Constants.JIMOTHY_STARTLE_BOOST;
+            e.State = Constants.JIMOTHY_STATE_WALKING;
+            e.StateTimer = Constants.JIMOTHY_SNUFFLE_DURATION_MAX;
             e.Age = 0.0;
             Entities[i] = e;
         }

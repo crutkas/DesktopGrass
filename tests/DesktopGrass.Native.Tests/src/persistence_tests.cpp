@@ -149,6 +149,20 @@ TEST_METHOD(PersistenceRoundTripsEveryScene) {
     }
 }
 
+TEST_METHOD(PersistenceRoundTripsJimothySelection) {
+    const auto path = test_state_path("round-trip-jimothy");
+    use_state_path(path);
+
+    persistence::AppState expected;
+    expected.critter = CritterKind::Jimothy;
+    Assert::IsTrue(persistence::SaveAppState(expected));
+
+    persistence::AppState actual;
+    Assert::IsTrue(persistence::LoadAppState(actual));
+    Assert::IsTrue(actual.critter == CritterKind::Jimothy);
+    Assert::IsTrue(read_text(path).find("\"Jimothy\"") != std::string::npos);
+}
+
 TEST_METHOD(PersistenceVersionMismatchReturnsFalse) {
     const auto path = test_state_path("version-mismatch");
     use_state_path(path);

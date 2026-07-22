@@ -58,7 +58,7 @@ TEST_METHOD(CritterKindCatAndCRITTERCOUNTArePinned) {
     Assert::IsTrue(static_cast<int>(CritterKind::Sheep) == 1);
     Assert::IsTrue(static_cast<int>(CritterKind::Cat)   == 2);
     Assert::IsTrue(static_cast<int>(CritterKind::Bunny) == 3);
-    Assert::IsTrue(CRITTER_COUNT == 4);
+    Assert::IsTrue(CRITTER_COUNT == 5);
     Assert::IsTrue(CRITTER_DEFAULT == CritterKind::None);
 }
 

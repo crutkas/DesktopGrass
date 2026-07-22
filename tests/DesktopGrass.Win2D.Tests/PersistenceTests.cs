@@ -96,6 +96,20 @@ public sealed class PersistenceTests
     }
 
     [Fact]
+    public void RoundTripsJimothySelection()
+    {
+        string path = UseStatePath(nameof(RoundTripsJimothySelection));
+        var expected = new AppState(2, Scene.Grass, CritterKind.Jimothy, 1, AutoStart: false, []);
+
+        Persistence.Save(expected);
+        AppState? actual = Persistence.Load();
+
+        Assert.NotNull(actual);
+        Assert.Equal(CritterKind.Jimothy, actual.Critter);
+        Assert.Contains("\"Jimothy\"", File.ReadAllText(path));
+    }
+
+    [Fact]
     public void VersionMismatchReturnsNull()
     {
         string path = UseStatePath(nameof(VersionMismatchReturnsNull));
