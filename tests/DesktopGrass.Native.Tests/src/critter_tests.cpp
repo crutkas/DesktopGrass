@@ -65,10 +65,12 @@ TEST_METHOD(CritterKindHasSpecLockedDiscriminants) {
     Assert::IsTrue(static_cast<int>(CritterKind::Sheep) == 1);
     Assert::IsTrue(static_cast<int>(CritterKind::Cat)   == 2);
     Assert::IsTrue(static_cast<int>(CritterKind::Bunny) == 3);
+    Assert::IsTrue(static_cast<int>(CritterKind::Jimothy) == 4);
     Assert::IsTrue(static_cast<int>(EntityKind::Sheep)  == 3);
     Assert::IsTrue(static_cast<int>(EntityKind::Bunny)  == 6);
     Assert::IsTrue(static_cast<int>(EntityKind::Butterfly) == 7);
     Assert::IsTrue(static_cast<int>(EntityKind::Firefly) == 8);
+    Assert::IsTrue(static_cast<int>(EntityKind::Jimothy) == 15);
     Assert::IsTrue(CRITTER_DEFAULT == CritterKind::None);
 }
 
@@ -298,6 +300,41 @@ TEST_METHOD(SimSetCritterNoneClearsAllGroundCritters) {
     Assert::IsTrue(count_kind(sim, EntityKind::Cat) == 0);
     Assert::IsTrue(count_kind(sim, EntityKind::Bunny) == 0);
     Assert::IsTrue(count_kind(sim, EntityKind::Hedgehog) == 0);
+    Assert::IsTrue(count_kind(sim, EntityKind::Jimothy) == 0);
+}
+
+TEST_METHOD(JimothySelectionAllAndNoneAreBehaviorLocked) {
+    Sim sim = sim_init(CANONICAL_TEST_SEED, 1920.0, DEFAULT_DENSITY);
+    sim_set_critter(sim, CritterKind::Jimothy);
+
+    Entity* jimothy = nullptr;
+    for (Entity& e : sim.entities) if (e.kind == EntityKind::Jimothy) { jimothy = &e; break; }
+    Assert::IsTrue(jimothy != nullptr);
+    Assert::IsTrue(count_kind(sim, EntityKind::Jimothy) == 1);
+    Assert::IsTrue(jimothy->state == JIMOTHY_STATE_WALKING);
+    Assert::IsTrue(jimothy->nameIndex == 0);
+    Assert::IsTrue(std::wcscmp(JIMOTHY_NAME_POOL[jimothy->nameIndex], L"Jimothy") == 0);
+    Assert::IsTrue(std::abs(jimothy->vx) >= JIMOTHY_WALK_SPEED_MIN);
+    Assert::IsTrue(std::abs(jimothy->vx) <= JIMOTHY_WALK_SPEED_MAX);
+
+    jimothy->stateTimer = 0.0;
+    sim_tick_entities(sim, 0.01);
+    jimothy = nullptr;
+    for (Entity& e : sim.entities) if (e.kind == EntityKind::Jimothy) { jimothy = &e; break; }
+    Assert::IsTrue(jimothy != nullptr);
+    Assert::IsTrue(jimothy->state == JIMOTHY_STATE_SNUFFLING || jimothy->state == JIMOTHY_STATE_RESTING);
+
+    InputEvent click{ EventType::Click, jimothy->x - 10.0, jimothy->y, 0.0 };
+    sim_apply_click(sim, click);
+    Assert::IsTrue(jimothy->state == JIMOTHY_STATE_WALKING);
+    Assert::IsTrue(jimothy->vx > 0.0);
+
+    sim_set_critter(sim, CritterKind::Bunny);
+    Assert::IsTrue(count_kind(sim, EntityKind::Jimothy) == 1);
+    Assert::IsTrue(count_kind(sim, EntityKind::Sheep) >= SHEEP_COUNT_MIN);
+
+    sim_set_critter(sim, CritterKind::None);
+    Assert::IsTrue(count_kind(sim, EntityKind::Jimothy) == 0);
 }
 
 TEST_METHOD(SimSetSceneGatesActiveSheepToGrass) {

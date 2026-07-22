@@ -46,10 +46,12 @@ public class CritterTests
         Assert.Equal(1, (int)CritterKind.Sheep);
         Assert.Equal(2, (int)CritterKind.Cat);
         Assert.Equal(3, (int)CritterKind.Bunny);
+        Assert.Equal(4, (int)CritterKind.Jimothy);
         Assert.Equal(3, (int)EntityKind.Sheep);
         Assert.Equal(6, (int)EntityKind.Bunny);
         Assert.Equal(7, (int)EntityKind.Butterfly);
         Assert.Equal(8, (int)EntityKind.Firefly);
+        Assert.Equal(15, (int)EntityKind.Jimothy);
         Assert.Equal(CritterKind.None, Constants.CRITTER_DEFAULT);
     }
 
@@ -290,6 +292,39 @@ public class CritterTests
         Assert.Equal(0, CountKind(sim, EntityKind.Cat));
         Assert.Equal(0, CountKind(sim, EntityKind.Bunny));
         Assert.Equal(0, CountKind(sim, EntityKind.Hedgehog));
+        Assert.Equal(0, CountKind(sim, EntityKind.Jimothy));
+    }
+
+    [Fact]
+    public void JimothySelectionAllAndNoneAreBehaviorLocked()
+    {
+        var sim = BuildSim();
+        sim.SetCritter(CritterKind.Jimothy);
+
+        Entity jimothy = Assert.Single(sim.Entities.Where(e => e.Kind == EntityKind.Jimothy));
+        Assert.Equal(Constants.JIMOTHY_STATE_WALKING, jimothy.State);
+        Assert.Equal((byte)0, jimothy.NameIndex);
+        Assert.Equal("Jimothy", Constants.JIMOTHY_NAME_POOL[jimothy.NameIndex]);
+        Assert.InRange(Math.Abs(jimothy.Vx), Constants.JIMOTHY_WALK_SPEED_MIN, Constants.JIMOTHY_WALK_SPEED_MAX);
+
+        int index = sim.Entities.FindIndex(e => e.Kind == EntityKind.Jimothy);
+        jimothy.StateTimer = 0.0;
+        sim.Entities[index] = jimothy;
+        sim.Tick(0.01, ReadOnlySpan<InputEvent>.Empty);
+        jimothy = sim.Entities[index];
+        Assert.True(jimothy.State is Constants.JIMOTHY_STATE_SNUFFLING or Constants.JIMOTHY_STATE_RESTING);
+
+        sim.ApplyClick(jimothy.X - 10.0, jimothy.Y, 0.0);
+        jimothy = sim.Entities[index];
+        Assert.Equal(Constants.JIMOTHY_STATE_WALKING, jimothy.State);
+        Assert.True(jimothy.Vx > 0.0);
+
+        sim.SetCritter(CritterKind.Bunny); // legacy All selector
+        Assert.Single(sim.Entities.Where(e => e.Kind == EntityKind.Jimothy));
+        Assert.NotEmpty(sim.Entities.Where(e => e.Kind == EntityKind.Sheep));
+
+        sim.SetCritter(CritterKind.None);
+        Assert.DoesNotContain(sim.Entities, e => e.Kind == EntityKind.Jimothy);
     }
 
     [Fact]

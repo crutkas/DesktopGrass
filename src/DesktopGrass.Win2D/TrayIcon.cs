@@ -90,8 +90,9 @@ internal sealed class TrayIcon : IDisposable
         var critterNoneItem  = new ToolStripMenuItem("None")  { Tag = CritterKind.None,  CheckOnClick = false };
         var critterSheepItem = new ToolStripMenuItem("Sheep") { Tag = CritterKind.Sheep, CheckOnClick = false };
         var critterCatItem   = new ToolStripMenuItem("Cat")   { Tag = CritterKind.Cat,   CheckOnClick = false };
+        var critterJimothyItem = new ToolStripMenuItem("Jimothy") { Tag = CritterKind.Jimothy, CheckOnClick = false };
         var critterAllItem   = new ToolStripMenuItem("All")   { Tag = CritterKind.Bunny, CheckOnClick = false };
-        var critterItems = new[] { critterNoneItem, critterSheepItem, critterCatItem, critterAllItem };
+        var critterItems = new[] { critterNoneItem, critterSheepItem, critterCatItem, critterJimothyItem, critterAllItem };
 
         var petCountMenu = new ToolStripMenuItem("Pet count");
         var petCountRandomItem = new ToolStripMenuItem("Random") { Tag = 0, CheckOnClick = false };
@@ -119,6 +120,7 @@ internal sealed class TrayIcon : IDisposable
         critterNoneItem.Click  += (_, _) => SelectCritter(CritterKind.None);
         critterSheepItem.Click += (_, _) => SelectCritter(CritterKind.Sheep);
         critterCatItem.Click   += (_, _) => SelectCritter(CritterKind.Cat);
+        critterJimothyItem.Click += (_, _) => SelectCritter(CritterKind.Jimothy);
         critterAllItem.Click   += (_, _) => SelectCritter(CritterKind.Bunny);
         foreach (var it in petCountItems)
         {

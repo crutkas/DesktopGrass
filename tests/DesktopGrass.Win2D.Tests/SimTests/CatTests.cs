@@ -53,7 +53,7 @@ public class CatTests
         Assert.Equal(1, (int)CritterKind.Sheep);
         Assert.Equal(2, (int)CritterKind.Cat);
         Assert.Equal(3, (int)CritterKind.Bunny);
-        Assert.Equal(4, Constants.CRITTER_COUNT);
+        Assert.Equal(5, Constants.CRITTER_COUNT);
         Assert.Equal(CritterKind.None, Constants.CRITTER_DEFAULT);
     }
 
