@@ -95,6 +95,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
             $env:GITHUB_REF -replace '^refs/tags/', ''
