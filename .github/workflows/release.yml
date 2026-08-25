@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (for example, v2026.08.24)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Native (${{ matrix.platform }})
+    runs-on: windows-2025-vs2026
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x64
+            asset_arch: x64
+          - platform: ARM64
+            asset_arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build Native (${{ matrix.platform }}, Release)
+        run: msbuild src/DesktopGrass.Native/DesktopGrass.Native.vcxproj /p:Configuration=Release /p:Platform=${{ matrix.platform }} /m /nologo
+
+      - name: Build Native tests (x64, Release)
+        if: matrix.platform == 'x64'
+        run: msbuild tests/DesktopGrass.Native.Tests/DesktopGrass.Native.Tests.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo
+
+      - name: Run Native tests
+        if: matrix.platform == 'x64'
+        shell: pwsh
+        run: tests/DesktopGrass.Native.Tests/Run-Tests.ps1 -Configuration Release -Platform x64
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $env:GITHUB_REF -replace '^refs/tags/', ''
+          } else {
+            '${{ inputs.tag }}'
+          }
+          $stage = "DesktopGrass-$tag-${{ matrix.asset_arch }}"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "src\DesktopGrass.Native\out\${{ matrix.platform }}\Release\DesktopGrass.Native.exe" $stage
+          Copy-Item README.md $stage
+          Copy-Item LICENSE $stage
+          Compress-Archive -Path "$stage\*" -DestinationPath "$stage.zip" -Force
+
+          $hash = (Get-FileHash "$stage.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText(
+            "$stage.zip.sha256",
+            "$hash *$stage.zip`n",
+            [Text.UTF8Encoding]::new($false))
+
+          "archive=$stage.zip" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: DesktopGrass-release-${{ matrix.asset_arch }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v7
+        with:
+          pattern: DesktopGrass-release-*
+          path: release
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $env:GITHUB_REF -replace '^refs/tags/', ''
+          } else {
+            '${{ inputs.tag }}'
+          }
+          $assets = Get-ChildItem release -File | Select-Object -ExpandProperty FullName
+          $notes = 'Self-contained DesktopGrass builds for Windows 10 1809 and later. Choose x64 for Intel/AMD PCs or arm64 for Windows on Arm. No installer or VC++ redistributable is required.'
+
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag $assets --clobber
+          } else {
+            gh release create $tag $assets `
+              --title $tag `
+              --notes $notes `
+              --target $env:GITHUB_SHA
+          }
