@@ -146,6 +146,11 @@ non-blocking historical comparison.
 
 ## Run it
 
+Prebuilt, self-contained `x64` and `arm64` downloads are available from
+[GitHub Releases](https://github.com/crutkas/DesktopGrass/releases). Each ZIP
+includes the native executable, README, license, and a matching SHA-256 checksum.
+Use `x64` for Intel/AMD Windows PCs and `arm64` for Windows on Arm.
+
 Use a Visual Studio 2026 Developer PowerShell with the MSVC `v145` C++ tools and
 a Windows SDK. The project targets C++17. Commands below run from the repository
 root.
@@ -179,6 +184,13 @@ build-from-scratch checklist.
 
 The managed reference is intentionally not published or documented as a
 portable/downloadable product build.
+
+## Publishing a release
+
+Push a tag beginning with `v` (for example, `v2026.08.24`) or run the
+**Release** workflow manually with a tag. GitHub Actions builds and tests x64,
+cross-builds ARM64, and publishes both architecture-specific ZIPs and their
+SHA-256 files to one GitHub Release.
 
 ## Reproducing the managed reference
 
